@@ -1607,16 +1607,18 @@ function drawSniperMoveByDir(ctx, px, py, dir, alpha=1, teamId=0, t=0){
     return;
   }
 
-  // Same assumptions as infantry move sheets: 6 frames, each 600x600, first frame at top-left.
+    // Move sheet: tiled frames (sniper = 12 frames). We compute the grid from image size to avoid missing tiles.
   const TILEW = 600, TILEH = 600;
-  const frames = 6;
-  const fps = 10; // a bit snappy; matches infantry feel
+  const cols = Math.max(1, Math.floor(img.naturalWidth / TILEW));
+  const rows = Math.max(1, Math.floor(img.naturalHeight / TILEH));
+  // If the sheet is larger but not perfectly divisible, we still clamp safely.
+  const frames = Math.max(1, cols * rows);
+  const fps = 12; // snappy walk; tweak freely
   const f = Math.floor((t * fps) % frames);
 
-  const sx = (f % 3) * TILEW;
-  const sy = Math.floor(f / 3) * TILEH;
-
-  const z = (typeof cam !== "undefined" && cam && typeof cam.zoom==="number") ? cam.zoom : 1;
+  const sx = (f % cols) * TILEW;
+  const sy = Math.floor(f / cols) * TILEH;
+const z = (typeof cam !== "undefined" && cam && typeof cam.zoom==="number") ? cam.zoom : 1;
   const sc = INF_SPRITE_SCALE * z;
 
   // Pivot: bottom-center, with FEET_NUDGE grounding like infantry move
