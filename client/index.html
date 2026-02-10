@@ -1264,50 +1264,122 @@ function getBaseBuildTime(kind){
   const exp1Fxs = [];
 
   function _parseAtlasFrames(json){
-    try{
-      const fr = json && json.frames;
+    // Returns array of {x,y,w,h}
+    // Tries common formats (Aseprite, TexturePacker, PixiJS, custom) and a recursive fallback.
+    function _fromFramesValue(fr){
       if (!fr) return null;
 
-      // Aseprite: frames is array
+      // Array frames
       if (Array.isArray(fr)){
-        const arr = fr.map((it)=>({
-          name: it.filename || "",
-          x: it.frame?.x ?? it.x ?? 0,
-          y: it.frame?.y ?? it.y ?? 0,
-          w: it.frame?.w ?? it.w ?? 0,
-          h: it.frame?.h ?? it.h ?? 0
-        })).filter(f=>f.w>0 && f.h>0);
+        const arr = fr.map((it, idx)=>({
+          name: it.filename || it.name || String(idx),
+          x: (it.frame && it.frame.x)!=null ? it.frame.x : (it.x!=null?it.x:0),
+          y: (it.frame && it.frame.y)!=null ? it.frame.y : (it.y!=null?it.y:0),
+          w: (it.frame && it.frame.w)!=null ? it.frame.w : (it.w!=null?it.w:0),
+          h: (it.frame && it.frame.h)!=null ? it.frame.h : (it.h!=null?it.h:0),
+        })).filter(f=> (f.w|0)>0 && (f.h|0)>0);
 
-        // Sort by trailing number in filename if present, else keep order
+        // Stable order: sort by trailing number if present
         arr.sort((a,b)=>{
-          const na = (a.name.match(/(\d+)(?!.*\d)/)||[])[1];
-          const nb = (b.name.match(/(\d+)(?!.*\d)/)||[])[1];
+          const na = (String(a.name).match(/(\d+)(?!.*\d)/)||[])[1];
+          const nb = (String(b.name).match(/(\d+)(?!.*\d)/)||[])[1];
           if (na!=null && nb!=null) return (+na) - (+nb);
           return 0;
         });
-        return arr.map(({x,y,w,h})=>({x,y,w,h}));
+        return arr.map(({x,y,w,h})=>({x:x|0,y:y|0,w:w|0,h:h|0}));
       }
 
-      // TexturePacker: frames is dict
+      // Dict frames (TexturePacker / Aseprite hash)
       if (typeof fr === "object"){
         const keys = Object.keys(fr);
+        if (!keys.length) return null;
+
         keys.sort((a,b)=>{
           const na = (a.match(/(\d+)(?!.*\d)/)||[])[1];
           const nb = (b.match(/(\d+)(?!.*\d)/)||[])[1];
           if (na!=null && nb!=null) return (+na) - (+nb);
           return a.localeCompare(b);
         });
+
         const arr = [];
         for (const k of keys){
           const v = fr[k];
+          // Aseprite hash: v = {frame:{x,y,w,h}, rotated, trimmed, ...}
+          // TexturePacker: same
           const f = v && (v.frame || v);
           if (!f) continue;
           const x=f.x|0, y=f.y|0, w=f.w|0, h=f.h|0;
           if (w>0 && h>0) arr.push({x,y,w,h});
         }
-        return arr.length?arr:null;
+        return arr.length ? arr : null;
+      }
+      return null;
+    }
+
+    // Recursive search for a usable "frames" value anywhere in the JSON
+    function _findFramesDeep(node, depth){
+      if (!node || depth>6) return null;
+
+      // direct frames property
+      if (node.frames){
+        const out = _fromFramesValue(node.frames);
+        if (out && out.length) return out;
+      }
+
+      // PixiJS spritesheet-ish: { textures: { "img.png": { frames: {...}}}}
+      if (node.textures && typeof node.textures==="object"){
+        for (const k of Object.keys(node.textures)){
+          const t = node.textures[k];
+          const out = _findFramesDeep(t, depth+1);
+          if (out && out.length) return out;
+        }
+      }
+
+      // Some exporters: { animations: { name: [ {x,y,w,h} ... ] } }
+      if (node.animations && typeof node.animations==="object"){
+        for (const k of Object.keys(node.animations)){
+          const a = node.animations[k];
+          const out = _fromFramesValue(a) || _findFramesDeep(a, depth+1);
+          if (out && out.length) return out;
+        }
+      }
+
+      // Generic walk
+      if (typeof node === "object"){
+        for (const k of Object.keys(node)){
+          const v = node[k];
+          if (!v) continue;
+          if (k === "frames") continue; // already handled
+          if (typeof v === "object"){
+            const out = _findFramesDeep(v, depth+1);
+            if (out && out.length) return out;
+          }
+        }
+      }
+      return null;
+    }
+
+    try{
+      // First try top-level common keys
+      const direct = _fromFramesValue(json && json.frames);
+      if (direct && direct.length) return direct;
+
+      // Some formats might have frames under json.data or json.spritesheet etc.
+      const deep = _findFramesDeep(json, 0);
+      if (deep && deep.length) return deep;
+
+      // As a last resort, if json is array itself
+      if (Array.isArray(json)){
+        const out = _fromFramesValue(json);
+        if (out && out.length) return out;
       }
     }catch(_e){}
+
+    // Debug: show top-level keys so we can adapt if still failing
+    try{
+      const keys = json && typeof json==="object" ? Object.keys(json).slice(0,30) : [];
+      console.warn("[EXP1] parse failed; top-level keys:", keys);
+    }catch(_e2){}
     return null;
   }
 
