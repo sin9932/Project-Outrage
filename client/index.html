@@ -925,17 +925,17 @@ function fitMini() {
   // ============================================================
   const Actions = {
     // Orders
-    issueMoveAll: (x,y) => Actions.issueMoveAll(x,y),
-    issueMoveCombatOnly: (x,y) => Actions.issueMoveCombatOnly(x,y),
-    issueAttack: (targetId) => Actions.issueAttack(targetId),
-    issueAttackMove: (x,y) => Actions.issueAttackMove(x,y),
-    issueGuard: () => Actions.issueGuard(),
-    issueCapture: (targetId) => Actions.issueCapture(targetId),
-    issueHarvest: (x,y) => Actions.issueHarvest(x,y),
-    issueEngineerRepair: (targetId) => Actions.issueEngineerRepair(targetId),
-    issueIFVRepair: (targetId) => Actions.issueIFVRepair(targetId),
-    issueForceAttack: (targetId) => Actions.issueForceAttack(targetId),
-    issueForceFirePos: (x,y) => Actions.issueForceFirePos(x,y),
+    issueMoveAll: (x,y) => issueMoveAll(x,y),
+    issueMoveCombatOnly: (x,y) => issueMoveCombatOnly(x,y),
+    issueAttack: (targetId) => issueAttack(targetId),
+    issueAttackMove: (x,y) => issueAttackMove(x,y),
+    issueGuard: () => issueGuard(),
+    issueCapture: (targetId) => issueCapture(targetId),
+    issueHarvest: (x,y) => issueHarvest(x,y),
+    issueEngineerRepair: (targetId) => issueEngineerRepair(targetId),
+    issueIFVRepair: (targetId) => issueIFVRepair(targetId),
+    issueForceAttack: (targetId) => issueForceAttack(targetId),
+    issueForceFirePos: (x,y) => issueForceFirePos(x,y),
 
     // Spawns (centralized; safe wrappers)
     spawnUnit: (team, kind, x, y) => addUnit(team, kind, x, y),
