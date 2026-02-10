@@ -264,6 +264,8 @@
   box-shadow:0 18px 60px rgba(0,0,0,.55);
   padding:14px 14px 12px;
   color:#eaf2ff;
+
+  overflow:hidden;
 }
 #pauseOverlay .pm h2{
   margin:0 0 10px 0;
@@ -326,26 +328,25 @@
 }
 #pmEQ{
   flex:1;
-  height:96px; /* BIGGER EQ */
+  height:18px;
   display:flex;
   align-items:flex-end;
-  gap:3px;
-  padding:6px 8px;
-  border-radius:14px;
-  border:1px solid rgba(255,255,255,.14);
-  background: rgba(255,255,255,.045);
+  gap:2px;
+  padding:2px 4px;
+  border-radius:10px;
+  border:1px solid rgba(255,255,255,.12);
+  background: rgba(255,255,255,.04);
   overflow:hidden;
 }
 #pmEQ .bar{
   flex:1;
-  min-width:4px;
-  height:100%;
+  min-width:2px;
+  height:30%;
   border-radius:0;
-  background: linear-gradient(180deg, rgba(90,220,140,.95), rgba(255,210,110,.90));
-  opacity:.98;
+  background: linear-gradient(180deg, rgba(90,220,140,.95), rgba(255,210,110,.85));
+  opacity:.95;
   transform-origin: bottom;
-  transform: scaleY(0.25);
-  filter: drop-shadow(0 0 6px rgba(255,210,110,.18));
+  transform: scaleY(0.2);
 }
 
 #pauseOverlay .pm .pctrl{
@@ -358,10 +359,10 @@
 #wrap{ filter: brightness(var(--game-brightness)); }
 /* === BGM Player UI (refined) === */
 .pmPlayer{display:flex;flex-direction:column;gap:14px;margin-top:10px}
-.pmHeader{display:grid;grid-template-columns:140px 1fr 120px;align-items:center;gap:14px}
-.pmEqBox{height:96px;display:flex;align-items:flex-end;justify-content:flex-start}
-#pmEQ{display:flex;align-items:flex-end;gap:3px;height:120px;width:180px;padding:10px 10px 8px;border-radius:16px;background:rgba(255,255,255,0.06);box-shadow: inset 0 0 0 1px rgba(255,255,255,0.06);overflow:hidden}
-#pmEQ .bar{flex:1;min-width:4px;height:100%;border-radius:0;background:#ffd400;opacity:0.95;transform-origin:bottom center;transform:scaleY(0.15)}
+.pmHeader{display:grid;grid-template-columns:96px 1fr 120px;align-items:center;gap:14px}
+.pmEqBox{height:64px;display:flex;align-items:flex-end;justify-content:flex-start}
+#pmEQ{display:flex;align-items:flex-end;gap:5px;height:64px;width:96px;padding:6px 6px 4px;border-radius:14px;background:rgba(255,255,255,0.06);box-shadow: inset 0 0 0 1px rgba(255,255,255,0.06)}
+#pmEQ .bar{width:6px;height:6px;border-radius:4px;background:#ffd400;opacity:0.95;transform-origin:bottom center;transform:scaleY(0.35)}
 .pmTitleBox{display:flex;flex-direction:column;min-width:0}
 #pmTrackName{font-size:34px;line-height:1.05;font-weight:800;letter-spacing:0.4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .pmTimeInline{margin-top:6px;font-size:13px;opacity:0.85}
@@ -1255,6 +1256,26 @@ function getBaseBuildTime(kind){
   const SNIP_DIE_IMG = new Image();
   SNIP_DIE_IMG.src = SNIP_DIE_PNG;
 
+  // === Sniper move sprites (8-dir, 6-frame each) ===
+  // Naming convention mirrors infantry: snip_mov(_ne/_n/_nw/_w/_sw/_s/_se).png
+  const SNIP_MOV_PNG    = "asset/sprite/unit/inf/snip_mov.png";
+  const SNIP_MOV_NE_PNG = "asset/sprite/unit/inf/snip_mov_ne.png";
+  const SNIP_MOV_N_PNG  = "asset/sprite/unit/inf/snip_mov_n.png";
+  const SNIP_MOV_NW_PNG = "asset/sprite/unit/inf/snip_mov_nw.png";
+  const SNIP_MOV_W_PNG  = "asset/sprite/unit/inf/snip_mov_w.png";
+  const SNIP_MOV_SW_PNG = "asset/sprite/unit/inf/snip_mov_sw.png";
+  const SNIP_MOV_S_PNG  = "asset/sprite/unit/inf/snip_mov_s.png";
+  const SNIP_MOV_SE_PNG = "asset/sprite/unit/inf/snip_mov_se.png";
+
+  const SNIP_MOV_IMG = new Image(); SNIP_MOV_IMG.src = SNIP_MOV_PNG;
+  const SNIP_MOV_NE_IMG = new Image(); SNIP_MOV_NE_IMG.src = SNIP_MOV_NE_PNG;
+  const SNIP_MOV_N_IMG = new Image(); SNIP_MOV_N_IMG.src = SNIP_MOV_N_PNG;
+  const SNIP_MOV_NW_IMG = new Image(); SNIP_MOV_NW_IMG.src = SNIP_MOV_NW_PNG;
+  const SNIP_MOV_W_IMG = new Image(); SNIP_MOV_W_IMG.src = SNIP_MOV_W_PNG;
+  const SNIP_MOV_SW_IMG = new Image(); SNIP_MOV_SW_IMG.src = SNIP_MOV_SW_PNG;
+  const SNIP_MOV_S_IMG = new Image(); SNIP_MOV_S_IMG.src = SNIP_MOV_S_PNG;
+  const SNIP_MOV_SE_IMG = new Image(); SNIP_MOV_SE_IMG.src = SNIP_MOV_SE_PNG;
+
   // === Infantry sprite (attack 8-dir) embedded ===
   const INF_ATK_PNG = "asset/sprite/unit/inf/inf_atk.png";
   const INF_ATK_IMG = new Image();
@@ -1458,6 +1479,15 @@ function buildAtlasFromGrid(img, cols=3, rows=3){
 let SNIP_IDLE_ATLAS = null;
 const SNIP_TEAM_SHEET = new Map();
   const SNIP_DIE_TEAM_SHEET = new Map();
+
+  const SNIP_TEAM_SHEET_MOV = new Map();
+  const SNIP_TEAM_SHEET_MOV_NE = new Map();
+  const SNIP_TEAM_SHEET_MOV_N = new Map();
+  const SNIP_TEAM_SHEET_MOV_NW = new Map();
+  const SNIP_TEAM_SHEET_MOV_W = new Map();
+  const SNIP_TEAM_SHEET_MOV_SW = new Map();
+  const SNIP_TEAM_SHEET_MOV_S = new Map();
+  const SNIP_TEAM_SHEET_MOV_SE = new Map();
 function ensureSnipAtlases(){
   if (!SNIP_IMG || !SNIP_IMG.complete || !SNIP_IMG.naturalWidth) return;
   if (!SNIP_IDLE_ATLAS){
@@ -1672,7 +1702,52 @@ function drawInfantryMoveEast(ctx, px, py, alpha, teamId, t){
 
     // Pivot: bottom-center (feet) using the established move pivot policy.
     const pivotX = TILEW * 0.5;
-    const FEET_NUDGE = 52; // standard move feet grounding
+    const FEET_NUDGE = 52; // standard move feet g
+  function drawSniperMoveSheet(ctx, px, py, alpha, teamId, t, img, cache, fallbackDir){
+    // Shared helper for 6-frame loop sheets (600x600 per frame), row-major.
+    if (!img || !img.complete || !img.naturalWidth) {
+      drawSniperSprite(ctx, px, py, fallbackDir, alpha, teamId);
+      return;
+    }
+    const z = (typeof cam !== "undefined" && cam && typeof cam.zoom==="number") ? cam.zoom : 1;
+    const sc = INF_SPRITE_SCALE * z * 1.0; // same pivot/scale policy as infantry
+    const TILEW = 600, TILEH = 600;
+    const cols = Math.max(1, Math.floor(img.naturalWidth / TILEW));
+    const frameDur = 0.04;
+    const phase = ((teamId||0)*0.37 + (Math.abs(((px*0.01)|0)+((py*0.01)|0))%97)*0.011);
+    const fi = (Math.floor((t + phase) / frameDur) % 6 + 6) % 6;
+    const sx = (fi % cols) * TILEW;
+    const sy = Math.floor(fi / cols) * TILEH;
+
+    const dw = TILEW * sc, dh = TILEH * sc;
+
+    const pivotX = TILEW * 0.5;
+    const FEET_NUDGE = 52; // MUST match infantry policy (user request)
+    const pivotY = TILEH * 1.0 - FEET_NUDGE;
+
+    const dx = Math.floor(px - pivotX*sc);
+    const dy = Math.floor(py - pivotY*sc);
+
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.imageSmoothingEnabled = true;
+    ctx.drawImage(buildInfTeamSheet(img, cache, teamId), sx, sy, TILEW, TILEH, dx, dy, dw, dh);
+    ctx.restore();
+  }
+
+  function drawSniperMove(ctx, px, py, dir, alpha, teamId, t){
+    // dir mapping matches worldVecToDir8: 0:E,1:NE,2:N,3:NW,4:W,5:SW,6:S,7:SE
+    if (dir===0) return drawSniperMoveSheet(ctx, px, py, alpha, teamId, t, SNIP_MOV_IMG,    SNIP_TEAM_SHEET_MOV,    0);
+    if (dir===1) return drawSniperMoveSheet(ctx, px, py, alpha, teamId, t, SNIP_MOV_NE_IMG, SNIP_TEAM_SHEET_MOV_NE, 1);
+    if (dir===2) return drawSniperMoveSheet(ctx, px, py, alpha, teamId, t, SNIP_MOV_N_IMG,  SNIP_TEAM_SHEET_MOV_N,  2);
+    if (dir===3) return drawSniperMoveSheet(ctx, px, py, alpha, teamId, t, SNIP_MOV_NW_IMG, SNIP_TEAM_SHEET_MOV_NW, 3);
+    if (dir===4) return drawSniperMoveSheet(ctx, px, py, alpha, teamId, t, SNIP_MOV_W_IMG,  SNIP_TEAM_SHEET_MOV_W,  4);
+    if (dir===5) return drawSniperMoveSheet(ctx, px, py, alpha, teamId, t, SNIP_MOV_SW_IMG, SNIP_TEAM_SHEET_MOV_SW, 5);
+    if (dir===6) return drawSniperMoveSheet(ctx, px, py, alpha, teamId, t, SNIP_MOV_S_IMG,  SNIP_TEAM_SHEET_MOV_S,  6);
+    if (dir===7) return drawSniperMoveSheet(ctx, px, py, alpha, teamId, t, SNIP_MOV_SE_IMG, SNIP_TEAM_SHEET_MOV_SE, 7);
+    return drawSniperSprite(ctx, px, py, dir, alpha, teamId);
+  }
+rounding
     const pivotY = TILEH * 1.0 - FEET_NUDGE;
 
     const dx = Math.floor(px - pivotX*sc);
@@ -4294,8 +4369,7 @@ function spawnTurretMGTracers(shooter, target){
       gameOver = true;
       running = false;
       toast("승리!");
-      try{ BGM.playVictory(); }catch(_e){}
-} else if (!playerAlive){
+    } else if (!playerAlive){
       gameOver = true;
       running = false;
       toast("패배...");
@@ -9823,8 +9897,15 @@ let rX = ent.x, rY = ent.y;
           if (ent.kind==="sniper" && ent.team===TEAM.PLAYER && ent.cloaked) a = 0.45;
           {
             if (ent.kind==="sniper"){
-              // Sniper currently uses idle sheet only (no move/attack sheets yet).
-              drawSniperSprite(ctx, p.x, p.y, infDir, a, ent.team);
+              const firing = ((ent.fireHoldT||0)>0);
+              const isMoveOrder = !!(ent.order && (ent.order.type==="move" || ent.order.type==="attackmove"));
+              const v2 = (ent.vx||0)*(ent.vx||0) + (ent.vy||0)*(ent.vy||0);
+              const moving = isMoveOrder || v2 > 0.0004 || (ent.path && ent.path.length>0);
+              if (!firing && moving){
+                drawSniperMove(ctx, p.x, p.y, infDir, a, ent.team, state.t);
+              } else {
+                drawSniperSprite(ctx, p.x, p.y, infDir, a, ent.team);
+              }
             } else {
             const firing = ((ent.fireHoldT||0)>0);
             const isMoveOrder = !!(ent.order && (ent.order.type==="move" || ent.order.type==="attackmove"));
@@ -10645,166 +10726,49 @@ startBtn.addEventListener("click", () => {
   } catch(_){ setGameBrightness(1); }
 
   const BGM = (() => {
-  // Tracks are local files (uploaded).
-  const peaceTracks  = ["asset/music/peace1.mp3","asset/music/peace2.mp3","asset/music/peace3.mp3","asset/music/peace4.mp3"];
+  // Tracks are local files (uploaded). Two playlists and auto-switch by combat.
+  const peaceTracks = ["asset/music/peace1.mp3","asset/music/peace2.mp3","asset/music/peace3.mp3","asset/music/peace4.mp3"];
   const battleTracks = ["asset/music/battle1.mp3","asset/music/battle2.mp3","asset/music/battle3.mp3","asset/music/battle4.mp3","asset/music/battle5.mp3"];
-  const victoryTrack = "asset/music/brave_force.mp3";
 
-  // Player order MUST be sequential: battle1..N then peace1..N (no mixing)
-  const playerTracks = battleTracks.concat(peaceTracks);
+  const audio = new Audio();
+  audio.preload = "auto";
+  audio.loop = false; // we advance manually
+  audio.volume = 0.55;
 
-  // === WebAudio-backed player (fixes Netlify/Range seek issues for MP3) ===
-  let _ctx=null, _analyser=null, _freq=null, _userGain=null, _fadeGain=null;
-  let _srcNode=null, _buf=null, _srcUrl="", _startedAt=0, _offset=0, _paused=true;
-  let _endedFlag=false;
-  const _cache = new Map(); // url -> AudioBuffer
+  // WebAudio analyser (for EQ bars). Created on user gesture.
+  let _ctx = null;
+  let _analyser = null;
+  let _freq = null;
 
-  if (window.__bgmUserVol == null) window.__bgmUserVol = 1.0;
-
-  function ensureCtx(){
-    if (_ctx) return true;
+  function ensureAnalyser(){
+    if (_analyser) return;
     const AC = window.AudioContext || window.webkitAudioContext;
-    if (!AC) return false;
-    try{
+    if (!AC) return;
+    try {
       _ctx = new AC();
+      const src = _ctx.createMediaElementSource(audio);
       _analyser = _ctx.createAnalyser();
-      _analyser.fftSize = 256;
+      _analyser.fftSize = 64; // 32 bins
       _freq = new Uint8Array(_analyser.frequencyBinCount);
-
-      _fadeGain = _ctx.createGain();
-      _userGain = _ctx.createGain();
-
-      _fadeGain.gain.value = 1.0;
-      _userGain.gain.value = Math.max(0, Math.min(1, window.__bgmUserVol));
-
-      // src -> fade -> analyser -> user -> destination
-      _fadeGain.connect(_analyser);
-      _analyser.connect(_userGain);
-      _userGain.connect(_ctx.destination);
-      return true;
-    }catch(e){
-      console.warn("[BGM] AudioContext init failed", e);
-      _ctx=null; _analyser=null; _freq=null; _userGain=null; _fadeGain=null;
-      return false;
+      src.connect(_analyser);
+      _analyser.connect(_ctx.destination);
+    } catch(e) {
+      console.warn("[BGM] analyser init failed", e);
+      _ctx = null; _analyser = null; _freq = null;
     }
   }
 
   function resumeCtx(){
-    try{ if (_ctx && _ctx.state==="suspended") _ctx.resume(); }catch(_e){}
+    try { if (_ctx && _ctx.state === "suspended") _ctx.resume(); } catch(_e){}
   }
 
-  async function loadBuffer(url){
-    if (_cache.has(url)) return _cache.get(url);
-    if (!ensureCtx()) throw new Error("AudioContext unavailable");
-    resumeCtx();
-    const res = await fetch(url, {cache:"force-cache"});
-    if (!res.ok) throw new Error("fetch failed: "+res.status);
-    const ab = await res.arrayBuffer();
-    const buf = await new Promise((resolve, reject)=>{
-      _ctx.decodeAudioData(ab, resolve, reject);
-    });
-    _cache.set(url, buf);
-    return buf;
-  }
-
-  function stopNode(){
-    try{ if (_srcNode){ _srcNode.onended = null; _srcNode.stop(0); } }catch(_e){}
-    _srcNode=null;
-  }
-
-  function nowTime(){
-    if (!_ctx) return 0;
-    return _ctx.currentTime;
-  }
-
-  function getCurTime(){
-    if (!_buf) return 0;
-    if (_paused) return _offset;
-    return Math.max(0, Math.min(_buf.duration, nowTime() - _startedAt));
-  }
-
-  function setCurTime(t){
-    if (!_buf) return;
-    const nt = Math.max(0, Math.min(_buf.duration, t));
-    _offset = nt;
-    if (!_paused){
-      // restart from new offset
-      playUrl(_srcUrl, _offset, true);
-    }
-  }
-
-  function getDuration(){
-    return _buf ? _buf.duration : NaN;
-  }
-
-  async function playUrl(url, offset=0, keepFade=false){
-    if (!url) return;
-    ensureCtx(); resumeCtx();
-    const buf = await loadBuffer(url);
-    _buf = buf;
-    _srcUrl = url;
-
-    stopNode();
-    _endedFlag = false;
-
-    const src = _ctx.createBufferSource();
-    src.buffer = buf;
-    src.connect(_fadeGain);
-
-    const off = Math.max(0, Math.min(buf.duration, offset||0));
-    _offset = off;
-    _startedAt = nowTime() - off;
-    _paused = false;
-
-    src.onended = ()=>{ if (!_paused) _endedFlag = true; };
-    _srcNode = src;
-
-    // keepFade means don't touch fadeGain (used by fade switching)
-    if (!keepFade && _fadeGain) _fadeGain.gain.value = 1.0;
-
-    try{ src.start(0, off); }catch(_e){}
-  }
-
-  function pause(){
-    if (_paused) return;
-    _offset = getCurTime();
-    _paused = true;
-    stopNode();
-  }
-
-  function play(){
-    if (!_srcUrl){
-      // if nothing selected yet, pick first of "all"
-      const first = playerTracks[0] || "";
-      if (first) setTrackNow(first);
-      return;
-    }
-    if (!_paused) return;
-    // resume from offset
-    playUrl(_srcUrl, _offset, true).catch(()=>{});
-  }
-
-  function toggle(){
-    if (_paused) play();
-    else pause();
-    updateUI();
-  }
-
-  // volume is user volume only (slider must NEVER move due to fade)
-  function setVol(v){
-    const vol = Math.max(0, Math.min(1, v));
-    window.__bgmUserVol = vol;
-    if (_userGain) _userGain.gain.value = vol;
-    updateUI();
-  }
-
-  // === Playlist & mode logic ===
+  // Two-cycle shuffles
   const state = {
-    mode: "peace",
-    desiredMode: "peace",
-    order: { all: [], peace: [], battle: [] },
-    idx:   { all: 0, peace: 0, battle: 0 },
-    fade: { active:false, dur:0.55, nextSrc:null },
+    mode: "peace",        // current playback mode
+    desiredMode: "peace", // what gameplay wants (battle while combat is active)
+    order: { peace: [], battle: [] },
+    idx:   { peace: 0,  battle: 0  },
+    fade: { active:false, t:0, dur:0.55, from:0, to:0, nextSrc:null },
     viz:  { t:0 },
   };
 
@@ -10817,130 +10781,140 @@ startBtn.addEventListener("click", () => {
   }
 
   function refill(mode){
-    const src = (mode==="all") ? playerTracks : ((mode==="battle") ? battleTracks : peaceTracks);
-    if (mode === "all") state.order[mode] = src.slice();
-    else state.order[mode] = shuffle(src.slice());
+    const src = (mode==="battle") ? battleTracks : peaceTracks;
+    state.order[mode] = shuffle(src.slice());
     state.idx[mode] = 0;
   }
 
   function getNextTrack(mode){
     if (!state.order[mode].length) refill(mode);
     if (state.idx[mode] >= state.order[mode].length) refill(mode);
-    return state.order[mode][state.idx[mode]++] || "";
-  }
-
-  function prettyName(){
-    const raw = _srcUrl ? _srcUrl.split("/").pop() : "";
-    return raw ? raw.replace(/\.[^/.]+$/,"") : "";
+    const tr = state.order[mode][state.idx[mode]++] || "";
+    return tr;
   }
 
   function setTrackNow(src){
     if (!src) return;
-    ensureCtx(); resumeCtx();
-    playUrl(src, 0, true).catch(()=>{});
+    ensureAnalyser();
+    resumeCtx();
+    if (audio.src !== src) audio.src = src;
+    try { audio.currentTime = 0; } catch(_e){}
+    audio.play().catch(()=>{ /* autoplay policy, ignore */ });
   }
 
-  function fadeToTrack(nextSrc){
+  function fadeToTrack(nextSrc) {
     if (!nextSrc) return;
-    ensureCtx(); resumeCtx();
-    if (!_fadeGain){ setTrackNow(nextSrc); return; }
-    if (state.fade.active){
-      state.fade.nextSrc = nextSrc;
+    ensureAnalyser();
+    resumeCtx();
+
+    // If nothing is playing yet, just start.
+    if (!audio.src) {
+      setTrackNow(nextSrc);
       return;
     }
+
+    // Start fade out
     state.fade.active = true;
+    state.fade.t = 0;
+    state.fade.from = audio.volume;
+    state.fade.to = 0;
     state.fade.nextSrc = nextSrc;
-
-    const half = Math.max(0.08, state.fade.dur * 0.5);
-    try{
-      const t0 = nowTime();
-      _fadeGain.gain.cancelScheduledValues(t0);
-      _fadeGain.gain.setValueAtTime(_fadeGain.gain.value, t0);
-      _fadeGain.gain.linearRampToValueAtTime(0.0, t0 + half);
-    }catch(_e){}
-
-    setTimeout(()=>{
-      const ns = state.fade.nextSrc;
-      state.fade.nextSrc = null;
-      playUrl(ns, 0, true).then(()=>{
-        try{
-          const t1 = nowTime();
-          _fadeGain.gain.cancelScheduledValues(t1);
-          _fadeGain.gain.setValueAtTime(_fadeGain.gain.value, t1);
-          _fadeGain.gain.linearRampToValueAtTime(1.0, t1 + half);
-        }catch(_e){}
-        setTimeout(()=>{
-          state.fade.active = false;
-          if (state.fade.nextSrc) fadeToTrack(state.fade.nextSrc);
-        }, Math.ceil(half*1000));
-      }).catch(()=>{
-        state.fade.active = false;
-      });
-      updateUI();
-    }, Math.ceil(half*1000));
   }
 
-  function start(){
-    // Called on user gesture
-    ensureCtx(); resumeCtx();
-    if (!_srcUrl){
-      const tr = getNextTrack("all");
-      setTrackNow(tr);
-    } else {
-      play();
+  function applyFade(dt){
+    if (!state.fade.active) return;
+    state.fade.t += dt;
+    const a = Math.min(1, state.fade.t / Math.max(0.001, state.fade.dur));
+    const v = state.fade.from + (state.fade.to - state.fade.from) * a;
+    audio.volume = Math.max(0, Math.min(1, v));
+
+    if (a >= 1) {
+      if (state.fade.to === 0 && state.fade.nextSrc) {
+        // switch track at silence, then fade in
+        const next = state.fade.nextSrc;
+        state.fade.nextSrc = null;
+        try { audio.pause(); } catch(_e){}
+        audio.src = next;
+        try { audio.currentTime = 0; } catch(_e){}
+        audio.play().catch(()=>{});
+        state.fade.from = 0;
+        state.fade.to = (window.__bgmUserVol!=null) ? window.__bgmUserVol : 0.55;
+        state.fade.t = 0;
+      } else {
+        // finished fade in
+        state.fade.active = false;
+        // re-apply user volume
+        if (window.__bgmUserVol!=null) audio.volume = window.__bgmUserVol;
+      }
     }
+  }
+
+  function setVol(v){
+    const vv = Math.max(0, Math.min(1, Number(v)||0));
+    audio.volume = vv;
     updateUI();
   }
 
+  // Manual controls
   function next(){
-    const tr = (typeof pauseMenuOpen !== "undefined" && pauseMenuOpen) ? getNextTrack("all") : getNextTrack(state.mode);
+    const tr = getNextTrack(state.mode);
     fadeToTrack(tr);
     updateUI();
   }
-
   function prev(){
-    // naive prev: just go back one by stepping index back 2 then next
-    const mode = (typeof pauseMenuOpen !== "undefined" && pauseMenuOpen) ? "all" : state.mode;
-    state.idx[mode] = Math.max(0, state.idx[mode] - 2);
+    const mode = state.mode;
+    state.idx[mode] = Math.max(0, state.idx[mode]-2);
     const tr = getNextTrack(mode);
     fadeToTrack(tr);
     updateUI();
   }
-
-  function playVictory(){
-    state.desiredMode = "victory";
-    state.mode = "victory";
-    fadeToTrack(victoryTrack);
+  function toggle(){
+    ensureAnalyser();
+    resumeCtx();
+    if (audio.paused) audio.play().catch(()=>{}); else audio.pause();
     updateUI();
   }
 
-  function setMode(mode){
-    if (state.desiredMode === "victory" || state.mode === "victory") return;
-    state.desiredMode = mode;
-    if (mode==="battle" && state.mode!=="battle"){
-      state.mode="battle";
-      fadeToTrack(getNextTrack("battle"));
-      updateUI();
-    }
-  }
-
+  // Battle BGM sensitivity control:
+  // - Entering battle: switch immediately (fade) from peace -> battle.
+  // - Staying in battle: NEVER change track until it ends.
+  // - Leaving battle: let current track finish; when it ends, go peace.
   function requestMode(desired){
-    if (state.desiredMode === "victory" || state.mode === "victory") return;
     state.desiredMode = desired;
     if (desired === "battle" && state.mode !== "battle"){
       state.mode = "battle";
-      fadeToTrack(getNextTrack("battle"));
+      const tr = getNextTrack("battle");
+      fadeToTrack(tr);
       updateUI();
     }
   }
 
+  // Called from game loop: (nowMs, combatUntilMs)
   function auto(nowMs, combatUntilMs){
     const desired = (nowMs < combatUntilMs) ? "battle" : "peace";
     requestMode(desired);
   }
 
   // UI wiring
-  let ui = null;
+  let ui = null; // {track, btnPlay, vol, time, eq}
+  function mountUI(refs){
+    ui = refs || null;
+    if (!ui) return;
+
+    // init EQ bars (multiple sticks)
+    if (ui.eq){
+      ui.eq.innerHTML = "";
+      const bars = 12;
+      for (let i=0;i<bars;i++){
+        const b = document.createElement("div");
+        b.className = "bar";
+        ui.eq.appendChild(b);
+      }
+    }
+
+    updateUI();
+  }
+
   function fmtTime(sec){
     if (!isFinite(sec) || sec < 0) return "0:00";
     sec = Math.floor(sec);
@@ -10949,138 +10923,107 @@ startBtn.addEventListener("click", () => {
     return m + ":" + String(s).padStart(2,"0");
   }
 
+  function prettyName(){
+    const raw = audio.src ? audio.src.split("/").pop() : "";
+    return raw ? raw.replace(/\.[^/.]+$/,"") : "";
+  }
+
   function updateUI(){
     if (!ui) return;
     if (ui.track) ui.track.textContent = prettyName() || "(none)";
-    if (ui.btnPlay) ui.btnPlay.textContent = _paused ? "▶" : "⏸";
-    if (ui.vol) ui.vol.value = String((window.__bgmUserVol!=null?window.__bgmUserVol:1));
-    if (ui.volVal) ui.volVal.textContent = (window.__bgmUserVol!=null?window.__bgmUserVol:1).toFixed(2);
-    if (ui.time) ui.time.textContent = fmtTime(getCurTime()) + " / " + fmtTime(getDuration());
-    if (ui.seek && isFinite(getDuration()) && getDuration()>0 && !ui._seeking){
-      ui.seek.value = String(Math.max(0, Math.min(1000, Math.round((getCurTime()/getDuration())*1000))));
+    if (ui.btnPlay) ui.btnPlay.textContent = audio.paused ? "▶" : "⏸";
+    if (ui.vol) ui.vol.value = String((window.__bgmUserVol!=null?window.__bgmUserVol:audio.volume));
+    if (ui.time) ui.time.textContent = fmtTime(audio.currentTime) + " / " + fmtTime(audio.duration);
+    if (ui.seek && isFinite(audio.duration) && audio.duration>0 && !ui._seeking){
+      ui.seek.value = String(Math.max(0, Math.min(1000, Math.round((audio.currentTime/audio.duration)*1000))));
     }
-  }
-
-  function mountUI(refs){
-    ui = refs || null;
-    if (!ui) return;
-
-    if (ui.eq){
-      ui.eq.innerHTML = "";
-      const bars = 24;
-      for (let i=0;i<bars;i++){
-        const b = document.createElement("div");
-        b.className = "bar";
-        ui.eq.appendChild(b);
-      }
-    }
-
-    // seek bar (REAL seek: restart buffer at offset)
-    if (ui.seek){
-      ui.seek.value = 0;
-      ui._seeking = false;
-
-      const beginSeek = ()=>{ ui._seeking = true; };
-      const endSeek = ()=>{ ui._seeking = false; };
-
-      ui.seek.addEventListener("pointerdown", beginSeek);
-      ui.seek.addEventListener("mousedown", beginSeek);
-      ui.seek.addEventListener("touchstart", beginSeek, {passive:true});
-      window.addEventListener("pointerup", endSeek);
-      window.addEventListener("mouseup", endSeek);
-      window.addEventListener("touchend", endSeek, {passive:true});
-      window.addEventListener("touchcancel", endSeek, {passive:true});
-
-      const applySeek = ()=>{
-        const v01 = Math.max(0, Math.min(1000, Number(ui.seek.value||0))) / 1000;
-        const dur = getDuration();
-        if (!isFinite(dur) || dur<=0) return;
-        setCurTime(v01 * dur);
-        updateUI();
-      };
-
-      ui.seek.addEventListener("input", applySeek);
-      ui.seek.addEventListener("change", applySeek);
-
-      // click-to-seek anywhere
-      ui.seek.addEventListener("pointerdown", (e)=>{
-        const r = ui.seek.getBoundingClientRect();
-        const x = (e.clientX - r.left) / Math.max(1, r.width);
-        ui.seek.value = String(Math.round(Math.max(0, Math.min(1, x)) * 1000));
-        applySeek();
-      });
-    }
-
-    updateUI();
   }
 
   function updateViz(dt){
     if (!ui) return;
-    if (ui.time) ui.time.textContent = fmtTime(getCurTime()) + " / " + fmtTime(getDuration());
-    if (ui.seek && isFinite(getDuration()) && getDuration()>0 && !ui._seeking){
-      ui.seek.value = String(Math.max(0, Math.min(1000, Math.round((getCurTime()/getDuration())*1000))));
+    if (ui.time) ui.time.textContent = fmtTime(audio.currentTime) + " / " + fmtTime(audio.duration);
+    if (ui.seek && isFinite(audio.duration) && audio.duration>0 && !ui._seeking){
+      ui.seek.value = String(Math.max(0, Math.min(1000, Math.round((audio.currentTime/audio.duration)*1000))));
+    }
+    if (!ui.eq) return;
+
+    // animate at ~20fps
+    state.viz.t += dt;
+    if (state.viz.t < 0.05) return;
+    state.viz.t = 0;
+
+    if (!_analyser || !_freq) {
+      // no analyser: gentle idle motion
+      const kids = ui.eq.children;
+      const n = kids.length||0;
+      for (let i=0;i<n;i++) {
+        const k = kids[i];
+        const v = 0.15 + 0.25*Math.random();
+        k.style.transform = `scaleY(${v.toFixed(3)})`;
+      }
+      return;
     }
 
-    // EQ
-    if (ui.eq){
-      const bars = ui.eq.children;
-      if (_analyser && _freq){
-        try{
-          _analyser.getByteFrequencyData(_freq);
-          const n = bars.length;
-          for (let i=0;i<n;i++){
-            const idx = Math.floor((i/(n-1)) * Math.min(_freq.length-1, 80));
-            const v = _freq[idx] / 255;
-            const amp = Math.max(0.08, Math.min(1, v)) * 8.0; // MEGA bounce
-            bars[i].style.transform = "scaleY(" + amp.toFixed(3) + ")";
-          }
-        }catch(_e){}
-      } else {
-        // fallback wiggle
-        const n = bars.length;
-        state.viz.t += dt;
-        for (let i=0;i<n;i++){
-          const w = 0.20 + 0.80*Math.abs(Math.sin(state.viz.t*2.2 + i*0.55));
-          const amp = (0.15 + w) * 3.5;
-          bars[i].style.transform = "scaleY(" + amp.toFixed(3) + ")";
-        }
+    try {
+      _analyser.getByteFrequencyData(_freq);
+      const kids = ui.eq.children;
+      const bars = kids.length || 0;
+      const bins = _freq.length || 1;
+      for (let i=0;i<bars;i++) {
+        const bi = Math.min(bins-1, Math.floor(i * bins / bars));
+        const v = _freq[bi] / 255;
+        // make it pop a bit even at low volume
+        const vv = Math.max(0.08, Math.pow(v, 0.75));
+        kids[i].style.transform = `scaleY(${vv.toFixed(3)})`;
       }
-    }
+    } catch(_e) {}
   }
 
-  function monitor(dt){
+  function start(){
+    // called on user gesture via shim (BGM.userStart)
+    ensureAnalyser();
+    resumeCtx();
+    state.mode = "peace";
+    state.desiredMode = "peace";
+    const tr = getNextTrack("peace");
+    setTrackNow(tr);
+    updateUI();
+  }
+
+  function setMode(mode){
+    // manual override: immediate switch
+    const m = (mode==="battle") ? "battle" : "peace";
+    state.mode = m;
+    state.desiredMode = m;
+    const tr = getNextTrack(m);
+    fadeToTrack(tr);
+    updateUI();
+  }
+
+  function monitor(dt=0.016){
+    applyFade(dt);
     updateViz(dt);
-    // Ended?
-    if (_endedFlag && !state.fade.active){
-      _endedFlag = false;
-      // After victory, return to desired mode later; simplest: keep sequential
-      if (state.mode === "victory"){
-        // stay on victory loop
-        fadeToTrack(victoryTrack);
-      } else {
-        // If pause menu open, always advance in "all" sequential order
-        const tr = (typeof pauseMenuOpen !== "undefined" && pauseMenuOpen) ? getNextTrack("all") : getNextTrack(state.mode);
-        fadeToTrack(tr);
+
+    // Auto advance when track ends (and apply desiredMode at boundary)
+    if (audio.ended && !state.fade.active){
+      // If we were in battle but battle already ended, switch to peace on boundary.
+      if (state.mode === "battle" && state.desiredMode === "peace") {
+        state.mode = "peace";
       }
+      // If we are in peace but battle became desired (rare because we switch immediately), honor it here.
+      if (state.mode === "peace" && state.desiredMode === "battle") {
+        state.mode = "battle";
+      }
+
+      const tr = getNextTrack(state.mode);
+      setTrackNow(tr);
       updateUI();
     }
   }
 
-  // Compatibility shim (some code expects .paused/.currentTime/.duration)
-  const audio = {
-    get paused(){ return _paused; },
-    get volume(){ return (window.__bgmUserVol!=null?window.__bgmUserVol:1); },
-    set volume(v){ setVol(v); },
-    get currentTime(){ return getCurTime(); },
-    set currentTime(v){ setCurTime(v); },
-    get duration(){ return getDuration(); },
-    get src(){ return _srcUrl; },
-    set src(v){ _srcUrl = v || ""; },
-    play(){ play(); return Promise.resolve(); },
-    pause(){ pause(); },
-  };
+  audio.addEventListener("ended", ()=>{ /* monitor() handles */ });
 
-  return { audio, start, next, prev, toggle, setVol, setMode, playVictory, auto, monitor, mountUI };
+  return { audio, start, next, prev, toggle, setVol, setMode, auto, monitor, mountUI };
 })();
 // --- BGM compatibility shim (older code expects these) ---
 BGM._started = false;
@@ -11416,13 +11359,13 @@ window.resolveUnitOverlaps = resolveUnitOverlaps;
         </div>
 
         <div class="pmSeekRow">
-          <input id="pmSeek" type="range" min="0" max="1000" value="0" step="1" aria-label="Seek" />
+          <input id="pmSeek" type="range" min="0" max="1000" value="0" step="1" aria-label="Seek" disabled />
         </div>
 
         <div class="pmRow">
           <span class="lbl">볼륨</span>
-          <input id="pmVol" type="range" min="0" max="1" step="0.01" value="1" />
-          <span id="pmVolVal" class="val">1.00</span>
+          <input id="pmVol" type="range" min="0" max="1" step="0.01" value="0.7" />
+          <span id="pmVolVal" class="val">0.70</span>
         </div>
 
         <div class="pmRow">
