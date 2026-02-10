@@ -1315,9 +1315,9 @@ function getBaseBuildTime(kind){
   // === Large building explosion FX (exp1) ===
   const EXP1_JSON = "asset/sprite/eff/exp1/exp1_anim.json";
   const EXP1_PNG  = "asset/sprite/eff/exp1/exp1_anim.png";
-  const EXP1_IMG  = new Image();
+  var EXP1_IMG  = new Image();
   EXP1_IMG.src = EXP1_PNG;
-  let EXP1_FRAMES = null; // [{x,y,w,h}]
+  var EXP1_FRAMES = null; // [{x,y,w,h}]
 
   (async function loadExp1Atlas(){
     try{
