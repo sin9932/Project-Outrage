@@ -7867,6 +7867,8 @@ const threat = aiThreatNearBase();
   }
 }
 const keys=new Set();
+  // DEBUG: Delete key toggles building-destruction click mode (any team)
+  let DEBUG_KILL_BUILDINGS = false;
   window.addEventListener("keydown",(e)=>{
     // Pause menu: block gameplay hotkeys while open
     if (pauseMenuOpen){
@@ -7880,6 +7882,14 @@ const keys=new Set();
         e.preventDefault();
         return;
       }
+    }
+
+    // DEBUG: toggle building kill mode with Delete key
+    if (e.key==="Delete" || e.key==="Del" || e.code==="Delete" || e.keyCode===46){
+      DEBUG_KILL_BUILDINGS = !DEBUG_KILL_BUILDINGS;
+      try{ toast(`DEBUG: 건물삭제모드 ${DEBUG_KILL_BUILDINGS ? "ON" : "OFF"}`); }catch(_e){}
+      e.preventDefault();
+      return;
     }
 
     const k=e.key.toLowerCase();
@@ -7958,6 +7968,19 @@ const keys=new Set();
 
     if (e.button!==0) return;
 
+    // DEBUG: when enabled, left-click any building (any team) to instantly destroy it.
+    if (DEBUG_KILL_BUILDINGS){
+      const p=getPointerCanvasPx(e);
+      const w=screenToWorld(p.x,p.y);
+      const t=pickEntityAtWorld(w.x,w.y);
+      if (t && t.alive && BUILD[t.kind]){
+        try{ t.hp = 0; }catch(_e){}
+        destroyBuilding(t, { debug:true });
+        try{ toast("DEBUG: 건물 파괴"); }catch(_e){}
+        updateSelectionUI();
+        return;
+      }
+    }
 
 
 
