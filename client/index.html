@@ -4658,6 +4658,8 @@ const bloodPuffs  = [];
 
 function addBloodBurst(wx, wy, size=1){
   const sz = clamp(size, 0.6, 1.8);
+  // Spawn puffs a bit above ground so it feels like it comes from the body, not the floor.
+  const BLOOD_PUFF_LIFT = (TILE * 0.32) * sz; // tweak if needed
 
   // Ground stain (isometric flattened)
   bloodStains.push({
@@ -4679,7 +4681,7 @@ function addBloodBurst(wx, wy, size=1){
 
     bloodPuffs.push({
       x: wx + (Math.random()*2-1) * TILE*0.06*sz,
-      y: wy + (Math.random()*2-1) * TILE*0.06*sz,
+      y: (wy - BLOOD_PUFF_LIFT) + (Math.random()*2-1) * TILE*0.06*sz,
       vx: Math.cos(ang)*spd + (Math.random()*2-1)*TILE*0.10*sz,
       vy: Math.sin(ang)*spd + (Math.random()*2-1)*TILE*0.10*sz,
       t: 0,
