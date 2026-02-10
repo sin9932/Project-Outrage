@@ -264,6 +264,7 @@
   box-shadow:0 18px 60px rgba(0,0,0,.55);
   padding:14px 14px 12px;
   color:#eaf2ff;
+
   position:relative;
   overflow:hidden;
 }
@@ -334,7 +335,7 @@
   align-items:flex-end;
   gap:2px;
   padding:2px 4px;
-  border-radius:0px;
+  border-radius:10px;
   border:1px solid rgba(255,255,255,.12);
   background: rgba(255,255,255,.04);
   overflow:hidden;
@@ -343,7 +344,7 @@
   flex:1;
   min-width:2px;
   height:30%;
-  border-radius:0px;
+  border-radius:4px 4px 2px 2px;
   background: linear-gradient(180deg, rgba(90,220,140,.95), rgba(255,210,110,.85));
   opacity:.95;
   transform-origin: bottom;
@@ -1257,35 +1258,27 @@ function getBaseBuildTime(kind){
   const SNIP_DIE_IMG = new Image();
   SNIP_DIE_IMG.src = SNIP_DIE_PNG;
 
-  // === Sniper move sprites (8-dir, 6-frame each; same 600x600 frame convention as infantry move) ===
-  const SNIP_MOV_PNG    = "asset/sprite/unit/inf/snip_mov.png";    // E
-  const SNIP_MOV_NE_PNG = "asset/sprite/unit/inf/snip_mov_ne.png";
-  const SNIP_MOV_N_PNG  = "asset/sprite/unit/inf/snip_mov_n.png";
-  const SNIP_MOV_NW_PNG = "asset/sprite/unit/inf/snip_mov_nw.png";
-  const SNIP_MOV_W_PNG  = "asset/sprite/unit/inf/snip_mov_w.png";
-  const SNIP_MOV_SW_PNG = "asset/sprite/unit/inf/snip_mov_sw.png";
-  const SNIP_MOV_S_PNG  = "asset/sprite/unit/inf/snip_mov_s.png";
-  const SNIP_MOV_SE_PNG = "asset/sprite/unit/inf/snip_mov_se.png";
 
-  const SNIP_MOV_IMG    = new Image(); SNIP_MOV_IMG.src    = SNIP_MOV_PNG;
-  const SNIP_MOV_NE_IMG = new Image(); SNIP_MOV_NE_IMG.src = SNIP_MOV_NE_PNG;
-  const SNIP_MOV_N_IMG  = new Image(); SNIP_MOV_N_IMG.src  = SNIP_MOV_N_PNG;
-  const SNIP_MOV_NW_IMG = new Image(); SNIP_MOV_NW_IMG.src = SNIP_MOV_NW_PNG;
-  const SNIP_MOV_W_IMG  = new Image(); SNIP_MOV_W_IMG.src  = SNIP_MOV_W_PNG;
-  const SNIP_MOV_SW_IMG = new Image(); SNIP_MOV_SW_IMG.src = SNIP_MOV_SW_PNG;
-  const SNIP_MOV_S_IMG  = new Image(); SNIP_MOV_S_IMG.src  = SNIP_MOV_S_PNG;
-  const SNIP_MOV_SE_IMG = new Image(); SNIP_MOV_SE_IMG.src = SNIP_MOV_SE_PNG;
-
-  const SNIP_TEAM_SHEET_MOV    = new Map();
-  const SNIP_TEAM_SHEET_MOV_NE = new Map();
-  const SNIP_TEAM_SHEET_MOV_N  = new Map();
-  const SNIP_TEAM_SHEET_MOV_NW = new Map();
-  const SNIP_TEAM_SHEET_MOV_W  = new Map();
-  const SNIP_TEAM_SHEET_MOV_SW = new Map();
-  const SNIP_TEAM_SHEET_MOV_S  = new Map();
-  const SNIP_TEAM_SHEET_MOV_SE = new Map();
-
-
+  // === Sniper move sprites (8-dir, 6 frames each) ===
+  // Naming convention (default):
+  //   snip_mov.png, snip_mov_ne.png, snip_mov_n.png, snip_mov_nw.png, snip_mov_w.png, snip_mov_sw.png, snip_mov_s.png, snip_mov_se.png
+  // If a file is missing, rendering will safely fall back to idle (no crash).
+  const SNIP_MOV_PNG = {
+    E:  "asset/sprite/unit/inf/snip_mov.png",
+    NE: "asset/sprite/unit/inf/snip_mov_ne.png",
+    N:  "asset/sprite/unit/inf/snip_mov_n.png",
+    NW: "asset/sprite/unit/inf/snip_mov_nw.png",
+    W:  "asset/sprite/unit/inf/snip_mov_w.png",
+    SW: "asset/sprite/unit/inf/snip_mov_sw.png",
+    S:  "asset/sprite/unit/inf/snip_mov_s.png",
+    SE: "asset/sprite/unit/inf/snip_mov_se.png",
+  };
+  const SNIP_MOV_IMG = {};
+  for (const k of Object.keys(SNIP_MOV_PNG)){
+    const im = new Image();
+    im.src = SNIP_MOV_PNG[k];
+    SNIP_MOV_IMG[k] = im;
+  }
   // === Infantry sprite (attack 8-dir) embedded ===
   const INF_ATK_PNG = "asset/sprite/unit/inf/inf_atk.png";
   const INF_ATK_IMG = new Image();
@@ -1604,6 +1597,45 @@ function drawSniperSprite(ctx, wx, wy, dir, alpha=1, teamId=0){
   ctx.imageSmoothingEnabled = true;
   ctx.drawImage(sheet, f.x, f.y, f.w, f.h, dx, dy, f.w*scale, f.h*scale);
   ctx.restore();
+function drawSniperMoveByDir(ctx, px, py, dir, alpha=1, teamId=0, t=0){
+  // dir is 0..7 mapped like infantry: 0 E,1 NE,2 N,3 NW,4 W,5 SW,6 S,7 SE
+  const key = (dir===0)?"E":(dir===1)?"NE":(dir===2)?"N":(dir===3)?"NW":(dir===4)?"W":(dir===5)?"SW":(dir===6)?"S":"SE";
+  const img = SNIP_MOV_IMG && SNIP_MOV_IMG[key];
+  if (!img || !img.complete || !img.naturalWidth){
+    // Fallback to idle, never crash
+    drawSniperSprite(ctx, px, py, dir, alpha, teamId);
+    return;
+  }
+
+  // Same assumptions as infantry move sheets: 6 frames, each 600x600, first frame at top-left.
+  const TILEW = 600, TILEH = 600;
+  const frames = 6;
+  const fps = 10; // a bit snappy; matches infantry feel
+  const f = Math.floor((t * fps) % frames);
+
+  const sx = (f % 3) * TILEW;
+  const sy = Math.floor(f / 3) * TILEH;
+
+  const z = (typeof cam !== "undefined" && cam && typeof cam.zoom==="number") ? cam.zoom : 1;
+  const sc = INF_SPRITE_SCALE * z;
+
+  // Pivot: bottom-center, with FEET_NUDGE grounding like infantry move
+  const pivotX = TILEW * 0.5;
+  const FEET_NUDGE = 52;
+  const pivotY = TILEH * 1.0 - FEET_NUDGE;
+
+  const dx = Math.floor(px - pivotX*sc);
+  const dy = Math.floor(py - pivotY*sc);
+  const dw = TILEW * sc;
+  const dh = TILEH * sc;
+
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.imageSmoothingEnabled = true;
+  ctx.drawImage(img, sx, sy, TILEW, TILEH, dx, dy, dw, dh);
+  ctx.restore();
+}
+
 }
 
 function drawInfantryMoveEast(ctx, px, py, alpha, teamId, t){
@@ -1715,17 +1747,6 @@ function drawInfantryMoveEast(ctx, px, py, alpha, teamId, t){
     ctx.drawImage(buildInfTeamSheet(img, cache, teamId), sx, sy, TILEW, TILEH, dx, dy, dw, dh);
     ctx.restore();
   }
-
-  // === Sniper move drawing (reuses drawInfantryMoveSheet for identical pivot/scale policy) ===
-  function drawSniperMoveE(ctx, px, py, alpha, teamId, t){  drawInfantryMoveSheet(ctx, px, py, alpha, teamId, t, SNIP_MOV_IMG,    SNIP_TEAM_SHEET_MOV,    0); }
-  function drawSniperMoveNE(ctx, px, py, alpha, teamId, t){ drawInfantryMoveSheet(ctx, px, py, alpha, teamId, t, SNIP_MOV_NE_IMG, SNIP_TEAM_SHEET_MOV_NE, 1); }
-  function drawSniperMoveN(ctx, px, py, alpha, teamId, t){  drawInfantryMoveSheet(ctx, px, py, alpha, teamId, t, SNIP_MOV_N_IMG,  SNIP_TEAM_SHEET_MOV_N,  2); }
-  function drawSniperMoveNW(ctx, px, py, alpha, teamId, t){ drawInfantryMoveSheet(ctx, px, py, alpha, teamId, t, SNIP_MOV_NW_IMG, SNIP_TEAM_SHEET_MOV_NW, 3); }
-  function drawSniperMoveW(ctx, px, py, alpha, teamId, t){  drawInfantryMoveSheet(ctx, px, py, alpha, teamId, t, SNIP_MOV_W_IMG,  SNIP_TEAM_SHEET_MOV_W,  4); }
-  function drawSniperMoveSW(ctx, px, py, alpha, teamId, t){ drawInfantryMoveSheet(ctx, px, py, alpha, teamId, t, SNIP_MOV_SW_IMG, SNIP_TEAM_SHEET_MOV_SW, 5); }
-  function drawSniperMoveS(ctx, px, py, alpha, teamId, t){  drawInfantryMoveSheet(ctx, px, py, alpha, teamId, t, SNIP_MOV_S_IMG,  SNIP_TEAM_SHEET_MOV_S,  6); }
-  function drawSniperMoveSE(ctx, px, py, alpha, teamId, t){ drawInfantryMoveSheet(ctx, px, py, alpha, teamId, t, SNIP_MOV_SE_IMG, SNIP_TEAM_SHEET_MOV_SE, 7); }
-
 
   function drawInfantryMoveN(ctx, px, py, alpha, teamId, t){
     return drawInfantryMoveSheet(ctx, px, py, alpha, teamId, t, INF_MOV_N_IMG, INF_TEAM_SHEET_MOV_N, 2);
@@ -9864,21 +9885,12 @@ let rX = ent.x, rY = ent.y;
           if (ent.kind==="sniper" && ent.team===TEAM.PLAYER && ent.cloaked) a = 0.45;
           {
             if (ent.kind==="sniper"){
-              const firing = ((ent.fireHoldT||0)>0);
+              // Sniper: 8-dir move sheets if moving, else idle (safe fallback if sheets missing).
               const isMoveOrder = !!(ent.order && (ent.order.type==="move" || ent.order.type==="attackmove"));
               const v2 = (ent.vx||0)*(ent.vx||0) + (ent.vy||0)*(ent.vy||0);
               const moving = isMoveOrder || v2 > 0.0004 || (ent.path && ent.path.length>0);
-
-              if (!firing && moving){
-                if (infDir===0)      drawSniperMoveE(ctx,  p.x, p.y, a, ent.team, state.t);
-                else if (infDir===1) drawSniperMoveNE(ctx, p.x, p.y, a, ent.team, state.t);
-                else if (infDir===2) drawSniperMoveN(ctx,  p.x, p.y, a, ent.team, state.t);
-                else if (infDir===3) drawSniperMoveNW(ctx, p.x, p.y, a, ent.team, state.t);
-                else if (infDir===4) drawSniperMoveW(ctx,  p.x, p.y, a, ent.team, state.t);
-                else if (infDir===5) drawSniperMoveSW(ctx, p.x, p.y, a, ent.team, state.t);
-                else if (infDir===6) drawSniperMoveS(ctx,  p.x, p.y, a, ent.team, state.t);
-                else if (infDir===7) drawSniperMoveSE(ctx, p.x, p.y, a, ent.team, state.t);
-                else drawSniperSprite(ctx, p.x, p.y, infDir, a, ent.team);
+              if (moving){
+                drawSniperMoveByDir(ctx, p.x, p.y, infDir, a, ent.team, state.t||0);
               } else {
                 drawSniperSprite(ctx, p.x, p.y, infDir, a, ent.team);
               }
@@ -11348,7 +11360,7 @@ window.resolveUnitOverlaps = resolveUnitOverlaps;
         </div>
 
         <div class="pmSeekRow">
-          <input id="pmSeek" type="range" min="0" max="1000" value="0" step="1" aria-label="Seek" />
+          <input id="pmSeek" type="range" min="0" max="1000" value="0" step="1" aria-label="Seek" disabled />
         </div>
 
         <div class="pmRow">
