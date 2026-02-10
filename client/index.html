@@ -364,8 +364,6 @@
 .pmTitleBox{display:flex;flex-direction:column;min-width:0}
 #pmTrackName{font-size:34px;line-height:1.05;font-weight:800;letter-spacing:0.4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .pmTimeInline{margin-top:6px;font-size:13px;opacity:0.85}
-.pmSeekRow{display:flex;align-items:center;gap:12px}
-#pmSeek{flex:1}
 .pctrl.big{height:64px;justify-content:flex-end}
 .pctrl.big button{width:44px;height:64px;border-radius:14px}
 </style>
@@ -10712,7 +10710,8 @@ startBtn.addEventListener("click", () => {
     brightVal: document.getElementById("pmBrightVal"),
     time: document.getElementById("pmTime"),
     eq: document.getElementById("pmEQ"),
-    seek: document.getElementById("pmSeek"),
+    resume: document.getElementById("pmResume"),
+    exit: document.getElementById("pmExit"),
   };
 }
 
@@ -11137,9 +11136,13 @@ BGM.monitor = (dt=0.016) => __bgmOldMonitor(dt);
     if (refs.next) refs.next.addEventListener("click", ()=> BGM.next());
     if (refs.play) refs.play.addEventListener("click", ()=> BGM.togglePlay ? BGM.togglePlay() : (BGM.toggle ? BGM.toggle() : null));
 
+    // Do NOT auto-close when clicking the dark outside area.
+    // (User explicitly wants pause/options to stay open unless they press ESC or click a button.)
     refs.overlay.addEventListener("mousedown", (e)=>{
-      if (e.target === refs.overlay) togglePauseMenu(false);
       e.stopPropagation();
+      if (e.target === refs.overlay){
+        e.preventDefault();
+      }
     });
     refs.overlay.addEventListener("wheel", (e)=>{ e.stopPropagation(); }, { passive:false });
   }
@@ -11377,10 +11380,6 @@ window.resolveUnitOverlaps = resolveUnitOverlaps;
             <button id="pmPlay" title="Play/Pause">⏯</button>
             <button id="pmNext" title="Next">⏭</button>
           </div>
-        </div>
-
-        <div class="pmSeekRow">
-          <input id="pmSeek" type="range" min="0" max="1000" value="0" step="1" aria-label="Seek" />
         </div>
 
         <div class="pmRow">
