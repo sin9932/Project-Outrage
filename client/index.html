@@ -326,7 +326,7 @@
 }
 #pmEQ{
   flex:1;
-  height:64px; /* BIG, readable EQ */
+  height:96px; /* BIGGER EQ */
   display:flex;
   align-items:flex-end;
   gap:3px;
@@ -340,7 +340,7 @@
   flex:1;
   min-width:4px;
   height:100%;
-  border-radius:8px 8px 3px 3px;
+  border-radius:0;
   background: linear-gradient(180deg, rgba(90,220,140,.95), rgba(255,210,110,.90));
   opacity:.98;
   transform-origin: bottom;
@@ -4294,7 +4294,8 @@ function spawnTurretMGTracers(shooter, target){
       gameOver = true;
       running = false;
       toast("승리!");
-    } else if (!playerAlive){
+      try{ BGM.playVictory(); }catch(_e){}
+} else if (!playerAlive){
       gameOver = true;
       running = false;
       toast("패배...");
@@ -10647,13 +10648,15 @@ startBtn.addEventListener("click", () => {
   // Tracks are local files (uploaded). Two playlists and auto-switch by combat.
   const peaceTracks = ["asset/music/peace1.mp3","asset/music/peace2.mp3","asset/music/peace3.mp3","asset/music/peace4.mp3"];
   const battleTracks = ["asset/music/battle1.mp3","asset/music/battle2.mp3","asset/music/battle3.mp3","asset/music/battle4.mp3","asset/music/battle5.mp3"];
-  const allTracks = battleTracks.concat(peaceTracks);
-
-
-  const audio = new Audio();
+  const victoryTrack = "asset/music/brave_force.mp3";
+  // Player order MUST be sequential: battle1..N then peace1..N (no mixing)
+  const playerTracks = battleTracks.concat(peaceTracks);
+const audio = new Audio();
   audio.preload = "auto";
   audio.loop = false; // we advance manually
   audio.volume = 1.0; // default (user can lower in pause menu)
+  if (window.__bgmUserVol == null) window.__bgmUserVol = 1.0;
+  audio.volume = Math.max(0, Math.min(1, window.__bgmUserVol));
 
   // WebAudio analyser (for EQ bars). Created on user gesture.
   let _ctx = null;
@@ -10701,7 +10704,7 @@ startBtn.addEventListener("click", () => {
   }
 
   function refill(mode){
-    const src = (mode==="all") ? allTracks : ((mode==="battle") ? battleTracks : peaceTracks);
+    const src = (mode==="all") ? playerTracks : ((mode==="battle") ? battleTracks : peaceTracks);
     // Player playlist ("all") should be deterministic & sequential:
     // battle1..N then peace1..N
     if (mode === "all") {
@@ -10743,7 +10746,9 @@ startBtn.addEventListener("click", () => {
     // Start fade out
     state.fade.active = true;
     state.fade.t = 0;
-    state.fade.from = audio.volume;
+    const uv = (window.__bgmUserVol!=null)?window.__bgmUserVol:1.0;
+    const curFactor = (uv>0)?(audio.volume/uv):0;
+    state.fade.from = curFactor;
     state.fade.to = 0;
     state.fade.nextSrc = nextSrc;
   }
@@ -10752,8 +10757,9 @@ startBtn.addEventListener("click", () => {
     if (!state.fade.active) return;
     state.fade.t += dt;
     const a = Math.min(1, state.fade.t / Math.max(0.001, state.fade.dur));
-    const v = state.fade.from + (state.fade.to - state.fade.from) * a;
-    audio.volume = Math.max(0, Math.min(1, v));
+    const f = state.fade.from + (state.fade.to - state.fade.from) * a;
+    const uv = (window.__bgmUserVol!=null)?window.__bgmUserVol:1.0;
+    audio.volume = Math.max(0, Math.min(1, uv * Math.max(0, Math.min(1, f))));
 
     if (a >= 1) {
       if (state.fade.to === 0 && state.fade.nextSrc) {
@@ -10765,7 +10771,7 @@ startBtn.addEventListener("click", () => {
         try { audio.currentTime = 0; } catch(_e){}
         audio.play().catch(()=>{});
         state.fade.from = 0;
-        state.fade.to = (window.__bgmUserVol!=null) ? window.__bgmUserVol : 0.55;
+        state.fade.to = 1;
         state.fade.t = 0;
       } else {
         // finished fade in
@@ -10813,6 +10819,7 @@ startBtn.addEventListener("click", () => {
   // - Staying in battle: NEVER change track until it ends.
   // - Leaving battle: let current track finish; when it ends, go peace.
   function requestMode(desired){
+    if (state.desiredMode === "victory" || state.mode === "victory") return;
     state.desiredMode = desired;
     if (desired === "battle" && state.mode !== "battle"){
       state.mode = "battle";
@@ -10837,7 +10844,7 @@ startBtn.addEventListener("click", () => {
     // init EQ bars (multiple sticks)
     if (ui.eq){
       ui.eq.innerHTML = "";
-      const bars = 16; // BIGGER, more bars but still chunky
+      const bars = 24; // MEGA EQ: more chunky bars
       for (let i=0;i<bars;i++){
         const b = document.createElement("div");
         b.className = "bar";
@@ -10878,7 +10885,7 @@ startBtn.addEventListener("click", () => {
     if (!ui) return;
     if (ui.track) ui.track.textContent = prettyName() || "(none)";
     if (ui.btnPlay) ui.btnPlay.textContent = audio.paused ? "▶" : "⏸";
-    if (ui.vol) ui.vol.value = String((window.__bgmUserVol!=null?window.__bgmUserVol:audio.volume));
+    if (ui.vol) ui.vol.value = String((window.__bgmUserVol!=null?window.__bgmUserVol:1));
     if (ui.time) ui.time.textContent = fmtTime(audio.currentTime) + " / " + fmtTime(audio.duration);
     if (ui.seek && isFinite(audio.duration) && audio.duration>0 && !ui._seeking){
       ui.seek.value = String(Math.max(0, Math.min(1000, Math.round((audio.currentTime/audio.duration)*1000))));
@@ -10904,7 +10911,7 @@ startBtn.addEventListener("click", () => {
       const n = kids.length||0;
       for (let i=0;i<n;i++) {
         const k = kids[i];
-        const v = 0.35 + 3.60*Math.random();
+        const v = 0.80 + 7.50*Math.random();
         k.style.transform = `scaleY(${v.toFixed(3)})`;
       }
       return;
@@ -10919,7 +10926,7 @@ startBtn.addEventListener("click", () => {
         const bi = Math.min(bins-1, Math.floor(i * bins / bars));
         const v = _freq[bi] / 255;
         // make it pop a bit even at low volume
-        const vv = Math.min(5.0, Math.max(0.20, 0.18 + Math.pow(v, 0.45)*4.6));
+        const vv = Math.min(8.0, Math.max(0.25, 0.22 + Math.pow(v, 0.42)*7.3));
         kids[i].style.transform = `scaleY(${vv.toFixed(3)})`;
       }
     } catch(_e) {}
@@ -10936,7 +10943,16 @@ startBtn.addEventListener("click", () => {
     updateUI();
   }
 
-  function setMode(mode){
+    function playVictory(){
+    // Locks BGM to victory theme.
+    state.mode = "victory";
+    state.desiredMode = "victory";
+    audio.loop = true;
+    fadeToTrack(victoryTrack);
+    updateUI();
+  }
+
+function setMode(mode){
     // manual override: immediate switch
     const m = (mode==="battle") ? "battle" : "peace";
     state.mode = m;
@@ -10952,6 +10968,11 @@ startBtn.addEventListener("click", () => {
 
     // Auto advance when track ends (and apply desiredMode at boundary)
     if (audio.ended && !state.fade.active){
+      if (state.mode === "victory"){
+        setTrackNow(victoryTrack);
+        updateUI();
+        return;
+      }
       // If we were in battle but battle already ended, switch to peace on boundary.
       if (state.mode === "battle" && state.desiredMode === "peace") {
         state.mode = "peace";
@@ -10969,7 +10990,7 @@ startBtn.addEventListener("click", () => {
 
   audio.addEventListener("ended", ()=>{ /* monitor() handles */ });
 
-  return { audio, start, next, prev, toggle, setVol, setMode, auto, monitor, mountUI };
+  return { audio, start, next, prev, toggle, setVol, setMode, playVictory, auto, monitor, mountUI };
 })();
 // --- BGM compatibility shim (older code expects these) ---
 BGM._started = false;
