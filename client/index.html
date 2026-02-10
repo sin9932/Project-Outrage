@@ -1574,73 +1574,57 @@ function drawSniperSprite(ctx, wx, wy, dir, alpha=1, teamId=0){
   ctx.restore();
 }
 
-// --- Sniper MOVE (8-dir) sprite sheets (12 frames; 600x600 tiles; row-major: left->right top row, then next row) ---
-const SNIP_MOV_TILE = 600; // matches infantry move tile size
-const SNIP_MOV_PNG = [
-  "asset/sprite/unit/inf/snip_mov_e.png",
-  "asset/sprite/unit/inf/snip_mov_ne.png",
-  "asset/sprite/unit/inf/snip_mov_n.png",
-  "asset/sprite/unit/inf/snip_mov_nw.png",
-  "asset/sprite/unit/inf/snip_mov_w.png",
-  "asset/sprite/unit/inf/snip_mov_sw.png",
-  "asset/sprite/unit/inf/snip_mov_s.png",
-  "asset/sprite/unit/inf/snip_mov_se.png",
-];
-let SNIP_MOV_IMG = new Array(8).fill(null);
-let SNIP_MOV_TEAM_SHEET = new Array(8).fill(null);
+
+
+// --- Sniper move sheets (8-dir, 12 frames, row-major 6x2) ---
+const SNIP_MOVE_SUFFIX = ['e','ne','n','nw','w','sw','s','se'];
+const SNIP_MOVE_IMGS = new Array(8).fill(null);
+let SNIP_MOVE_TRIED = false;
 
 function ensureSnipMoveImgs(){
-  for(let d=0; d<8; d++){
-    if (SNIP_MOV_IMG[d]) continue;
-    const im = new Image();
-    im.src = SNIP_MOV_PNG[d];
-    SNIP_MOV_IMG[d] = im;
+  if (SNIP_MOVE_TRIED) return;
+  SNIP_MOVE_TRIED = true;
+  for (let d=0; d<8; d++){
+    const img = new Image();
+    img.src = `asset/sprite/unit/inf/snip_mov_${SNIP_MOVE_SUFFIX[d]}.png`;
+    SNIP_MOVE_IMGS[d] = img;
   }
 }
 
-function drawSniperMoveByDir(ctx, wx, wy, dir, alpha=1, teamId=0, t=0){
+function drawSniperMoveByDir(ctx, wx, wy, dir, alpha=1, teamId=0){
+  // 12 frames total, laid out as 6 columns x 2 rows. Play order: left->right, then next row.
   ensureSnipMoveImgs();
-  dir = infRemapDir(dir);
-  const img = SNIP_MOV_IMG[dir];
-
-  // If the move sheet isn't ready, fall back to idle (never crash).
-  if (!img || !img.complete || !img.naturalWidth || !img.naturalHeight){
+  dir = (dir|0) % 8; if (dir<0) dir += 8;
+  const img = SNIP_MOVE_IMGS[dir];
+  const iw = img && (img.naturalWidth || img.width) || 0;
+  const ih = img && (img.naturalHeight || img.height) || 0;
+  if (!iw || !ih) { // not loaded or missing; fallback to idle
     drawSniperSprite(ctx, wx, wy, dir, alpha, teamId);
     return;
   }
 
+  const cols = 6, rows = 2;
+  const frameCount = cols * rows; // 12
+  const t = (typeof state !== 'undefined' && state && typeof state.t === 'number') ? state.t : (performance.now()/1000);
+  const fps = 12; // crisp walk
+  const frame = ((t * fps) | 0) % frameCount;
+  const c = frame % cols;
+  const r = (frame / cols) | 0;
+
+  const sw = iw / cols;
+  const sh = ih / rows;
+
   const z = (typeof cam !== "undefined" && cam && typeof cam.zoom==="number") ? cam.zoom : 1;
-  const sc = INF_SPRITE_SCALE * z; // same scale/pivot policy as infantry
-  const tw = SNIP_MOV_TILE, th = SNIP_MOV_TILE;
-
-  const cols = Math.max(1, Math.floor(img.naturalWidth / tw));
-  const rows = Math.max(1, Math.floor(img.naturalHeight / th));
-  const frames = Math.max(1, cols * rows); // expects 12 (6x2)
-
-  // Animate: match infantry-ish cadence.
-  const FRAME_DUR = 0.06;
-  const frame = Math.floor((t || 0) / FRAME_DUR) % frames;
-
-  // Row-major order: left->right, then next row (exactly what you requested).
-  const sx = (frame % cols) * tw;
-  const sy = Math.floor(frame / cols) * th;
-
-  const sheet = buildInfTeamSheet(img, SNIP_MOV_TEAM_SHEET, teamId);
-
-  // Pivot: bottom-center (feet), same as infantry.
-  const pivotX = tw * 0.5;
-  const pivotY = th * 1.0;
-
-  const dx = Math.round(wx - pivotX * sc);
-  const dy = Math.round(wy - pivotY * sc);
+  const scale = INF_SPRITE_SCALE * z;
+  const dx = Math.round(wx - (sw * scale)/2);
+  const dy = Math.round(wy - (sh * scale) + (FEET_NUDGE * z));
 
   ctx.save();
   ctx.globalAlpha = alpha;
   ctx.imageSmoothingEnabled = true;
-  ctx.drawImage(sheet, sx, sy, tw, th, dx, dy, tw*sc, th*sc);
+  ctx.drawImage(img, c*sw, r*sh, sw, sh, dx, dy, sw*scale, sh*scale);
   ctx.restore();
 }
-// --- end sniper MOVE ---
 
 function drawInfantryMoveEast(ctx, px, py, alpha, teamId, t){
     // 6-frame loop, 600x600 tiles, frame 1 at top-left, row-major.
@@ -9889,12 +9873,10 @@ let rX = ent.x, rY = ent.y;
           if (ent.kind==="sniper" && ent.team===TEAM.PLAYER && ent.cloaked) a = 0.45;
           {
             if (ent.kind==="sniper"){
-              // Sniper: use 8-dir MOVE sheets when moving, otherwise idle.
-              const isMoveOrder = !!(ent.order && (ent.order.type==="move" || ent.order.type==="attackmove"));
-              const v2 = (ent.vx||0)*(ent.vx||0) + (ent.vy||0)*(ent.vy||0);
-              const moving = isMoveOrder || v2 > 0.0004 || (ent.path && ent.path.length>0);
-              if (moving){
-                drawSniperMoveByDir(ctx, p.x, p.y, infDir, a, ent.team, state.t);
+              // Sniper: use 8-dir move sheets (12 frames, row-major) when moving; fallback to idle.
+              const spd = Math.hypot(ent.vx||0, ent.vy||0);
+              if (spd > 0.02){
+                drawSniperMoveByDir(ctx, p.x, p.y, infDir, a, ent.team);
               } else {
                 drawSniperSprite(ctx, p.x, p.y, infDir, a, ent.team);
               }
