@@ -4374,6 +4374,15 @@ function spawnTurretMGTracers(shooter, target){
 
     // 2) Big destruction FX
     addBuildingExplosion(b);
+    // 2.2) Smoke ring + smoke plume at destruction point
+    try{
+      const bw = (b.w || (b.tw*TILE) || (TILE*4));
+      const bh = (b.h || (b.th*TILE) || (TILE*4));
+      let s = Math.sqrt(bw*bw + bh*bh) / (TILE*2.0);
+      s = clamp(s, 0.8, 2.2);
+      addSmokeWave(b.x, b.y, s);
+      addSmokeEmitter(b.x, b.y, s);
+    }catch(_e){}
     // 2.5) HQ special: play large exp1 sprite explosion + world camera shake (UI not affected)
     if (b.kind === "hq"){
       // HQ special: exp1 sprite explosion + world camera shake (UI not affected)
@@ -4405,6 +4414,160 @@ function spawnTurretMGTracers(shooter, target){
   }
 
 
+
+
+  
+  // ===== Smoke ring + smoke particles (building destruction) =====
+  // - Smoke ring: expands fast then slows, fades out slowly.
+  // - Smoke puffs: emit from the destruction point for a short time, then dissipate.
+  const smokeWaves = [];
+  const smokePuffs = [];
+  const smokeEmitters = [];
+
+  function addSmokeWave(wx, wy, size=1){
+    smokeWaves.push({ x:wx, y:wy, t:0, ttl:1.8, size: clamp(size, 0.6, 2.6) });
+  }
+
+  function addSmokeEmitter(wx, wy, size=1){
+    smokeEmitters.push({ x:wx, y:wy, t:0, ttl:2.4, size: clamp(size, 0.6, 2.6), acc:0 });
+  }
+
+  function spawnSmokePuff(wx, wy, size=1){
+    // Randomize in a small disk so it doesn't look like a single point fountain.
+    const spread = TILE * 0.45 * size;
+    const ang = Math.random() * Math.PI * 2;
+    const rad = Math.sqrt(Math.random()) * spread;
+    const x = wx + Math.cos(ang) * rad;
+    const y = wy + Math.sin(ang) * rad;
+
+    smokePuffs.push({
+      x, y,
+      vx: (Math.random()*2-1) * (TILE * 0.14 * size),
+      vy: (Math.random()*2-1) * (TILE * 0.14 * size),
+      t: 0,
+      ttl: 1.8 + Math.random()*1.6,
+      r0: (10 + Math.random()*16) * size,
+      grow: (14 + Math.random()*22) * size,
+      a0: 0.22 + Math.random()*0.18
+    });
+  }
+
+  function updateSmoke(dt){
+    // Waves
+    for (let i=smokeWaves.length-1;i>=0;i--){
+      const w = smokeWaves[i];
+      w.t += dt;
+      if (w.t >= w.ttl) smokeWaves.splice(i,1);
+    }
+
+    // Emitters
+    for (let i=smokeEmitters.length-1;i>=0;i--){
+      const e = smokeEmitters[i];
+      e.t += dt;
+      e.acc += dt;
+
+      // emit rate per second (scaled by size)
+      const rate = 26 * e.size;
+      const step = 1 / Math.max(6, rate);
+
+      while (e.acc >= step){
+        e.acc -= step;
+        spawnSmokePuff(e.x, e.y, e.size);
+      }
+      if (e.t >= e.ttl) smokeEmitters.splice(i,1);
+    }
+
+    // Puffs
+    for (let i=smokePuffs.length-1;i>=0;i--){
+      const p = smokePuffs[i];
+      p.t += dt;
+      if (p.t >= p.ttl){ smokePuffs.splice(i,1); continue; }
+
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
+
+      // soft damping
+      const damp = Math.pow(0.985, dt*60);
+      p.vx *= damp;
+      p.vy *= damp;
+    }
+  }
+
+  function drawSmokeWaves(ctx){
+    if (!smokeWaves.length) return;
+    const z = (typeof cam !== "undefined" && cam && typeof cam.zoom==="number") ? cam.zoom : 1;
+
+    for (const w of smokeWaves){
+      const p = worldToScreen(w.x, w.y);
+      const t = clamp(w.t / Math.max(0.001, w.ttl), 0, 1);
+
+      // fast expand then slow: easeOutQuart
+      const ease = 1 - Math.pow(1 - t, 4);
+
+      const R0 = (TILE * 0.25) * z;
+      const R1 = (TILE * 2.60 * w.size) * z;
+      const R = R0 + (R1 - R0) * ease;
+
+      // fade: quick initial drop, slow tail
+      const a = 0.55 * Math.pow(1 - t, 0.55);
+
+      const lw = (TILE * 0.22 * w.size) * z;
+
+      ctx.save();
+      ctx.globalCompositeOperation = "source-over";
+      ctx.globalAlpha = a;
+
+      // dark ring
+      ctx.strokeStyle = "rgba(70,70,70,1)";
+      ctx.lineWidth = lw;
+      ctx.shadowColor = "rgba(0,0,0,0.35)";
+      ctx.shadowBlur = 10 * z;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, R, 0, Math.PI*2);
+      ctx.stroke();
+
+      // lighter inner rim
+      ctx.globalAlpha = a * 0.45;
+      ctx.strokeStyle = "rgba(160,160,160,1)";
+      ctx.lineWidth = lw * 0.45;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, R * 0.92, 0, Math.PI*2);
+      ctx.stroke();
+
+      ctx.restore();
+    }
+  }
+
+  function drawSmokePuffs(ctx){
+    if (!smokePuffs.length) return;
+    const z = (typeof cam !== "undefined" && cam && typeof cam.zoom==="number") ? cam.zoom : 1;
+
+    for (const s of smokePuffs){
+      const p = worldToScreen(s.x, s.y);
+      const t = clamp(s.t / Math.max(0.001, s.ttl), 0, 1);
+
+      const r = (s.r0 + s.grow * t) * z;
+
+      // fade out slowly
+      const a = s.a0 * Math.pow(1 - t, 0.65);
+
+      ctx.save();
+      ctx.globalCompositeOperation = "source-over";
+      ctx.globalAlpha = a;
+
+      const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, r);
+      g.addColorStop(0.0, "rgba(220,220,220,0.22)");
+      g.addColorStop(0.35, "rgba(130,130,130,0.20)");
+      g.addColorStop(1.0, "rgba(50,50,50,0.0)");
+      ctx.fillStyle = g;
+
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, r, 0, Math.PI*2);
+      ctx.fill();
+
+      ctx.restore();
+    }
+  }
 
 
   // ===== Building Destruction Explosion FX =====
@@ -10467,7 +10630,9 @@ ctx.fill();
     drawExplosions(ctx);
     // HQ sprite explosion (exp1)
     drawExp1Fxs(ctx);
-
+    // Smoke ring + smoke plume (building destruction)
+    drawSmokeWaves(ctx);
+    drawSmokePuffs(ctx);
 
     // Building fire FX (critical HP)
     for (const f of fires){
@@ -11492,6 +11657,7 @@ function sanityCheck(){
       state.t += dt;
       updateCamShake(dt);
       updateExp1Fxs(dt);
+      updateSmoke(dt);
 
 
       const sp = cam.speed*dt;
