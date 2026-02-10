@@ -722,19 +722,54 @@ function fitMini() {
     return { x: (e.clientX - rect.left) * sx, y: (e.clientY - rect.top) * sy };
   }
 
-  const TILE = 110;
-  const GAME_SPEED = 1.30;
-  const BUILD_PROD_MULT = 1.30; // additional +30% for building & unit production speed
-  // Enemy AI cheats (difficulty)
-  const ENEMY_PROD_SPEED = 1.65;
-  const ENEMY_ECON_MULT  = 1.50;
-  const MAP_W = 64;
-  const MAP_H = 40;
-  const WORLD_W = MAP_W * TILE;
-  const WORLD_H = MAP_H * TILE;
+  // ===============================
+// CONFIG (tweakables in one place)
+// ===============================
+const CONFIG = Object.freeze({
+  // Tile / world
+  TILE: 110,                // base tile size in pixels (screen-space)
+  GAME_SPEED: 1.30,         // global sim speed multiplier
+  VIEW_W: 1400,
+  VIEW_H: 850,
 
-  const ISO_X = TILE / 2;
-  const ISO_Y = TILE / 4;
+  // UI
+  UI_W: 410,
+  UI_POWER_H: 36,
+  UI_TABS_H: 74,
+
+  // Map
+  MAP_W: 88,
+  MAP_H: 60,
+
+  // Minimap
+  MINIMAP_W: 220,
+  MINIMAP_H: 150,
+});
+
+// Backward-compatible constants (so the rest of the code stays readable)
+const TILE = CONFIG.TILE;
+const GAME_SPEED = CONFIG.GAME_SPEED;
+
+const VIEW_W = CONFIG.VIEW_W;
+const VIEW_H = CONFIG.VIEW_H;
+const UI_W = CONFIG.UI_W;
+const UI_POWER_H = CONFIG.UI_POWER_H;
+const UI_TABS_H = CONFIG.UI_TABS_H;
+
+const MAP_W = CONFIG.MAP_W;
+const MAP_H = CONFIG.MAP_H;
+
+const MINIMAP_W = CONFIG.MINIMAP_W;
+const MINIMAP_H = CONFIG.MINIMAP_H;
+
+// Derived sizes
+const WORLD_W = MAP_W * TILE;
+const WORLD_H = MAP_H * TILE;
+
+// Isometric projection scale (tweak here if you ever change the look)
+const ISO_X = TILE / 2;
+const ISO_Y = TILE / 4;
+
 
   // Tile/world helpers (isometric diamond tile center coordinates)
   function tileToWorldCenter(tx, ty){ return { x:(tx+0.5)*TILE, y:(ty+0.5)*TILE }; }
@@ -878,7 +913,9 @@ function fitMini() {
 
   // NOTE: use `var` to avoid Temporal Dead Zone issues if any code path
   // references `state` before this declaration finishes initializing.
-  var state = {
+  function createInitialState() {
+  // Keep the shape in one place. This helps debugging and prevents "mystery fields".
+  return {
     t: 0,
     suppressClickUntil: 0,
     player: { money: 10000, powerProd: 0, powerUse: 0 },
@@ -898,6 +935,9 @@ function fitMini() {
     lastHit: { t: -1e9, x: 0, y: 0 },
     mouseMode: "normal" // normal | repair | sell
   };
+}
+var state = createInitialState();
+
   // init attack alert containers (safe, after state exists)
   state.attackAlert = { cooldownUntil:-1e9, windowUntil:-1e9 };
   state.attackEvents = [];
