@@ -867,9 +867,31 @@ function fitMini() {
     const b = iy * (TILE / ISO_Y);
     return { x: (a + b) / 2, y: (b - a) / 2 };
   }
-  function getBaseOffset() { return { x: canvas.width * 0.5, y: canvas.height * 0.22 }; }
+  function getBaseOffset() { return { x: canvas.width * 0.5 + (camShake.x||0), y: canvas.height * 0.22 + (camShake.y||0) }; }
 
   const cam = { x: WORLD_W*0.5, y: WORLD_H*0.5, speed: 900, zoom: 1.0 };
+
+  // Camera shake (screen-space px). Applies to world render & picking, NOT UI.
+  const camShake = { t:0, dur:0, amp:0, x:0, y:0 };
+  function startCameraShake(ampPx=18, dur=0.6){
+    camShake.t = 0;
+    camShake.dur = Math.max(camShake.dur||0, dur);
+    camShake.amp = Math.max(camShake.amp||0, ampPx);
+  }
+  function updateCameraShake(dt){
+    const dur = camShake.dur||0;
+    if (dur<=0){ camShake.x=0; camShake.y=0; return; }
+    camShake.t += dt;
+    if (camShake.t >= dur){
+      camShake.t = 0; camShake.dur = 0; camShake.amp = 0;
+      camShake.x = 0; camShake.y = 0;
+      return;
+    }
+    const k = 1 - (camShake.t / dur);
+    const a = (camShake.amp||0) * (k*k);
+    camShake.x = (Math.random()*2 - 1) * a;
+    camShake.y = (Math.random()*2 - 1) * a;
+  }
 
   const isoCorners = [
     worldToIso(0,0), worldToIso(WORLD_W,0), worldToIso(0,WORLD_H), worldToIso(WORLD_W,WORLD_H),
@@ -1289,6 +1311,51 @@ function getBaseBuildTime(kind){
   const INF_DIE_PNG = "asset/sprite/unit/inf/inf_die.png";
   const INF_DIE_IMG = new Image();
   INF_DIE_IMG.src = INF_DIE_PNG;
+
+  // === Large building explosion FX (exp1) ===
+  const EXP1_JSON = "asset/sprite/eff/exp1/exp1_anim.json";
+  const EXP1_PNG  = "asset/sprite/eff/exp1/exp1_anim.png";
+  const EXP1_IMG  = new Image();
+  EXP1_IMG.src = EXP1_PNG;
+  let EXP1_FRAMES = null; // [{x,y,w,h}]
+
+  (async function loadExp1Atlas(){
+    try{
+      const r = await fetch(EXP1_JSON, { cache: "no-store" });
+      const j = await r.json();
+
+      // Support Aseprite JSON (hash or array), and simple frame arrays.
+      const framesRaw = j?.frames;
+      const out = [];
+      if (Array.isArray(framesRaw)){
+        for (const f of framesRaw){
+          const fr = f?.frame || f;
+          if (!fr) continue;
+          out.push({ x: fr.x|0, y: fr.y|0, w: fr.w|0, h: fr.h|0 });
+        }
+      } else if (framesRaw && typeof framesRaw === "object"){
+        const keys = Object.keys(framesRaw);
+        keys.sort((a,b)=>{
+          // numeric sort if suffix digits exist
+          const na = (a.match(/(\d+)(?!.*\d)/)||[])[1];
+          const nb = (b.match(/(\d+)(?!.*\d)/)||[])[1];
+          if (na!=null && nb!=null) return (na|0)-(nb|0);
+          return a.localeCompare(b);
+        });
+        for (const k of keys){
+          const fr = framesRaw[k]?.frame || framesRaw[k];
+          if (!fr) continue;
+          out.push({ x: fr.x|0, y: fr.y|0, w: fr.w|0, h: fr.h|0 });
+        }
+      }
+
+      EXP1_FRAMES = out.length ? out : null;
+    }catch(e){
+      EXP1_FRAMES = null;
+      console.warn("exp1 atlas load failed:", e);
+    }
+  })();
+
 
 
 
@@ -4149,6 +4216,12 @@ function spawnTurretMGTracers(shooter, target){
     // 2) Big destruction FX
     addBuildingExplosion(b);
 
+
+     // HQ special: sprite explosion + camera shake (anchor = building base center)
+     if (b.kind==="hq"){
+       spawnExp1Fx(b.x, b.y, Math.max(b.tw||4, b.th||4));
+       startCameraShake(30, 0.75);
+     }
     // 3) Remove from gameplay
     b.alive = false;
     state.selection.delete(b.id);
@@ -10180,6 +10253,7 @@ ctx.fill();
 
     // Building destruction explosions
     drawExplosions(ctx);
+    drawSpriteFxs(ctx);
 
     // Building fire FX (critical HP)
     for (const f of fires){
@@ -11203,6 +11277,8 @@ function sanityCheck(){
     if (running && !gameOver && !pauseMenuOpen){
       state.t += dt;
 
+      updateCameraShake(dt);
+
       const sp = cam.speed*dt;
       if (keys.has("arrowleft")) cam.x -= sp;
       if (keys.has("arrowright")) cam.x += sp;
@@ -11357,7 +11433,55 @@ window.boardUnitIntoIFV = boardUnitIntoIFV;
 window.unboardIFV = tryUnloadIFV;
 window.resolveUnitOverlaps = resolveUnitOverlaps;
 
-})();</script>
+})();
+
+// ===== Sprite FX (Atlas-based) =====
+const spriteFxs = [];
+
+function spawnExp1Fx(x, y, tileSize=4){
+  // If atlas isn't ready, silently skip (procedural explosion still runs).
+  if (!EXP1_FRAMES || !EXP1_IMG || !EXP1_IMG.complete || EXP1_IMG.naturalWidth<=0) return;
+  // Bigger buildings => bigger blast.
+  const scale = clamp(1.6 + (tileSize-4)*0.15, 1.6, 2.6);
+  spriteFxs.push({ kind:"exp1", x, y, t0: state.t, frameDur: 0.01, scale });
+}
+
+function drawSpriteFxs(ctx){
+  if (!spriteFxs.length) return;
+  if (!EXP1_FRAMES || !EXP1_IMG || !EXP1_IMG.complete || EXP1_IMG.naturalWidth<=0) return;
+
+  for (let i=spriteFxs.length-1;i>=0;i--){
+    const fx = spriteFxs[i];
+    const age = state.t - fx.t0;
+    const frames = EXP1_FRAMES;
+    const fi = Math.floor(age / (fx.frameDur||0.01));
+    if (fi >= frames.length || fi < 0){
+      spriteFxs.splice(i,1);
+      continue;
+    }
+
+    const fr = frames[fi];
+    if (!fr || fr.w<=0 || fr.h<=0) continue;
+
+    const p = worldToScreen(fx.x, fx.y);
+    const z = cam.zoom||1;
+
+    // Place explosion slightly above the ground plane so it reads as "towering".
+    const lift = ISO_Y * 0.95 * z;
+
+    const sc = (fx.scale||2.0) * z;
+    const dw = fr.w * sc;
+    const dh = fr.h * sc;
+
+    ctx.save();
+    const dx = Math.round(p.x - dw/2);
+    const dy = Math.round((p.y - lift) - dh/2);
+    ctx.drawImage(EXP1_IMG, fr.x, fr.y, fr.w, fr.h, dx, dy, dw, dh);
+    ctx.restore();
+  }
+}
+
+</script>
 
 <div id="pauseOverlay" aria-hidden="true">
   <div class="pm" role="dialog" aria-modal="true" aria-label="옵션">
