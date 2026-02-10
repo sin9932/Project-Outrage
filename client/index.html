@@ -4527,7 +4527,8 @@ function spawnTurretMGTracers(shooter, target){
     }
   }
 
-  function drawSmokeWaves(ctx){
+  
+function drawSmokeWaves(ctx){
     if (!smokeWaves.length) return;
     const z = (typeof cam !== "undefined" && cam && typeof cam.zoom==="number") ? cam.zoom : 1;
 
@@ -4544,54 +4545,77 @@ function spawnTurretMGTracers(shooter, target){
       // fast expand then slow: easeOutQuart
       const ease = 1 - Math.pow(1 - t, 4);
 
-      // Smaller than before (was too huge)
-      const R0 = (TILE * 0.16) * z;
-      const R1 = (TILE * 1.35 * w.size) * z;
+      // Keep it compact (previously still felt too large)
+      const R0 = (TILE * 0.10) * z;
+      const R1 = (TILE * 1.05 * w.size) * z;
       const R  = R0 + (R1 - R0) * ease;
 
-      // fade: smoky tail
-      const a = 0.42 * Math.pow(1 - t, 0.70);
+      // Soft, hazy smoke: low contrast, no crisp stroke
+      const a = 0.22 * Math.pow(1 - t, 0.62);
 
-      // Isometric flattening: not a perfect circle on screen
-      const rx = R;
-      const ry = R * (w.squash ?? 0.60);
+      // Isometric flattening (y radius multiplier)
+      const squash = (w.squash ?? 0.60);
 
-      const baseLW = (TILE * 0.16 * w.size) * z;
+      // Ring thickness (soft edge, not a hard line)
+      const th = (TILE * 0.26 * w.size) * z;
 
       ctx.save();
       ctx.globalCompositeOperation = "source-over";
-      ctx.lineCap = "round";
 
-      // Main smoky ring: multiple soft, slightly jittered ellipses (breaks the clean line)
+      // Work in a scaled space so the radial gradient becomes an ellipse on screen
+      ctx.translate(p.x, p.y);
+      ctx.scale(1, squash);
+
+      // 3 layered gradients with slight jitter so it reads like smoke, not geometry
       for (let k=0;k<3;k++){
-        const jx = (pr(w.seed, 10+k)-0.5) * (TILE * 0.05 * w.size) * z;
-        const jy = (pr(w.seed, 20+k)-0.5) * (TILE * 0.04 * w.size) * z;
-        const rrX = 1 + (pr(w.seed, 30+k)-0.5) * 0.035;
-        const rrY = 1 + (pr(w.seed, 40+k)-0.5) * 0.060;
+        const jx = (pr(w.seed, 10+k)-0.5) * (TILE * 0.08 * w.size) * z;
+        const jy = (pr(w.seed, 20+k)-0.5) * (TILE * 0.08 * w.size) * z;
+        const rr = 1 + (pr(w.seed, 30+k)-0.5) * 0.06;
 
-        ctx.globalAlpha = a * (0.62 - k*0.14);
-        ctx.strokeStyle = "rgba(55,55,55,1)";
-        ctx.lineWidth = baseLW * (1.05 + (pr(w.seed, 50+k)-0.5) * 0.30);
-        ctx.shadowColor = "rgba(0,0,0,0.25)";
-        ctx.shadowBlur  = 22 * z;
+        const ak = a * (0.65 - k*0.16);
+
+        // soft shadow blur helps kill "clean line" look
+        ctx.shadowColor = "rgba(0,0,0,0.22)";
+        ctx.shadowBlur  = 26 * z;
+
+        const inner = Math.max(0, (R*rr) - th*0.60);
+        const outer = (R*rr) + th*1.35;
+
+        const g = ctx.createRadialGradient(jx, jy, inner, jx, jy, outer);
+        g.addColorStop(0.00, "rgba(0,0,0,0)");
+        g.addColorStop(0.45, `rgba(80,80,80,${ak*0.10})`);
+        g.addColorStop(0.62, `rgba(70,70,70,${ak*0.18})`);
+        g.addColorStop(0.78, `rgba(55,55,55,${ak*0.14})`);
+        g.addColorStop(1.00, "rgba(0,0,0,0)");
+
+        ctx.fillStyle = g;
+        ctx.globalAlpha = 1;
 
         ctx.beginPath();
-        ctx.ellipse(p.x + jx, p.y + jy, rx*rrX, ry*rrY, 0, 0, Math.PI*2);
-        ctx.stroke();
+        ctx.arc(jx, jy, outer, 0, Math.PI*2);
+        ctx.fill();
       }
 
-      // Wispy highlights: short arc segments so it reads as smoke, not geometry
-      ctx.shadowBlur = 12 * z;
-      ctx.strokeStyle = "rgba(140,140,140,1)";
-      ctx.lineWidth = baseLW * 0.34;
-      for (let i=0;i<18;i++){
-        const a0 = (i/18) * (Math.PI*2) + pr(w.seed, 80+i)*0.35;
-        const a1 = a0 + 0.22 + pr(w.seed, 100+i)*0.18;
-        ctx.globalAlpha = a * 0.18 * (0.55 + pr(w.seed, 120+i)*0.9);
+      // wispy blobs along the ring (very faint)
+      ctx.shadowBlur = 18 * z;
+      for (let i=0;i<14;i++){
+        const ang = (i/14) * (Math.PI*2) + pr(w.seed, 100+i)*0.55;
+        const rad = R * (0.88 + pr(w.seed, 130+i)*0.20);
+        const x = Math.cos(ang) * rad;
+        const y = Math.sin(ang) * rad;
 
+        const r = (TILE * (0.09 + pr(w.seed, 160+i)*0.10) * w.size) * z;
+        const ak = a * 0.14 * (0.5 + pr(w.seed, 190+i)*1.0);
+
+        const g = ctx.createRadialGradient(x, y, 0, x, y, r*2.2);
+        g.addColorStop(0.0, `rgba(120,120,120,${ak*0.22})`);
+        g.addColorStop(0.4, `rgba(80,80,80,${ak*0.18})`);
+        g.addColorStop(1.0, "rgba(0,0,0,0)");
+
+        ctx.fillStyle = g;
         ctx.beginPath();
-        ctx.ellipse(p.x, p.y, rx*0.98, ry*0.98, 0, a0, a1);
-        ctx.stroke();
+        ctx.arc(x, y, r*2.2, 0, Math.PI*2);
+        ctx.fill();
       }
 
       ctx.restore();
@@ -10687,16 +10711,14 @@ ctx.fill();
     }
 
 
+    // Smoke ring (ground haze) should be the LOWEST FX layer (under explosions / particles / sprites)
+    drawSmokeWaves(ctx);
+
     // Building destruction explosions
     drawExplosions(ctx);
 
-    // Smoke ring (ground layer) should render *below* sprite FX like exp1
-    drawSmokeWaves(ctx);
-
-    // HQ sprite explosion (exp1) above the ground smoke ring
-    drawExp1Fxs(ctx);
-
-    // Smoke plume (puffs) can sit above the explosion a bit
+    // HQ sprite explosion (exp1) above other FX
+    drawExp1Fxs(ctx);// Smoke plume (puffs) can sit above the explosion a bit
     drawSmokePuffs(ctx);
 // Building fire FX (critical HP)
     for (const f of fires){
