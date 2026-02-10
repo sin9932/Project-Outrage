@@ -4425,16 +4425,29 @@ function spawnTurretMGTracers(shooter, target){
   const smokeEmitters = [];
 
   function addSmokeWave(wx, wy, size=1){
-    smokeWaves.push({ x:wx, y:wy, t:0, ttl:1.8, size: clamp(size, 0.6, 2.6) });
+    const sz = clamp(size, 0.6, 2.1);
+    // Seeded per-wave noise so the ring doesn't look like a perfect clean circle.
+    smokeWaves.push({
+      x:wx, y:wy,
+      t:0,
+      ttl:1.35,
+      size: sz,
+      seed: (Math.random()*1e9)|0,
+      squash: 0.60 // isometric "flattening" (y radius multiplier)
+    });
   }
 
   function addSmokeEmitter(wx, wy, size=1){
-    smokeEmitters.push({ x:wx, y:wy, t:0, ttl:2.4, size: clamp(size, 0.6, 2.6), acc:0 });
+    const sz = clamp(size, 0.6, 2.3);
+    smokeEmitters.push({ x:wx, y:wy, t:0, ttl:3.2, size: sz, acc:0 });
+
+    // extra lingering haze so the wreck smoke feels "ambient" around the area
+    for (let i=0;i<6;i++) spawnSmokeHaze(wx, wy, sz * (0.95 + Math.random()*0.25));
   }
 
   function spawnSmokePuff(wx, wy, size=1){
     // Randomize in a small disk so it doesn't look like a single point fountain.
-    const spread = TILE * 0.45 * size;
+    const spread = TILE * 0.85 * size; // wider, more ambient spread
     const ang = Math.random() * Math.PI * 2;
     const rad = Math.sqrt(Math.random()) * spread;
     const x = wx + Math.cos(ang) * rad;
@@ -4442,14 +4455,35 @@ function spawnTurretMGTracers(shooter, target){
 
     smokePuffs.push({
       x, y,
-      vx: (Math.random()*2-1) * (TILE * 0.14 * size),
-      vy: (Math.random()*2-1) * (TILE * 0.14 * size),
+      vx: (Math.random()*2-1) * (TILE * 0.22 * size) + Math.cos(ang)*(TILE*0.08*size),
+      vy: (Math.random()*2-1) * (TILE * 0.22 * size) + Math.sin(ang)*(TILE*0.08*size),
       t: 0,
-      ttl: 1.8 + Math.random()*1.6,
-      r0: (10 + Math.random()*16) * size,
-      grow: (14 + Math.random()*22) * size,
-      a0: 0.22 + Math.random()*0.18
+      ttl: 2.8 + Math.random()*2.2,
+      r0: (18 + Math.random()*26) * size,
+      grow: (30 + Math.random()*44) * size,
+      a0: 0.12 + Math.random()*0.12
     });
+
+  function spawnSmokeHaze(wx, wy, size=1){
+    // Big, faint lingering haze that slowly spreads around the wreck site.
+    const spread = TILE * 1.15 * size;
+    const ang = Math.random() * Math.PI * 2;
+    const rad = Math.sqrt(Math.random()) * spread;
+    const x = wx + Math.cos(ang) * rad;
+    const y = wy + Math.sin(ang) * rad;
+
+    smokePuffs.push({
+      x, y,
+      vx: (Math.random()*2-1) * (TILE * 0.10 * size) + Math.cos(ang)*(TILE*0.06*size),
+      vy: (Math.random()*2-1) * (TILE * 0.10 * size) + Math.sin(ang)*(TILE*0.06*size),
+      t: 0,
+      ttl: 4.2 + Math.random()*2.2,
+      r0: (34 + Math.random()*24) * size,
+      grow: (70 + Math.random()*70) * size,
+      a0: 0.06 + Math.random()*0.05
+    });
+  }
+
   }
 
   function updateSmoke(dt){
@@ -4467,7 +4501,7 @@ function spawnTurretMGTracers(shooter, target){
       e.acc += dt;
 
       // emit rate per second (scaled by size)
-      const rate = 26 * e.size;
+      const rate = 18 * e.size; // fewer but bigger puffs
       const step = 1 / Math.max(6, rate);
 
       while (e.acc >= step){
@@ -4487,7 +4521,7 @@ function spawnTurretMGTracers(shooter, target){
       p.y += p.vy * dt;
 
       // soft damping
-      const damp = Math.pow(0.985, dt*60);
+      const damp = Math.pow(0.992, dt*60); // slower damping so smoke drifts outward
       p.vx *= damp;
       p.vy *= damp;
     }
@@ -4497,6 +4531,12 @@ function spawnTurretMGTracers(shooter, target){
     if (!smokeWaves.length) return;
     const z = (typeof cam !== "undefined" && cam && typeof cam.zoom==="number") ? cam.zoom : 1;
 
+    // helper: deterministic-ish pseudo-rand per wave
+    const pr = (seed, n)=>{
+      const x = Math.sin((seed + n) * 12.9898) * 43758.5453;
+      return x - Math.floor(x);
+    };
+
     for (const w of smokeWaves){
       const p = worldToScreen(w.x, w.y);
       const t = clamp(w.t / Math.max(0.001, w.ttl), 0, 1);
@@ -4504,38 +4544,59 @@ function spawnTurretMGTracers(shooter, target){
       // fast expand then slow: easeOutQuart
       const ease = 1 - Math.pow(1 - t, 4);
 
-      const R0 = (TILE * 0.25) * z;
-      const R1 = (TILE * 2.60 * w.size) * z;
-      const R = R0 + (R1 - R0) * ease;
+      // Smaller than before (was too huge)
+      const R0 = (TILE * 0.16) * z;
+      const R1 = (TILE * 1.35 * w.size) * z;
+      const R  = R0 + (R1 - R0) * ease;
 
-      // fade: quick initial drop, slow tail
-      const a = 0.55 * Math.pow(1 - t, 0.55);
+      // fade: smoky tail
+      const a = 0.42 * Math.pow(1 - t, 0.70);
 
-      const lw = (TILE * 0.22 * w.size) * z;
+      // Isometric flattening: not a perfect circle on screen
+      const rx = R;
+      const ry = R * (w.squash ?? 0.60);
+
+      const baseLW = (TILE * 0.16 * w.size) * z;
 
       ctx.save();
       ctx.globalCompositeOperation = "source-over";
-      ctx.globalAlpha = a;
+      ctx.lineCap = "round";
 
-      // dark ring
-      ctx.strokeStyle = "rgba(70,70,70,1)";
-      ctx.lineWidth = lw;
-      ctx.shadowColor = "rgba(0,0,0,0.35)";
-      ctx.shadowBlur = 10 * z;
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, R, 0, Math.PI*2);
-      ctx.stroke();
+      // Main smoky ring: multiple soft, slightly jittered ellipses (breaks the clean line)
+      for (let k=0;k<3;k++){
+        const jx = (pr(w.seed, 10+k)-0.5) * (TILE * 0.05 * w.size) * z;
+        const jy = (pr(w.seed, 20+k)-0.5) * (TILE * 0.04 * w.size) * z;
+        const rrX = 1 + (pr(w.seed, 30+k)-0.5) * 0.035;
+        const rrY = 1 + (pr(w.seed, 40+k)-0.5) * 0.060;
 
-      // lighter inner rim
-      ctx.globalAlpha = a * 0.45;
-      ctx.strokeStyle = "rgba(160,160,160,1)";
-      ctx.lineWidth = lw * 0.45;
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, R * 0.92, 0, Math.PI*2);
-      ctx.stroke();
+        ctx.globalAlpha = a * (0.62 - k*0.14);
+        ctx.strokeStyle = "rgba(55,55,55,1)";
+        ctx.lineWidth = baseLW * (1.05 + (pr(w.seed, 50+k)-0.5) * 0.30);
+        ctx.shadowColor = "rgba(0,0,0,0.25)";
+        ctx.shadowBlur  = 22 * z;
+
+        ctx.beginPath();
+        ctx.ellipse(p.x + jx, p.y + jy, rx*rrX, ry*rrY, 0, 0, Math.PI*2);
+        ctx.stroke();
+      }
+
+      // Wispy highlights: short arc segments so it reads as smoke, not geometry
+      ctx.shadowBlur = 12 * z;
+      ctx.strokeStyle = "rgba(140,140,140,1)";
+      ctx.lineWidth = baseLW * 0.34;
+      for (let i=0;i<18;i++){
+        const a0 = (i/18) * (Math.PI*2) + pr(w.seed, 80+i)*0.35;
+        const a1 = a0 + 0.22 + pr(w.seed, 100+i)*0.18;
+        ctx.globalAlpha = a * 0.18 * (0.55 + pr(w.seed, 120+i)*0.9);
+
+        ctx.beginPath();
+        ctx.ellipse(p.x, p.y, rx*0.98, ry*0.98, 0, a0, a1);
+        ctx.stroke();
+      }
 
       ctx.restore();
     }
+  }
   }
 
   function drawSmokePuffs(ctx){
@@ -10628,13 +10689,16 @@ ctx.fill();
 
     // Building destruction explosions
     drawExplosions(ctx);
-    // HQ sprite explosion (exp1)
-    drawExp1Fxs(ctx);
-    // Smoke ring + smoke plume (building destruction)
-    drawSmokeWaves(ctx);
-    drawSmokePuffs(ctx);
 
-    // Building fire FX (critical HP)
+    // Smoke ring (ground layer) should render *below* sprite FX like exp1
+    drawSmokeWaves(ctx);
+
+    // HQ sprite explosion (exp1) above the ground smoke ring
+    drawExp1Fxs(ctx);
+
+    // Smoke plume (puffs) can sit above the explosion a bit
+    drawSmokePuffs(ctx);
+// Building fire FX (critical HP)
     for (const f of fires){
       const p = worldToScreen(f.x, f.y);
       const a = clamp(f.life/0.6, 0, 1);
