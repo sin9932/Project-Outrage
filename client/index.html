@@ -1282,11 +1282,18 @@ function getBaseBuildTime(kind){
         if (Array.isArray(fr)){
           const arr = fr.map((it, idx)=>({
             name: it?.filename ?? String(idx),
+            // frame rect inside atlas
             x: (it?.frame?.x ?? it?.x ?? 0) | 0,
             y: (it?.frame?.y ?? it?.y ?? 0) | 0,
             w: (it?.frame?.w ?? it?.w ?? 0) | 0,
-            h: (it?.frame?.h ?? it?.h ?? 0) | 0
-          })).filter(f=>f.w>0 && f.h>0);
+            h: (it?.frame?.h ?? it?.h ?? 0) | 0,
+
+            // trim-aware offsets (Aseprite/TexturePacker style)
+            ox: (it?.spriteSourceSize?.x ?? it?.spriteSourceSizeX ?? 0) | 0,
+            oy: (it?.spriteSourceSize?.y ?? it?.spriteSourceSizeY ?? 0) | 0,
+            sw: (it?.sourceSize?.w ?? it?.sourceW ?? (it?.frame?.w ?? it?.w ?? 0)) | 0,
+            sh: (it?.sourceSize?.h ?? it?.sourceH ?? (it?.frame?.h ?? it?.h ?? 0)) | 0
+          })).filter(f=>f.w>0 && f.h>0 && f.sw>0 && f.sh>0);
 
           // Sort by trailing number if possible
           arr.sort((a,b)=>{
@@ -1296,7 +1303,7 @@ function getBaseBuildTime(kind){
             return a.name.localeCompare(b.name);
           });
 
-          return arr.map(({x,y,w,h})=>({x,y,w,h}));
+          return arr.map(({x,y,w,h,ox,oy,sw,sh})=>({x,y,w,h,ox,oy,sw,sh}));
         }
 
         // TexturePacker: frames is dict
@@ -1317,7 +1324,15 @@ function getBaseBuildTime(kind){
             const y = (f.y ?? 0) | 0;
             const w = (f.w ?? 0) | 0;
             const h = (f.h ?? 0) | 0;
-            if (w>0 && h>0) arr.push({x,y,w,h});
+            if (w>0 && h>0){
+              const sss = v && (v.spriteSourceSize || v.spriteSource || v.spritesourcesize);
+              const ss  = v && (v.sourceSize || v.source || v.sourcesize);
+              const ox = (sss && (sss.x ?? sss[0]) ? (sss.x ?? sss[0]) : 0) | 0;
+              const oy = (sss && (sss.y ?? sss[1]) ? (sss.y ?? sss[1]) : 0) | 0;
+              const sw = (ss && (ss.w ?? ss[0]) ? (ss.w ?? ss[0]) : w) | 0;
+              const sh = (ss && (ss.h ?? ss[1]) ? (ss.h ?? ss[1]) : h) | 0;
+              arr.push({x,y,w,h, ox,oy, sw,sh});
+            }
           }
           return arr.length ? arr : null;
         }
@@ -1413,13 +1428,20 @@ function getBaseBuildTime(kind){
       const fr = EXP1_FRAMES[fi];
       const p = worldToScreen(fx.x, fx.y);
 
-      const dw = fr.w * fx.scale * z;
-      const dh = fr.h * fx.scale * z;
+      const dw = (fr.sw ?? fr.w) * fx.scale * z;
+      const dh = (fr.sh ?? fr.h) * fx.scale * z;
 
       // Anchor: pivoted (tunable) at (fx.x, fx.y) == "바닥 정중앙"
       const dx = p.x - dw * EXP1_PIVOT_X;
       const dy = p.y - dh * EXP1_PIVOT_Y + (EXP1_Y_OFFSET * z);
-ctx.drawImage(EXP1_IMG, fr.x, fr.y, fr.w, fr.h, dx, dy, dw, dh);
+
+      // Trim-aware placement:
+      const ox = (fr.ox ?? 0) * fx.scale * z;
+      const oy = (fr.oy ?? 0) * fx.scale * z;
+      const fw = fr.w * fx.scale * z;
+      const fh = fr.h * fx.scale * z;
+
+      ctx.drawImage(EXP1_IMG, fr.x, fr.y, fr.w, fr.h, dx + ox, dy + oy, fw, fh);
     }
 
     ctx.restore();
