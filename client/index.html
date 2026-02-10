@@ -326,25 +326,26 @@
 }
 #pmEQ{
   flex:1;
-  height:18px;
+  height:64px; /* BIG, readable EQ */
   display:flex;
   align-items:flex-end;
-  gap:2px;
-  padding:2px 4px;
-  border-radius:10px;
-  border:1px solid rgba(255,255,255,.12);
-  background: rgba(255,255,255,.04);
+  gap:3px;
+  padding:6px 8px;
+  border-radius:14px;
+  border:1px solid rgba(255,255,255,.14);
+  background: rgba(255,255,255,.045);
   overflow:hidden;
 }
 #pmEQ .bar{
   flex:1;
-  min-width:2px;
-  height:30%;
-  border-radius:4px 4px 2px 2px;
-  background: linear-gradient(180deg, rgba(90,220,140,.95), rgba(255,210,110,.85));
-  opacity:.95;
+  min-width:4px;
+  height:100%;
+  border-radius:8px 8px 3px 3px;
+  background: linear-gradient(180deg, rgba(90,220,140,.95), rgba(255,210,110,.90));
+  opacity:.98;
   transform-origin: bottom;
-  transform: scaleY(0.2);
+  transform: scaleY(0.25);
+  filter: drop-shadow(0 0 6px rgba(255,210,110,.18));
 }
 
 #pauseOverlay .pm .pctrl{
@@ -10646,7 +10647,7 @@ startBtn.addEventListener("click", () => {
   // Tracks are local files (uploaded). Two playlists and auto-switch by combat.
   const peaceTracks = ["asset/music/peace1.mp3","asset/music/peace2.mp3","asset/music/peace3.mp3","asset/music/peace4.mp3"];
   const battleTracks = ["asset/music/battle1.mp3","asset/music/battle2.mp3","asset/music/battle3.mp3","asset/music/battle4.mp3","asset/music/battle5.mp3"];
-  const allTracks = peaceTracks.concat(battleTracks);
+  const allTracks = battleTracks.concat(peaceTracks);
 
 
   const audio = new Audio();
@@ -10667,7 +10668,7 @@ startBtn.addEventListener("click", () => {
       _ctx = new AC();
       const src = _ctx.createMediaElementSource(audio);
       _analyser = _ctx.createAnalyser();
-      _analyser.fftSize = 64; // 32 bins
+      _analyser.fftSize = 256; // 128 bins (smoother EQ)
       _freq = new Uint8Array(_analyser.frequencyBinCount);
       src.connect(_analyser);
       _analyser.connect(_ctx.destination);
@@ -10701,7 +10702,14 @@ startBtn.addEventListener("click", () => {
 
   function refill(mode){
     const src = (mode==="all") ? allTracks : ((mode==="battle") ? battleTracks : peaceTracks);
-    state.order[mode] = shuffle(src.slice());
+    // Player playlist ("all") should be deterministic & sequential:
+    // battle1..N then peace1..N
+    if (mode === "all") {
+      state.order[mode] = src.slice();
+    } else {
+      // Gameplay playlists can be shuffled for variety.
+      state.order[mode] = shuffle(src.slice());
+    }
     state.idx[mode] = 0;
   }
 
@@ -10829,7 +10837,7 @@ startBtn.addEventListener("click", () => {
     // init EQ bars (multiple sticks)
     if (ui.eq){
       ui.eq.innerHTML = "";
-      const bars = 10; // thicker, bigger bars (more readable)
+      const bars = 16; // BIGGER, more bars but still chunky
       for (let i=0;i<bars;i++){
         const b = document.createElement("div");
         b.className = "bar";
@@ -10896,7 +10904,7 @@ startBtn.addEventListener("click", () => {
       const n = kids.length||0;
       for (let i=0;i<n;i++) {
         const k = kids[i];
-        const v = 0.15 + 0.25*Math.random();
+        const v = 0.35 + 3.60*Math.random();
         k.style.transform = `scaleY(${v.toFixed(3)})`;
       }
       return;
@@ -10911,7 +10919,7 @@ startBtn.addEventListener("click", () => {
         const bi = Math.min(bins-1, Math.floor(i * bins / bars));
         const v = _freq[bi] / 255;
         // make it pop a bit even at low volume
-        const vv = Math.min(2.4, Math.max(0.12, 0.10 + Math.pow(v, 0.55)*2.2));
+        const vv = Math.min(5.0, Math.max(0.20, 0.18 + Math.pow(v, 0.45)*4.6));
         kids[i].style.transform = `scaleY(${vv.toFixed(3)})`;
       }
     } catch(_e) {}
