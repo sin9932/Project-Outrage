@@ -1263,6 +1263,14 @@ function getBaseBuildTime(kind){
   // Runtime fx instances
   const exp1Fxs = [];
 
+  // EXP1 pivot tuning:
+  // (fx.x, fx.y) is "바닥 정중앙" 기준. 아래 값으로 폭발 중심을 맞춘다.
+  // pivot: 0..1 (0=left/top, 1=right/bottom)
+  let EXP1_PIVOT_X = 0.50;
+  let EXP1_PIVOT_Y = 0.62;
+  // screen-pixel offset (scaled by zoom). negative = up
+  let EXP1_Y_OFFSET = -8;
+
   function _parseAtlasFrames(json){
     // Return: [{x,y,w,h}] sorted in a stable order.
     // Supports: Aseprite array, TexturePacker dict, plus "frames" nested in common wrappers.
@@ -1408,11 +1416,10 @@ function getBaseBuildTime(kind){
       const dw = fr.w * fx.scale * z;
       const dh = fr.h * fx.scale * z;
 
-      // Anchor: bottom-center at (fx.x, fx.y) == "바닥 정중앙"
-      const dx = p.x - dw*0.5;
-      const dy = p.y - dh;
-
-      ctx.drawImage(EXP1_IMG, fr.x, fr.y, fr.w, fr.h, dx, dy, dw, dh);
+      // Anchor: pivoted (tunable) at (fx.x, fx.y) == "바닥 정중앙"
+      const dx = p.x - dw * EXP1_PIVOT_X;
+      const dy = p.y - dh * EXP1_PIVOT_Y + (EXP1_Y_OFFSET * z);
+ctx.drawImage(EXP1_IMG, fr.x, fr.y, fr.w, fr.h, dx, dy, dw, dh);
     }
 
     ctx.restore();
@@ -7890,6 +7897,21 @@ const keys=new Set();
       try{ toast(`DEBUG: 건물삭제모드 ${DEBUG_KILL_BUILDINGS ? "ON" : "OFF"}`); }catch(_e){}
       e.preventDefault();
       return;
+    }
+
+    // DEBUG: EXP1 pivot tuning (only while kill-mode is ON)
+    if (DEBUG_KILL_BUILDINGS){
+      if (e.key === "["){ EXP1_PIVOT_Y = Math.max(0, +(EXP1_PIVOT_Y - 0.05).toFixed(2)); try{ toast(`EXP1_PIVOT_Y=${EXP1_PIVOT_Y}`);}catch(_e){} e.preventDefault(); return; }
+      if (e.key === "]"){ EXP1_PIVOT_Y = Math.min(1, +(EXP1_PIVOT_Y + 0.05).toFixed(2)); try{ toast(`EXP1_PIVOT_Y=${EXP1_PIVOT_Y}`);}catch(_e){} e.preventDefault(); return; }
+      if (e.key === ";"){ EXP1_PIVOT_X = Math.max(0, +(EXP1_PIVOT_X - 0.05).toFixed(2)); try{ toast(`EXP1_PIVOT_X=${EXP1_PIVOT_X}`);}catch(_e){} e.preventDefault(); return; }
+      if (e.key === "'"){ EXP1_PIVOT_X = Math.min(1, +(EXP1_PIVOT_X + 0.05).toFixed(2)); try{ toast(`EXP1_PIVOT_X=${EXP1_PIVOT_X}`);}catch(_e){} e.preventDefault(); return; }
+      if (e.key === "-"){ EXP1_Y_OFFSET = Math.max(-200, EXP1_Y_OFFSET - 2); try{ toast(`EXP1_Y_OFFSET=${EXP1_Y_OFFSET}`);}catch(_e){} e.preventDefault(); return; }
+      if (e.key === "="){ EXP1_Y_OFFSET = Math.min(200, EXP1_Y_OFFSET + 2); try{ toast(`EXP1_Y_OFFSET=${EXP1_Y_OFFSET}`);}catch(_e){} e.preventDefault(); return; }
+      if (e.key.toLowerCase() === "r"){
+        EXP1_PIVOT_X = 0.50; EXP1_PIVOT_Y = 0.62; EXP1_Y_OFFSET = -8;
+        try{ toast(`EXP1 pivot reset`);}catch(_e){}
+        e.preventDefault(); return;
+      }
     }
 
     const k=e.key.toLowerCase();
