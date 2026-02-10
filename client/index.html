@@ -360,8 +360,8 @@
 .pmPlayer{display:flex;flex-direction:column;gap:14px;margin-top:10px}
 .pmHeader{display:grid;grid-template-columns:140px 1fr 120px;align-items:center;gap:14px}
 .pmEqBox{height:96px;display:flex;align-items:flex-end;justify-content:flex-start}
-#pmEQ{display:flex;align-items:flex-end;gap:4px;height:96px;width:140px;padding:10px 10px 8px;border-radius:16px;background:rgba(255,255,255,0.06);box-shadow: inset 0 0 0 1px rgba(255,255,255,0.06)}
-#pmEQ .bar{width:10px;height:10px;border-radius:6px;background:#ffd400;opacity:0.95;transform-origin:bottom center;transform:scaleY(0.35)}
+#pmEQ{display:flex;align-items:flex-end;gap:3px;height:120px;width:180px;padding:10px 10px 8px;border-radius:16px;background:rgba(255,255,255,0.06);box-shadow: inset 0 0 0 1px rgba(255,255,255,0.06);overflow:hidden}
+#pmEQ .bar{flex:1;min-width:4px;height:100%;border-radius:0;background:#ffd400;opacity:0.95;transform-origin:bottom center;transform:scaleY(0.15)}
 .pmTitleBox{display:flex;flex-direction:column;min-width:0}
 #pmTrackName{font-size:34px;line-height:1.05;font-weight:800;letter-spacing:0.4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .pmTimeInline{margin-top:6px;font-size:13px;opacity:0.85}
@@ -10856,12 +10856,54 @@ const audio = new Audio();
     if (ui.seek){
       ui.seek.value = 0;
       ui._seeking = false;
-      ui.seek.addEventListener("pointerdown", ()=>{ ui._seeking = true; });
-      window.addEventListener("pointerup", ()=>{ ui._seeking = false; });
-      ui.seek.addEventListener("input", ()=>{
-        if (!audio || !isFinite(audio.duration) || audio.duration <= 0) return;
-        const v = Math.max(0, Math.min(1000, Number(ui.seek.value||0))) / 1000;
-        audio.currentTime = v * audio.duration;
+      ui._pendingSeek = null; // 0..1 when metadata isn't ready yet
+
+      const beginSeek = ()=>{ ui._seeking = true; };
+      const endSeek = ()=>{ ui._seeking = false; };
+
+      ui.seek.addEventListener("pointerdown", beginSeek);
+      ui.seek.addEventListener("mousedown", beginSeek);
+      ui.seek.addEventListener("touchstart", beginSeek, {passive:true});
+
+      window.addEventListener("pointerup", endSeek);
+      window.addEventListener("mouseup", endSeek);
+      window.addEventListener("touchend", endSeek, {passive:true});
+      window.addEventListener("touchcancel", endSeek, {passive:true});
+
+      const applySeek = ()=>{
+        const v01 = Math.max(0, Math.min(1000, Number(ui.seek.value||0))) / 1000;
+        if (!audio) return;
+        if (!isFinite(audio.duration) || audio.duration <= 0){
+          ui._pendingSeek = v01;
+          return;
+        }
+        try { audio.currentTime = v01 * audio.duration; } catch(_e){}
+      };
+
+      // Live scrub
+      ui.seek.addEventListener("input", applySeek);
+      // Commit on release as well (some browsers are weird with range + pointer events)
+      ui.seek.addEventListener("change", applySeek);
+
+      // Click-to-seek anywhere on the track (not just the thumb)
+      ui.seek.addEventListener("pointerdown", (e)=>{
+        const r = ui.seek.getBoundingClientRect();
+        const x = (e.clientX - r.left) / Math.max(1, r.width);
+        ui.seek.value = String(Math.round(Math.max(0, Math.min(1, x)) * 1000));
+        applySeek();
+      });
+    }
+
+    // If metadata arrives later, apply pending seek once
+    if (!audio.__seekMetaHooked){
+      audio.__seekMetaHooked = true;
+      audio.addEventListener("loadedmetadata", ()=>{
+        if (!ui || !ui.seek) return;
+        if (ui._pendingSeek == null) return;
+        const v01 = ui._pendingSeek;
+        ui._pendingSeek = null;
+        if (!isFinite(audio.duration) || audio.duration <= 0) return;
+        try { audio.currentTime = v01 * audio.duration; } catch(_e){}
       });
     }
 
@@ -10982,7 +11024,7 @@ function setMode(mode){
         state.mode = "battle";
       }
 
-      const tr = getNextTrack(state.mode);
+      const tr = (typeof pauseMenuOpen !== "undefined" && pauseMenuOpen) ? getNextTrack("all") : getNextTrack(state.mode);
       setTrackNow(tr);
       updateUI();
     }
