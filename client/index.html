@@ -1315,9 +1315,9 @@ function getBaseBuildTime(kind){
   // === Large building explosion FX (exp1) ===
   const EXP1_JSON = "asset/sprite/eff/exp1/exp1_anim.json";
   const EXP1_PNG  = "asset/sprite/eff/exp1/exp1_anim.png";
-  var EXP1_IMG  = new Image();
-  EXP1_IMG.src = EXP1_PNG;
-  var EXP1_FRAMES = null; // [{x,y,w,h}]
+  window.EXP1_IMG  = new Image();
+  window.EXP1_IMG.src = EXP1_PNG;
+  window.EXP1_FRAMES = null; // [{x,y,w,h}]
 
   (async function loadExp1Atlas(){
     try{
@@ -1349,9 +1349,9 @@ function getBaseBuildTime(kind){
         }
       }
 
-      EXP1_FRAMES = out.length ? out : null;
+      window.EXP1_FRAMES = out.length ? out : null;
     }catch(e){
-      EXP1_FRAMES = null;
+      window.EXP1_FRAMES = null;
       console.warn("exp1 atlas load failed:", e);
     }
   })();
@@ -11440,7 +11440,7 @@ const spriteFxs = [];
 
 function spawnExp1Fx(x, y, tileSize=4){
   // If atlas isn't ready, silently skip (procedural explosion still runs).
-  if (!EXP1_FRAMES || !EXP1_IMG || !EXP1_IMG.complete || EXP1_IMG.naturalWidth<=0) return;
+  if (!window.EXP1_FRAMES || !window.EXP1_IMG || !window.EXP1_IMG.complete || window.EXP1_IMG.naturalWidth<=0) return;
   // Bigger buildings => bigger blast.
   const scale = clamp(1.6 + (tileSize-4)*0.15, 1.6, 2.6);
   spriteFxs.push({ kind:"exp1", x, y, t0: state.t, frameDur: 0.01, scale });
@@ -11448,12 +11448,12 @@ function spawnExp1Fx(x, y, tileSize=4){
 
 function drawSpriteFxs(ctx){
   if (!spriteFxs.length) return;
-  if (!EXP1_FRAMES || !EXP1_IMG || !EXP1_IMG.complete || EXP1_IMG.naturalWidth<=0) return;
+  if (!window.EXP1_FRAMES || !window.EXP1_IMG || !window.EXP1_IMG.complete || window.EXP1_IMG.naturalWidth<=0) return;
 
   for (let i=spriteFxs.length-1;i>=0;i--){
     const fx = spriteFxs[i];
     const age = state.t - fx.t0;
-    const frames = EXP1_FRAMES;
+    const frames = window.EXP1_FRAMES;
     const fi = Math.floor(age / (fx.frameDur||0.01));
     if (fi >= frames.length || fi < 0){
       spriteFxs.splice(i,1);
@@ -11476,7 +11476,7 @@ function drawSpriteFxs(ctx){
     ctx.save();
     const dx = Math.round(p.x - dw/2);
     const dy = Math.round((p.y - lift) - dh/2);
-    ctx.drawImage(EXP1_IMG, fr.x, fr.y, fr.w, fr.h, dx, dy, dw, dh);
+    ctx.drawImage(window.EXP1_IMG, fr.x, fr.y, fr.w, fr.h, dx, dy, dw, dh);
     ctx.restore();
   }
 }
