@@ -355,6 +355,19 @@
 }
 :root{ --game-brightness: 1; }
 #wrap{ filter: brightness(var(--game-brightness)); }
+/* === BGM Player UI (refined) === */
+.pmPlayer{display:flex;flex-direction:column;gap:14px;margin-top:10px}
+.pmHeader{display:grid;grid-template-columns:96px 1fr 120px;align-items:center;gap:14px}
+.pmEqBox{height:64px;display:flex;align-items:flex-end;justify-content:flex-start}
+#pmEQ{display:flex;align-items:flex-end;gap:5px;height:64px;width:96px;padding:6px 6px 4px;border-radius:14px;background:rgba(255,255,255,0.06);box-shadow: inset 0 0 0 1px rgba(255,255,255,0.06)}
+#pmEQ .bar{width:6px;height:6px;border-radius:4px;background:#ffd400;opacity:0.95;transform-origin:bottom center;transform:scaleY(0.35)}
+.pmTitleBox{display:flex;flex-direction:column;min-width:0}
+#pmTrackName{font-size:34px;line-height:1.05;font-weight:800;letter-spacing:0.4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pmTimeInline{margin-top:6px;font-size:13px;opacity:0.85}
+.pmSeekRow{display:flex;align-items:center;gap:12px}
+#pmSeek{flex:1}
+.pctrl.big{height:64px;justify-content:flex-end}
+.pctrl.big button{width:44px;height:64px;border-radius:14px}
 </style>
 </head>
 <body>
@@ -10596,30 +10609,21 @@ startBtn.addEventListener("click", () => {
   // We therefore do lazy lookup every time, with a small cache.
   const __pmCache = { overlay:null, refs:null };
   function getPauseMenuRefs(){
-    if (!__pmCache.overlay || !document.body.contains(__pmCache.overlay)){
-      __pmCache.overlay = document.getElementById("pauseOverlay");
-      __pmCache.refs = null;
-    }
-    const overlay = __pmCache.overlay;
-    if (!overlay) return { overlay:null, track:null, prev:null, play:null, next:null, vol:null, bright:null, brightVal:null, resume:null, exit:null };
-
-    if (!__pmCache.refs){
-      __pmCache.refs = {
-        track: document.getElementById("pmTrackName"),
-        time: document.getElementById("pmTime"),
-        eq: document.getElementById("pmEQ"),
-        prev: document.getElementById("pmPrev"),
-        play: document.getElementById("pmPlay"),
-        next: document.getElementById("pmNext"),
-        vol: document.getElementById("pmVol"),
-        bright: document.getElementById("pmBright"),
-        brightVal: document.getElementById("pmBrightVal"),
-        resume: document.getElementById("pmResume"),
-        exit: document.getElementById("pmExit"),
-      };
-    }
-    return { overlay, ...__pmCache.refs };
-  }
+  return {
+    overlay: document.getElementById("pauseOverlay"),
+    track: document.getElementById("pmTrackName"),
+    prev: document.getElementById("pmPrev"),
+    play: document.getElementById("pmPlay"),
+    next: document.getElementById("pmNext"),
+    vol: document.getElementById("pmVol"),
+    volVal: document.getElementById("pmVolVal"),
+    bright: document.getElementById("pmBright"),
+    brightVal: document.getElementById("pmBrightVal"),
+    time: document.getElementById("pmTime"),
+    eq: document.getElementById("pmEQ"),
+    seek: document.getElementById("pmSeek"),
+  };
+}
 
   function setGameBrightness(v){
     const val = Math.max(0.5, Math.min(1.6, v));
@@ -10812,15 +10816,32 @@ startBtn.addEventListener("click", () => {
   let ui = null; // {track, btnPlay, vol, time, eq}
   function mountUI(refs){
     ui = refs || null;
-    // init EQ bars
-    if (ui && ui.eq && ui.eq.children && ui.eq.children.length===0){
-      const bars = 20;
-      for (let i=0;i<bars;i++) {
+    if (!ui) return;
+
+    // init EQ bars (multiple sticks)
+    if (ui.eq){
+      ui.eq.innerHTML = "";
+      const bars = 12;
+      for (let i=0;i<bars;i++){
         const b = document.createElement("div");
         b.className = "bar";
         ui.eq.appendChild(b);
       }
     }
+
+    // seek bar
+    if (ui.seek){
+      ui.seek.value = 0;
+      ui._seeking = false;
+      ui.seek.addEventListener("pointerdown", ()=>{ ui._seeking = true; });
+      window.addEventListener("pointerup", ()=>{ ui._seeking = false; });
+      ui.seek.addEventListener("input", ()=>{
+        if (!audio || !isFinite(audio.duration) || audio.duration <= 0) return;
+        const v = Math.max(0, Math.min(1000, Number(ui.seek.value||0))) / 1000;
+        audio.currentTime = v * audio.duration;
+      });
+    }
+
     updateUI();
   }
 
@@ -10843,11 +10864,17 @@ startBtn.addEventListener("click", () => {
     if (ui.btnPlay) ui.btnPlay.textContent = audio.paused ? "▶" : "⏸";
     if (ui.vol) ui.vol.value = String((window.__bgmUserVol!=null?window.__bgmUserVol:audio.volume));
     if (ui.time) ui.time.textContent = fmtTime(audio.currentTime) + " / " + fmtTime(audio.duration);
+    if (ui.seek && isFinite(audio.duration) && audio.duration>0 && !ui._seeking){
+      ui.seek.value = String(Math.max(0, Math.min(1000, Math.round((audio.currentTime/audio.duration)*1000))));
+    }
   }
 
   function updateViz(dt){
     if (!ui) return;
     if (ui.time) ui.time.textContent = fmtTime(audio.currentTime) + " / " + fmtTime(audio.duration);
+    if (ui.seek && isFinite(audio.duration) && audio.duration>0 && !ui._seeking){
+      ui.seek.value = String(Math.max(0, Math.min(1000, Math.round((audio.currentTime/audio.duration)*1000))));
+    }
     if (!ui.eq) return;
 
     // animate at ~20fps
@@ -11243,30 +11270,39 @@ window.resolveUnitOverlaps = resolveUnitOverlaps;
     <h2>옵션</h2>
 
     <div class="pmSection">
-      <div class="playerTop">
-        <div id="pmTrackName">BGM: (대기중)</div>
-        <div class="pctrl">
-          <button id="pmPrev" title="이전 곡">⏮</button>
-          <button id="pmPlay" title="재생/일시정지">⏯</button>
-          <button id="pmNext" title="다음 곡">⏭</button>
-        </div>
-      </div>
-      <div class="pmPlayerViz">
-        <div id="pmTime">0:00 / 0:00</div>
-        <div id="pmEQ" aria-hidden="true"></div>
-      </div>
-      <div class="row">
-        <label>볼륨</label>
-        <input id="pmVol" type="range" min="0" max="1" step="0.01" value="0.75">
-      </div>
-      <div class="tiny">곡이 바뀔 때는 페이드아웃 후 다음 곡으로 넘어간다.</div>
-    </div>
+            <div class="pmPlayer">
+        <div class="pmHeader">
+          <div class="pmEqBox" aria-hidden="true">
+            <div id="pmEQ" title="EQ"></div>
+          </div>
 
-    <div class="pmSection">
-      <div class="row">
-        <label>게임 밝기</label>
-        <input id="pmBright" type="range" min="0.65" max="1.35" step="0.01" value="1">
-        <span id="pmBrightVal" style="font-size:12px; opacity:.8; width:44px; text-align:right;">1.00</span>
+          <div class="pmTitleBox">
+            <div id="pmTrackName">peace3</div>
+            <div class="pmTimeInline" id="pmTime">0:00 / 0:00</div>
+          </div>
+
+          <div class="pctrl big" aria-label="BGM controls">
+            <button id="pmPrev" title="Previous">⏮</button>
+            <button id="pmPlay" title="Play/Pause">⏯</button>
+            <button id="pmNext" title="Next">⏭</button>
+          </div>
+        </div>
+
+        <div class="pmSeekRow">
+          <input id="pmSeek" type="range" min="0" max="1000" value="0" step="1" aria-label="Seek" />
+        </div>
+
+        <div class="pmRow">
+          <span class="lbl">볼륨</span>
+          <input id="pmVol" type="range" min="0" max="1" step="0.01" value="0.7" />
+          <span id="pmVolVal" class="val">0.70</span>
+        </div>
+
+        <div class="pmRow">
+          <span class="lbl">게임 밝기</span>
+          <input id="pmBright" type="range" min="0.6" max="1.6" step="0.01" value="1.00" />
+          <span id="pmBrightVal" class="val">1.00</span>
+        </div>
       </div>
     </div>
 
