@@ -10645,53 +10645,166 @@ startBtn.addEventListener("click", () => {
   } catch(_){ setGameBrightness(1); }
 
   const BGM = (() => {
-  // Tracks are local files (uploaded). Two playlists and auto-switch by combat.
-  const peaceTracks = ["asset/music/peace1.mp3","asset/music/peace2.mp3","asset/music/peace3.mp3","asset/music/peace4.mp3"];
+  // Tracks are local files (uploaded).
+  const peaceTracks  = ["asset/music/peace1.mp3","asset/music/peace2.mp3","asset/music/peace3.mp3","asset/music/peace4.mp3"];
   const battleTracks = ["asset/music/battle1.mp3","asset/music/battle2.mp3","asset/music/battle3.mp3","asset/music/battle4.mp3","asset/music/battle5.mp3"];
   const victoryTrack = "asset/music/brave_force.mp3";
+
   // Player order MUST be sequential: battle1..N then peace1..N (no mixing)
   const playerTracks = battleTracks.concat(peaceTracks);
-const audio = new Audio();
-  audio.preload = "auto";
-  audio.loop = false; // we advance manually
-  audio.volume = 1.0; // default (user can lower in pause menu)
+
+  // === WebAudio-backed player (fixes Netlify/Range seek issues for MP3) ===
+  let _ctx=null, _analyser=null, _freq=null, _userGain=null, _fadeGain=null;
+  let _srcNode=null, _buf=null, _srcUrl="", _startedAt=0, _offset=0, _paused=true;
+  let _endedFlag=false;
+  const _cache = new Map(); // url -> AudioBuffer
+
   if (window.__bgmUserVol == null) window.__bgmUserVol = 1.0;
-  audio.volume = Math.max(0, Math.min(1, window.__bgmUserVol));
 
-  // WebAudio analyser (for EQ bars). Created on user gesture.
-  let _ctx = null;
-  let _analyser = null;
-  let _freq = null;
-
-  function ensureAnalyser(){
-    if (_analyser) return;
+  function ensureCtx(){
+    if (_ctx) return true;
     const AC = window.AudioContext || window.webkitAudioContext;
-    if (!AC) return;
-    try {
+    if (!AC) return false;
+    try{
       _ctx = new AC();
-      const src = _ctx.createMediaElementSource(audio);
       _analyser = _ctx.createAnalyser();
-      _analyser.fftSize = 256; // 128 bins (smoother EQ)
+      _analyser.fftSize = 256;
       _freq = new Uint8Array(_analyser.frequencyBinCount);
-      src.connect(_analyser);
-      _analyser.connect(_ctx.destination);
-    } catch(e) {
-      console.warn("[BGM] analyser init failed", e);
-      _ctx = null; _analyser = null; _freq = null;
+
+      _fadeGain = _ctx.createGain();
+      _userGain = _ctx.createGain();
+
+      _fadeGain.gain.value = 1.0;
+      _userGain.gain.value = Math.max(0, Math.min(1, window.__bgmUserVol));
+
+      // src -> fade -> analyser -> user -> destination
+      _fadeGain.connect(_analyser);
+      _analyser.connect(_userGain);
+      _userGain.connect(_ctx.destination);
+      return true;
+    }catch(e){
+      console.warn("[BGM] AudioContext init failed", e);
+      _ctx=null; _analyser=null; _freq=null; _userGain=null; _fadeGain=null;
+      return false;
     }
   }
 
   function resumeCtx(){
-    try { if (_ctx && _ctx.state === "suspended") _ctx.resume(); } catch(_e){}
+    try{ if (_ctx && _ctx.state==="suspended") _ctx.resume(); }catch(_e){}
   }
 
-  // Two-cycle shuffles
+  async function loadBuffer(url){
+    if (_cache.has(url)) return _cache.get(url);
+    if (!ensureCtx()) throw new Error("AudioContext unavailable");
+    resumeCtx();
+    const res = await fetch(url, {cache:"force-cache"});
+    if (!res.ok) throw new Error("fetch failed: "+res.status);
+    const ab = await res.arrayBuffer();
+    const buf = await new Promise((resolve, reject)=>{
+      _ctx.decodeAudioData(ab, resolve, reject);
+    });
+    _cache.set(url, buf);
+    return buf;
+  }
+
+  function stopNode(){
+    try{ if (_srcNode){ _srcNode.onended = null; _srcNode.stop(0); } }catch(_e){}
+    _srcNode=null;
+  }
+
+  function nowTime(){
+    if (!_ctx) return 0;
+    return _ctx.currentTime;
+  }
+
+  function getCurTime(){
+    if (!_buf) return 0;
+    if (_paused) return _offset;
+    return Math.max(0, Math.min(_buf.duration, nowTime() - _startedAt));
+  }
+
+  function setCurTime(t){
+    if (!_buf) return;
+    const nt = Math.max(0, Math.min(_buf.duration, t));
+    _offset = nt;
+    if (!_paused){
+      // restart from new offset
+      playUrl(_srcUrl, _offset, true);
+    }
+  }
+
+  function getDuration(){
+    return _buf ? _buf.duration : NaN;
+  }
+
+  async function playUrl(url, offset=0, keepFade=false){
+    if (!url) return;
+    ensureCtx(); resumeCtx();
+    const buf = await loadBuffer(url);
+    _buf = buf;
+    _srcUrl = url;
+
+    stopNode();
+    _endedFlag = false;
+
+    const src = _ctx.createBufferSource();
+    src.buffer = buf;
+    src.connect(_fadeGain);
+
+    const off = Math.max(0, Math.min(buf.duration, offset||0));
+    _offset = off;
+    _startedAt = nowTime() - off;
+    _paused = false;
+
+    src.onended = ()=>{ if (!_paused) _endedFlag = true; };
+    _srcNode = src;
+
+    // keepFade means don't touch fadeGain (used by fade switching)
+    if (!keepFade && _fadeGain) _fadeGain.gain.value = 1.0;
+
+    try{ src.start(0, off); }catch(_e){}
+  }
+
+  function pause(){
+    if (_paused) return;
+    _offset = getCurTime();
+    _paused = true;
+    stopNode();
+  }
+
+  function play(){
+    if (!_srcUrl){
+      // if nothing selected yet, pick first of "all"
+      const first = playerTracks[0] || "";
+      if (first) setTrackNow(first);
+      return;
+    }
+    if (!_paused) return;
+    // resume from offset
+    playUrl(_srcUrl, _offset, true).catch(()=>{});
+  }
+
+  function toggle(){
+    if (_paused) play();
+    else pause();
+    updateUI();
+  }
+
+  // volume is user volume only (slider must NEVER move due to fade)
+  function setVol(v){
+    const vol = Math.max(0, Math.min(1, v));
+    window.__bgmUserVol = vol;
+    if (_userGain) _userGain.gain.value = vol;
+    updateUI();
+  }
+
+  // === Playlist & mode logic ===
   const state = {
-    mode: "peace",        // current playback mode
-    desiredMode: "peace", // what gameplay wants (battle while combat is active)
+    mode: "peace",
+    desiredMode: "peace",
     order: { all: [], peace: [], battle: [] },
     idx:   { all: 0, peace: 0, battle: 0 },
-    fade: { active:false, t:0, dur:0.55, from:0, to:0, nextSrc:null },
+    fade: { active:false, dur:0.55, nextSrc:null },
     viz:  { t:0 },
   };
 
@@ -10705,211 +10818,129 @@ const audio = new Audio();
 
   function refill(mode){
     const src = (mode==="all") ? playerTracks : ((mode==="battle") ? battleTracks : peaceTracks);
-    // Player playlist ("all") should be deterministic & sequential:
-    // battle1..N then peace1..N
-    if (mode === "all") {
-      state.order[mode] = src.slice();
-    } else {
-      // Gameplay playlists can be shuffled for variety.
-      state.order[mode] = shuffle(src.slice());
-    }
+    if (mode === "all") state.order[mode] = src.slice();
+    else state.order[mode] = shuffle(src.slice());
     state.idx[mode] = 0;
   }
 
   function getNextTrack(mode){
     if (!state.order[mode].length) refill(mode);
     if (state.idx[mode] >= state.order[mode].length) refill(mode);
-    const tr = state.order[mode][state.idx[mode]++] || "";
-    return tr;
+    return state.order[mode][state.idx[mode]++] || "";
+  }
+
+  function prettyName(){
+    const raw = _srcUrl ? _srcUrl.split("/").pop() : "";
+    return raw ? raw.replace(/\.[^/.]+$/,"") : "";
   }
 
   function setTrackNow(src){
     if (!src) return;
-    ensureAnalyser();
-    resumeCtx();
-    if (audio.src !== src) audio.src = src;
-    try { audio.currentTime = 0; } catch(_e){}
-    audio.play().catch(()=>{ /* autoplay policy, ignore */ });
+    ensureCtx(); resumeCtx();
+    playUrl(src, 0, true).catch(()=>{});
   }
 
-  function fadeToTrack(nextSrc) {
+  function fadeToTrack(nextSrc){
     if (!nextSrc) return;
-    ensureAnalyser();
-    resumeCtx();
-
-    // If nothing is playing yet, just start.
-    if (!audio.src) {
-      setTrackNow(nextSrc);
+    ensureCtx(); resumeCtx();
+    if (!_fadeGain){ setTrackNow(nextSrc); return; }
+    if (state.fade.active){
+      state.fade.nextSrc = nextSrc;
       return;
     }
-
-    // Start fade out
     state.fade.active = true;
-    state.fade.t = 0;
-    const uv = (window.__bgmUserVol!=null)?window.__bgmUserVol:1.0;
-    const curFactor = (uv>0)?(audio.volume/uv):0;
-    state.fade.from = curFactor;
-    state.fade.to = 0;
     state.fade.nextSrc = nextSrc;
-  }
 
-  function applyFade(dt){
-    if (!state.fade.active) return;
-    state.fade.t += dt;
-    const a = Math.min(1, state.fade.t / Math.max(0.001, state.fade.dur));
-    const f = state.fade.from + (state.fade.to - state.fade.from) * a;
-    const uv = (window.__bgmUserVol!=null)?window.__bgmUserVol:1.0;
-    audio.volume = Math.max(0, Math.min(1, uv * Math.max(0, Math.min(1, f))));
+    const half = Math.max(0.08, state.fade.dur * 0.5);
+    try{
+      const t0 = nowTime();
+      _fadeGain.gain.cancelScheduledValues(t0);
+      _fadeGain.gain.setValueAtTime(_fadeGain.gain.value, t0);
+      _fadeGain.gain.linearRampToValueAtTime(0.0, t0 + half);
+    }catch(_e){}
 
-    if (a >= 1) {
-      if (state.fade.to === 0 && state.fade.nextSrc) {
-        // switch track at silence, then fade in
-        const next = state.fade.nextSrc;
-        state.fade.nextSrc = null;
-        try { audio.pause(); } catch(_e){}
-        audio.src = next;
-        try { audio.currentTime = 0; } catch(_e){}
-        audio.play().catch(()=>{});
-        state.fade.from = 0;
-        state.fade.to = 1;
-        state.fade.t = 0;
-      } else {
-        // finished fade in
+    setTimeout(()=>{
+      const ns = state.fade.nextSrc;
+      state.fade.nextSrc = null;
+      playUrl(ns, 0, true).then(()=>{
+        try{
+          const t1 = nowTime();
+          _fadeGain.gain.cancelScheduledValues(t1);
+          _fadeGain.gain.setValueAtTime(_fadeGain.gain.value, t1);
+          _fadeGain.gain.linearRampToValueAtTime(1.0, t1 + half);
+        }catch(_e){}
+        setTimeout(()=>{
+          state.fade.active = false;
+          if (state.fade.nextSrc) fadeToTrack(state.fade.nextSrc);
+        }, Math.ceil(half*1000));
+      }).catch(()=>{
         state.fade.active = false;
-        // re-apply user volume
-        if (window.__bgmUserVol!=null) audio.volume = window.__bgmUserVol;
-      }
-    }
+      });
+      updateUI();
+    }, Math.ceil(half*1000));
   }
 
-  function setVol(v){
-    const vv = Math.max(0, Math.min(1, Number(v)||0));
-    audio.volume = vv;
-    // If user volume hasn't been set yet, adopt the slider's value (defaults to 1.00).
-    if (window.__bgmUserVol == null && ui && ui.vol){
-      window.__bgmUserVol = Math.max(0, Math.min(1, Number(ui.vol.value)||1));
-      audio.volume = window.__bgmUserVol;
+  function start(){
+    // Called on user gesture
+    ensureCtx(); resumeCtx();
+    if (!_srcUrl){
+      const tr = getNextTrack("all");
+      setTrackNow(tr);
+    } else {
+      play();
     }
     updateUI();
   }
 
-  // Manual controls
   function next(){
-    // User intent: playlist browsing should include BOTH peace + battle.
-    const tr = getNextTrack("all");
+    const tr = (typeof pauseMenuOpen !== "undefined" && pauseMenuOpen) ? getNextTrack("all") : getNextTrack(state.mode);
     fadeToTrack(tr);
     updateUI();
   }
+
   function prev(){
-    const mode = "all";
-    state.idx[mode] = Math.max(0, state.idx[mode]-2);
+    // naive prev: just go back one by stepping index back 2 then next
+    const mode = (typeof pauseMenuOpen !== "undefined" && pauseMenuOpen) ? "all" : state.mode;
+    state.idx[mode] = Math.max(0, state.idx[mode] - 2);
     const tr = getNextTrack(mode);
     fadeToTrack(tr);
     updateUI();
   }
-  function toggle(){
-    ensureAnalyser();
-    resumeCtx();
-    if (audio.paused) audio.play().catch(()=>{}); else audio.pause();
+
+  function playVictory(){
+    state.desiredMode = "victory";
+    state.mode = "victory";
+    fadeToTrack(victoryTrack);
     updateUI();
   }
 
-  // Battle BGM sensitivity control:
-  // - Entering battle: switch immediately (fade) from peace -> battle.
-  // - Staying in battle: NEVER change track until it ends.
-  // - Leaving battle: let current track finish; when it ends, go peace.
+  function setMode(mode){
+    if (state.desiredMode === "victory" || state.mode === "victory") return;
+    state.desiredMode = mode;
+    if (mode==="battle" && state.mode!=="battle"){
+      state.mode="battle";
+      fadeToTrack(getNextTrack("battle"));
+      updateUI();
+    }
+  }
+
   function requestMode(desired){
     if (state.desiredMode === "victory" || state.mode === "victory") return;
     state.desiredMode = desired;
     if (desired === "battle" && state.mode !== "battle"){
       state.mode = "battle";
-      const tr = getNextTrack("battle");
-      fadeToTrack(tr);
+      fadeToTrack(getNextTrack("battle"));
       updateUI();
     }
   }
 
-  // Called from game loop: (nowMs, combatUntilMs)
   function auto(nowMs, combatUntilMs){
     const desired = (nowMs < combatUntilMs) ? "battle" : "peace";
     requestMode(desired);
   }
 
   // UI wiring
-  let ui = null; // {track, btnPlay, vol, time, eq}
-  function mountUI(refs){
-    ui = refs || null;
-    if (!ui) return;
-
-    // init EQ bars (multiple sticks)
-    if (ui.eq){
-      ui.eq.innerHTML = "";
-      const bars = 24; // MEGA EQ: more chunky bars
-      for (let i=0;i<bars;i++){
-        const b = document.createElement("div");
-        b.className = "bar";
-        ui.eq.appendChild(b);
-      }
-    }
-
-    // seek bar
-    if (ui.seek){
-      ui.seek.value = 0;
-      ui._seeking = false;
-      ui._pendingSeek = null; // 0..1 when metadata isn't ready yet
-
-      const beginSeek = ()=>{ ui._seeking = true; };
-      const endSeek = ()=>{ ui._seeking = false; };
-
-      ui.seek.addEventListener("pointerdown", beginSeek);
-      ui.seek.addEventListener("mousedown", beginSeek);
-      ui.seek.addEventListener("touchstart", beginSeek, {passive:true});
-
-      window.addEventListener("pointerup", endSeek);
-      window.addEventListener("mouseup", endSeek);
-      window.addEventListener("touchend", endSeek, {passive:true});
-      window.addEventListener("touchcancel", endSeek, {passive:true});
-
-      const applySeek = ()=>{
-        const v01 = Math.max(0, Math.min(1000, Number(ui.seek.value||0))) / 1000;
-        if (!audio) return;
-        if (!isFinite(audio.duration) || audio.duration <= 0){
-          ui._pendingSeek = v01;
-          return;
-        }
-        try { audio.currentTime = v01 * audio.duration; } catch(_e){}
-      };
-
-      // Live scrub
-      ui.seek.addEventListener("input", applySeek);
-      // Commit on release as well (some browsers are weird with range + pointer events)
-      ui.seek.addEventListener("change", applySeek);
-
-      // Click-to-seek anywhere on the track (not just the thumb)
-      ui.seek.addEventListener("pointerdown", (e)=>{
-        const r = ui.seek.getBoundingClientRect();
-        const x = (e.clientX - r.left) / Math.max(1, r.width);
-        ui.seek.value = String(Math.round(Math.max(0, Math.min(1, x)) * 1000));
-        applySeek();
-      });
-    }
-
-    // If metadata arrives later, apply pending seek once
-    if (!audio.__seekMetaHooked){
-      audio.__seekMetaHooked = true;
-      audio.addEventListener("loadedmetadata", ()=>{
-        if (!ui || !ui.seek) return;
-        if (ui._pendingSeek == null) return;
-        const v01 = ui._pendingSeek;
-        ui._pendingSeek = null;
-        if (!isFinite(audio.duration) || audio.duration <= 0) return;
-        try { audio.currentTime = v01 * audio.duration; } catch(_e){}
-      });
-    }
-
-    updateUI();
-  }
-
+  let ui = null;
   function fmtTime(sec){
     if (!isFinite(sec) || sec < 0) return "0:00";
     sec = Math.floor(sec);
@@ -10918,119 +10949,136 @@ const audio = new Audio();
     return m + ":" + String(s).padStart(2,"0");
   }
 
-  function prettyName(){
-    const raw = audio.src ? audio.src.split("/").pop() : "";
-    return raw ? raw.replace(/\.[^/.]+$/,"") : "";
-  }
-
   function updateUI(){
     if (!ui) return;
     if (ui.track) ui.track.textContent = prettyName() || "(none)";
-    if (ui.btnPlay) ui.btnPlay.textContent = audio.paused ? "▶" : "⏸";
+    if (ui.btnPlay) ui.btnPlay.textContent = _paused ? "▶" : "⏸";
     if (ui.vol) ui.vol.value = String((window.__bgmUserVol!=null?window.__bgmUserVol:1));
-    if (ui.time) ui.time.textContent = fmtTime(audio.currentTime) + " / " + fmtTime(audio.duration);
-    if (ui.seek && isFinite(audio.duration) && audio.duration>0 && !ui._seeking){
-      ui.seek.value = String(Math.max(0, Math.min(1000, Math.round((audio.currentTime/audio.duration)*1000))));
+    if (ui.volVal) ui.volVal.textContent = (window.__bgmUserVol!=null?window.__bgmUserVol:1).toFixed(2);
+    if (ui.time) ui.time.textContent = fmtTime(getCurTime()) + " / " + fmtTime(getDuration());
+    if (ui.seek && isFinite(getDuration()) && getDuration()>0 && !ui._seeking){
+      ui.seek.value = String(Math.max(0, Math.min(1000, Math.round((getCurTime()/getDuration())*1000))));
     }
+  }
+
+  function mountUI(refs){
+    ui = refs || null;
+    if (!ui) return;
+
+    if (ui.eq){
+      ui.eq.innerHTML = "";
+      const bars = 24;
+      for (let i=0;i<bars;i++){
+        const b = document.createElement("div");
+        b.className = "bar";
+        ui.eq.appendChild(b);
+      }
+    }
+
+    // seek bar (REAL seek: restart buffer at offset)
+    if (ui.seek){
+      ui.seek.value = 0;
+      ui._seeking = false;
+
+      const beginSeek = ()=>{ ui._seeking = true; };
+      const endSeek = ()=>{ ui._seeking = false; };
+
+      ui.seek.addEventListener("pointerdown", beginSeek);
+      ui.seek.addEventListener("mousedown", beginSeek);
+      ui.seek.addEventListener("touchstart", beginSeek, {passive:true});
+      window.addEventListener("pointerup", endSeek);
+      window.addEventListener("mouseup", endSeek);
+      window.addEventListener("touchend", endSeek, {passive:true});
+      window.addEventListener("touchcancel", endSeek, {passive:true});
+
+      const applySeek = ()=>{
+        const v01 = Math.max(0, Math.min(1000, Number(ui.seek.value||0))) / 1000;
+        const dur = getDuration();
+        if (!isFinite(dur) || dur<=0) return;
+        setCurTime(v01 * dur);
+        updateUI();
+      };
+
+      ui.seek.addEventListener("input", applySeek);
+      ui.seek.addEventListener("change", applySeek);
+
+      // click-to-seek anywhere
+      ui.seek.addEventListener("pointerdown", (e)=>{
+        const r = ui.seek.getBoundingClientRect();
+        const x = (e.clientX - r.left) / Math.max(1, r.width);
+        ui.seek.value = String(Math.round(Math.max(0, Math.min(1, x)) * 1000));
+        applySeek();
+      });
+    }
+
+    updateUI();
   }
 
   function updateViz(dt){
     if (!ui) return;
-    if (ui.time) ui.time.textContent = fmtTime(audio.currentTime) + " / " + fmtTime(audio.duration);
-    if (ui.seek && isFinite(audio.duration) && audio.duration>0 && !ui._seeking){
-      ui.seek.value = String(Math.max(0, Math.min(1000, Math.round((audio.currentTime/audio.duration)*1000))));
-    }
-    if (!ui.eq) return;
-
-    // animate at ~20fps
-    state.viz.t += dt;
-    if (state.viz.t < 0.05) return;
-    state.viz.t = 0;
-
-    if (!_analyser || !_freq) {
-      // no analyser: gentle idle motion
-      const kids = ui.eq.children;
-      const n = kids.length||0;
-      for (let i=0;i<n;i++) {
-        const k = kids[i];
-        const v = 0.80 + 7.50*Math.random();
-        k.style.transform = `scaleY(${v.toFixed(3)})`;
-      }
-      return;
+    if (ui.time) ui.time.textContent = fmtTime(getCurTime()) + " / " + fmtTime(getDuration());
+    if (ui.seek && isFinite(getDuration()) && getDuration()>0 && !ui._seeking){
+      ui.seek.value = String(Math.max(0, Math.min(1000, Math.round((getCurTime()/getDuration())*1000))));
     }
 
-    try {
-      _analyser.getByteFrequencyData(_freq);
-      const kids = ui.eq.children;
-      const bars = kids.length || 0;
-      const bins = _freq.length || 1;
-      for (let i=0;i<bars;i++) {
-        const bi = Math.min(bins-1, Math.floor(i * bins / bars));
-        const v = _freq[bi] / 255;
-        // make it pop a bit even at low volume
-        const vv = Math.min(8.0, Math.max(0.25, 0.22 + Math.pow(v, 0.42)*7.3));
-        kids[i].style.transform = `scaleY(${vv.toFixed(3)})`;
+    // EQ
+    if (ui.eq){
+      const bars = ui.eq.children;
+      if (_analyser && _freq){
+        try{
+          _analyser.getByteFrequencyData(_freq);
+          const n = bars.length;
+          for (let i=0;i<n;i++){
+            const idx = Math.floor((i/(n-1)) * Math.min(_freq.length-1, 80));
+            const v = _freq[idx] / 255;
+            const amp = Math.max(0.08, Math.min(1, v)) * 8.0; // MEGA bounce
+            bars[i].style.transform = "scaleY(" + amp.toFixed(3) + ")";
+          }
+        }catch(_e){}
+      } else {
+        // fallback wiggle
+        const n = bars.length;
+        state.viz.t += dt;
+        for (let i=0;i<n;i++){
+          const w = 0.20 + 0.80*Math.abs(Math.sin(state.viz.t*2.2 + i*0.55));
+          const amp = (0.15 + w) * 3.5;
+          bars[i].style.transform = "scaleY(" + amp.toFixed(3) + ")";
+        }
       }
-    } catch(_e) {}
+    }
   }
 
-  function start(){
-    // called on user gesture via shim (BGM.userStart)
-    ensureAnalyser();
-    resumeCtx();
-    state.mode = "peace";
-    state.desiredMode = "peace";
-    const tr = getNextTrack("peace");
-    setTrackNow(tr);
-    updateUI();
-  }
-
-    function playVictory(){
-    // Locks BGM to victory theme.
-    state.mode = "victory";
-    state.desiredMode = "victory";
-    audio.loop = true;
-    fadeToTrack(victoryTrack);
-    updateUI();
-  }
-
-function setMode(mode){
-    // manual override: immediate switch
-    const m = (mode==="battle") ? "battle" : "peace";
-    state.mode = m;
-    state.desiredMode = m;
-    const tr = getNextTrack(m);
-    fadeToTrack(tr);
-    updateUI();
-  }
-
-  function monitor(dt=0.016){
-    applyFade(dt);
+  function monitor(dt){
     updateViz(dt);
-
-    // Auto advance when track ends (and apply desiredMode at boundary)
-    if (audio.ended && !state.fade.active){
+    // Ended?
+    if (_endedFlag && !state.fade.active){
+      _endedFlag = false;
+      // After victory, return to desired mode later; simplest: keep sequential
       if (state.mode === "victory"){
-        setTrackNow(victoryTrack);
-        updateUI();
-        return;
+        // stay on victory loop
+        fadeToTrack(victoryTrack);
+      } else {
+        // If pause menu open, always advance in "all" sequential order
+        const tr = (typeof pauseMenuOpen !== "undefined" && pauseMenuOpen) ? getNextTrack("all") : getNextTrack(state.mode);
+        fadeToTrack(tr);
       }
-      // If we were in battle but battle already ended, switch to peace on boundary.
-      if (state.mode === "battle" && state.desiredMode === "peace") {
-        state.mode = "peace";
-      }
-      // If we are in peace but battle became desired (rare because we switch immediately), honor it here.
-      if (state.mode === "peace" && state.desiredMode === "battle") {
-        state.mode = "battle";
-      }
-
-      const tr = (typeof pauseMenuOpen !== "undefined" && pauseMenuOpen) ? getNextTrack("all") : getNextTrack(state.mode);
-      setTrackNow(tr);
       updateUI();
     }
   }
 
-  audio.addEventListener("ended", ()=>{ /* monitor() handles */ });
+  // Compatibility shim (some code expects .paused/.currentTime/.duration)
+  const audio = {
+    get paused(){ return _paused; },
+    get volume(){ return (window.__bgmUserVol!=null?window.__bgmUserVol:1); },
+    set volume(v){ setVol(v); },
+    get currentTime(){ return getCurTime(); },
+    set currentTime(v){ setCurTime(v); },
+    get duration(){ return getDuration(); },
+    get src(){ return _srcUrl; },
+    set src(v){ _srcUrl = v || ""; },
+    play(){ play(); return Promise.resolve(); },
+    pause(){ pause(); },
+  };
 
   return { audio, start, next, prev, toggle, setVol, setMode, playVictory, auto, monitor, mountUI };
 })();
