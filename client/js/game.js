@@ -1008,23 +1008,28 @@ function getBaseBuildTime(kind){
   const _teamSpriteCache = new Map(); // key -> canvas
 
   function _isAccentPixel(r, g, b, a){
+    // Detect the "team-color placeholder" magenta (and its shaded neighbors).
+    // We use a chroma test (RB >> G) rather than a single exact RGB, because shading/AA shifts values.
     if (a < 8) return false;
 
-    // Wider heuristic: "neon magenta / purple" highlight pixels.
-    // We want high R & B (or high B & R) and G noticeably lower.
-    const rbHi = (r >= 85 && b >= 85);
-    if (!rbHi) return false;
+    const rb = (r + b) * 0.5;
+    if (rb < 55) return false;           // too dark to be the accent stripe
+    const chroma = rb - g;               // how much "magenta-ness" remains after subtracting green
+    if (chroma < 20) return false;       // too grey / too neutral
 
-    // G must be relatively low compared to R/B (prevents catching greys)
-    if (g > 220) return false;
-    // Allow a wider magenta radius (less strict than before)
-    if (g > Math.min(r, b) - 6) return false;
+    // Both R and B should generally dominate G for magenta-like pixels.
+    if (r < g + 10) return false;
+    if (b < g + 10) return false;
 
-    // Don't be too strict about R-B balance, but avoid pure red/blue
-    if (Math.abs(r - b) > 200) return false;
+    // Avoid catching bright whites/greys that have slightly low green due to compression.
+    const maxc = Math.max(r,g,b), minc = Math.min(r,g,b);
+    if ((maxc - minc) < 18) return false;
+
+    // Magenta usually has R and B in the same ballpark; allow wider spread to catch highlights.
+    if (Math.abs(r - b) > 170) return false;
 
     return true;
-  }
+}
 
   function _getTeamCroppedSprite(img, crop, team){
     const key = img.src + "|" + crop.x + "," + crop.y + "," + crop.w + "," + crop.h + "|t" + team;
@@ -1051,105 +1056,6 @@ function getBaseBuildTime(kind){
 
         // Optional exclusion zone for conyard: keep the original color under the turret.
         // Use original (uncropped) coordinates so it stays valid even if crop changes.
-        if (img && typeof img.src === "string" && img.src.includes("con_yard")){
-          const p = (i >> 2);
-          const x = p % crop.w;
-          const y = (p / crop.w) | 0;
-          const gx = crop.x + x;
-          const gy = crop.y + y;
-
-          // "Under turret" band (tuned for 2048x1564 con_yard_n.png). Adjust if you change the source.
-          const EX = { x0: 900, y0: 480, x1: 1210, y1: 700 };
-          if (gx >= EX.x0 && gx <= EX.x1 && gy >= EX.y0 && gy <= EX.y1) continue;
-        }
-
-        // brightness keeps shading; luma is stable for highlights
-        const l = (0.2126*r + 0.7152*g + 0.0722*b) / 255;
-        // brighten team accents so they pop like unit stripes
-        const l2 = Math.min(1, Math.pow(l, TEAM_ACCENT_LUMA_GAMMA) * TEAM_ACCENT_LUMA_GAIN + TEAM_ACCENT_LUMA_BIAS);
-        d[i]   = Math.max(0, Math.min(255, tr * l2));
-        d[i+1] = Math.max(0, Math.min(255, tg * l2));
-        d[i+2] = Math.max(0, Math.min(255, tb * l2));
-        // alpha unchanged
-      }
-
-      c.putImageData(id, 0, 0);
-    }catch(e){
-      // If canvas becomes tainted for any reason, just fall back to original sprite.
-      _teamSpriteCache.set(key, null);
-      return null;
-    }
-
-    _teamSpriteCache.set(key, cvs);
-    return cvs;
-  }
-
-  function drawBuildingSprite(ent){
-    const cfg = BUILD_SPRITE[ent.kind];
-    if (!cfg) return false;
-    const img = cfg.img;
-    if (!img || !img.complete || !img.naturalWidth || !img.naturalHeight) return false;
-
-    const z = cam.zoom || 1;
-
-    // Footprint width in SCREEN pixels for current tile size:
-    // isometric footprint width = (tw + th) * ISO_X
-    const footprintW = (ent.tw + ent.th) * ISO_X;
-
-    // Use the cropped bbox as our "source size" to fit-to-footprint scaling.
-    const tune = SPRITE_TUNE[ent.kind] || {};
-    const crop = cfg.crop || { x: 0, y: 0, w: img.naturalWidth, h: img.naturalHeight };
-    const scale = (footprintW / (crop.w || img.naturalWidth)) * (tune.scaleMul ?? 1.0);
-
-    const dw = crop.w * scale * z;
-    const dh = crop.h * scale * z;
-
-    // Anchor point (matches your placement box math)
-
-    const anchorMode = tune.anchor || "south";
-
-    let anchorX, anchorY;
-    if (anchorMode === "center") {
-      // Footprint center in tile-space
-      const cx = (ent.tx + ent.tw * 0.5) * TILE;
-      const cy = (ent.ty + ent.th * 0.5) * TILE;
-      const cW = worldToScreen(cx, cy);
-      anchorX = cW.x;
-      anchorY = cW.y;
-    } else {
-      // Footprint SOUTH corner (tx+tw, ty+th)
-      const southW = worldToScreen((ent.tx + ent.tw) * TILE, (ent.ty + ent.th) * TILE);
-      anchorX = southW.x;
-      anchorY = southW.y;
-    }
-
-    // Pivot is bbox-space (source crop). Defaults depend on anchor mode.
-    const basePivotX = (cfg.pivot?.x ?? (crop.w * 0.5));
-    const basePivotY = (cfg.pivot?.y ?? (anchorMode === "center" ? (crop.h * 0.5) : crop.h));
-
-    const nudgeX = (tune.pivotNudge?.x ?? 0);
-    const nudgeY = (tune.pivotNudge?.y ?? 0);
-
-    const px = (basePivotX + nudgeX) * scale * z;
-    const py = (basePivotY + nudgeY) * scale * z;
-
-    const dx = (anchorX - px) + ((tune.offsetNudge?.x ?? 0) * z);
-    const dy = (anchorY - py) + ((tune.offsetNudge?.y ?? 0) * z);
-
-    ctx.save();
-    ctx.imageSmoothingEnabled = true;
-
-    let srcImg = img;
-    let sx = crop.x, sy = crop.y, sw = crop.w, sh = crop.h;
-
-    if (cfg.teamColor) {
-      const tinted = _getTeamCroppedSprite(img, crop, ent.team ?? TEAM.PLAYER);
-      if (tinted) {
-        srcImg = tinted;
-        sx = 0; sy = 0; sw = crop.w; sh = crop.h;
-      }
-    }
-
     ctx.drawImage(
       srcImg,
       sx, sy, sw, sh,
