@@ -1,0 +1,220 @@
+{
+	"textures": [
+		{
+			"image": "lite_tank.png",
+			"format": "RGBA8888",
+			"size": {
+				"w": 852,
+				"h": 1010
+			},
+			"scale": 1,
+			"frames": [
+				{
+					"filename": "lightank_idle2.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 600,
+						"h": 600
+					},
+					"spriteSourceSize": {
+						"x": 101,
+						"y": 169,
+						"w": 422,
+						"h": 270
+					},
+					"frame": {
+						"x": 1,
+						"y": 1,
+						"w": 422,
+						"h": 270
+					},
+					"anchor": {
+						"x": 0.5,
+						"y": 0.555
+					}
+				},
+				{
+					"filename": "lightank_idle4.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 600,
+						"h": 600
+					},
+					"spriteSourceSize": {
+						"x": 91,
+						"y": 171,
+						"w": 426,
+						"h": 264
+					},
+					"frame": {
+						"x": 1,
+						"y": 273,
+						"w": 426,
+						"h": 264
+					},
+					"anchor": {
+						"x": 0.5,
+						"y": 0.555
+					}
+				},
+				{
+					"filename": "lightank_idle6.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 600,
+						"h": 600
+					},
+					"spriteSourceSize": {
+						"x": 82,
+						"y": 171,
+						"w": 426,
+						"h": 264
+					},
+					"frame": {
+						"x": 425,
+						"y": 1,
+						"w": 426,
+						"h": 264
+					},
+					"anchor": {
+						"x": 0.5,
+						"y": 0.555
+					}
+				},
+				{
+					"filename": "lightank_idle8.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 600,
+						"h": 600
+					},
+					"spriteSourceSize": {
+						"x": 76,
+						"y": 169,
+						"w": 422,
+						"h": 270
+					},
+					"frame": {
+						"x": 429,
+						"y": 267,
+						"w": 422,
+						"h": 270
+					},
+					"anchor": {
+						"x": 0.5,
+						"y": 0.555
+					}
+				},
+				{
+					"filename": "lightank_idle3.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 600,
+						"h": 600
+					},
+					"spriteSourceSize": {
+						"x": 118,
+						"y": 202,
+						"w": 386,
+						"h": 212
+					},
+					"frame": {
+						"x": 1,
+						"y": 539,
+						"w": 386,
+						"h": 212
+					},
+					"anchor": {
+						"x": 0.5,
+						"y": 0.555
+					}
+				},
+				{
+					"filename": "lightank_idle7.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 600,
+						"h": 600
+					},
+					"spriteSourceSize": {
+						"x": 95,
+						"y": 202,
+						"w": 386,
+						"h": 212
+					},
+					"frame": {
+						"x": 389,
+						"y": 539,
+						"w": 386,
+						"h": 212
+					},
+					"anchor": {
+						"x": 0.5,
+						"y": 0.555
+					}
+				},
+				{
+					"filename": "lightank_idle5.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 600,
+						"h": 600
+					},
+					"spriteSourceSize": {
+						"x": 169,
+						"y": 173,
+						"w": 260,
+						"h": 253
+					},
+					"frame": {
+						"x": 1,
+						"y": 753,
+						"w": 260,
+						"h": 253
+					},
+					"anchor": {
+						"x": 0.5,
+						"y": 0.555
+					}
+				},
+				{
+					"filename": "lightank_idle1.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 600,
+						"h": 600
+					},
+					"spriteSourceSize": {
+						"x": 175,
+						"y": 172,
+						"w": 256,
+						"h": 256
+					},
+					"frame": {
+						"x": 263,
+						"y": 753,
+						"w": 256,
+						"h": 256
+					},
+					"anchor": {
+						"x": 0.5,
+						"y": 0.555
+					}
+				}
+			]
+		}
+	],
+	"meta": {
+		"app": "https://www.codeandweb.com/texturepacker",
+		"version": "3.0",
+		"smartupdate": "$TexturePacker:SmartUpdate:a1d34f69db0197d342f6056501f8ba4e:2765dc42de95619254112c50bf9d2ed4:8f1cb045799d0029b8e6acafd0c08246$"
+	}
+}

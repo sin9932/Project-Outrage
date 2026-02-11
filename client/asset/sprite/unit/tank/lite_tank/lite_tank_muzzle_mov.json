@@ -1,0 +1,820 @@
+{
+	"textures": [
+		{
+			"image": "lite_tank_muzzle_mov.png",
+			"format": "RGBA8888",
+			"size": {
+				"w": 946,
+				"h": 1510
+			},
+			"scale": 1,
+			"frames": [
+				{
+					"filename": "tank_muzzle_mov8.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 600,
+						"h": 600
+					},
+					"spriteSourceSize": {
+						"x": 223,
+						"y": 158,
+						"w": 356,
+						"h": 119
+					},
+					"frame": {
+						"x": 1,
+						"y": 1,
+						"w": 356,
+						"h": 119
+					},
+					"anchor": {
+						"x": 0.5066,
+						"y": 0.37
+					}
+				},
+				{
+					"filename": "tank_muzzle_mov25.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 600,
+						"h": 600
+					},
+					"spriteSourceSize": {
+						"x": 29,
+						"y": 158,
+						"w": 356,
+						"h": 119
+					},
+					"frame": {
+						"x": 359,
+						"y": 1,
+						"w": 356,
+						"h": 119
+					},
+					"anchor": {
+						"x": 0.5066,
+						"y": 0.37
+					}
+				},
+				{
+					"filename": "tank_muzzle_mov4.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 600,
+						"h": 600
+					},
+					"spriteSourceSize": {
+						"x": 219,
+						"y": 85,
+						"w": 228,
+						"h": 183
+					},
+					"frame": {
+						"x": 717,
+						"y": 1,
+						"w": 228,
+						"h": 183
+					},
+					"anchor": {
+						"x": 0.5066,
+						"y": 0.37
+					}
+				},
+				{
+					"filename": "tank_muzzle_mov7.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 600,
+						"h": 600
+					},
+					"spriteSourceSize": {
+						"x": 216,
+						"y": 154,
+						"w": 352,
+						"h": 121
+					},
+					"frame": {
+						"x": 1,
+						"y": 122,
+						"w": 352,
+						"h": 121
+					},
+					"anchor": {
+						"x": 0.5066,
+						"y": 0.37
+					}
+				},
+				{
+					"filename": "tank_muzzle_mov9.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 600,
+						"h": 600
+					},
+					"spriteSourceSize": {
+						"x": 222,
+						"y": 161,
+						"w": 358,
+						"h": 121
+					},
+					"frame": {
+						"x": 355,
+						"y": 122,
+						"w": 358,
+						"h": 121
+					},
+					"anchor": {
+						"x": 0.5066,
+						"y": 0.37
+					}
+				},
+				{
+					"filename": "tank_muzzle_mov24.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 600,
+						"h": 600
+					},
+					"spriteSourceSize": {
+						"x": 28,
+						"y": 161,
+						"w": 358,
+						"h": 121
+					},
+					"frame": {
+						"x": 1,
+						"y": 245,
+						"w": 358,
+						"h": 121
+					},
+					"anchor": {
+						"x": 0.5066,
+						"y": 0.37
+					}
+				},
+				{
+					"filename": "tank_muzzle_mov26.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 600,
+						"h": 600
+					},
+					"spriteSourceSize": {
+						"x": 40,
+						"y": 154,
+						"w": 352,
+						"h": 121
+					},
+					"frame": {
+						"x": 361,
+						"y": 245,
+						"w": 352,
+						"h": 121
+					},
+					"anchor": {
+						"x": 0.5066,
+						"y": 0.37
+					}
+				},
+				{
+					"filename": "tank_muzzle_mov29.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 600,
+						"h": 600
+					},
+					"spriteSourceSize": {
+						"x": 161,
+						"y": 85,
+						"w": 228,
+						"h": 183
+					},
+					"frame": {
+						"x": 715,
+						"y": 186,
+						"w": 228,
+						"h": 183
+					},
+					"anchor": {
+						"x": 0.5066,
+						"y": 0.37
+					}
+				},
+				{
+					"filename": "tank_muzzle_mov10.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 600,
+						"h": 600
+					},
+					"spriteSourceSize": {
+						"x": 221,
+						"y": 161,
+						"w": 350,
+						"h": 122
+					},
+					"frame": {
+						"x": 1,
+						"y": 368,
+						"w": 350,
+						"h": 122
+					},
+					"anchor": {
+						"x": 0.5066,
+						"y": 0.37
+					}
+				},
+				{
+					"filename": "tank_muzzle_mov23.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 600,
+						"h": 600
+					},
+					"spriteSourceSize": {
+						"x": 37,
+						"y": 161,
+						"w": 350,
+						"h": 122
+					},
+					"frame": {
+						"x": 353,
+						"y": 368,
+						"w": 350,
+						"h": 122
+					},
+					"anchor": {
+						"x": 0.5066,
+						"y": 0.37
+					}
+				},
+				{
+					"filename": "tank_muzzle_mov14.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 600,
+						"h": 600
+					},
+					"spriteSourceSize": {
+						"x": 232,
+						"y": 151,
+						"w": 233,
+						"h": 186
+					},
+					"frame": {
+						"x": 705,
+						"y": 371,
+						"w": 233,
+						"h": 186
+					},
+					"anchor": {
+						"x": 0.5066,
+						"y": 0.37
+					}
+				},
+				{
+					"filename": "tank_muzzle_mov11.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 600,
+						"h": 600
+					},
+					"spriteSourceSize": {
+						"x": 221,
+						"y": 158,
+						"w": 332,
+						"h": 130
+					},
+					"frame": {
+						"x": 1,
+						"y": 492,
+						"w": 332,
+						"h": 130
+					},
+					"anchor": {
+						"x": 0.5066,
+						"y": 0.37
+					}
+				},
+				{
+					"filename": "tank_muzzle_mov22.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 600,
+						"h": 600
+					},
+					"spriteSourceSize": {
+						"x": 55,
+						"y": 158,
+						"w": 332,
+						"h": 130
+					},
+					"frame": {
+						"x": 335,
+						"y": 492,
+						"w": 332,
+						"h": 130
+					},
+					"anchor": {
+						"x": 0.5066,
+						"y": 0.37
+					}
+				},
+				{
+					"filename": "tank_muzzle_mov13.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 600,
+						"h": 600
+					},
+					"spriteSourceSize": {
+						"x": 228,
+						"y": 153,
+						"w": 260,
+						"h": 177
+					},
+					"frame": {
+						"x": 669,
+						"y": 559,
+						"w": 260,
+						"h": 177
+					},
+					"anchor": {
+						"x": 0.5066,
+						"y": 0.37
+					}
+				},
+				{
+					"filename": "tank_muzzle_mov6.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 600,
+						"h": 600
+					},
+					"spriteSourceSize": {
+						"x": 212,
+						"y": 133,
+						"w": 337,
+						"h": 138
+					},
+					"frame": {
+						"x": 1,
+						"y": 624,
+						"w": 337,
+						"h": 138
+					},
+					"anchor": {
+						"x": 0.5066,
+						"y": 0.37
+					}
+				},
+				{
+					"filename": "tank_muzzle_mov12.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 600,
+						"h": 600
+					},
+					"spriteSourceSize": {
+						"x": 222,
+						"y": 156,
+						"w": 311,
+						"h": 149
+					},
+					"frame": {
+						"x": 340,
+						"y": 624,
+						"w": 311,
+						"h": 149
+					},
+					"anchor": {
+						"x": 0.5066,
+						"y": 0.37
+					}
+				},
+				{
+					"filename": "tank_muzzle_mov27.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 600,
+						"h": 600
+					},
+					"spriteSourceSize": {
+						"x": 59,
+						"y": 133,
+						"w": 337,
+						"h": 138
+					},
+					"frame": {
+						"x": 1,
+						"y": 764,
+						"w": 337,
+						"h": 138
+					},
+					"anchor": {
+						"x": 0.5066,
+						"y": 0.37
+					}
+				},
+				{
+					"filename": "tank_muzzle_mov20.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 600,
+						"h": 600
+					},
+					"spriteSourceSize": {
+						"x": 120,
+						"y": 153,
+						"w": 260,
+						"h": 177
+					},
+					"frame": {
+						"x": 653,
+						"y": 738,
+						"w": 260,
+						"h": 177
+					},
+					"anchor": {
+						"x": 0.5066,
+						"y": 0.37
+					}
+				},
+				{
+					"filename": "tank_muzzle_mov21.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 600,
+						"h": 600
+					},
+					"spriteSourceSize": {
+						"x": 75,
+						"y": 156,
+						"w": 311,
+						"h": 149
+					},
+					"frame": {
+						"x": 340,
+						"y": 775,
+						"w": 311,
+						"h": 149
+					},
+					"anchor": {
+						"x": 0.5066,
+						"y": 0.37
+					}
+				},
+				{
+					"filename": "tank_muzzle_mov5.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 600,
+						"h": 600
+					},
+					"spriteSourceSize": {
+						"x": 210,
+						"y": 118,
+						"w": 318,
+						"h": 151
+					},
+					"frame": {
+						"x": 1,
+						"y": 904,
+						"w": 318,
+						"h": 151
+					},
+					"anchor": {
+						"x": 0.5066,
+						"y": 0.37
+					}
+				},
+				{
+					"filename": "tank_muzzle_mov28.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 600,
+						"h": 600
+					},
+					"spriteSourceSize": {
+						"x": 80,
+						"y": 118,
+						"w": 318,
+						"h": 151
+					},
+					"frame": {
+						"x": 321,
+						"y": 926,
+						"w": 318,
+						"h": 151
+					},
+					"anchor": {
+						"x": 0.5066,
+						"y": 0.37
+					}
+				},
+				{
+					"filename": "tank_muzzle_mov19.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 600,
+						"h": 600
+					},
+					"spriteSourceSize": {
+						"x": 143,
+						"y": 151,
+						"w": 233,
+						"h": 186
+					},
+					"frame": {
+						"x": 653,
+						"y": 917,
+						"w": 233,
+						"h": 186
+					},
+					"anchor": {
+						"x": 0.5066,
+						"y": 0.37
+					}
+				},
+				{
+					"filename": "tank_muzzle_mov3.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 600,
+						"h": 600
+					},
+					"spriteSourceSize": {
+						"x": 226,
+						"y": 76,
+						"w": 174,
+						"h": 193
+					},
+					"frame": {
+						"x": 1,
+						"y": 1057,
+						"w": 174,
+						"h": 193
+					},
+					"anchor": {
+						"x": 0.5066,
+						"y": 0.37
+					}
+				},
+				{
+					"filename": "tank_muzzle_mov30.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 600,
+						"h": 600
+					},
+					"spriteSourceSize": {
+						"x": 208,
+						"y": 76,
+						"w": 174,
+						"h": 193
+					},
+					"frame": {
+						"x": 177,
+						"y": 1079,
+						"w": 174,
+						"h": 193
+					},
+					"anchor": {
+						"x": 0.5066,
+						"y": 0.37
+					}
+				},
+				{
+					"filename": "tank_muzzle_mov2.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 600,
+						"h": 600
+					},
+					"spriteSourceSize": {
+						"x": 227,
+						"y": 75,
+						"w": 163,
+						"h": 194
+					},
+					"frame": {
+						"x": 353,
+						"y": 1079,
+						"w": 163,
+						"h": 194
+					},
+					"anchor": {
+						"x": 0.5066,
+						"y": 0.37
+					}
+				},
+				{
+					"filename": "tank_muzzle_mov31.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 600,
+						"h": 600
+					},
+					"spriteSourceSize": {
+						"x": 218,
+						"y": 75,
+						"w": 163,
+						"h": 194
+					},
+					"frame": {
+						"x": 518,
+						"y": 1105,
+						"w": 163,
+						"h": 194
+					},
+					"anchor": {
+						"x": 0.5066,
+						"y": 0.37
+					}
+				},
+				{
+					"filename": "tank_muzzle_mov1.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 600,
+						"h": 600
+					},
+					"spriteSourceSize": {
+						"x": 224,
+						"y": 73,
+						"w": 165,
+						"h": 196
+					},
+					"frame": {
+						"x": 683,
+						"y": 1105,
+						"w": 165,
+						"h": 196
+					},
+					"anchor": {
+						"x": 0.5066,
+						"y": 0.37
+					}
+				},
+				{
+					"filename": "tank_muzzle_mov32.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 600,
+						"h": 600
+					},
+					"spriteSourceSize": {
+						"x": 219,
+						"y": 73,
+						"w": 165,
+						"h": 196
+					},
+					"frame": {
+						"x": 1,
+						"y": 1252,
+						"w": 165,
+						"h": 196
+					},
+					"anchor": {
+						"x": 0.5066,
+						"y": 0.37
+					}
+				},
+				{
+					"filename": "tank_muzzle_mov15.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 600,
+						"h": 600
+					},
+					"spriteSourceSize": {
+						"x": 235,
+						"y": 151,
+						"w": 188,
+						"h": 197
+					},
+					"frame": {
+						"x": 168,
+						"y": 1275,
+						"w": 188,
+						"h": 197
+					},
+					"anchor": {
+						"x": 0.5066,
+						"y": 0.37
+					}
+				},
+				{
+					"filename": "tank_muzzle_mov18.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 600,
+						"h": 600
+					},
+					"spriteSourceSize": {
+						"x": 185,
+						"y": 151,
+						"w": 188,
+						"h": 197
+					},
+					"frame": {
+						"x": 358,
+						"y": 1301,
+						"w": 188,
+						"h": 197
+					},
+					"anchor": {
+						"x": 0.5066,
+						"y": 0.37
+					}
+				},
+				{
+					"filename": "tank_muzzle_mov16.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 600,
+						"h": 600
+					},
+					"spriteSourceSize": {
+						"x": 233,
+						"y": 150,
+						"w": 164,
+						"h": 206
+					},
+					"frame": {
+						"x": 548,
+						"y": 1303,
+						"w": 164,
+						"h": 206
+					},
+					"anchor": {
+						"x": 0.5066,
+						"y": 0.37
+					}
+				},
+				{
+					"filename": "tank_muzzle_mov17.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 600,
+						"h": 600
+					},
+					"spriteSourceSize": {
+						"x": 211,
+						"y": 150,
+						"w": 164,
+						"h": 206
+					},
+					"frame": {
+						"x": 714,
+						"y": 1303,
+						"w": 164,
+						"h": 206
+					},
+					"anchor": {
+						"x": 0.5066,
+						"y": 0.37
+					}
+				}
+			]
+		}
+	],
+	"meta": {
+		"app": "https://www.codeandweb.com/texturepacker",
+		"version": "3.0",
+		"smartupdate": "$TexturePacker:SmartUpdate:157e19beb9368764804453df26eaf16c:37349096876c8cbf708cb47f8a3cbcfb:3dba6fdfcac07d4ad2caeb0369c97f13$"
+	}
+}

@@ -1,0 +1,220 @@
+{
+	"textures": [
+		{
+			"image": "lite_tank_muzzle.png",
+			"format": "RGBA8888",
+			"size": {
+				"w": 939,
+				"h": 410
+			},
+			"scale": 1,
+			"frames": [
+				{
+					"filename": "tank_muzzle_idle3.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 600,
+						"h": 600
+					},
+					"spriteSourceSize": {
+						"x": 225,
+						"y": 160,
+						"w": 357,
+						"h": 120
+					},
+					"frame": {
+						"x": 1,
+						"y": 1,
+						"w": 357,
+						"h": 120
+					},
+					"anchor": {
+						"x": 0.5066,
+						"y": 0.37
+					}
+				},
+				{
+					"filename": "tank_muzzle_idle7.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 600,
+						"h": 600
+					},
+					"spriteSourceSize": {
+						"x": 26,
+						"y": 160,
+						"w": 357,
+						"h": 120
+					},
+					"frame": {
+						"x": 1,
+						"y": 123,
+						"w": 357,
+						"h": 120
+					},
+					"anchor": {
+						"x": 0.5066,
+						"y": 0.37
+					}
+				},
+				{
+					"filename": "tank_muzzle_idle2.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 600,
+						"h": 600
+					},
+					"spriteSourceSize": {
+						"x": 211,
+						"y": 101,
+						"w": 287,
+						"h": 164
+					},
+					"frame": {
+						"x": 1,
+						"y": 245,
+						"w": 287,
+						"h": 164
+					},
+					"anchor": {
+						"x": 0.5066,
+						"y": 0.37
+					}
+				},
+				{
+					"filename": "tank_muzzle_idle8.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 600,
+						"h": 600
+					},
+					"spriteSourceSize": {
+						"x": 110,
+						"y": 101,
+						"w": 287,
+						"h": 164
+					},
+					"frame": {
+						"x": 290,
+						"y": 245,
+						"w": 287,
+						"h": 164
+					},
+					"anchor": {
+						"x": 0.5066,
+						"y": 0.37
+					}
+				},
+				{
+					"filename": "tank_muzzle_idle4.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 600,
+						"h": 600
+					},
+					"spriteSourceSize": {
+						"x": 225,
+						"y": 154,
+						"w": 288,
+						"h": 165
+					},
+					"frame": {
+						"x": 360,
+						"y": 1,
+						"w": 288,
+						"h": 165
+					},
+					"anchor": {
+						"x": 0.5066,
+						"y": 0.37
+					}
+				},
+				{
+					"filename": "tank_muzzle_idle6.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 600,
+						"h": 600
+					},
+					"spriteSourceSize": {
+						"x": 95,
+						"y": 154,
+						"w": 288,
+						"h": 165
+					},
+					"frame": {
+						"x": 650,
+						"y": 1,
+						"w": 288,
+						"h": 165
+					},
+					"anchor": {
+						"x": 0.5066,
+						"y": 0.37
+					}
+				},
+				{
+					"filename": "tank_muzzle_idle5.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 600,
+						"h": 600
+					},
+					"spriteSourceSize": {
+						"x": 222,
+						"y": 150,
+						"w": 164,
+						"h": 211
+					},
+					"frame": {
+						"x": 579,
+						"y": 168,
+						"w": 164,
+						"h": 211
+					},
+					"anchor": {
+						"x": 0.5066,
+						"y": 0.37
+					}
+				},
+				{
+					"filename": "tank_muzzle_idle1.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 600,
+						"h": 600
+					},
+					"spriteSourceSize": {
+						"x": 222,
+						"y": 71,
+						"w": 163,
+						"h": 200
+					},
+					"frame": {
+						"x": 745,
+						"y": 168,
+						"w": 163,
+						"h": 200
+					},
+					"anchor": {
+						"x": 0.5066,
+						"y": 0.37
+					}
+				}
+			]
+		}
+	],
+	"meta": {
+		"app": "https://www.codeandweb.com/texturepacker",
+		"version": "3.0",
+		"smartupdate": "$TexturePacker:SmartUpdate:2ae971ca9810b70f09c805c51d6eb71d:71c5a4477b1f667ce3e8e9e5316ccc5c:ac9272c8a65e028ab65132df580b25a6$"
+	}
+}

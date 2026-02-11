@@ -109,7 +109,7 @@ ${e.filename}:${e.lineno}:${e.colno}
   normalizeProdButton(btnInf, "보병", "infantry");
   normalizeProdButton(btnEng, "엔지니어", "engineer");
   normalizeProdButton(btnSnp, "저격병", "sniper");
-  normalizeProdButton(btnTnk, "탱크", "tank");
+  normalizeProdButton(btnTnk, "경전차", "tank");
   normalizeProdButton(btnHar, "굴착기", "harvester");
   normalizeProdButton(btnIFV, "IFV", "ifv");
 
@@ -118,7 +118,6 @@ ${e.filename}:${e.lineno}:${e.colno}
   const pColorInput = $("pColor");
   const eColorInput = $("eColor");
   const fogOffChk = $("fogOff");
-  const fastCompleteChk = $("fastComplete");
 
   let spawnChoice = "left";
   for (const chip of document.querySelectorAll(".chip.spawn")) {
@@ -326,8 +325,6 @@ function fitMini() {
   }
 // Debug option: disable fog-of-war rendering & logic (show whole map)
   let fogEnabled = true;
-  let DEBUG_FAST_COMPLETE = false; // pregame checkbox: 1s complete
-
   const clamp = (v,a,b)=>Math.max(a,Math.min(b,v));
   const dist2 = (ax,ay,bx,by)=>{ const dx=ax-bx, dy=ay-by; return dx*dx+dy*dy; };
   const rnd = (a,b)=> a + Math.random()*(b-a);
@@ -751,8 +748,9 @@ function getBaseBuildTime(kind){
     // tesla: { range: 290, dmg: 60, rofBase: 1.1, ring:{...}, fx:{...} },
   };
 
-
-  const UNIT = {
+  // === Unit specs (split to ./js/units.js) ===
+  // If ./js/units.js is loaded, it provides window.G.Units.UNIT.
+  const DEFAULT_UNIT = {
     infantry: { r:17, hp:125, speed:230, range:330, dmg:15, rof:0.55, vision:420, hitscan:true,  cls:"inf" },
     engineer: { r:17, hp:100, speed:272, range:0,   dmg:0,  rof:0,    vision:420, cls:"inf" },
     sniper:   { r:17, hp:125, speed:205, range:1200, dmg:125, rof:2.20, vision:1200, hitscan:true,  cls:"inf", cloak:false },
@@ -761,12 +759,16 @@ function getBaseBuildTime(kind){
     harvester:{ r:28, hp:1000, speed:250, range:0,   dmg:0,  rof:0,    vision: 520, carryMax:1000, cls:"veh" }
   };
 
+  const UNIT = (window.G && window.G.Units && window.G.Units.UNIT) ? window.G.Units.UNIT : DEFAULT_UNIT;
 
-  const NAME_KO = {
+  const DEFAULT_NAME_KO = {
     hq:"건설소(HQ)", power:"발전소", refinery:"정제소", barracks:"막사",
     factory:"군수공장", radar:"레이더", turret:"터렛",
-    infantry:"보병", engineer:"엔지니어", sniper:"저격병", tank:"탱크", ifv:"IFV", harvester:"굴착기"
+    infantry:"보병", engineer:"엔지니어", sniper:"저격병", tank:"경전차", ifv:"IFV", harvester:"굴착기"
   };
+
+  const NAME_KO = (window.G && window.G.Units && window.G.Units.NAME_KO) ? window.G.Units.NAME_KO : DEFAULT_NAME_KO;
+
 
   // === Centralized assets (refactor) ===
   const ASSET = {
@@ -1142,6 +1144,20 @@ function getBaseBuildTime(kind){
 
         if (!_isAccentPixel(r, g, b, a)) continue;
 
+        // Optional exclusion zone for conyard: keep the original color under the turret.
+        // Use original (uncropped) coordinates so it stays valid even if crop changes.
+        if (img && typeof img.src === "string" && img.src.includes("con_yard")){
+          const p = (i >> 2);
+          const x = p % crop.w;
+          const y = (p / crop.w) | 0;
+          const gx = crop.x + x;
+          const gy = crop.y + y;
+
+          // "Under turret" band (tuned for 2048x1564 con_yard_n.png). Adjust if you change the source.
+          const EX = { x0: 900, y0: 480, x1: 1210, y1: 700 };
+          if (gx >= EX.x0 && gx <= EX.x1 && gy >= EX.y0 && gy <= EX.y1) continue;
+        }
+
         // brightness keeps shading; luma is stable for highlights
         const l = (0.2126*r + 0.7152*g + 0.0722*b) / 255;
         // brighten team accents so they pop like unit stripes
@@ -1360,6 +1376,238 @@ function getBaseBuildTime(kind){
     }catch(_e){}
     return null;
   }
+
+
+  // === TexturePacker "textures":[{frames:[...]}] atlas parser (trim + anchor aware) ===
+  function _parseTPTexturesAtlas(json){
+    // Returns: { image: string|null, frames: Map<filename, frameObj> }
+    // frameObj includes: frame{x,y,w,h}, spriteSourceSize{x,y,w,h}, sourceSize{w,h}, anchor{x,y}
+    try{
+      if (!json || !Array.isArray(json.textures) || !json.textures.length) return null;
+      const tex = json.textures[0];
+      const image = tex.image || (json.meta && json.meta.image) || null;
+      const framesArr = tex.frames || [];
+      const map = new Map();
+      for (const fr of framesArr){
+        if (!fr || !fr.filename || !fr.frame) continue;
+        map.set(fr.filename, fr);
+      }
+      return { image, frames: map };
+    }catch(_e){
+      return null;
+    }
+  }
+
+  async function _loadTPAtlasFromUrl(jsonUrl, baseDir){
+    // baseDir: prefix to prepend to atlas image name.
+    const r = await fetch(jsonUrl, { cache:"no-store" });
+    if (!r.ok) throw new Error("HTTP "+r.status);
+    const j = await r.json();
+    const parsed = _parseTPTexturesAtlas(j);
+    if (!parsed || !parsed.frames || !parsed.frames.size) throw new Error("atlas parse failed");
+    const imgName = parsed.image || null;
+    if (!imgName) throw new Error("atlas image missing");
+    const img = new Image();
+    img.src = (baseDir || "") + imgName;
+    return { img, frames: parsed.frames, image: imgName };
+  }
+
+  // === Lite Tank (RA2-style hull turn + independent turret) ===
+  const LITE_TANK_BASE = "asset/sprite/unit/tank/lite_tank/";
+  const LITE_TANK_SCALE = 0.095; // tuned for TILE=48, sourceSize=600
+  const LITE_TANK = {
+    ok:false,
+    bodyIdle:null,
+    bodyMov:null,
+    muzzleIdle:null,
+    muzzleMov:null
+  };
+
+  const _dirToIdleIdx = { 6:1, 7:2, 0:3, 1:4, 2:5, 3:6, 4:7, 5:8 }; // dir8 -> idle1..8
+  const _cwSeq = [6,7,0,1,2,3,4,5];
+  const _cwStartFrame = { 6:1, 7:5, 0:9, 1:13, 2:17, 3:21, 4:25, 5:29 }; // mov segment starts (4 frames each)
+
+  function _cwNextDir(d){
+    const i = _cwSeq.indexOf(d);
+    return _cwSeq[(i+1) & 7];
+  }
+  function _ccwPrevDir(d){
+    const i = _cwSeq.indexOf(d);
+    return _cwSeq[(i+7) & 7];
+  }
+
+  function _tankTurnFrameNum(fromDir, toDir, fi){ // fi:0..3
+    // We only have clockwise segments in the sprite sheet.
+    // Counterclockwise uses the corresponding clockwise segment played backwards.
+    if (toDir === _cwNextDir(fromDir)){
+      const start = _cwStartFrame[fromDir] || 1;
+      return start + fi;
+    }
+    if (toDir === _ccwPrevDir(fromDir)){
+      const prev = toDir; // prev -> from is clockwise
+      const start = _cwStartFrame[prev] || 1;
+      return start + (3 - fi);
+    }
+    return null;
+  }
+
+  function _turnStepToward(fromDir, goalDir){
+    // returns {nextDir, stepDir} where stepDir: +1 cw, -1 ccw
+    const a = _cwSeq.indexOf(fromDir);
+    const b = _cwSeq.indexOf(goalDir);
+    if (a < 0 || b < 0) return { nextDir: goalDir, stepDir: +1 };
+    const cw = (b - a + 8) % 8;
+    const ccw = (a - b + 8) % 8;
+    if (cw <= ccw){
+      return { nextDir: _cwSeq[(a+1) & 7], stepDir: +1 };
+    }
+    return { nextDir: _cwSeq[(a+7) & 7], stepDir: -1 };
+  }
+
+  function _advanceTurnState(turn, fromDir, toDir, dt, frameDur){
+    // Mutates turn and returns {done:boolean, frameNum:int|null}
+    turn.t = (turn.t || 0) + dt;
+    const fi = Math.min(3, Math.floor(turn.t / Math.max(0.001, frameDur)));
+    const frameNum = _tankTurnFrameNum(fromDir, toDir, fi);
+    const done = turn.t >= frameDur*4;
+    return { done, frameNum };
+  }
+
+  function _tankUpdateHull(u, desiredDir, dt){
+    if (u.bodyDir == null) u.bodyDir = (u.dir!=null ? u.dir : 6);
+
+    if (desiredDir == null || desiredDir === u.bodyDir){
+      u.bodyTurn = null;
+      return;
+    }
+
+    // Continue current step if valid
+    if (!u.bodyTurn || !u.bodyTurn.fromDir || !u.bodyTurn.toDir){
+      const step = _turnStepToward(u.bodyDir, desiredDir);
+      u.bodyTurn = { fromDir: u.bodyDir, toDir: step.nextDir, stepDir: step.stepDir, t: 0 };
+    }
+
+    const { done, frameNum } = _advanceTurnState(u.bodyTurn, u.bodyTurn.fromDir, u.bodyTurn.toDir, dt, 0.055);
+    u.bodyTurn.frameNum = frameNum;
+
+    if (done){
+      u.bodyDir = u.bodyTurn.toDir;
+      u.dir = u.bodyDir;
+      u.bodyTurn = null;
+    }
+  }
+
+  function _tankUpdateTurret(u, desiredDir, dt){
+    if (u.turretDir == null) u.turretDir = (u.dir!=null ? u.dir : 6);
+
+    if (desiredDir == null || desiredDir === u.turretDir){
+      u.turretTurn = null;
+      return;
+    }
+
+    if (!u.turretTurn || !u.turretTurn.fromDir || !u.turretTurn.toDir){
+      const step = _turnStepToward(u.turretDir, desiredDir);
+      u.turretTurn = { fromDir: u.turretDir, toDir: step.nextDir, stepDir: step.stepDir, t: 0 };
+    }
+
+    const { done, frameNum } = _advanceTurnState(u.turretTurn, u.turretTurn.fromDir, u.turretTurn.toDir, dt, 0.045);
+    u.turretTurn.frameNum = frameNum;
+
+    if (done){
+      u.turretDir = u.turretTurn.toDir;
+      u.turretTurn = null;
+    }
+  }
+
+  function _tankBodyFrameName(u){
+    if (u.bodyTurn && u.bodyTurn.frameNum){
+      return "lightank_mov" + u.bodyTurn.frameNum + ".png";
+    }
+    const idx = _dirToIdleIdx[u.bodyDir ?? u.dir ?? 6] || 1;
+    return "lightank_idle" + idx + ".png";
+  }
+
+  function _tankMuzzleFrameName(u){
+    if (u.turretTurn && u.turretTurn.frameNum){
+      return "tank_muzzle_mov" + u.turretTurn.frameNum + ".png";
+    }
+    const idx = _dirToIdleIdx[u.turretDir ?? u.dir ?? 6] || 1;
+    return "tank_muzzle_idle" + idx + ".png";
+  }
+
+  function _drawTPFrame(atlas, filename, screenX, screenY, scale, team){
+    if (!atlas || !atlas.img || !atlas.img.complete || !atlas.frames) return false;
+    const fr = atlas.frames.get(filename);
+    if (!fr) return false;
+
+    const crop = fr.frame || fr;
+    const sss = fr.spriteSourceSize || { x:0, y:0, w: crop.w, h: crop.h };
+    const srcS = fr.sourceSize || { w: crop.w, h: crop.h };
+    const anc = fr.anchor || { x:0.5, y:0.5 };
+
+    const sx = (crop.x|0), sy = (crop.y|0), sw = (crop.w|0), sh = (crop.h|0);
+
+    // Team tint only inside this cropped rect
+    let srcImg = atlas.img;
+    let ssx = sx, ssy = sy;
+    const tinted = _getTeamCroppedSprite(atlas.img, { x:sx, y:sy, w:sw, h:sh }, team);
+    if (tinted){
+      srcImg = tinted;
+      ssx = 0; ssy = 0;
+    }
+
+    const dx = screenX - (anc.x * srcS.w * scale) + (sss.x * scale);
+    const dy = screenY - (anc.y * srcS.h * scale) + (sss.y * scale);
+    ctx.drawImage(srcImg, ssx, ssy, sw, sh, dx, dy, sw*scale, sh*scale);
+    return true;
+  }
+
+  function drawLiteTankSprite(u, p){
+    if (!LITE_TANK.ok) return false;
+    const s = (cam.zoom || 1) * LITE_TANK_SCALE;
+    const bodyName = _tankBodyFrameName(u);
+    const muzzleName = _tankMuzzleFrameName(u);
+
+    // Hull first, turret on top
+    const bodyAtlas = (bodyName.indexOf("_mov")>=0) ? LITE_TANK.bodyMov : LITE_TANK.bodyIdle;
+    const muzzleAtlas = (muzzleName.indexOf("_mov")>=0) ? LITE_TANK.muzzleMov : LITE_TANK.muzzleIdle;
+
+    const ok1 = _drawTPFrame(bodyAtlas, bodyName, p.x, p.y, s, u.team);
+    const ok2 = _drawTPFrame(muzzleAtlas, muzzleName, p.x, p.y, s, u.team);
+
+    // If frame lookup failed because of atlas mismatch, try the other atlas.
+    if (!ok1){
+      _drawTPFrame(LITE_TANK.bodyMov, bodyName, p.x, p.y, s, u.team);
+      _drawTPFrame(LITE_TANK.bodyIdle, bodyName, p.x, p.y, s, u.team);
+    }
+    if (!ok2){
+      _drawTPFrame(LITE_TANK.muzzleMov, muzzleName, p.x, p.y, s, u.team);
+      _drawTPFrame(LITE_TANK.muzzleIdle, muzzleName, p.x, p.y, s, u.team);
+    }
+    return true;
+  }
+
+  // Kick off lite tank atlas loads early (non-blocking)
+  (async()=>{
+    try{
+      const [bodyIdle, bodyMov, muzzleIdle, muzzleMov] = await Promise.all([
+        _loadTPAtlasFromUrl(LITE_TANK_BASE + "lite_tank.json", LITE_TANK_BASE),
+        _loadTPAtlasFromUrl(LITE_TANK_BASE + "lite_tank_body_mov.json", LITE_TANK_BASE),
+        _loadTPAtlasFromUrl(LITE_TANK_BASE + "lite_tank_muzzle.json", LITE_TANK_BASE),
+        _loadTPAtlasFromUrl(LITE_TANK_BASE + "lite_tank_muzzle_mov.json", LITE_TANK_BASE),
+      ]);
+      LITE_TANK.bodyIdle = bodyIdle;
+      LITE_TANK.bodyMov = bodyMov;
+      LITE_TANK.muzzleIdle = muzzleIdle;
+      LITE_TANK.muzzleMov = muzzleMov;
+      LITE_TANK.ok = true;
+      console.log("[lite_tank] atlases ready");
+    }catch(e){
+      console.warn("[lite_tank] atlas load failed:", e);
+      LITE_TANK.ok = false;
+    }
+  })();
+
 
 
   // Kick off json load early (non-blocking)
@@ -2158,8 +2406,19 @@ function addUnit(team, kind, x, y){
       yieldCd:0,
       inTransport:null,
       hidden:false,
-      selectable:true
+      selectable:true,
+      dir:6,
+      faceDir:6,
+      bodyDir:null,
+      turretDir:null,
+      bodyTurn:null,
+      turretTurn:null
     };
+
+    if (kind === "tank"){
+      u.bodyDir = 6;
+      u.turretDir = 6;
+    }
     units.push(u);
     return u;
   }
@@ -3192,12 +3451,37 @@ function followPath(u, dt){
     // IMPORTANT: don't overwrite attack-facing while firing, and don't snap to default when stationary.
     const movingDir = (Math.abs(ax) + Math.abs(ay)) > 1e-4;
     if ((u.fireHoldT||0) > 0 && u.fireDir!=null){
+      // Firing facing: turret/aim direction
       u.faceDir = u.fireDir;
-      u.dir = u.fireDir;
+      if (u.kind !== "tank"){
+        u.dir = u.fireDir;
+      } else {
+        if (u.bodyDir==null) u.bodyDir = (u.dir!=null ? u.dir : 6);
+        u.dir = u.bodyDir;
+      }
     } else if (movingDir){
       const fd = worldVecToDir8(ax, ay);
-      u.faceDir = fd;
-      u.dir = fd;
+
+      if (u.kind === "tank"){
+        // RA2-style: hull turns in place before actually translating.
+        if (u.bodyDir == null) u.bodyDir = (u.dir!=null ? u.dir : 6);
+
+        if (fd !== u.bodyDir){
+          _tankUpdateHull(u, fd, dt);
+          u.dir = u.bodyDir;
+          u.faceDir = (u.fireDir!=null ? u.fireDir : (u.turretDir!=null ? u.turretDir : u.bodyDir));
+          return true; // turning, no translation this frame
+        }
+
+        // Aligned: move normally.
+        u.bodyTurn = null;
+        u.bodyDir = fd;
+        u.dir = fd;
+        u.faceDir = (u.fireDir!=null ? u.fireDir : fd);
+      } else {
+        u.faceDir = fd;
+        u.dir = fd;
+      }
     } else {
       // keep last facing when idle
       if (u.faceDir==null) u.faceDir = 6;
@@ -5929,13 +6213,6 @@ function tickProduction(dt){
 
       const q=b.buildQ[0];
 
-
-      if (DEBUG_FAST_COMPLETE){
-        // Debug: make any queued production finish in 1 second (ignore power/money/pauses)
-        q.paused = false; q.autoPaused = false;
-        q.tNeed = 1;
-        speed = 1;
-      }
 // Manual/auto pause support (대기).
 // autoPaused(자금 부족)인 경우, 돈이 다시 생기면 자동으로 재개한다. (수동 클릭 안 해도 됨)
 if (q.paused){
@@ -5955,17 +6232,9 @@ if (q.paused){
 
       // Money drains while progress advances (RA2-ish).
       const teamWallet = (b.team===TEAM.PLAYER) ? state.player : state.enemy;
-      let costTotal = q.cost ?? (COST[q.kind]||0);
-      let tNeed = q.tNeed || 0.001;
-      let payRate = costTotal / tNeed;
-      if (DEBUG_FAST_COMPLETE){
-        // Debug: 1s completion, free + no money gating
-        tNeed = 1;
-        costTotal = 0;
-        payRate = 0;
-        q.tNeed = 1;
-      }
-// credits per second at 1x speed
+      const costTotal = q.cost ?? (COST[q.kind]||0);
+      const tNeed = q.tNeed || 0.001;
+      const payRate = costTotal / tNeed; // credits per second at 1x speed
 
       const want = dt * speed;                  // seconds of progress we WANT
       const canByMoney = (payRate<=0) ? want : (teamWallet.money / payRate); // seconds we CAN afford
@@ -7703,9 +7972,17 @@ if (needMove){
 
 
         }
+        // Turret aim (lite tank): rotate turret independently of hull.
+        let _tankAimDir = null;
+        if (u.kind==="tank" && !u.inTransport){
+          _tankAimDir = worldVecToDir8(t.x - u.x, t.y - u.y);
+          _tankUpdateTurret(u, _tankAimDir, dt);
+          u.fireDir = _tankAimDir;
+          u.faceDir = _tankAimDir;
+        }
 
         // Fire whenever in range (even if we are still sliding into position).
-        if (dEff <= u.range && u.shootCd<=0){
+        if (dEff <= u.range && u.shootCd<=0 && (u.kind!=="tank" || (u.turretDir===_tankAimDir && !u.turretTurn))){
           u.shootCd=u.rof;
           u.holdPosT = 0.12;
           u.fireHoldT = Math.max(u.fireHoldT||0, 0.28);
@@ -10696,12 +10973,20 @@ let rX = ent.x, rY = ent.y;
           ctx.shadowBlur = 12;
         }
         if (!isInf){
-          ctx.fillStyle=c;
-          ctx.strokeStyle="rgba(0,0,0,0.4)";
-          ctx.lineWidth=2;
-          ctx.beginPath();
-          ctx.arc(p.x,p.y,ent.r,0,Math.PI*2);
-          ctx.fill(); ctx.stroke();
+          // Vehicles default to circles, but lite tank uses proper sprite atlases.
+          let drewSprite = false;
+          if (ent.kind==="tank"){
+            drewSprite = drawLiteTankSprite(ent, p);
+          }
+
+          if (!drewSprite){
+            ctx.fillStyle=c;
+            ctx.strokeStyle="rgba(0,0,0,0.4)";
+            ctx.lineWidth=2;
+            ctx.beginPath();
+            ctx.arc(p.x,p.y,ent.r,0,Math.PI*2);
+            ctx.fill(); ctx.stroke();
+          }
         } else {
           // Infantry uses embedded sprite (idle pose) instead of a circle
           // Apply cloak alpha if needed (player sniper only already handled above, but keep consistent)
@@ -11486,9 +11771,6 @@ startBtn.addEventListener("click", () => {
     state.colors.enemy  = eColorInput.value;
 
     fogEnabled = !(fogOffChk && fogOffChk.checked);
-
-    DEBUG_FAST_COMPLETE = !!(fastCompleteChk && fastCompleteChk.checked);
-    state.debugFastComplete = DEBUG_FAST_COMPLETE;
 
     START_MONEY = startMoney;
     state.player.money = START_MONEY;
