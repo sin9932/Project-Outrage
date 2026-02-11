@@ -825,8 +825,13 @@ function getBaseBuildTime(kind){
   const BUILD_SPRITE = {
     hq: {
       img: CON_YARD_IMG,
-      pivot: { x: 1024, y: 1381 }, // south-corner center
-      sourceW: 1536              // bbox width used for fit-to-footprint scaling
+      // We draw ONLY the non-transparent bbox (crop), so all numbers below are bbox-relative.
+      // Measured from con_yard_n.png:
+      //  bbox: x=256, y=130, w=1536, h=1251
+      //  south-tip pivot (full image): x≈1016.5, y=1380
+      //  pivot in bbox-space: x≈760.5, y=1250
+      crop:  { x: 256, y: 130, w: 1536, h: 1251 },
+      pivot: { x: 760.5, y: 1250 } // south-corner center (bbox-space)
     }
   };
 
@@ -841,32 +846,39 @@ function getBaseBuildTime(kind){
     // Footprint width in SCREEN pixels for current tile size:
     // isometric footprint width = (tw + th) * ISO_X
     const footprintW = (ent.tw + ent.th) * ISO_X;
-    const scale = footprintW / (cfg.sourceW || img.naturalWidth);
 
-    const dw = img.naturalWidth  * scale * z;
-    const dh = img.naturalHeight * scale * z;
+    // Use the cropped bbox as our "source size" to fit-to-footprint scaling.
+    const crop = cfg.crop || { x: 0, y: 0, w: img.naturalWidth, h: img.naturalHeight };
+    const scale = footprintW / (crop.w || img.naturalWidth);
+
+    const dw = crop.w * scale * z;
+    const dh = crop.h * scale * z;
 
     // Anchor at footprint CENTER, then move down to SOUTH corner by half footprint height.
-    // This is robust even if the sprite pivot is the south-most corner.
     const cxW = (ent.tx + ent.tw * 0.5) * TILE;
     const cyW = (ent.ty + ent.th * 0.5) * TILE;
     const pC = worldToScreen(cxW, cyW);
 
-    // Half footprint "diamond" height in screen space = (tw+th)*ISO_Y/2, then scaled by zoom.
+    // Half footprint "diamond" height in screen space = (tw+th)*ISO_Y/2
     const southOffY = ((ent.tw + ent.th) * ISO_Y * 0.5) * z;
 
     const anchorX = pC.x;
     const anchorY = pC.y + southOffY;
 
-    const px = cfg.pivot.x * scale * z;
-    const py = cfg.pivot.y * scale * z;
+    // pivot is bbox-space
+    const px = (cfg.pivot?.x ?? (crop.w * 0.5)) * scale * z;
+    const py = (cfg.pivot?.y ?? crop.h) * scale * z;
 
     const dx = anchorX - px;
     const dy = anchorY - py;
 
     ctx.save();
     ctx.imageSmoothingEnabled = true;
-    ctx.drawImage(img, dx, dy, dw, dh);
+    ctx.drawImage(
+      img,
+      crop.x, crop.y, crop.w, crop.h,
+      dx, dy, dw, dh
+    );
     ctx.restore();
     return true;
   }
