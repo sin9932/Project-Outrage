@@ -833,6 +833,7 @@ function getBaseBuildTime(kind){
       crop:  { x: 256, y: 130, w: 1536, h: 1251 },
       pivot: null // pivot is controlled via SPRITE_TUNE (see below)
     }
+  };
   
 
   // === Sprite tuning knobs (YOU edit these) ===
