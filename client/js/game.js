@@ -849,7 +849,6 @@ function getBaseBuildTime(kind){
     }
   };
 
-};
 
   function drawBuildingSprite(ent){
     const cfg = BUILD_SPRITE[ent.kind];
