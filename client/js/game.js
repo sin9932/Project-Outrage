@@ -689,7 +689,7 @@ function getBaseBuildTime(kind){
 
   const BUILD = {
     // height levels: 0 = flat, 1 = low, 2 = medium, 3 = tall
-    hq:       { hLevel:3, tw:4, th:4, hp:3000, vision:640, provideR: 750 },
+    hq:       { hLevel:3, tw:5, th:5, hp:3000, vision:640, provideR: 750 },
     power:    { hLevel:2, tw:2, th:2, hp:750,  vision:420, provideR: 600 },
     refinery: { hLevel:2, tw:3, th:4, hp:1000, vision:520, provideR: 650 },
     factory:  { hLevel:2, tw:3, th:4, hp:1000, vision:500, provideR: 650 },
@@ -757,6 +757,7 @@ function getBaseBuildTime(kind){
       all:   [] // filled below
     },
     sprite: {
+      const: { normal: { con_yard: "asset/sprite/const/normal/con_yard_n.png" } },
       unit: {
         inf: {
           idle:   "asset/sprite/unit/inf/inf_idle.png",
@@ -812,6 +813,64 @@ function getBaseBuildTime(kind){
   SNIP_IMG.src = SNIP_IDLE_PNG;
   const SNIP_DIE_IMG = new Image();
   SNIP_DIE_IMG.src = SNIP_DIE_PNG;
+
+  // === Construction Yard (HQ) sprite (5x5 footprint) ===
+  // Source: asset/sprite/const/normal/con_yard_n.png
+  // Measured (offline) from the PNG:
+  //  - non-transparent bbox width ≈ 1536px
+  //  - pivot is SOUTH corner center (bottom-most point) at x=1024, y=1381 (in original image px)
+  const CON_YARD_IMG = new Image();
+  CON_YARD_IMG.src = ASSET.sprite.const.normal.con_yard;
+
+  const BUILD_SPRITE = {
+    hq: {
+      img: CON_YARD_IMG,
+      pivot: { x: 1024, y: 1381 }, // south-corner center
+      sourceW: 1536              // bbox width used for fit-to-footprint scaling
+    }
+  };
+
+  function drawBuildingSprite(ent){
+    const cfg = BUILD_SPRITE[ent.kind];
+    if (!cfg) return false;
+    const img = cfg.img;
+    if (!img || !img.complete || !img.naturalWidth || !img.naturalHeight) return false;
+
+    const z = cam.zoom || 1;
+
+    // Footprint width in SCREEN pixels for current tile size:
+    // isometric footprint width = (tw + th) * ISO_X
+    const footprintW = (ent.tw + ent.th) * ISO_X;
+    const scale = footprintW / (cfg.sourceW || img.naturalWidth);
+
+    const dw = img.naturalWidth  * scale * z;
+    const dh = img.naturalHeight * scale * z;
+
+    // Anchor at footprint CENTER, then move down to SOUTH corner by half footprint height.
+    // This is robust even if the sprite pivot is the south-most corner.
+    const cxW = (ent.tx + ent.tw * 0.5) * TILE;
+    const cyW = (ent.ty + ent.th * 0.5) * TILE;
+    const pC = worldToScreen(cxW, cyW);
+
+    // Half footprint "diamond" height in screen space = (tw+th)*ISO_Y/2, then scaled by zoom.
+    const southOffY = ((ent.tw + ent.th) * ISO_Y * 0.5) * z;
+
+    const anchorX = pC.x;
+    const anchorY = pC.y + southOffY;
+
+    const px = cfg.pivot.x * scale * z;
+    const py = cfg.pivot.y * scale * z;
+
+    const dx = anchorX - px;
+    const dy = anchorY - py;
+
+    ctx.save();
+    ctx.imageSmoothingEnabled = true;
+    ctx.drawImage(img, dx, dy, dw, dh);
+    ctx.restore();
+    return true;
+  }
+
   // === Large explosion FX (exp1) atlas (json + png) ===
   const EXP1_PNG  = ASSET.sprite.eff.exp1.png;
   const EXP1_JSON = ASSET.sprite.eff.exp1.json;
@@ -10056,7 +10115,14 @@ let rX = ent.x, rY = ent.y;
         if (ent.team===TEAM.PLAYER){ fill="rgba(10,40,70,0.9)"; stroke=state.colors.player; }
         if (ent.team===TEAM.ENEMY){  fill="rgba(70,10,10,0.9)"; stroke=state.colors.enemy; }
 
-        drawFootprintPrism(ent, fill, stroke);
+        // Sprite-backed buildings (e.g., HQ / Construction Yard)
+        if (BUILD_SPRITE[ent.kind]){
+          // subtle ground shadow so it sits on the tiles
+          drawFootprintDiamond(ent, "rgba(0,0,0,0.22)", "rgba(0,0,0,0)");
+          drawBuildingSprite(ent);
+        } else {
+          drawFootprintPrism(ent, fill, stroke);
+        }
         // Low power: powered defenses go offline visually (blink + ⚡) by overlaying the BUILDING itself.
         if (ent.kind==="turret" && POWER.turretUse>0 && isUnderPower(ent.team)){
           const blink = (Math.floor(state.t*6)%2)===0;
