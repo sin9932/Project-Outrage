@@ -307,7 +307,23 @@ function fitMini() {
 
   const TEAM = { PLAYER: 0, ENEMY: 1, NEUTRAL: 2 };
 
-  // Debug option: disable fog-of-war rendering & logic (show whole map)
+  
+
+  // === Team palette (accent recolor) ===
+  // You can override from HTML by defining:
+  //   window.TEAM_ACCENT = { PLAYER:[r,g,b], ENEMY:[r,g,b], NEUTRAL:[r,g,b] };
+  const TEAM_ACCENT = (typeof window !== "undefined" && window.TEAM_ACCENT) ? window.TEAM_ACCENT : {
+    PLAYER: [255, 79, 216],   // default: magenta (matches the sprite's original neon)
+    ENEMY:  [80,  180, 255],  // default: cyan-blue
+    NEUTRAL:[170, 170, 170]
+  };
+
+  function _teamAccentRGB(team){
+    if (team === TEAM.ENEMY) return TEAM_ACCENT.ENEMY;
+    if (team === TEAM.NEUTRAL) return TEAM_ACCENT.NEUTRAL;
+    return TEAM_ACCENT.PLAYER;
+  }
+// Debug option: disable fog-of-war rendering & logic (show whole map)
   let fogEnabled = true;
   const clamp = (v,a,b)=>Math.max(a,Math.min(b,v));
   const dist2 = (ax,ay,bx,by)=>{ const dx=ax-bx, dy=ay-by; return dx*dx+dy*dy; };
@@ -831,7 +847,8 @@ function getBaseBuildTime(kind){
       //  south-tip pivot (full image): x≈1016.5, y=1380
       //  pivot in bbox-space: x≈760.5, y=1250
       crop:  { x: 256, y: 130, w: 1536, h: 1251 },
-      pivot: null // pivot is controlled via SPRITE_TUNE (see below)
+      pivot: null, // pivot is controlled via SPRITE_TUNE (see below)
+      teamColor: true // apply team palette to accent pixels
     }
   };
   
@@ -982,7 +999,60 @@ function getBaseBuildTime(kind){
   })();
   _updateTuneOverlay();
 
+  // === Team palette swap cache (for building sprites) ===
+  // Recolors only "neon magenta" accent pixels into team color.
+  const _teamSpriteCache = new Map(); // key -> canvas
 
+  function _isAccentPixel(r, g, b, a){
+    if (a < 8) return false;
+    // Heuristic: magenta-ish highlights (high R & B, low-ish G)
+    if (r < 130 || b < 130) return false;
+    if (g > 140) return false;
+    // keep close-ish to magenta (R and B both high)
+    if (Math.abs(r - b) > 120) return false;
+    return true;
+  }
+
+  function _getTeamCroppedSprite(img, crop, team){
+    const key = img.src + "|" + crop.x + "," + crop.y + "," + crop.w + "," + crop.h + "|t" + team;
+    const cached = _teamSpriteCache.get(key);
+    if (cached) return cached;
+
+    const cvs = document.createElement("canvas");
+    cvs.width = crop.w;
+    cvs.height = crop.h;
+    const c = cvs.getContext("2d", { willReadFrequently: true });
+    try{
+      c.clearRect(0, 0, crop.w, crop.h);
+      c.drawImage(img, crop.x, crop.y, crop.w, crop.h, 0, 0, crop.w, crop.h);
+
+      const id = c.getImageData(0, 0, crop.w, crop.h);
+      const d = id.data;
+      const tc = _teamAccentRGB(team);
+      const tr = tc[0], tg = tc[1], tb = tc[2];
+
+      for (let i = 0; i < d.length; i += 4){
+        const r = d[i], g = d[i+1], b = d[i+2], a = d[i+3];
+        if (!_isAccentPixel(r, g, b, a)) continue;
+
+        // brightness keeps shading; luma is stable for highlights
+        const l = (0.2126*r + 0.7152*g + 0.0722*b) / 255;
+        d[i]   = Math.max(0, Math.min(255, tr * l));
+        d[i+1] = Math.max(0, Math.min(255, tg * l));
+        d[i+2] = Math.max(0, Math.min(255, tb * l));
+        // alpha unchanged
+      }
+
+      c.putImageData(id, 0, 0);
+    }catch(e){
+      // If canvas becomes tainted for any reason, just fall back to original sprite.
+      _teamSpriteCache.set(key, null);
+      return null;
+    }
+
+    _teamSpriteCache.set(key, cvs);
+    return cvs;
+  }
 
   function drawBuildingSprite(ent){
     const cfg = BUILD_SPRITE[ent.kind];
@@ -1038,9 +1108,21 @@ function getBaseBuildTime(kind){
 
     ctx.save();
     ctx.imageSmoothingEnabled = true;
+
+    let srcImg = img;
+    let sx = crop.x, sy = crop.y, sw = crop.w, sh = crop.h;
+
+    if (cfg.teamColor) {
+      const tinted = _getTeamCroppedSprite(img, crop, ent.team ?? TEAM.PLAYER);
+      if (tinted) {
+        srcImg = tinted;
+        sx = 0; sy = 0; sw = crop.w; sh = crop.h;
+      }
+    }
+
     ctx.drawImage(
-      img,
-      crop.x, crop.y, crop.w, crop.h,
+      srcImg,
+      sx, sy, sw, sh,
       dx, dy, dw, dh
     );
     ctx.restore();
