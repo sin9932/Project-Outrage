@@ -831,9 +831,24 @@ function getBaseBuildTime(kind){
       //  south-tip pivot (full image): x≈1016.5, y=1380
       //  pivot in bbox-space: x≈760.5, y=1250
       crop:  { x: 256, y: 130, w: 1536, h: 1251 },
-      pivot: { x: 760.5, y: 1250 } // south-corner center (bbox-space)
+      pivot: null // pivot is controlled via SPRITE_TUNE (see below)
+    }
+  
+
+  // === Sprite tuning knobs (YOU edit these) ===
+  // pivotNudge is in SOURCE pixels (bbox-space, before scaling).
+  // offsetNudge is in SCREEN pixels (after scaling, before zoom).
+  // anchor: "center" to stick the sprite to the 5x5 footprint center (what you asked).
+  const SPRITE_TUNE = {
+    hq: {
+      anchor: "center",      // "center" | "south"
+      scaleMul: 1.00,        // overall scale multiplier
+      pivotNudge: { x: 0, y: 0 },   // move pivot inside the source crop
+      offsetNudge:{ x: 0, y: 0 }    // final screen nudge (px)
     }
   };
+
+};
 
   function drawBuildingSprite(ent){
     const cfg = BUILD_SPRITE[ent.kind];
@@ -849,23 +864,42 @@ function getBaseBuildTime(kind){
 
     // Use the cropped bbox as our "source size" to fit-to-footprint scaling.
     const crop = cfg.crop || { x: 0, y: 0, w: img.naturalWidth, h: img.naturalHeight };
-    const scale = footprintW / (crop.w || img.naturalWidth);
+    const scale = (footprintW / (crop.w || img.naturalWidth)) * (tune.scaleMul ?? 1.0);
 
     const dw = crop.w * scale * z;
     const dh = crop.h * scale * z;
 
-    // Anchor at footprint SOUTH corner (tx+tw, ty+th) aligned with drawFootprintDiamond corners.
-    // This matches the white placement box exactly.
-    const southW = worldToScreen((ent.tx + ent.tw) * TILE, (ent.ty + ent.th) * TILE);
-    const anchorX = southW.x;
-    const anchorY = southW.y;
+    // Anchor point (matches your placement box math)
+    const tune = SPRITE_TUNE[ent.kind] || {};
+    const anchorMode = tune.anchor || "south";
 
-    // pivot is bbox-space
-    const px = (cfg.pivot?.x ?? (crop.w * 0.5)) * scale * z;
-    const py = (cfg.pivot?.y ?? crop.h) * scale * z;
+    let anchorX, anchorY;
+    if (anchorMode === "center") {
+      // Footprint center in tile-space
+      const cx = (ent.tx + ent.tw * 0.5) * TILE;
+      const cy = (ent.ty + ent.th * 0.5) * TILE;
+      const cW = worldToScreen(cx, cy);
+      anchorX = cW.x;
+      anchorY = cW.y;
+    } else {
+      // Footprint SOUTH corner (tx+tw, ty+th)
+      const southW = worldToScreen((ent.tx + ent.tw) * TILE, (ent.ty + ent.th) * TILE);
+      anchorX = southW.x;
+      anchorY = southW.y;
+    }
 
-    const dx = anchorX - px;
-    const dy = anchorY - py;
+    // Pivot is bbox-space (source crop). Defaults depend on anchor mode.
+    const basePivotX = (cfg.pivot?.x ?? (crop.w * 0.5));
+    const basePivotY = (cfg.pivot?.y ?? (anchorMode === "center" ? (crop.h * 0.5) : crop.h));
+
+    const nudgeX = (tune.pivotNudge?.x ?? 0);
+    const nudgeY = (tune.pivotNudge?.y ?? 0);
+
+    const px = (basePivotX + nudgeX) * scale * z;
+    const py = (basePivotY + nudgeY) * scale * z;
+
+    const dx = (anchorX - px) + ((tune.offsetNudge?.x ?? 0) * z);
+    const dy = (anchorY - py) + ((tune.offsetNudge?.y ?? 0) * z);
 
     ctx.save();
     ctx.imageSmoothingEnabled = true;
