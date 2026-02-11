@@ -1139,20 +1139,6 @@ function getBaseBuildTime(kind){
 
         if (!_isAccentPixel(r, g, b, a)) continue;
 
-        // Optional exclusion zone for conyard: keep the original color under the turret.
-        // Use original (uncropped) coordinates so it stays valid even if crop changes.
-        if (img && typeof img.src === "string" && img.src.includes("con_yard")){
-          const p = (i >> 2);
-          const x = p % crop.w;
-          const y = (p / crop.w) | 0;
-          const gx = crop.x + x;
-          const gy = crop.y + y;
-
-          // "Under turret" band (tuned for 2048x1564 con_yard_n.png). Adjust if you change the source.
-          const EX = { x0: 900, y0: 480, x1: 1210, y1: 700 };
-          if (gx >= EX.x0 && gx <= EX.x1 && gy >= EX.y0 && gy <= EX.y1) continue;
-        }
-
         // brightness keeps shading; luma is stable for highlights
         const l = (0.2126*r + 0.7152*g + 0.0722*b) / 255;
         // brighten team accents so they pop like unit stripes
