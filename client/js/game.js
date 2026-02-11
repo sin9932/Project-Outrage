@@ -4729,6 +4729,57 @@ const smokeWaves = [];
 const smokePuffs = [];
 const smokeEmitters = [];
 
+// Extra ground FX for vehicles
+const dustPuffs = [];
+const dmgSmokePuffs = [];
+
+// Dust puff for moving vehicles (sandy haze). World-positioned (does NOT follow units).
+function spawnDustPuff(wx, wy, vx, vy, strength=1){
+  const size = clamp(strength, 0.6, 2.2);
+  const spread = TILE * 0.30 * size;
+  const ang = Math.random() * Math.PI * 2;
+  const rad = Math.sqrt(Math.random()) * spread;
+  const x = wx + Math.cos(ang) * rad;
+  const y = wy + Math.sin(ang) * rad;
+
+  // drift roughly opposite of movement (normalize vx/vy)
+  const mag = Math.max(0.0001, Math.hypot(vx||0, vy||0));
+  const backx = -(vx||0) / mag;
+  const backy = -(vy||0) / mag;
+
+  dustPuffs.push({
+    x, y,
+    vx: backx*(TILE*0.18*size) + (Math.random()*2-1)*(TILE*0.05*size),
+    vy: backy*(TILE*0.18*size) + (Math.random()*2-1)*(TILE*0.05*size),
+    t: 0,
+    ttl: 0.95 + Math.random()*0.55,
+    r0: (14 + Math.random()*10) * size,
+    grow: (46 + Math.random()*34) * size,
+    a0: 0.16 + Math.random()*0.10
+  });
+}
+
+// Damage smoke from a crippled unit (from turret area). World-positioned.
+function spawnDmgSmokePuff(wx, wy, strength=1){
+  const size = clamp(strength, 0.6, 2.4);
+  const spread = TILE * 0.22 * size;
+  const ang = Math.random() * Math.PI * 2;
+  const rad = Math.sqrt(Math.random()) * spread;
+  const x = wx + Math.cos(ang) * rad;
+  const y = wy + Math.sin(ang) * rad;
+
+  dmgSmokePuffs.push({
+    x, y,
+    vx: (Math.random()*2-1)*(TILE*0.03*size),
+    vy: (Math.random()*2-1)*(TILE*0.03*size) - (TILE*0.02*size),
+    t: 0,
+    ttl: 1.55 + Math.random()*0.75,
+    r0: (10 + Math.random()*10) * size,
+    grow: (48 + Math.random()*40) * size,
+    a0: 0.10 + Math.random()*0.06
+  });
+}
+
 function addSmokeWave(wx, wy, size=1){
   const sz = clamp(size, 0.6, 2.1);
   smokeWaves.push({
@@ -4823,6 +4874,30 @@ function updateSmoke(dt){
     p.y += p.vy * dt;
 
     const damp = Math.pow(0.992, dt*60);
+    p.vx *= damp;
+    p.vy *= damp;
+  }
+
+  // Dust puffs
+  for (let i=dustPuffs.length-1;i>=0;i--){
+    const p = dustPuffs[i];
+    p.t += dt;
+    if (p.t >= p.ttl){ dustPuffs.splice(i,1); continue; }
+    p.x += p.vx * dt;
+    p.y += p.vy * dt;
+    const damp = Math.pow(0.975, dt*60);
+    p.vx *= damp;
+    p.vy *= damp;
+  }
+
+  // Damage smoke puffs
+  for (let i=dmgSmokePuffs.length-1;i>=0;i--){
+    const p = dmgSmokePuffs[i];
+    p.t += dt;
+    if (p.t >= p.ttl){ dmgSmokePuffs.splice(i,1); continue; }
+    p.x += p.vx * dt;
+    p.y += p.vy * dt;
+    const damp = Math.pow(0.988, dt*60);
     p.vx *= damp;
     p.vy *= damp;
   }
@@ -4995,6 +5070,42 @@ function addBloodBurst(wx, wy, size=1){
       kind: (Math.random() < 0.45) ? "droplet" : "mist"
     });
   }
+}
+
+
+function drawDustPuffs(ctx){
+  if (!dustPuffs.length) return;
+  const z = (typeof cam !== "undefined" && cam && typeof cam.zoom==="number") ? cam.zoom : 1;
+  ctx.save();
+  for (const p of dustPuffs){
+    const k = p.t / p.ttl;
+    const a = (1-k) * p.a0;
+    const r = (p.r0 + p.grow*k) * z;
+    const s = worldToScreen(p.x, p.y);
+    // sandy haze
+    ctx.fillStyle = `rgba(200, 180, 130, ${a})`;
+    ctx.beginPath();
+    ctx.ellipse(s.x, s.y, r*1.25, r*0.85, 0, 0, Math.PI*2);
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
+function drawDmgSmokePuffs(ctx){
+  if (!dmgSmokePuffs.length) return;
+  const z = (typeof cam !== "undefined" && cam && typeof cam.zoom==="number") ? cam.zoom : 1;
+  ctx.save();
+  for (const p of dmgSmokePuffs){
+    const k = p.t / p.ttl;
+    const a = (1-k) * p.a0;
+    const r = (p.r0 + p.grow*k) * z;
+    const s = worldToScreen(p.x, p.y);
+    ctx.fillStyle = `rgba(160, 160, 160, ${a})`;
+    ctx.beginPath();
+    ctx.ellipse(s.x, s.y, r*1.05, r*0.95, 0, 0, Math.PI*2);
+    ctx.fill();
+  }
+  ctx.restore();
 }
 
 function updateBlood(dt){
@@ -8054,6 +8165,73 @@ if (needMove){
       }
 
     }
+
+    // Tank post-FX: turret idle tracking + dust trail + damage smoke
+    for (const u of units){
+      if (!u.alive || u.inTransport) continue;
+
+      // Dust trail for vehicles (tank/ifv/etc) while moving
+      if (u.cls==="veh"){
+        const vx = u.vx || 0, vy = u.vy || 0;
+        const spd = Math.hypot(vx, vy);
+        if (spd > 20){
+          u._dustAcc = (u._dustAcc || 0) + dt;
+          const interval = 0.085;
+          if (u._dustAcc >= interval){
+            u._dustAcc = 0;
+            const backx = -vx / spd, backy = -vy / spd;
+            const wx = u.x + backx * (TILE * 0.10);
+            const wy = u.y + backy * (TILE * 0.10);
+            spawnDustPuff(wx, wy, vx, vy, 1.0);
+          }
+        } else {
+          u._dustAcc = 0;
+        }
+
+        // Damage smoke when HP is in yellow/red (spawned at the time, does NOT follow unit)
+        const hpPct = (u.hpMax>0) ? (u.hp / u.hpMax) : 1;
+        if (hpPct < 0.50 && u.kind !== "harvester"){
+          u._dmgSmokeAcc = (u._dmgSmokeAcc || 0) + dt;
+          const interval = (hpPct < 0.20) ? 0.08 : 0.14;
+          if (u._dmgSmokeAcc >= interval){
+            u._dmgSmokeAcc = 0;
+            // Rough turret/top origin (good enough visually, and stays world-fixed)
+            const wx = u.x;
+            const wy = u.y - (TILE * 0.06);
+            spawnDmgSmokePuff(wx, wy, 1.0);
+          }
+        } else {
+          u._dmgSmokeAcc = 0;
+        }
+      }
+
+      // Tank turret auto facing:
+      // - If no valid unit target in range, turret looks where the hull is moving.
+      // - If an enemy unit is in range, turret tracks that unit.
+      // - Buildings are ignored for auto-tracking.
+      if (u.kind === "tank"){
+        const ot = u.order ? u.order.type : null;
+        if (ot !== "attack" && ot !== "forcefire"){
+          let desired = null;
+
+          const tgt = findNearestEnemyFor(u.team, u.x, u.y, u.range, false, true);
+          if (tgt && tgt.alive && tgt.kind !== "harvester"){
+            desired = worldVecToDir8(tgt.x - u.x, tgt.y - u.y);
+          } else {
+            const vx = u.vx || 0, vy = u.vy || 0;
+            const spd = Math.hypot(vx, vy);
+            if (spd > 20) desired = worldVecToDir8(vx, vy);
+            else if (typeof u.bodyDir === "number") desired = u.bodyDir;
+            else if (typeof u.dir === "number") desired = u.dir;
+          }
+
+          if (desired != null){
+            _tankUpdateTurret(u, desired, dt);
+          }
+        }
+      }
+    }
+
     // Resolve overlaps after movement so units don't clump forever.
     resolveUnitOverlaps();
   }
@@ -9883,7 +10061,10 @@ function drawFootprintTiles(tx, ty, tw, th, mask, okFill, badFill, okStroke, bad
       ctx.fillRect(x, y0, w, h);
     }
     // Filled (green)
-    ctx.fillStyle = "rgba(40,255,90,0.95)";
+    const fillColor = (ratio < 0.20) ? "rgba(255,70,60,0.95)"
+                    : (ratio < 0.50) ? "rgba(255,220,70,0.95)"
+                    : "rgba(40,255,90,0.95)";
+    ctx.fillStyle = fillColor;
     for (let i=0;i<filled;i++){
       const x = x0 + i*(w+gap);
       ctx.fillRect(x, y0, w, h);
@@ -10096,7 +10277,7 @@ function updateInfDeathFx(){
     const filled = clamp(Math.round(segN * ratio), 0, segN);
     const missing = segN - filled;
 
-    const fillColor = (ratio < 0.30) ? "rgba(255,70,60,0.98)"
+    const fillColor = (ratio < 0.20) ? "rgba(255,70,60,0.98)"
                     : (ratio < 0.50) ? "rgba(255,220,70,0.98)"
                     : "rgba(110,255,90,0.98)";
 
@@ -11343,10 +11524,12 @@ ctx.fill();
     drawSmokeWaves(ctx);
 
     // HQ sprite explosion (exp1) above the ground smoke ring
+    drawDustPuffs(ctx);
     drawExp1Fxs(ctx);
 
     // Smoke plume (puffs) can sit above the explosion a bit
     drawSmokePuffs(ctx);
+    drawDmgSmokePuffs(ctx);
 // Building fire FX (critical HP)
     for (const f of fires){
       const p = worldToScreen(f.x, f.y);
