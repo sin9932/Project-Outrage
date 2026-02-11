@@ -313,8 +313,8 @@ function fitMini() {
   // You can override from HTML by defining:
   //   window.TEAM_ACCENT = { PLAYER:[r,g,b], ENEMY:[r,g,b], NEUTRAL:[r,g,b] };
   const TEAM_ACCENT = (typeof window !== "undefined" && window.TEAM_ACCENT) ? window.TEAM_ACCENT : {
-    PLAYER: [255, 79, 216],   // default: magenta (matches the sprite's original neon)
-    ENEMY:  [80,  180, 255],  // default: cyan-blue
+    PLAYER: [80,  180, 255],  // default: BLUE (player)
+    ENEMY:  [255, 60,  60],   // default: RED  (enemy)
     NEUTRAL:[170, 170, 170]
   };
 
