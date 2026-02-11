@@ -849,6 +849,127 @@ function getBaseBuildTime(kind){
     }
   };
 
+  // === In-game Sprite Tuner (mouse-adjust pivot/offset/scale) ===
+  // Toggle with F2. While enabled and HQ is selected:
+  // - Drag (LMB): move offset (screen px)
+  // - Shift + Drag (LMB): move pivot (source px, auto scaled)
+  // - Mouse wheel: scale (scaleMul)
+  // - R: reset, C: copy current tuning JSON to clipboard, Esc/F2: exit
+  const TUNER = {
+    on: false,
+    dragging: false,
+    dragMode: "offset", // "offset" | "pivot"
+    lastPx: 0,
+    lastPy: 0,
+    targetKind: "hq"
+  };
+
+  function _tuneObj(kind){
+    if (!SPRITE_TUNE[kind]) SPRITE_TUNE[kind] = { anchor:"center", scaleMul:1.0, pivotNudge:{x:0,y:0}, offsetNudge:{x:0,y:0} };
+    const t = SPRITE_TUNE[kind];
+    if (!t.pivotNudge) t.pivotNudge = {x:0,y:0};
+    if (!t.offsetNudge) t.offsetNudge = {x:0,y:0};
+    if (t.scaleMul==null) t.scaleMul = 1.0;
+    if (!t.anchor) t.anchor = "center";
+    return t;
+  }
+
+  function _selectedBuildingOfKind(kind){
+    for (const id of state.selection){
+      const e = getEntityById(id);
+      if (!e || !e.alive) continue;
+      const isB = (e.type==="building") || !!BUILD[e.kind];
+      if (!isB) continue;
+      if (e.kind === kind) return e;
+    }
+    return null;
+  }
+
+  function _ensureTuneOverlay(){
+    let el = document.getElementById("tuneOverlay");
+    if (el) return el;
+    el = document.createElement("div");
+    el.id = "tuneOverlay";
+    el.style.position = "fixed";
+    el.style.left = "12px";
+    el.style.top = "12px";
+    el.style.zIndex = "99999";
+    el.style.padding = "10px 12px";
+    el.style.borderRadius = "10px";
+    el.style.background = "rgba(0,0,0,0.62)";
+    el.style.border = "1px solid rgba(255,255,255,0.18)";
+    el.style.color = "#e6eef7";
+    el.style.font = "12px/1.35 system-ui, -apple-system, Segoe UI, Roboto, sans-serif";
+    el.style.pointerEvents = "none";
+    document.body.appendChild(el);
+    return el;
+  }
+
+  function _saveTune(){
+    try{
+      localStorage.setItem("SPRITE_TUNE", JSON.stringify(SPRITE_TUNE));
+    }catch(_e){}
+  }
+
+  function _loadTune(){
+    try{
+      const raw = localStorage.getItem("SPRITE_TUNE");
+      if (!raw) return;
+      const obj = JSON.parse(raw);
+      if (obj && typeof obj === "object"){
+        // shallow merge
+        for (const k in obj){
+          if (!obj[k]) continue;
+          SPRITE_TUNE[k] = Object.assign(_tuneObj(k), obj[k]);
+        }
+      }
+    }catch(_e){}
+  }
+
+  function _updateTuneOverlay(){
+    const el = _ensureTuneOverlay();
+    if (!TUNER.on){
+      el.style.display = "none";
+      return;
+    }
+    el.style.display = "block";
+    const t = _tuneObj(TUNER.targetKind);
+    el.innerHTML =
+      "<b>SPRITE TUNER (F2)</b><br/>" +
+      "target: " + TUNER.targetKind + "<br/>" +
+      "anchor: " + (t.anchor||"center") + "<br/>" +
+      "scaleMul: " + (t.scaleMul||1).toFixed(3) + "<br/>" +
+      "offsetNudge(px): " + (t.offsetNudge?.x||0).toFixed(1) + ", " + (t.offsetNudge?.y||0).toFixed(1) + "<br/>" +
+      "pivotNudge(src): " + (t.pivotNudge?.x||0).toFixed(1) + ", " + (t.pivotNudge?.y||0).toFixed(1) + "<br/>" +
+      "<span style='opacity:.85'>Drag=offset | Shift+Drag=pivot | Wheel=scale | R=reset | C=copy</span>";
+  }
+
+  async function _copyTune(){
+    try{
+      const t = _tuneObj(TUNER.targetKind);
+      const payload = JSON.stringify(t, null, 2);
+      await navigator.clipboard.writeText(payload);
+      toast("TUNE 복사됨");
+    }catch(_e){
+      toast("복사 실패");
+    }
+  }
+
+  function _resetTune(){
+    const t = _tuneObj(TUNER.targetKind);
+    t.scaleMul = 1.0;
+    t.pivotNudge.x = 0; t.pivotNudge.y = 0;
+    t.offsetNudge.x = 0; t.offsetNudge.y = 0;
+    _saveTune();
+    _updateTuneOverlay();
+    toast("TUNE 리셋");
+  }
+
+  // load persisted tuning once
+  _loadTune();
+  _updateTuneOverlay();
+
+
 
   function drawBuildingSprite(ent){
     const cfg = BUILD_SPRITE[ent.kind];
@@ -7963,6 +8084,46 @@ const keys=new Set();
         return;
       }
     }
+    // === Sprite tuner hotkeys (F2) ===
+    if (e.key === "F2" || e.code === "F2"){
+      TUNER.on = !TUNER.on;
+      TUNER.dragging = false;
+      _updateTuneOverlay();
+      toast(TUNER.on ? "TUNER ON" : "TUNER OFF");
+      e.preventDefault();
+      return;
+    }
+
+    if (TUNER.on){
+      const k = (e.key||"").toLowerCase();
+      if (k === "escape"){
+        TUNER.on = false;
+        TUNER.dragging = false;
+        _updateTuneOverlay();
+        toast("TUNER OFF");
+        e.preventDefault();
+        return;
+      }
+      if (k === "r"){
+        _resetTune();
+        e.preventDefault();
+        return;
+      }
+      if (k === "c"){
+        _copyTune();
+        e.preventDefault();
+        return;
+      }
+      // When tuner is on, do not trigger gameplay hotkeys.
+      // Let text inputs work normally.
+      const tag = (e.target && e.target.tagName) ? e.target.tagName.toLowerCase() : "";
+      if (tag !== "input" && tag !== "textarea"){
+        e.preventDefault();
+      }
+      return;
+    }
+
+
 
     // DEBUG: toggle building kill mode with Delete key
     if (e.key==="Delete" || e.key==="Del" || e.code==="Delete" || e.keyCode===46){
@@ -8050,6 +8211,24 @@ const keys=new Set();
   canvas.addEventListener("mousedown",(e)=>{
     if (!running || gameOver) return;
 
+    // Sprite tuner: hijack LMB drag while enabled (requires HQ selected)
+    if (TUNER.on && e.button===0){
+      const bSel = _selectedBuildingOfKind(TUNER.targetKind);
+      // Always swallow clicks while tuner is on (avoid accidental orders)
+      const pT = getPointerCanvasPx(e);
+      TUNER.dragging = true;
+      TUNER.dragMode = (keys.has("shift") ? "pivot" : "offset");
+      TUNER.lastPx = pT.x;
+      TUNER.lastPy = pT.y;
+      if (!bSel){
+        toast("HQ 선택하고 드래그해");
+      }
+      _updateTuneOverlay();
+      e.preventDefault();
+      return;
+    }
+
+
     if (e.button===2){
       // Right-click: pan camera (even during repair/sell modes).
       const p=getPointerCanvasPx(e);
@@ -8124,6 +8303,41 @@ const keys=new Set();
     const p=getPointerCanvasPx(e);
     state.hover.px=p.x; state.hover.py=p.y;
     const w=screenToWorld(p.x,p.y);
+
+    // Sprite tuner drag update
+    if (TUNER.on && TUNER.dragging){
+      const bSel = _selectedBuildingOfKind(TUNER.targetKind);
+      const z = cam.zoom || 1;
+      const dx = p.x - TUNER.lastPx;
+      const dy = p.y - TUNER.lastPy;
+      TUNER.lastPx = p.x;
+      TUNER.lastPy = p.y;
+
+      const t = _tuneObj(TUNER.targetKind);
+      if (bSel){
+        const cfg = BUILD_SPRITE[TUNER.targetKind];
+        const img = cfg && cfg.img;
+        const crop = (cfg && cfg.crop) ? cfg.crop : { x:0, y:0, w:(img?img.naturalWidth:1), h:(img?img.naturalHeight:1) };
+        const footprintW = (bSel.tw + bSel.th) * ISO_X;
+        const baseScale = (footprintW / (crop.w || 1)) * (t.scaleMul ?? 1.0);
+
+        if (TUNER.dragMode === "pivot"){
+          // pivotNudge is in SOURCE px; moving pivot moves sprite in opposite direction on screen
+          const denom = Math.max(1e-6, baseScale * z);
+          t.pivotNudge.x -= dx / denom;
+          t.pivotNudge.y -= dy / denom;
+        } else {
+          // offsetNudge is in SCREEN px BEFORE zoom; draw multiplies by z
+          t.offsetNudge.x += dx / z;
+          t.offsetNudge.y += dy / z;
+        }
+        _saveTune();
+        _updateTuneOverlay();
+      }
+      e.preventDefault();
+      return;
+    }
+
     state.hover.wx=w.x; state.hover.wy=w.y;
 
     // hover-name tooltip (0.8s dwell)
@@ -8151,6 +8365,21 @@ const keys=new Set();
   // Mouse wheel zoom (map zoom in/out)
   canvas.addEventListener("wheel", (e) => {
     if (!running || gameOver) return;
+
+    // Sprite tuner: Shift+Wheel adjusts selected sprite scaleMul (keep normal wheel for map zoom)
+    if (TUNER.on && (e.shiftKey || e.altKey)){
+      const bSel = _selectedBuildingOfKind(TUNER.targetKind);
+      const t = _tuneObj(TUNER.targetKind);
+      const dir = (e.deltaY < 0) ? 1 : -1;
+      const step = 0.02;
+      t.scaleMul = Math.max(0.10, Math.min(3.00, (t.scaleMul ?? 1.0) + dir * step));
+      _saveTune();
+      _updateTuneOverlay();
+      if (!bSel) toast("HQ 선택하고 Shift+휠");
+      e.preventDefault();
+      return;
+    }
+
     e.preventDefault();
 
     const p = getPointerCanvasPx(e);
@@ -8173,6 +8402,21 @@ const keys=new Set();
       state.pan.on=false;
       return;
     }
+
+    // Sprite tuner: stop drag on mouseup and swallow click
+    if (TUNER.on && e.button===0){
+      if (TUNER.dragging){
+        TUNER.dragging = false;
+        _saveTune();
+        _updateTuneOverlay();
+        e.preventDefault();
+        return;
+      }
+      // even if not dragging, swallow click while tuner is on
+      e.preventDefault();
+      return;
+    }
+
     if (!running || gameOver) return;
     if (e.button!==0) return;
     // build placement has priority; also swallow click right after a placement
