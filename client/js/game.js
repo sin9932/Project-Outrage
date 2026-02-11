@@ -748,21 +748,73 @@ function getBaseBuildTime(kind){
     factory:"군수공장", radar:"레이더", turret:"터렛",
     infantry:"보병", engineer:"엔지니어", sniper:"저격병", tank:"탱크", ifv:"IFV", harvester:"굴착기"
   };
+
+  // === Centralized assets (refactor) ===
+  const ASSET = {
+    music: {
+      peace: ["asset/music/peace1.mp3","asset/music/peace2.mp3","asset/music/peace3.mp3","asset/music/peace4.mp3"],
+      battle:["asset/music/battle1.mp3","asset/music/battle2.mp3","asset/music/battle3.mp3","asset/music/battle4.mp3","asset/music/battle5.mp3"],
+      all:   [] // filled below
+    },
+    sprite: {
+      unit: {
+        inf: {
+          idle:   "asset/sprite/unit/inf/inf_idle.png",
+          atk:    "asset/sprite/unit/inf/inf_atk.png",
+          die:    "asset/sprite/unit/inf/inf_die.png",
+          wrench: "asset/sprite/unit/inf/repair_wrench.png",
+          mov: {
+            E:"asset/sprite/unit/inf/inf_mov.png",
+            NE:"asset/sprite/unit/inf/inf_mov_ne.png",
+            N:"asset/sprite/unit/inf/inf_mov_n.png",
+            NW:"asset/sprite/unit/inf/inf_mov_nw.png",
+            W:"asset/sprite/unit/inf/inf_mov_w.png",
+            SW:"asset/sprite/unit/inf/inf_mov_sw.png",
+            S:"asset/sprite/unit/inf/inf_mov_s.png",
+            SE:"asset/sprite/unit/inf/inf_mov_se.png",
+          }
+        },
+        snip: {
+          idle: "asset/sprite/unit/inf/snip_idle.png",
+          die:  "asset/sprite/unit/inf/snip_die.png",
+          mov: {
+            E:"asset/sprite/unit/inf/snip_mov.png",
+            NE:"asset/sprite/unit/inf/snip_mov_ne.png",
+            N:"asset/sprite/unit/inf/snip_mov_n.png",
+            NW:"asset/sprite/unit/inf/snip_mov_nw.png",
+            W:"asset/sprite/unit/inf/snip_mov_w.png",
+            SW:"asset/sprite/unit/inf/snip_mov_sw.png",
+            S:"asset/sprite/unit/inf/snip_mov_s.png",
+            SE:"asset/sprite/unit/inf/snip_mov_se.png",
+          }
+        }
+      },
+      eff: {
+        exp1: {
+          png:  "asset/sprite/eff/exp1/exp1_anim.png",
+          json: "asset/sprite/eff/exp1/exp1_anim.json",
+        }
+      }
+    }
+  };
+  ASSET.music.all = ASSET.music.peace.concat(ASSET.music.battle);
+
+
   // === Infantry sprite (idle 8-dir) embedded ===
-  const INF_IDLE_PNG = "asset/sprite/unit/inf/inf_idle.png";
+  const INF_IDLE_PNG = ASSET.sprite.unit.inf.idle;
   const INF_IMG = new Image();
   INF_IMG.src = INF_IDLE_PNG;
 
   // === Sniper idle sprite (8-dir) embedded ===
-  const SNIP_IDLE_PNG = "asset/sprite/unit/inf/snip_idle.png";
-  const SNIP_DIE_PNG = "asset/sprite/unit/inf/snip_die.png";
+  const SNIP_IDLE_PNG = ASSET.sprite.unit.snip.idle;
+  const SNIP_DIE_PNG = ASSET.sprite.unit.snip.die;
   const SNIP_IMG = new Image();
   SNIP_IMG.src = SNIP_IDLE_PNG;
   const SNIP_DIE_IMG = new Image();
   SNIP_DIE_IMG.src = SNIP_DIE_PNG;
   // === Large explosion FX (exp1) atlas (json + png) ===
-  const EXP1_PNG  = "asset/sprite/eff/exp1/exp1_anim.png";
-  const EXP1_JSON = "asset/sprite/eff/exp1/exp1_anim.json";
+  const EXP1_PNG  = ASSET.sprite.eff.exp1.png;
+  const EXP1_JSON = ASSET.sprite.eff.exp1.json;
   const EXP1_IMG = new Image();
   EXP1_IMG.src = EXP1_PNG;
 
@@ -988,14 +1040,14 @@ function getBaseBuildTime(kind){
 
   // === Sniper movement sprite sheets (8-dir) 12f (600x600 tiles, 6x2) ===
   // NOTE: filenames per user assets (no _e suffix; east uses snip_mov.png)
-  const SNIP_MOV_PNG    = "asset/sprite/unit/inf/snip_mov.png";
-  const SNIP_MOV_N_PNG  = "asset/sprite/unit/inf/snip_mov_n.png";
-  const SNIP_MOV_NE_PNG = "asset/sprite/unit/inf/snip_mov_ne.png";
-  const SNIP_MOV_NW_PNG = "asset/sprite/unit/inf/snip_mov_nw.png";
-  const SNIP_MOV_S_PNG  = "asset/sprite/unit/inf/snip_mov_s.png";
-  const SNIP_MOV_SE_PNG = "asset/sprite/unit/inf/snip_mov_se.png";
-  const SNIP_MOV_SW_PNG = "asset/sprite/unit/inf/snip_mov_sw.png";
-  const SNIP_MOV_W_PNG  = "asset/sprite/unit/inf/snip_mov_w.png";
+  const SNIP_MOV_PNG    = ASSET.sprite.unit.snip.mov.E;
+  const SNIP_MOV_N_PNG  = ASSET.sprite.unit.snip.mov.N;
+  const SNIP_MOV_NE_PNG = ASSET.sprite.unit.snip.mov.NE;
+  const SNIP_MOV_NW_PNG = ASSET.sprite.unit.snip.mov.NW;
+  const SNIP_MOV_S_PNG  = ASSET.sprite.unit.snip.mov.S;
+  const SNIP_MOV_SE_PNG = ASSET.sprite.unit.snip.mov.SE;
+  const SNIP_MOV_SW_PNG = ASSET.sprite.unit.snip.mov.SW;
+  const SNIP_MOV_W_PNG  = ASSET.sprite.unit.snip.mov.W;
 
   const SNIP_MOV_IMG    = new Image(); SNIP_MOV_IMG.src    = SNIP_MOV_PNG;
   const SNIP_MOV_N_IMG  = new Image(); SNIP_MOV_N_IMG.src  = SNIP_MOV_N_PNG;
@@ -1009,61 +1061,61 @@ function getBaseBuildTime(kind){
 
 
   // === Infantry sprite (attack 8-dir) embedded ===
-  const INF_ATK_PNG = "asset/sprite/unit/inf/inf_atk.png";
+  const INF_ATK_PNG = ASSET.sprite.unit.inf.atk;
   const INF_ATK_IMG = new Image();
   INF_ATK_IMG.src = INF_ATK_PNG;
 
   // === Repair wrench FX sprite sheet (7 frames, 602x602 each) ===
-  const REPAIR_WRENCH_PNG = "asset/sprite/unit/inf/repair_wrench.png";
+  const REPAIR_WRENCH_PNG = ASSET.sprite.unit.inf.wrench;
   const REPAIR_WRENCH_IMG = new Image();
   REPAIR_WRENCH_IMG.src = REPAIR_WRENCH_PNG;
 
 
 
   // === Infantry death FX sprite sheet (7 frames, 1200x1200 each) ===
-  const INF_DIE_PNG = "asset/sprite/unit/inf/inf_die.png";
+  const INF_DIE_PNG = ASSET.sprite.unit.inf.die;
   const INF_DIE_IMG = new Image();
   INF_DIE_IMG.src = INF_DIE_PNG;
 
 
 
   // === Infantry movement sprite (east) 6f (600x600 tiles) embedded ===
-  const INF_MOV_PNG = "asset/sprite/unit/inf/inf_mov.png";
+  const INF_MOV_PNG = ASSET.sprite.unit.inf.mov.E;
   const INF_MOV_IMG = new Image();
   INF_MOV_IMG.src = INF_MOV_PNG;
 
   // === Infantry move NE (north-east) 6-frame sheet (600x600 each) ===
-  const INF_MOV_NE_PNG = "asset/sprite/unit/inf/inf_mov_ne.png";
+  const INF_MOV_NE_PNG = ASSET.sprite.unit.inf.mov.NE;
   const INF_MOV_NE_IMG = new Image();
   INF_MOV_NE_IMG.src = INF_MOV_NE_PNG;
 
   // === Infantry move N (north) 6-frame sheet (600x600 each) ===
-  const INF_MOV_N_PNG = "asset/sprite/unit/inf/inf_mov_n.png";
+  const INF_MOV_N_PNG = ASSET.sprite.unit.inf.mov.N;
   const INF_MOV_N_IMG = new Image();
   INF_MOV_N_IMG.src = INF_MOV_N_PNG;
 
   // === Infantry move NW (north-west) 6-frame sheet (600x600 each) ===
-  const INF_MOV_NW_PNG = "asset/sprite/unit/inf/inf_mov_nw.png";
+  const INF_MOV_NW_PNG = ASSET.sprite.unit.inf.mov.NW;
   const INF_MOV_NW_IMG = new Image();
   INF_MOV_NW_IMG.src = INF_MOV_NW_PNG;
 
   // === Infantry move W (west) 6-frame sheet (600x600 each) ===
-  const INF_MOV_W_PNG = "asset/sprite/unit/inf/inf_mov_w.png";
+  const INF_MOV_W_PNG = ASSET.sprite.unit.inf.mov.W;
   const INF_MOV_W_IMG = new Image();
   INF_MOV_W_IMG.src = INF_MOV_W_PNG;
 
   // === Infantry move SW (south-west) 6-frame sheet (600x600 each) ===
-  const INF_MOV_SW_PNG = "asset/sprite/unit/inf/inf_mov_sw.png";
+  const INF_MOV_SW_PNG = ASSET.sprite.unit.inf.mov.SW;
   const INF_MOV_SW_IMG = new Image();
   INF_MOV_SW_IMG.src = INF_MOV_SW_PNG;
 
   // === Infantry move S (south) 6-frame sheet (600x600 each) ===
-  const INF_MOV_S_PNG = "asset/sprite/unit/inf/inf_mov_s.png";
+  const INF_MOV_S_PNG = ASSET.sprite.unit.inf.mov.S;
   const INF_MOV_S_IMG = new Image();
   INF_MOV_S_IMG.src = INF_MOV_S_PNG;
 
   // === Infantry move SE (south-east) 6-frame sheet (600x600 each) ===
-  const INF_MOV_SE_PNG = "asset/sprite/unit/inf/inf_mov_se.png";
+  const INF_MOV_SE_PNG = ASSET.sprite.unit.inf.mov.SE;
   const INF_MOV_SE_IMG = new Image();
   INF_MOV_SE_IMG.src = INF_MOV_SE_PNG;
 
@@ -10928,13 +10980,14 @@ startBtn.addEventListener("click", () => {
 
   const BGM = (() => {
   // Tracks are local files (uploaded). Two playlists and auto-switch by combat.
-  const peaceTracks = ["asset/music/peace1.mp3","asset/music/peace2.mp3","asset/music/peace3.mp3","asset/music/peace4.mp3"];
-  const battleTracks = ["asset/music/battle1.mp3","asset/music/battle2.mp3","asset/music/battle3.mp3","asset/music/battle4.mp3","asset/music/battle5.mp3"];
+  const peaceTracks = ASSET.music.peace;
+  const battleTracks = ASSET.music.battle;
 
-  const audio = new Audio();
+    const allTracks = ASSET.music.all;
+const audio = new Audio();
   audio.preload = "auto";
   audio.loop = false; // we advance manually
-  audio.volume = 0.55;
+  audio.volume = 0.70;
 
   // WebAudio analyser (for EQ bars). Created on user gesture.
   let _ctx = null;
@@ -10967,8 +11020,8 @@ startBtn.addEventListener("click", () => {
   const state = {
     mode: "peace",        // current playback mode
     desiredMode: "peace", // what gameplay wants (battle while combat is active)
-    order: { peace: [], battle: [] },
-    idx:   { peace: 0,  battle: 0  },
+    order: { peace: [], battle: [], all: [] },
+    idx:   { peace: 0,  battle: 0,  all: 0 },
     fade: { active:false, t:0, dur:0.55, from:0, to:0, nextSrc:null },
     viz:  { t:0 },
   };
@@ -10981,8 +11034,14 @@ startBtn.addEventListener("click", () => {
     return arr;
   }
 
+  function tracksFor(mode){
+    if (mode==="battle") return battleTracks;
+    if (mode==="peace") return peaceTracks;
+    return allTracks;
+  }
+
   function refill(mode){
-    const src = (mode==="battle") ? battleTracks : peaceTracks;
+    const src = tracksFor(mode);
     state.order[mode] = shuffle(src.slice());
     state.idx[mode] = 0;
   }
@@ -11058,12 +11117,12 @@ startBtn.addEventListener("click", () => {
 
   // Manual controls
   function next(){
-    const tr = getNextTrack(state.mode);
+    const tr = getNextTrack("all");
     fadeToTrack(tr);
     updateUI();
   }
   function prev(){
-    const mode = state.mode;
+    const mode = "all";
     state.idx[mode] = Math.max(0, state.idx[mode]-2);
     const tr = getNextTrack(mode);
     fadeToTrack(tr);
@@ -11172,7 +11231,7 @@ startBtn.addEventListener("click", () => {
       const n = kids.length||0;
       for (let i=0;i<n;i++) {
         const k = kids[i];
-        const v = 0.15 + 0.25*Math.random();
+        const v = 0.25 + 0.55*Math.random();
         k.style.transform = `scaleY(${v.toFixed(3)})`;
       }
       return;
@@ -11187,7 +11246,7 @@ startBtn.addEventListener("click", () => {
         const bi = Math.min(bins-1, Math.floor(i * bins / bars));
         const v = _freq[bi] / 255;
         // make it pop a bit even at low volume
-        const vv = Math.max(0.08, Math.pow(v, 0.75));
+        const vv = Math.max(0.06, Math.min(1, Math.pow(v, 0.55) * 1.65));
         kids[i].style.transform = `scaleY(${vv.toFixed(3)})`;
       }
     } catch(_e) {}

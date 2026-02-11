@@ -318,7 +318,7 @@
 }
 #pmEQ{
   flex:1;
-  height:18px;
+  height:56px;
   display:flex;
   align-items:flex-end;
   gap:2px;
@@ -331,12 +331,12 @@
 #pmEQ .bar{
   flex:1;
   min-width:2px;
-  height:30%;
+  height:100%;
   border-radius:4px 4px 2px 2px;
   background: linear-gradient(180deg, rgba(90,220,140,.95), rgba(255,210,110,.85));
   opacity:.95;
   transform-origin: bottom;
-  transform: scaleY(0.2);
+  transform: scaleY(0.05);
 }
 
 #pauseOverlay .pm .pctrl{
