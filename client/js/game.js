@@ -118,6 +118,7 @@ ${e.filename}:${e.lineno}:${e.colno}
   const pColorInput = $("pColor");
   const eColorInput = $("eColor");
   const fogOffChk = $("fogOff");
+  const fastProdChk = $("fastProd");
 
   let spawnChoice = "left";
   for (const chip of document.querySelectorAll(".chip.spawn")) {
@@ -455,6 +456,7 @@ function fitMini() {
   var state = {
     t: 0,
     suppressClickUntil: 0,
+    debug: { fastProd: false },
     player: { money: 10000, powerProd: 0, powerUse: 0 },
     enemy:  { money: 10000, powerProd: 0, powerUse: 0 },
     build:{ active:false, kind:null, lane:null },
@@ -6209,9 +6211,20 @@ function tickProduction(dt){
 
       const q=b.buildQ[0];
 
+      const debugFastProd = !!(state.debug && state.debug.fastProd && b.team===TEAM.PLAYER);
+
+      // Debug fast production: player only, finish any queue item in ~1s real-time.
+      // - Enemy is not affected.
+      // - Ignores power + money throttles so it always completes.
+      if (debugFastProd){
+        if (q){ q.paused = false; q.autoPaused = false; }
+        speed = (q && q.tNeed) ? q.tNeed : 1;
+      }
+
+
 // Manual/auto pause support (대기).
 // autoPaused(자금 부족)인 경우, 돈이 다시 생기면 자동으로 재개한다. (수동 클릭 안 해도 됨)
-if (q.paused){
+if (q.paused && !debugFastProd){
   const teamWalletTmp = (b.team===TEAM.PLAYER) ? state.player : state.enemy;
   const costTotalTmp = q.cost ?? (COST[q.kind]||0);
   const tNeedTmp = q.tNeed || 0.001;
@@ -6233,7 +6246,7 @@ if (q.paused){
       const payRate = costTotal / tNeed; // credits per second at 1x speed
 
       const want = dt * speed;                  // seconds of progress we WANT
-      const canByMoney = (payRate<=0) ? want : (teamWallet.money / payRate); // seconds we CAN afford
+      const canByMoney = debugFastProd ? want : ((payRate<=0) ? want : (teamWallet.money / payRate)); // seconds we CAN afford
       const delta = Math.min(want, canByMoney);
 
       // If we can't afford progress now, force-pause. Must be resumed manually via left-click.
@@ -6253,9 +6266,14 @@ if (q.paused){
         continue;
       }
 
-      const pay = payRate * delta;
-      teamWallet.money -= pay;
-      q.paid = (q.paid||0) + pay;
+      let pay = payRate * delta;
+      if (debugFastProd){
+        pay = 0;
+        q.paid = costTotal;
+      } else {
+        teamWallet.money -= pay;
+        q.paid = (q.paid||0) + pay;
+      }
 
       q.t += delta;
 
@@ -11767,6 +11785,10 @@ startBtn.addEventListener("click", () => {
     state.colors.enemy  = eColorInput.value;
 
     fogEnabled = !(fogOffChk && fogOffChk.checked);
+
+    // Debug: player-only instant production/build completion (1s)
+    state.debug = state.debug || {};
+    state.debug.fastProd = !!(fastProdChk && fastProdChk.checked);
 
     START_MONEY = startMoney;
     state.player.money = START_MONEY;
