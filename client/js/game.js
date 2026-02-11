@@ -1144,19 +1144,6 @@ function getBaseBuildTime(kind){
 
         if (!_isAccentPixel(r, g, b, a)) continue;
 
-        // Optional exclusion zone for conyard: keep the original color under the turret.
-        // Use original (uncropped) coordinates so it stays valid even if crop changes.
-        if (img && typeof img.src === "string" && img.src.includes("con_yard")){
-          const p = (i >> 2);
-          const x = p % crop.w;
-          const y = (p / crop.w) | 0;
-          const gx = crop.x + x;
-          const gy = crop.y + y;
-
-          // "Under turret" band (tuned for 2048x1564 con_yard_n.png). Adjust if you change the source.
-          const EX = { x0: 900, y0: 480, x1: 1210, y1: 700 };
-          if (gx >= EX.x0 && gx <= EX.x1 && gy >= EX.y0 && gy <= EX.y1) continue;
-        }
 
         // brightness keeps shading; luma is stable for highlights
         const l = (0.2126*r + 0.7152*g + 0.0722*b) / 255;
@@ -1414,7 +1401,7 @@ function getBaseBuildTime(kind){
 
   // === Lite Tank (RA2-style hull turn + independent turret) ===
   const LITE_TANK_BASE = "asset/sprite/unit/tank/lite_tank/";
-  const LITE_TANK_SCALE = 0.095; // tuned for TILE=48, sourceSize=600
+  const LITE_TANK_BASE_SCALE = 0.13; // base scale for TILE=48, sourceSize=600 (tweak via Units.UNIT.tank.spriteScale)
   const LITE_TANK = {
     ok:false,
     bodyIdle:null,
@@ -1422,6 +1409,12 @@ function getBaseBuildTime(kind){
     muzzleIdle:null,
     muzzleMov:null
   };
+
+  // Force turret frames to align to the same ground pivot as the hull.
+  // TexturePacker anchors differ between hull and turret; using a shared anchor prevents the turret from sitting on the ground.
+  const LITE_TANK_TURRET_ANCHOR = { x: 0.5, y: 0.555 };
+  const LITE_TANK_TURRET_NUDGE  = { x: 0,   y: 0   }; // source-pixel nudges (optional)
+
 
   const _dirToIdleIdx = { 6:1, 7:2, 0:3, 1:4, 2:5, 3:6, 4:7, 5:8 }; // dir8 -> idle1..8
   const _cwSeq = [6,7,0,1,2,3,4,5];
@@ -1482,7 +1475,7 @@ function getBaseBuildTime(kind){
     }
 
     // Continue current step if valid
-    if (!u.bodyTurn || !u.bodyTurn.fromDir || !u.bodyTurn.toDir){
+    if (!u.bodyTurn || u.bodyTurn.fromDir==null || u.bodyTurn.toDir==null){
       const step = _turnStepToward(u.bodyDir, desiredDir);
       u.bodyTurn = { fromDir: u.bodyDir, toDir: step.nextDir, stepDir: step.stepDir, t: 0 };
     }
@@ -1505,7 +1498,7 @@ function getBaseBuildTime(kind){
       return;
     }
 
-    if (!u.turretTurn || !u.turretTurn.fromDir || !u.turretTurn.toDir){
+    if (!u.turretTurn || u.turretTurn.fromDir==null || u.turretTurn.toDir==null){
       const step = _turnStepToward(u.turretDir, desiredDir);
       u.turretTurn = { fromDir: u.turretDir, toDir: step.nextDir, stepDir: step.stepDir, t: 0 };
     }
@@ -1535,7 +1528,7 @@ function getBaseBuildTime(kind){
     return "tank_muzzle_idle" + idx + ".png";
   }
 
-  function _drawTPFrame(atlas, filename, screenX, screenY, scale, team){
+  function _drawTPFrame(atlas, filename, screenX, screenY, scale, team, anchorOverride=null, offsetOverride=null){
     if (!atlas || !atlas.img || !atlas.img.complete || !atlas.frames) return false;
     const fr = atlas.frames.get(filename);
     if (!fr) return false;
@@ -1543,7 +1536,7 @@ function getBaseBuildTime(kind){
     const crop = fr.frame || fr;
     const sss = fr.spriteSourceSize || { x:0, y:0, w: crop.w, h: crop.h };
     const srcS = fr.sourceSize || { w: crop.w, h: crop.h };
-    const anc = fr.anchor || { x:0.5, y:0.5 };
+    const anc = anchorOverride || fr.anchor || { x:0.5, y:0.5 };
 
     const sx = (crop.x|0), sy = (crop.y|0), sw = (crop.w|0), sh = (crop.h|0);
 
@@ -1558,13 +1551,16 @@ function getBaseBuildTime(kind){
 
     const dx = screenX - (anc.x * srcS.w * scale) + (sss.x * scale);
     const dy = screenY - (anc.y * srcS.h * scale) + (sss.y * scale);
-    ctx.drawImage(srcImg, ssx, ssy, sw, sh, dx, dy, sw*scale, sh*scale);
+    const odx = (offsetOverride && offsetOverride.x) ? (offsetOverride.x * scale) : 0;
+    const ody = (offsetOverride && offsetOverride.y) ? (offsetOverride.y * scale) : 0;
+    ctx.drawImage(srcImg, ssx, ssy, sw, sh, dx + odx, dy + ody, sw*scale, sh*scale);
     return true;
   }
 
   function drawLiteTankSprite(u, p){
     if (!LITE_TANK.ok) return false;
-    const s = (cam.zoom || 1) * LITE_TANK_SCALE;
+    const specScale = (window.G && G.Units && typeof G.Units.getSpec==="function") ? (G.Units.getSpec("tank")?.spriteScale ?? 1) : 1;
+    const s = (cam.zoom || 1) * LITE_TANK_BASE_SCALE * specScale;
     const bodyName = _tankBodyFrameName(u);
     const muzzleName = _tankMuzzleFrameName(u);
 
@@ -1573,7 +1569,7 @@ function getBaseBuildTime(kind){
     const muzzleAtlas = (muzzleName.indexOf("_mov")>=0) ? LITE_TANK.muzzleMov : LITE_TANK.muzzleIdle;
 
     const ok1 = _drawTPFrame(bodyAtlas, bodyName, p.x, p.y, s, u.team);
-    const ok2 = _drawTPFrame(muzzleAtlas, muzzleName, p.x, p.y, s, u.team);
+    const ok2 = _drawTPFrame(muzzleAtlas, muzzleName, p.x, p.y, s, u.team, LITE_TANK_TURRET_ANCHOR, LITE_TANK_TURRET_NUDGE);
 
     // If frame lookup failed because of atlas mismatch, try the other atlas.
     if (!ok1){
@@ -1581,8 +1577,8 @@ function getBaseBuildTime(kind){
       _drawTPFrame(LITE_TANK.bodyIdle, bodyName, p.x, p.y, s, u.team);
     }
     if (!ok2){
-      _drawTPFrame(LITE_TANK.muzzleMov, muzzleName, p.x, p.y, s, u.team);
-      _drawTPFrame(LITE_TANK.muzzleIdle, muzzleName, p.x, p.y, s, u.team);
+      _drawTPFrame(LITE_TANK.muzzleMov, muzzleName, p.x, p.y, s, u.team, LITE_TANK_TURRET_ANCHOR, LITE_TANK_TURRET_NUDGE);
+      _drawTPFrame(LITE_TANK.muzzleIdle, muzzleName, p.x, p.y, s, u.team, LITE_TANK_TURRET_ANCHOR, LITE_TANK_TURRET_NUDGE);
     }
     return true;
   }
