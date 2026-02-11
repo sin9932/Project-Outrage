@@ -1007,29 +1007,101 @@ function getBaseBuildTime(kind){
   // Recolors only "neon magenta" accent pixels into team color.
   const _teamSpriteCache = new Map(); // key -> canvas
 
-  function _isAccentPixel(r, g, b, a){
-    // Detect the "team-color placeholder" magenta (and its shaded neighbors).
-    // We use a chroma test (RB >> G) rather than a single exact RGB, because shading/AA shifts values.
-    if (a < 8) return false;
+    function _rgb2hsv(r,g,b){
+    r/=255; g/=255; b/=255;
+    const max=Math.max(r,g,b), min=Math.min(r,g,b);
+    const d=max-min;
+    let h=0;
+    if(d!==0){
+      if(max===r) h=((g-b)/d)%6;
+      else if(max===g) h=(b-r)/d + 2;
+      else h=(r-g)/d + 4;
+      h*=60;
+      if(h<0) h+=360;
+    }
+    const s=max===0?0:d/max;
+    const v=max;
+    return {h,s,v};
+  }
 
-    const rb = (r + b) * 0.5;
-    if (rb < 55) return false;           // too dark to be the accent stripe
-    const chroma = rb - g;               // how much "magenta-ness" remains after subtracting green
-    if (chroma < 20) return false;       // too grey / too neutral
+  function _isAccentPixel(r,g,b,a){
+    if(a < 8) return false;
 
-    // Both R and B should generally dominate G for magenta-like pixels.
-    if (r < g + 10) return false;
-    if (b < g + 10) return false;
+    // Fast path for near-pure magenta (common "teamcolor" key)
+    if(r > 160 && b > 160 && g < 120) return true;
 
-    // Avoid catching bright whites/greys that have slightly low green due to compression.
-    const maxc = Math.max(r,g,b), minc = Math.min(r,g,b);
-    if ((maxc - minc) < 18) return false;
+    const max=Math.max(r,g,b), min=Math.min(r,g,b);
+    const sat = max===0 ? 0 : (max-min)/max;
+    if(sat < 0.22) return false; // avoid greys
 
-    // Magenta usually has R and B in the same ballpark; allow wider spread to catch highlights.
-    if (Math.abs(r - b) > 170) return false;
+    // Hue check: accept magenta/purple band
+    const {h} = _rgb2hsv(r,g,b);
+    const magentaBand = (h >= 265 && h <= 335);
 
-    return true;
-}
+    // Also accept purple-ish highlights that drift toward blue/grey but still clearly "accent"
+    const rbClose = Math.abs(r-b) <= 120;
+    const gNotDominant = g <= Math.min(r,b) + 40;
+
+    return magentaBand && gNotDominant && (sat >= 0.22) && (max >= 0.20*255) && rbClose;
+  }
+
+  function _applyTeamPaletteToImage(img, teamColor, opts={}){
+    const excludeRects = opts.excludeRects || null; // [{x,y,w,h}] in image pixel coords
+    const w=img.width, h=img.height;
+    const c=document.createElement('canvas'); c.width=w; c.height=h;
+    const ctx=c.getContext('2d', {willReadFrequently:true});
+    ctx.drawImage(img,0,0);
+    const id=ctx.getImageData(0,0,w,h);
+    const d=id.data;
+
+    // Team color (linear-ish blend)
+    const tr=teamColor.r, tg=teamColor.g, tb=teamColor.b;
+
+    // Brighten like unit tint: stronger gain + slight bias, softer gamma
+    const GAIN = (opts.gain ?? 1.65);
+    const BIAS = (opts.bias ?? 0.18);
+    const GAMMA = (opts.gamma ?? 0.78);
+    const MINV = (opts.minV ?? 0.42);
+
+    function inExclude(x,y){
+      if(!excludeRects) return false;
+      for(const r of excludeRects){
+        if(x>=r.x && x<r.x+r.w && y>=r.y && y<r.y+r.h) return true;
+      }
+      return false;
+    }
+
+    for(let y=0;y<h;y++){
+      for(let x=0;x<w;x++){
+        const i=(y*w+x)*4;
+        const a=d[i+3];
+        if(a<8) continue;
+        if(inExclude(x,y)) continue;
+
+        const r=d[i], g=d[i+1], b=d[i+2];
+        if(!_isAccentPixel(r,g,b,a)) continue;
+
+        // Preserve shading using luminance, but keep it bright enough
+        const l=(0.2126*r + 0.7152*g + 0.0722*b)/255;
+        // If pixel is strongly saturated magenta, force a brighter base so key-color doesn't look dirty
+        const max=Math.max(r,g,b), min=Math.min(r,g,b);
+        const sat = max===0 ? 0 : (max-min)/max;
+        let l2 = (Math.pow(l, GAMMA) * GAIN) + BIAS;
+        if(sat > 0.45) l2 = Math.max(l2, 0.65);
+        l2 = Math.max(MINV, Math.min(1, l2));
+
+        // Blend toward team color (keep some original detail)
+        d[i]   = Math.min(255, Math.round(tr * l2));
+        d[i+1] = Math.min(255, Math.round(tg * l2));
+        d[i+2] = Math.min(255, Math.round(tb * l2));
+      }
+    }
+    ctx.putImageData(id,0,0);
+
+    const out=new Image();
+    out.src=c.toDataURL();
+    return out;
+  }
 
   function _getTeamCroppedSprite(img, crop, team){
     const key = img.src + "|" + crop.x + "," + crop.y + "," + crop.w + "," + crop.h + "|t" + team;
@@ -1056,6 +1128,105 @@ function getBaseBuildTime(kind){
 
         // Optional exclusion zone for conyard: keep the original color under the turret.
         // Use original (uncropped) coordinates so it stays valid even if crop changes.
+        if (img && typeof img.src === "string" && img.src.includes("con_yard")){
+          const p = (i >> 2);
+          const x = p % crop.w;
+          const y = (p / crop.w) | 0;
+          const gx = crop.x + x;
+          const gy = crop.y + y;
+
+          // "Under turret" band (tuned for 2048x1564 con_yard_n.png). Adjust if you change the source.
+          const EX = { x0: 900, y0: 480, x1: 1210, y1: 700 };
+          if (gx >= EX.x0 && gx <= EX.x1 && gy >= EX.y0 && gy <= EX.y1) continue;
+        }
+
+        // brightness keeps shading; luma is stable for highlights
+        const l = (0.2126*r + 0.7152*g + 0.0722*b) / 255;
+        // brighten team accents so they pop like unit stripes
+        const l2 = Math.min(1, Math.pow(l, TEAM_ACCENT_LUMA_GAMMA) * TEAM_ACCENT_LUMA_GAIN + TEAM_ACCENT_LUMA_BIAS);
+        d[i]   = Math.max(0, Math.min(255, tr * l2));
+        d[i+1] = Math.max(0, Math.min(255, tg * l2));
+        d[i+2] = Math.max(0, Math.min(255, tb * l2));
+        // alpha unchanged
+      }
+
+      c.putImageData(id, 0, 0);
+    }catch(e){
+      // If canvas becomes tainted for any reason, just fall back to original sprite.
+      _teamSpriteCache.set(key, null);
+      return null;
+    }
+
+    _teamSpriteCache.set(key, cvs);
+    return cvs;
+  }
+
+  function drawBuildingSprite(ent){
+    const cfg = BUILD_SPRITE[ent.kind];
+    if (!cfg) return false;
+    const img = cfg.img;
+    if (!img || !img.complete || !img.naturalWidth || !img.naturalHeight) return false;
+
+    const z = cam.zoom || 1;
+
+    // Footprint width in SCREEN pixels for current tile size:
+    // isometric footprint width = (tw + th) * ISO_X
+    const footprintW = (ent.tw + ent.th) * ISO_X;
+
+    // Use the cropped bbox as our "source size" to fit-to-footprint scaling.
+    const tune = SPRITE_TUNE[ent.kind] || {};
+    const crop = cfg.crop || { x: 0, y: 0, w: img.naturalWidth, h: img.naturalHeight };
+    const scale = (footprintW / (crop.w || img.naturalWidth)) * (tune.scaleMul ?? 1.0);
+
+    const dw = crop.w * scale * z;
+    const dh = crop.h * scale * z;
+
+    // Anchor point (matches your placement box math)
+
+    const anchorMode = tune.anchor || "south";
+
+    let anchorX, anchorY;
+    if (anchorMode === "center") {
+      // Footprint center in tile-space
+      const cx = (ent.tx + ent.tw * 0.5) * TILE;
+      const cy = (ent.ty + ent.th * 0.5) * TILE;
+      const cW = worldToScreen(cx, cy);
+      anchorX = cW.x;
+      anchorY = cW.y;
+    } else {
+      // Footprint SOUTH corner (tx+tw, ty+th)
+      const southW = worldToScreen((ent.tx + ent.tw) * TILE, (ent.ty + ent.th) * TILE);
+      anchorX = southW.x;
+      anchorY = southW.y;
+    }
+
+    // Pivot is bbox-space (source crop). Defaults depend on anchor mode.
+    const basePivotX = (cfg.pivot?.x ?? (crop.w * 0.5));
+    const basePivotY = (cfg.pivot?.y ?? (anchorMode === "center" ? (crop.h * 0.5) : crop.h));
+
+    const nudgeX = (tune.pivotNudge?.x ?? 0);
+    const nudgeY = (tune.pivotNudge?.y ?? 0);
+
+    const px = (basePivotX + nudgeX) * scale * z;
+    const py = (basePivotY + nudgeY) * scale * z;
+
+    const dx = (anchorX - px) + ((tune.offsetNudge?.x ?? 0) * z);
+    const dy = (anchorY - py) + ((tune.offsetNudge?.y ?? 0) * z);
+
+    ctx.save();
+    ctx.imageSmoothingEnabled = true;
+
+    let srcImg = img;
+    let sx = crop.x, sy = crop.y, sw = crop.w, sh = crop.h;
+
+    if (cfg.teamColor) {
+      const tinted = _getTeamCroppedSprite(img, crop, ent.team ?? TEAM.PLAYER);
+      if (tinted) {
+        srcImg = tinted;
+        sx = 0; sy = 0; sw = crop.w; sh = crop.h;
+      }
+    }
+
     ctx.drawImage(
       srcImg,
       sx, sy, sw, sh,
