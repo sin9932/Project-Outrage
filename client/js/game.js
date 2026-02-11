@@ -6278,11 +6278,12 @@ if (q.paused && !debugFastProd){
       const payRate = costTotal / tNeed; // credits per second at 1x speed
 
       const want = dt * speed;                  // seconds of progress we WANT
-      const canByMoney = debugFastProd ? want : ((payRate<=0) ? want : (teamWallet.money / payRate)); // seconds we CAN afford
+      const canByMoney = debugFastProd ? want : ((payRate<=0) ? want : (state.player.money / payRate)); // seconds we CAN afford
       const delta = Math.min(want, canByMoney);
 
       // If we can't afford progress now, force-pause. Must be resumed manually via left-click.
       if (delta <= 0){
+        if (debugFast) return;
         // FIX: '대기 (자금 부족)'가 자금 충분한데도 뜨는 케이스가 있었음.
         // 원인: speed=0(일시정지/전력/기타)로 want=0인데도 "자금 부족" 경로로 들어가던 문제.
         // - want<=0이면 그냥 진행이 없는 상태이므로 자동자금대기 처리하지 않는다.
@@ -6290,7 +6291,7 @@ if (q.paused && !debugFastProd){
         if (want <= 0){
           continue;
         }
-        if (payRate>0 && (teamWallet.money / payRate) <= 0){
+        if (payRate>0 && (state.player.money / payRate) <= 0){
           q.paused = true;
           q.autoPaused = true;
           if (!q._autoToast && b.team===TEAM.PLAYER){ q._autoToast=true; toast("대기"); }
@@ -6303,7 +6304,7 @@ if (q.paused && !debugFastProd){
         pay = 0;
         q.paid = costTotal;
       } else {
-        teamWallet.money -= pay;
+        state.player.money -= pay;
         q.paid = (q.paid||0) + pay;
       }
 
@@ -10432,7 +10433,8 @@ function drawPathFx(){
     // Building production: two independent lanes (main/def) with reservation FIFO.
     // Each lane: can reserve many -> one active build -> READY (await placement) -> then next.
     const pf = getPowerFactor(TEAM.PLAYER);
-    const speed = pf * GAME_SPEED * BUILD_PROD_MULT;
+    const speedBase = pf * GAME_SPEED * BUILD_PROD_MULT;
+    const debugFastBuild = !!(state.debug && state.debug.fastProd); // player-only building fast-complete
 
     function startNextIfIdle(lane){
       if (!lane) return;
@@ -10454,6 +10456,11 @@ function drawPathFx(){
       if (lane.ready) return;
 
       const q = lane.queue;
+      const debugFast = debugFastBuild; // buildings are player-only lanes
+      if (debugFast){
+        // Debug fast build: finish this build in ~1s real-time, ignore money/power throttles.
+        q.paused = false; q.autoPaused = false; q._autoToast = false;
+      }
       // Auto-resume if we were paused only because of insufficient money.
       if (q.paused){
         if (q.autoPaused){
@@ -10472,11 +10479,12 @@ function drawPathFx(){
           return;
         }
       }
+      const speed = debugFast ? (q.tNeed || 1) : speedBase;
       const want = dt * speed;
       const costTotal = q.cost || 0;
       const tNeed = q.tNeed || 0.001;
       const payRate = (costTotal<=0) ? 0 : (costTotal / tNeed);
-      const canByMoney = (payRate<=0) ? want : (state.player.money / payRate);
+      const canByMoney = debugFast ? want : ((payRate<=0) ? want : (state.player.money / payRate));
       const delta = Math.min(want, canByMoney);
       // Out of money => auto-pause (do NOT confuse 'no progress' with 'no money').
       // If want<=0, we are simply not progressing this frame (pause, power, etc). Don't force a money-wait state.
@@ -10488,7 +10496,7 @@ function drawPathFx(){
         if (tNeed <= 0){
           return;
         }
-        if (payRate>0 && (teamWallet.money / payRate) <= 0){
+        if (payRate>0 && (state.player.money / payRate) <= 0){
           q.paused = true;
           q.autoPaused = true;
           if (!q._autoToast){ q._autoToast=true; toast("대기"); }
@@ -10496,9 +10504,14 @@ function drawPathFx(){
         return;
       }
 
-      const pay = payRate * delta;
-      state.player.money -= pay;
-      q.paid = (q.paid||0) + pay;
+      let pay = payRate * delta;
+      if (debugFast){
+        pay = 0;
+        q.paid = costTotal;
+      } else {
+        state.player.money -= pay;
+        q.paid = (q.paid||0) + pay;
+      }
       q.t += delta;
 
       if (q.t >= tNeed - 1e-6){
