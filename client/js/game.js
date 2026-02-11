@@ -1005,11 +1005,19 @@ function getBaseBuildTime(kind){
 
   function _isAccentPixel(r, g, b, a){
     if (a < 8) return false;
-    // Heuristic: magenta-ish highlights (high R & B, low-ish G)
-    if (r < 130 || b < 130) return false;
-    if (g > 140) return false;
-    // keep close-ish to magenta (R and B both high)
-    if (Math.abs(r - b) > 120) return false;
+
+    // Wider heuristic: "neon magenta / purple" highlight pixels.
+    // We want high R & B (or high B & R) and G noticeably lower.
+    const rbHi = (r >= 110 && b >= 110);
+    if (!rbHi) return false;
+
+    // G must be relatively low compared to R/B (prevents catching greys)
+    if (g > 180) return false;
+    if (g > Math.min(r, b) - 18) return false;
+
+    // Don't be too strict about R-B balance, but avoid pure red/blue
+    if (Math.abs(r - b) > 170) return false;
+
     return true;
   }
 
@@ -1033,7 +1041,22 @@ function getBaseBuildTime(kind){
 
       for (let i = 0; i < d.length; i += 4){
         const r = d[i], g = d[i+1], b = d[i+2], a = d[i+3];
+
         if (!_isAccentPixel(r, g, b, a)) continue;
+
+        // Optional exclusion zone for conyard: keep the original color under the turret.
+        // Use original (uncropped) coordinates so it stays valid even if crop changes.
+        if (img && typeof img.src === "string" && img.src.includes("con_yard")){
+          const p = (i >> 2);
+          const x = p % crop.w;
+          const y = (p / crop.w) | 0;
+          const gx = crop.x + x;
+          const gy = crop.y + y;
+
+          // "Under turret" band (tuned for 2048x1564 con_yard_n.png). Adjust if you change the source.
+          const EX = { x0: 900, y0: 480, x1: 1210, y1: 700 };
+          if (gx >= EX.x0 && gx <= EX.x1 && gy >= EX.y0 && gy <= EX.y1) continue;
+        }
 
         // brightness keeps shading; luma is stable for highlights
         const l = (0.2126*r + 0.7152*g + 0.0722*b) / 255;
