@@ -118,6 +118,7 @@ ${e.filename}:${e.lineno}:${e.colno}
   const pColorInput = $("pColor");
   const eColorInput = $("eColor");
   const fogOffChk = $("fogOff");
+  const fastCompleteChk = $("fastComplete");
 
   let spawnChoice = "left";
   for (const chip of document.querySelectorAll(".chip.spawn")) {
@@ -325,6 +326,8 @@ function fitMini() {
   }
 // Debug option: disable fog-of-war rendering & logic (show whole map)
   let fogEnabled = true;
+  let DEBUG_FAST_COMPLETE = false; // pregame checkbox: 1s complete
+
   const clamp = (v,a,b)=>Math.max(a,Math.min(b,v));
   const dist2 = (ax,ay,bx,by)=>{ const dx=ax-bx, dy=ay-by; return dx*dx+dy*dy; };
   const rnd = (a,b)=> a + Math.random()*(b-a);
@@ -5926,6 +5929,13 @@ function tickProduction(dt){
 
       const q=b.buildQ[0];
 
+
+      if (DEBUG_FAST_COMPLETE){
+        // Debug: make any queued production finish in 1 second (ignore power/money/pauses)
+        q.paused = false; q.autoPaused = false;
+        q.tNeed = 1;
+        speed = 1;
+      }
 // Manual/auto pause support (대기).
 // autoPaused(자금 부족)인 경우, 돈이 다시 생기면 자동으로 재개한다. (수동 클릭 안 해도 됨)
 if (q.paused){
@@ -5945,9 +5955,17 @@ if (q.paused){
 
       // Money drains while progress advances (RA2-ish).
       const teamWallet = (b.team===TEAM.PLAYER) ? state.player : state.enemy;
-      const costTotal = q.cost ?? (COST[q.kind]||0);
-      const tNeed = q.tNeed || 0.001;
-      const payRate = costTotal / tNeed; // credits per second at 1x speed
+      let costTotal = q.cost ?? (COST[q.kind]||0);
+      let tNeed = q.tNeed || 0.001;
+      let payRate = costTotal / tNeed;
+      if (DEBUG_FAST_COMPLETE){
+        // Debug: 1s completion, free + no money gating
+        tNeed = 1;
+        costTotal = 0;
+        payRate = 0;
+        q.tNeed = 1;
+      }
+// credits per second at 1x speed
 
       const want = dt * speed;                  // seconds of progress we WANT
       const canByMoney = (payRate<=0) ? want : (teamWallet.money / payRate); // seconds we CAN afford
@@ -11468,6 +11486,9 @@ startBtn.addEventListener("click", () => {
     state.colors.enemy  = eColorInput.value;
 
     fogEnabled = !(fogOffChk && fogOffChk.checked);
+
+    DEBUG_FAST_COMPLETE = !!(fastCompleteChk && fastCompleteChk.checked);
+    state.debugFastComplete = DEBUG_FAST_COMPLETE;
 
     START_MONEY = startMoney;
     state.player.money = START_MONEY;
