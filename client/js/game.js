@@ -1027,22 +1027,35 @@ function getBaseBuildTime(kind){
   function _isAccentPixel(r,g,b,a){
     if(a < 8) return false;
 
-    // Fast path for near-pure magenta (common "teamcolor" key)
-    if(r > 160 && b > 160 && g < 120) return true;
-
     const max=Math.max(r,g,b), min=Math.min(r,g,b);
     const sat = max===0 ? 0 : (max-min)/max;
-    if(sat < 0.22) return false; // avoid greys
 
-    // Hue check: accept magenta/purple band
-    const {h} = _rgb2hsv(r,g,b);
-    const magentaBand = (h >= 265 && h <= 335);
+    // Strong magenta/pink key, including anti-aliased edges (pink mixed with grey).
+    // Score is high when R+B dominates and G is suppressed.
+    const rbAvg = (r + b) * 0.5;
+    const magScore = (r + b) - 2*g; // e.g. #ff00ff => 510
 
-    // Also accept purple-ish highlights that drift toward blue/grey but still clearly "accent"
-    const rbClose = Math.abs(r-b) <= 120;
-    const gNotDominant = g <= Math.min(r,b) + 40;
+    // Very likely key color (and its edge blends)
+    if(rbAvg > 110 && magScore > 105 && g < rbAvg) return true;
 
-    return magentaBand && gNotDominant && (sat >= 0.22) && (max >= 0.20*255) && rbClose;
+    // Extra coverage for bright hot-pink highlights that may have a bit more green from filtering
+    if(rbAvg > 165 && magScore > 65 && g < 170) return true;
+
+    // If it's basically grey, don't treat as key color.
+    if(sat < 0.10) return false;
+
+    const {h}=_rgb2hsv(r,g,b);
+
+    // Wider hue band for magenta/purple-ish key colors.
+    const magentaBand = (h>=235 && h<=358);
+
+    // Green must not be the dominant channel (allow more slack for filtered pixels)
+    const gNotDominant = g <= Math.min(r,b) + 130;
+
+    // Prevent weird false-positives from pure blues/reds by requiring some R+B presence
+    const rbPresence = (r + b) >= 160;
+
+    return magentaBand && gNotDominant && rbPresence;
   }
 
   function _applyTeamPaletteToImage(img, teamColor, opts={}){
