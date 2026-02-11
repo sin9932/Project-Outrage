@@ -1419,8 +1419,13 @@ function getBaseBuildTime(kind){
 
 
   const _dirToIdleIdx = { 6:1, 7:2, 0:3, 1:4, 2:5, 3:6, 4:7, 5:8 }; // dir8 -> idle1..8
+  const _muzzleDirToIdleIdx = { 2:1, 1:2, 0:3, 7:4, 6:5, 5:6, 4:7, 3:8 }; // dir8 -> tank_muzzle_idle1..8 (N..)
+
   const _cwSeq = [6,7,0,1,2,3,4,5];
+  const _muzzleCwSeq = [2,1,0,7,6,5,4,3]; // turret cw order (N->NE->E->SE->S->SW->W->NW)
   const _cwStartFrame = { 6:1, 7:5, 0:9, 1:13, 2:17, 3:21, 4:25, 5:29 }; // mov segment starts (4 frames each)
+  const _muzzleCwStartFrame = { 2:1, 1:5, 0:9, 7:13, 6:17, 5:21, 4:25, 3:29 }; // tank_muzzle_mov segment starts
+
 
   function _cwNextDir(d){
     const i = _cwSeq.indexOf(d);
@@ -1446,24 +1451,51 @@ function getBaseBuildTime(kind){
     return null;
   }
 
-  function _turnStepToward(fromDir, goalDir){
+  function _turretTurnFrameNum(fromDir, toDir, fi){ // fi:0..3
+    // tank_muzzle_mov is authored in clockwise segments: N->NE->E->SE->S->SW->W->NW->N
+    const a = _muzzleCwSeq.indexOf(fromDir);
+    if (a < 0) return null;
+    const next = _muzzleCwSeq[(a+1) & 7];
+    const prev = _muzzleCwSeq[(a+7) & 7];
+    if (toDir === next){
+      const start = _muzzleCwStartFrame[fromDir] || 1;
+      return start + fi;
+    }
+    if (toDir === prev){
+      const start = _muzzleCwStartFrame[toDir] || 1; // prev -> from is clockwise
+      return start + (3 - fi);
+    }
+    return null;
+  }
+
+  function _turnStepTowardSeq(seq, fromDir, goalDir){
     // returns {nextDir, stepDir} where stepDir: +1 cw, -1 ccw
-    const a = _cwSeq.indexOf(fromDir);
-    const b = _cwSeq.indexOf(goalDir);
+    const a = seq.indexOf(fromDir);
+    const b = seq.indexOf(goalDir);
     if (a < 0 || b < 0) return { nextDir: goalDir, stepDir: +1 };
     const cw = (b - a + 8) % 8;
     const ccw = (a - b + 8) % 8;
     if (cw <= ccw){
-      return { nextDir: _cwSeq[(a+1) & 7], stepDir: +1 };
+      return { nextDir: seq[(a+1) & 7], stepDir: +1 };
     }
-    return { nextDir: _cwSeq[(a+7) & 7], stepDir: -1 };
+    return { nextDir: seq[(a+7) & 7], stepDir: -1 };
   }
 
-  function _advanceTurnState(turn, fromDir, toDir, dt, frameDur){
+  function _turnStepToward(fromDir, goalDir){
+    // Hull turning (RA2-ish): uses S->SE->E->NE->N->NW->W->SW sequence.
+    return _turnStepTowardSeq(_cwSeq, fromDir, goalDir);
+  }
+
+  function _turnStepTowardTurret(fromDir, goalDir){
+    // Turret turning: uses N->NE->E->SE->S->SW->W->NW sequence.
+    return _turnStepTowardSeq(_muzzleCwSeq, fromDir, goalDir);
+  }
+
+  function _advanceTurnState(turn, fromDir, toDir, dt, frameDur, frameFn){
     // Mutates turn and returns {done:boolean, frameNum:int|null}
     turn.t = (turn.t || 0) + dt;
     const fi = Math.min(3, Math.floor(turn.t / Math.max(0.001, frameDur)));
-    const frameNum = _tankTurnFrameNum(fromDir, toDir, fi);
+    const frameNum = (frameFn || _tankTurnFrameNum)(fromDir, toDir, fi);
     const done = turn.t >= frameDur*4;
     return { done, frameNum };
   }
@@ -1501,11 +1533,11 @@ function getBaseBuildTime(kind){
     }
 
     if (!u.turretTurn || u.turretTurn.fromDir==null || u.turretTurn.toDir==null){
-      const step = _turnStepToward(u.turretDir, desiredDir);
+      const step = _turnStepTowardTurret(u.turretDir, desiredDir);
       u.turretTurn = { fromDir: u.turretDir, toDir: step.nextDir, stepDir: step.stepDir, t: 0 };
     }
 
-    const { done, frameNum } = _advanceTurnState(u.turretTurn, u.turretTurn.fromDir, u.turretTurn.toDir, dt, 0.045);
+    const { done, frameNum } = _advanceTurnState(u.turretTurn, u.turretTurn.fromDir, u.turretTurn.toDir, dt, 0.045, _turretTurnFrameNum);
     u.turretTurn.frameNum = frameNum;
 
     if (done){
@@ -1526,7 +1558,7 @@ function getBaseBuildTime(kind){
     if (u.turretTurn && u.turretTurn.frameNum){
       return "tank_muzzle_mov" + u.turretTurn.frameNum + ".png";
     }
-    const idx = _dirToIdleIdx[u.turretDir ?? u.dir ?? 6] || 1;
+    const idx = _muzzleDirToIdleIdx[u.turretDir ?? u.dir ?? 6] || 1;
     return "tank_muzzle_idle" + idx + ".png";
   }
 
@@ -7806,6 +7838,14 @@ if (u.order.type==="move"){
         const tx = u.order.x, ty = u.order.y;
         const d2 = dist2(u.x,u.y, tx, ty);
         const dEff = Math.sqrt(d2);
+        // Lite tank: rotate turret toward ground target too (Ctrl+Click force-fire)
+        let _ffAimDir = null;
+        if (u.kind==="tank" && !u.inTransport){
+          _ffAimDir = worldVecToDir8(tx - u.x, ty - u.y);
+          _tankUpdateTurret(u, _ffAimDir, dt);
+          u.fireDir = _ffAimDir;
+          u.faceDir = _ffAimDir;
+        }
         if (u.repathCd<=0){
           const gTx=(tx/TILE)|0, gTy=(ty/TILE)|0;
           if (u.lastGoalTx!==gTx || u.lastGoalTy!==gTy){
@@ -7817,7 +7857,7 @@ if (u.order.type==="move"){
           followPath(u,dt);
         } else {
           u.path=null;
-          if (u.shootCd<=0){
+          if (u.shootCd<=0 && (u.kind!=="tank" || (_ffAimDir!=null && u.turretDir===_ffAimDir && !u.turretTurn))){
             u.shootCd=u.rof;
             u.holdPosT = 0.10;
             u.fireHoldT = Math.max(u.fireHoldT||0, 0.28);
