@@ -842,10 +842,10 @@ function getBaseBuildTime(kind){
   // anchor: "center" to stick the sprite to the 5x5 footprint center (what you asked).
   const SPRITE_TUNE = {
     hq: {
-      anchor: "center",      // "center" | "south"
-      scaleMul: 1.00,        // overall scale multiplier
-      pivotNudge: { x: 0, y: 0 },   // move pivot inside the source crop
-      offsetNudge:{ x: 0, y: 0 }    // final screen nudge (px)
+      anchor: "center",
+      scaleMul: 1.20,
+      pivotNudge: { x: 0, y: 0 },
+      offsetNudge:{ x: 94, y: -26 }
     }
   };
 
@@ -967,6 +967,19 @@ function getBaseBuildTime(kind){
 
   // load persisted tuning once
   _loadTune();
+
+  // apply HTML-provided preset (overrides persisted storage)
+  (function(){
+    try{
+      const preset = (typeof window !== "undefined") ? window.SPRITE_TUNE_PRESET : null;
+      if (!preset || typeof preset !== "object") return;
+      for (const k in preset){
+        if (!preset[k] || typeof preset[k] !== "object") continue;
+        SPRITE_TUNE[k] = Object.assign(_tuneObj(k), preset[k]);
+      }
+      _saveTune();
+    }catch(_e){}
+  })();
   _updateTuneOverlay();
 
 
