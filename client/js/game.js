@@ -854,16 +854,11 @@ function getBaseBuildTime(kind){
     const dw = crop.w * scale * z;
     const dh = crop.h * scale * z;
 
-    // Anchor at footprint CENTER, then move down to SOUTH corner by half footprint height.
-    const cxW = (ent.tx + ent.tw * 0.5) * TILE;
-    const cyW = (ent.ty + ent.th * 0.5) * TILE;
-    const pC = worldToScreen(cxW, cyW);
-
-    // Half footprint "diamond" height in screen space = (tw+th)*ISO_Y/2
-    const southOffY = ((ent.tw + ent.th) * ISO_Y * 0.5) * z;
-
-    const anchorX = pC.x;
-    const anchorY = pC.y + southOffY;
+    // Anchor at footprint SOUTH corner (tx+tw, ty+th) aligned with drawFootprintDiamond corners.
+    // This matches the white placement box exactly.
+    const southW = worldToScreen((ent.tx + ent.tw) * TILE, (ent.ty + ent.th) * TILE);
+    const anchorX = southW.x;
+    const anchorY = southW.y;
 
     // pivot is bbox-space
     const px = (cfg.pivot?.x ?? (crop.w * 0.5)) * scale * z;
