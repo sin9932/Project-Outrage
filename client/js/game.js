@@ -118,6 +118,7 @@ ${e.filename}:${e.lineno}:${e.colno}
   const pColorInput = $("pColor");
   const eColorInput = $("eColor");
   const fogOffChk = $("fogOff");
+  const fastProdChk = $("fastProd");
 
   let spawnChoice = "left";
   for (const chip of document.querySelectorAll(".chip.spawn")) {
@@ -455,6 +456,7 @@ function fitMini() {
   var state = {
     t: 0,
     suppressClickUntil: 0,
+    debug: { fastProd: false },
     player: { money: 10000, powerProd: 0, powerUse: 0 },
     enemy:  { money: 10000, powerProd: 0, powerUse: 0 },
     build:{ active:false, kind:null, lane:null },
@@ -1032,10 +1034,6 @@ function getBaseBuildTime(kind){
   function _isAccentPixel(r,g,b,a){
     if(a < 8) return false;
 
-    // Extra-aggressive catch for "UI magenta" accents that may be darker or filtered.
-    // (R and B high, G suppressed)
-    if (r > 95 && b > 95 && g < 140) return true;
-
     const max=Math.max(r,g,b), min=Math.min(r,g,b);
     const sat = max===0 ? 0 : (max-min)/max;
 
@@ -1044,25 +1042,25 @@ function getBaseBuildTime(kind){
     const rbAvg = (r + b) * 0.5;
     const magScore = (r + b) - 2*g; // e.g. #ff00ff => 510
 
-    // Very likely key color (and its edge blends) - loosened thresholds a bit
-    if(rbAvg > 85 && magScore > 80 && g < rbAvg + 20) return true;
+    // Very likely key color (and its edge blends)
+    if(rbAvg > 110 && magScore > 105 && g < rbAvg) return true;
 
     // Extra coverage for bright hot-pink highlights that may have a bit more green from filtering
-    if(rbAvg > 150 && magScore > 55 && g < 185) return true;
+    if(rbAvg > 165 && magScore > 65 && g < 170) return true;
 
     // If it's basically grey, don't treat as key color.
-    if(sat < 0.08) return false;
+    if(sat < 0.10) return false;
 
     const {h}=_rgb2hsv(r,g,b);
 
     // Wider hue band for magenta/purple-ish key colors.
-    const magentaBand = (h>=225 && h<=358);
+    const magentaBand = (h>=235 && h<=358);
 
     // Green must not be the dominant channel (allow more slack for filtered pixels)
-    const gNotDominant = g <= Math.min(r,b) + 150;
+    const gNotDominant = g <= Math.min(r,b) + 130;
 
     // Prevent weird false-positives from pure blues/reds by requiring some R+B presence
-    const rbPresence = (r + b) >= 140;
+    const rbPresence = (r + b) >= 160;
 
     return magentaBand && gNotDominant && rbPresence;
   }
@@ -1421,8 +1419,13 @@ function getBaseBuildTime(kind){
 
 
   const _dirToIdleIdx = { 6:1, 7:2, 0:3, 1:4, 2:5, 3:6, 4:7, 5:8 }; // dir8 -> idle1..8
+  const _muzzleDirToIdleIdx = { 2:1, 1:2, 0:3, 7:4, 6:5, 5:6, 4:7, 3:8 }; // dir8 -> tank_muzzle_idle1..8 (N..)
+
   const _cwSeq = [6,7,0,1,2,3,4,5];
+  const _muzzleCwSeq = [2,1,0,7,6,5,4,3]; // turret cw order (N->NE->E->SE->S->SW->W->NW)
   const _cwStartFrame = { 6:1, 7:5, 0:9, 1:13, 2:17, 3:21, 4:25, 5:29 }; // mov segment starts (4 frames each)
+  const _muzzleCwStartFrame = { 2:1, 1:5, 0:9, 7:13, 6:17, 5:21, 4:25, 3:29 }; // tank_muzzle_mov segment starts
+
 
   function _cwNextDir(d){
     const i = _cwSeq.indexOf(d);
@@ -1448,24 +1451,51 @@ function getBaseBuildTime(kind){
     return null;
   }
 
-  function _turnStepToward(fromDir, goalDir){
+  function _turretTurnFrameNum(fromDir, toDir, fi){ // fi:0..3
+    // tank_muzzle_mov is authored in clockwise segments: N->NE->E->SE->S->SW->W->NW->N
+    const a = _muzzleCwSeq.indexOf(fromDir);
+    if (a < 0) return null;
+    const next = _muzzleCwSeq[(a+1) & 7];
+    const prev = _muzzleCwSeq[(a+7) & 7];
+    if (toDir === next){
+      const start = _muzzleCwStartFrame[fromDir] || 1;
+      return start + fi;
+    }
+    if (toDir === prev){
+      const start = _muzzleCwStartFrame[toDir] || 1; // prev -> from is clockwise
+      return start + (3 - fi);
+    }
+    return null;
+  }
+
+  function _turnStepTowardSeq(seq, fromDir, goalDir){
     // returns {nextDir, stepDir} where stepDir: +1 cw, -1 ccw
-    const a = _cwSeq.indexOf(fromDir);
-    const b = _cwSeq.indexOf(goalDir);
+    const a = seq.indexOf(fromDir);
+    const b = seq.indexOf(goalDir);
     if (a < 0 || b < 0) return { nextDir: goalDir, stepDir: +1 };
     const cw = (b - a + 8) % 8;
     const ccw = (a - b + 8) % 8;
     if (cw <= ccw){
-      return { nextDir: _cwSeq[(a+1) & 7], stepDir: +1 };
+      return { nextDir: seq[(a+1) & 7], stepDir: +1 };
     }
-    return { nextDir: _cwSeq[(a+7) & 7], stepDir: -1 };
+    return { nextDir: seq[(a+7) & 7], stepDir: -1 };
   }
 
-  function _advanceTurnState(turn, fromDir, toDir, dt, frameDur){
+  function _turnStepToward(fromDir, goalDir){
+    // Hull turning (RA2-ish): uses S->SE->E->NE->N->NW->W->SW sequence.
+    return _turnStepTowardSeq(_cwSeq, fromDir, goalDir);
+  }
+
+  function _turnStepTowardTurret(fromDir, goalDir){
+    // Turret turning: uses N->NE->E->SE->S->SW->W->NW sequence.
+    return _turnStepTowardSeq(_muzzleCwSeq, fromDir, goalDir);
+  }
+
+  function _advanceTurnState(turn, fromDir, toDir, dt, frameDur, frameFn){
     // Mutates turn and returns {done:boolean, frameNum:int|null}
     turn.t = (turn.t || 0) + dt;
     const fi = Math.min(3, Math.floor(turn.t / Math.max(0.001, frameDur)));
-    const frameNum = _tankTurnFrameNum(fromDir, toDir, fi);
+    const frameNum = (frameFn || _tankTurnFrameNum)(fromDir, toDir, fi);
     const done = turn.t >= frameDur*4;
     return { done, frameNum };
   }
@@ -1503,104 +1533,16 @@ function getBaseBuildTime(kind){
     }
 
     if (!u.turretTurn || u.turretTurn.fromDir==null || u.turretTurn.toDir==null){
-      const step = _turnStepToward(u.turretDir, desiredDir);
+      const step = _turnStepTowardTurret(u.turretDir, desiredDir);
       u.turretTurn = { fromDir: u.turretDir, toDir: step.nextDir, stepDir: step.stepDir, t: 0 };
     }
 
-    const { done, frameNum } = _advanceTurnState(u.turretTurn, u.turretTurn.fromDir, u.turretTurn.toDir, dt, 0.045);
+    const { done, frameNum } = _advanceTurnState(u.turretTurn, u.turretTurn.fromDir, u.turretTurn.toDir, dt, 0.045, _turretTurnFrameNum);
     u.turretTurn.frameNum = frameNum;
 
     if (done){
       u.turretDir = u.turretTurn.toDir;
       u.turretTurn = null;
-    }
-  }
-
-  
-  function _dir8UnitVec(d){
-    switch(d){
-      case 1: return {x:0,y:1};     // S
-      case 2: return {x:1,y:1};     // SE
-      case 3: return {x:1,y:0};     // E
-      case 4: return {x:1,y:-1};    // NE
-      case 5: return {x:0,y:-1};    // N
-      case 6: return {x:-1,y:-1};   // NW
-      case 7: return {x:-1,y:0};    // W
-      case 8: return {x:-1,y:1};    // SW
-      default: return {x:0,y:1};
-    }
-  }
-
-  function _tankFindAutoTurretTarget(u){
-    const r = (u.range!=null ? u.range : 3*TILE);
-    const r2 = r*r;
-    let best=null, bestD2=1e18;
-
-    for (let i=0;i<units.length;i++){
-      const e = units[i];
-      if (!e.alive) continue;
-      if (e.team===u.team) continue;
-      if (BUILD[e.kind]) continue; // auto-aim ignores buildings
-      // Optional: respect cloak if present
-      if (e.cloak && e.cloak>0.5) continue;
-
-      const d2 = dist2(u.x,u.y,e.x,e.y);
-      if (d2 > r2) continue;
-      if (d2 < bestD2){
-        bestD2 = d2;
-        best = e;
-      }
-    }
-    return best;
-  }
-
-  function _tankAutoTurret(u, dt){
-    if (!u || u.kind!=="tank" || !u.alive) return;
-
-    // Keep turret stable while firing hold is active.
-    if ((u.fireHoldT||0) > 0 && u.fireDir!=null) return;
-
-    // Explicit force-fire always drives turret.
-    if (u.order && u.order.type==="forcefire"){
-      const dx = (u.order.x!=null?u.order.x:u.x) - u.x;
-      const dy = (u.order.y!=null?u.order.y:u.y) - u.y;
-      if (Math.abs(dx)+Math.abs(dy) > 0.001){
-        const fd = worldVecToDir8(dx, dy);
-        _tankUpdateTurret(u, fd, dt);
-      }
-      return;
-    }
-
-    // Explicit attack on a building: aim at it (even though auto-scan ignores buildings).
-    if (u.order && u.order.type==="attack" && u.target!=null){
-      const t = getEntityById(u.target);
-      if (t && t.alive && BUILD[t.kind]){
-        const fd = worldVecToDir8(t.x-u.x, t.y-u.y);
-        _tankUpdateTurret(u, fd, dt);
-        return;
-      }
-    }
-
-    // Passive scan: only units (inf/veh).
-    const tgt = _tankFindAutoTurretTarget(u);
-    if (tgt){
-      const fd = worldVecToDir8(tgt.x-u.x, tgt.y-u.y);
-      _tankUpdateTurret(u, fd, dt);
-      return;
-    }
-
-    // No target in range: turret follows movement direction while moving.
-    const moving = (u.order && (u.order.type==="move" || u.order.type==="attackmove" || u.order.type==="guard_return")) ||
-                   (Math.hypot(u.vx||0, u.vy||0) > 2);
-
-    if (moving && u._moveDir!=null){
-      _tankUpdateTurret(u, u._moveDir, dt);
-    } else if (moving){
-      // fallback: infer from velocity
-      const dx = (u.vx||0), dy = (u.vy||0);
-      if (Math.abs(dx)+Math.abs(dy) > 0.001){
-        _tankUpdateTurret(u, worldVecToDir8(dx,dy), dt);
-      }
     }
   }
 
@@ -1616,7 +1558,7 @@ function getBaseBuildTime(kind){
     if (u.turretTurn && u.turretTurn.frameNum){
       return "tank_muzzle_mov" + u.turretTurn.frameNum + ".png";
     }
-    const idx = _dirToIdleIdx[u.turretDir ?? u.dir ?? 6] || 1;
+    const idx = _muzzleDirToIdleIdx[u.turretDir ?? u.dir ?? 6] || 1;
     return "tank_muzzle_idle" + idx + ".png";
   }
 
@@ -3551,7 +3493,6 @@ function followPath(u, dt){
       const fd = worldVecToDir8(ax, ay);
 
       if (u.kind === "tank"){
-        u._moveDir = fd; // hint for turret auto-aim when no target
         // RA2-style: hull turns in place before actually translating.
         if (u.bodyDir == null) u.bodyDir = (u.dir!=null ? u.dir : 6);
 
@@ -4788,6 +4729,57 @@ const smokeWaves = [];
 const smokePuffs = [];
 const smokeEmitters = [];
 
+// Extra ground FX for vehicles
+const dustPuffs = [];
+const dmgSmokePuffs = [];
+
+// Dust puff for moving vehicles (sandy haze). World-positioned (does NOT follow units).
+function spawnDustPuff(wx, wy, vx, vy, strength=1){
+  const size = clamp(strength, 0.6, 2.2);
+  const spread = TILE * 0.30 * size;
+  const ang = Math.random() * Math.PI * 2;
+  const rad = Math.sqrt(Math.random()) * spread;
+  const x = wx + Math.cos(ang) * rad;
+  const y = wy + Math.sin(ang) * rad;
+
+  // drift roughly opposite of movement (normalize vx/vy)
+  const mag = Math.max(0.0001, Math.hypot(vx||0, vy||0));
+  const backx = -(vx||0) / mag;
+  const backy = -(vy||0) / mag;
+
+  dustPuffs.push({
+    x, y,
+    vx: backx*(TILE*0.18*size) + (Math.random()*2-1)*(TILE*0.05*size),
+    vy: backy*(TILE*0.18*size) + (Math.random()*2-1)*(TILE*0.05*size),
+    t: 0,
+    ttl: 0.95 + Math.random()*0.55,
+    r0: (14 + Math.random()*10) * size,
+    grow: (46 + Math.random()*34) * size,
+    a0: 0.16 + Math.random()*0.10
+  });
+}
+
+// Damage smoke from a crippled unit (from turret area). World-positioned.
+function spawnDmgSmokePuff(wx, wy, strength=1){
+  const size = clamp(strength, 0.6, 2.4);
+  const spread = TILE * 0.22 * size;
+  const ang = Math.random() * Math.PI * 2;
+  const rad = Math.sqrt(Math.random()) * spread;
+  const x = wx + Math.cos(ang) * rad;
+  const y = wy + Math.sin(ang) * rad;
+
+  dmgSmokePuffs.push({
+    x, y,
+    vx: (Math.random()*2-1)*(TILE*0.03*size),
+    vy: (Math.random()*2-1)*(TILE*0.03*size) - (TILE*0.02*size),
+    t: 0,
+    ttl: 1.55 + Math.random()*0.75,
+    r0: (10 + Math.random()*10) * size,
+    grow: (48 + Math.random()*40) * size,
+    a0: 0.10 + Math.random()*0.06
+  });
+}
+
 function addSmokeWave(wx, wy, size=1){
   const sz = clamp(size, 0.6, 2.1);
   smokeWaves.push({
@@ -4827,43 +4819,6 @@ function spawnSmokePuff(wx, wy, size=1){
     a0: 0.12 + Math.random()*0.12
   });
 }
-
-
-  function spawnDustPuff(wx, wy, dir8=1, size=0.55){
-    const v = _dir8UnitVec(dir8);
-    // Spawn slightly behind the unit (opposite of motion)
-    const back = 10;
-    const x = wx - v.x*back + (Math.random()-0.5)*8;
-    const y = wy - v.y*back + (Math.random()-0.5)*8;
-    const spread = size*8;
-    const vx = (-v.x*0.35 + (Math.random()-0.5)*0.25);
-    const vy = (-v.y*0.35 + (Math.random()-0.5)*0.25);
-    smokePuffs.push({
-      x, y,
-      vx, vy,
-      r0: 6 + Math.random()*spread,
-      r1: 18 + Math.random()*spread,
-      ttl: 1.05 + Math.random()*0.35,
-      t: 0,
-      a0: 0.22,
-      kind: "dust"
-    });
-  }
-
-  function spawnDamageSmokePuff(wx, wy, size=0.45){
-    smokePuffs.push({
-      x: wx + (Math.random()-0.5)*6,
-      y: wy + (Math.random()-0.5)*6,
-      vx: (Math.random()-0.5)*0.18,
-      vy: (Math.random()-0.5)*0.18,
-      r0: 7 + Math.random()*6,
-      r1: 22 + Math.random()*12,
-      ttl: 1.25 + Math.random()*0.55,
-      t: 0,
-      a0: 0.28,
-      kind: "damage"
-    });
-  }
 
 function spawnSmokeHaze(wx, wy, size=1){
   const spread = TILE * 1.15 * size;
@@ -4919,6 +4874,30 @@ function updateSmoke(dt){
     p.y += p.vy * dt;
 
     const damp = Math.pow(0.992, dt*60);
+    p.vx *= damp;
+    p.vy *= damp;
+  }
+
+  // Dust puffs
+  for (let i=dustPuffs.length-1;i>=0;i--){
+    const p = dustPuffs[i];
+    p.t += dt;
+    if (p.t >= p.ttl){ dustPuffs.splice(i,1); continue; }
+    p.x += p.vx * dt;
+    p.y += p.vy * dt;
+    const damp = Math.pow(0.975, dt*60);
+    p.vx *= damp;
+    p.vy *= damp;
+  }
+
+  // Damage smoke puffs
+  for (let i=dmgSmokePuffs.length-1;i>=0;i--){
+    const p = dmgSmokePuffs[i];
+    p.t += dt;
+    if (p.t >= p.ttl){ dmgSmokePuffs.splice(i,1); continue; }
+    p.x += p.vx * dt;
+    p.y += p.vy * dt;
+    const damp = Math.pow(0.988, dt*60);
     p.vx *= damp;
     p.vy *= damp;
   }
@@ -5030,19 +5009,9 @@ function drawSmokeWaves(ctx){
       ctx.globalAlpha = a;
 
       const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, r);
-      if (p.kind === "dust"){
-        g.addColorStop(0.0, `rgba(210,190,140,${0.24*a})`);
-        g.addColorStop(0.40, `rgba(150,130,90,${0.20*a})`);
-        g.addColorStop(1.0, "rgba(90,80,60,0.0)");
-      } else if (p.kind === "damage"){
-        g.addColorStop(0.0, `rgba(235,235,235,${0.26*a})`);
-        g.addColorStop(0.35, `rgba(160,160,160,${0.22*a})`);
-        g.addColorStop(1.0, "rgba(60,60,60,0.0)");
-      } else {
-        g.addColorStop(0.0, `rgba(220,220,220,${0.22*a})`);
-        g.addColorStop(0.35, `rgba(130,130,130,${0.20*a})`);
-        g.addColorStop(1.0, "rgba(50,50,50,0.0)");
-      }
+      g.addColorStop(0.0, "rgba(220,220,220,0.22)");
+      g.addColorStop(0.35, "rgba(130,130,130,0.20)");
+      g.addColorStop(1.0, "rgba(50,50,50,0.0)");
       ctx.fillStyle = g;
 
       ctx.beginPath();
@@ -5101,6 +5070,42 @@ function addBloodBurst(wx, wy, size=1){
       kind: (Math.random() < 0.45) ? "droplet" : "mist"
     });
   }
+}
+
+
+function drawDustPuffs(ctx){
+  if (!dustPuffs.length) return;
+  const z = (typeof cam !== "undefined" && cam && typeof cam.zoom==="number") ? cam.zoom : 1;
+  ctx.save();
+  for (const p of dustPuffs){
+    const k = p.t / p.ttl;
+    const a = (1-k) * p.a0;
+    const r = (p.r0 + p.grow*k) * z;
+    const s = worldToScreen(p.x, p.y);
+    // sandy haze
+    ctx.fillStyle = `rgba(200, 180, 130, ${a})`;
+    ctx.beginPath();
+    ctx.ellipse(s.x, s.y, r*1.25, r*0.85, 0, 0, Math.PI*2);
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
+function drawDmgSmokePuffs(ctx){
+  if (!dmgSmokePuffs.length) return;
+  const z = (typeof cam !== "undefined" && cam && typeof cam.zoom==="number") ? cam.zoom : 1;
+  ctx.save();
+  for (const p of dmgSmokePuffs){
+    const k = p.t / p.ttl;
+    const a = (1-k) * p.a0;
+    const r = (p.r0 + p.grow*k) * z;
+    const s = worldToScreen(p.x, p.y);
+    ctx.fillStyle = `rgba(160, 160, 160, ${a})`;
+    ctx.beginPath();
+    ctx.ellipse(s.x, s.y, r*1.05, r*0.95, 0, 0, Math.PI*2);
+    ctx.fill();
+  }
+  ctx.restore();
 }
 
 function updateBlood(dt){
@@ -6349,9 +6354,20 @@ function tickProduction(dt){
 
       const q=b.buildQ[0];
 
+      const debugFastProd = !!(state.debug && state.debug.fastProd && b.team===TEAM.PLAYER);
+
+      // Debug fast production: player only, finish any queue item in ~1s real-time.
+      // - Enemy is not affected.
+      // - Ignores power + money throttles so it always completes.
+      if (debugFastProd){
+        if (q){ q.paused = false; q.autoPaused = false; }
+        speed = (q && q.tNeed) ? q.tNeed : 1;
+      }
+
+
 // Manual/auto pause support (대기).
 // autoPaused(자금 부족)인 경우, 돈이 다시 생기면 자동으로 재개한다. (수동 클릭 안 해도 됨)
-if (q.paused){
+if (q.paused && !debugFastProd){
   const teamWalletTmp = (b.team===TEAM.PLAYER) ? state.player : state.enemy;
   const costTotalTmp = q.cost ?? (COST[q.kind]||0);
   const tNeedTmp = q.tNeed || 0.001;
@@ -6373,11 +6389,12 @@ if (q.paused){
       const payRate = costTotal / tNeed; // credits per second at 1x speed
 
       const want = dt * speed;                  // seconds of progress we WANT
-      const canByMoney = (payRate<=0) ? want : (teamWallet.money / payRate); // seconds we CAN afford
+      const canByMoney = debugFastProd ? want : ((payRate<=0) ? want : (state.player.money / payRate)); // seconds we CAN afford
       const delta = Math.min(want, canByMoney);
 
       // If we can't afford progress now, force-pause. Must be resumed manually via left-click.
       if (delta <= 0){
+        if (debugFast) return;
         // FIX: '대기 (자금 부족)'가 자금 충분한데도 뜨는 케이스가 있었음.
         // 원인: speed=0(일시정지/전력/기타)로 want=0인데도 "자금 부족" 경로로 들어가던 문제.
         // - want<=0이면 그냥 진행이 없는 상태이므로 자동자금대기 처리하지 않는다.
@@ -6385,7 +6402,7 @@ if (q.paused){
         if (want <= 0){
           continue;
         }
-        if (payRate>0 && (teamWallet.money / payRate) <= 0){
+        if (payRate>0 && (state.player.money / payRate) <= 0){
           q.paused = true;
           q.autoPaused = true;
           if (!q._autoToast && b.team===TEAM.PLAYER){ q._autoToast=true; toast("대기"); }
@@ -6393,9 +6410,14 @@ if (q.paused){
         continue;
       }
 
-      const pay = payRate * delta;
-      teamWallet.money -= pay;
-      q.paid = (q.paid||0) + pay;
+      let pay = payRate * delta;
+      if (debugFastProd){
+        pay = 0;
+        q.paid = costTotal;
+      } else {
+        state.player.money -= pay;
+        q.paid = (q.paid||0) + pay;
+      }
 
       q.t += delta;
 
@@ -7928,6 +7950,14 @@ if (u.order.type==="move"){
         const tx = u.order.x, ty = u.order.y;
         const d2 = dist2(u.x,u.y, tx, ty);
         const dEff = Math.sqrt(d2);
+        // Lite tank: rotate turret toward ground target too (Ctrl+Click force-fire)
+        let _ffAimDir = null;
+        if (u.kind==="tank" && !u.inTransport){
+          _ffAimDir = worldVecToDir8(tx - u.x, ty - u.y);
+          _tankUpdateTurret(u, _ffAimDir, dt);
+          u.fireDir = _ffAimDir;
+          u.faceDir = _ffAimDir;
+        }
         if (u.repathCd<=0){
           const gTx=(tx/TILE)|0, gTy=(ty/TILE)|0;
           if (u.lastGoalTx!==gTx || u.lastGoalTy!==gTy){
@@ -7939,7 +7969,7 @@ if (u.order.type==="move"){
           followPath(u,dt);
         } else {
           u.path=null;
-          if (u.shootCd<=0){
+          if (u.shootCd<=0 && (u.kind!=="tank" || (_ffAimDir!=null && u.turretDir===_ffAimDir && !u.turretTurn))){
             u.shootCd=u.rof;
             u.holdPosT = 0.10;
             u.fireHoldT = Math.max(u.fireHoldT||0, 0.28);
@@ -8135,6 +8165,73 @@ if (needMove){
       }
 
     }
+
+    // Tank post-FX: turret idle tracking + dust trail + damage smoke
+    for (const u of units){
+      if (!u.alive || u.inTransport) continue;
+
+      // Dust trail for vehicles (tank/ifv/etc) while moving
+      if (u.cls==="veh"){
+        const vx = u.vx || 0, vy = u.vy || 0;
+        const spd = Math.hypot(vx, vy);
+        if (spd > 20){
+          u._dustAcc = (u._dustAcc || 0) + dt;
+          const interval = 0.085;
+          if (u._dustAcc >= interval){
+            u._dustAcc = 0;
+            const backx = -vx / spd, backy = -vy / spd;
+            const wx = u.x + backx * (TILE * 0.10);
+            const wy = u.y + backy * (TILE * 0.10);
+            spawnDustPuff(wx, wy, vx, vy, 1.0);
+          }
+        } else {
+          u._dustAcc = 0;
+        }
+
+        // Damage smoke when HP is in yellow/red (spawned at the time, does NOT follow unit)
+        const hpPct = (u.hpMax>0) ? (u.hp / u.hpMax) : 1;
+        if (hpPct < 0.50 && u.kind !== "harvester"){
+          u._dmgSmokeAcc = (u._dmgSmokeAcc || 0) + dt;
+          const interval = (hpPct < 0.20) ? 0.08 : 0.14;
+          if (u._dmgSmokeAcc >= interval){
+            u._dmgSmokeAcc = 0;
+            // Rough turret/top origin (good enough visually, and stays world-fixed)
+            const wx = u.x;
+            const wy = u.y - (TILE * 0.06);
+            spawnDmgSmokePuff(wx, wy, 1.0);
+          }
+        } else {
+          u._dmgSmokeAcc = 0;
+        }
+      }
+
+      // Tank turret auto facing:
+      // - If no valid unit target in range, turret looks where the hull is moving.
+      // - If an enemy unit is in range, turret tracks that unit.
+      // - Buildings are ignored for auto-tracking.
+      if (u.kind === "tank"){
+        const ot = u.order ? u.order.type : null;
+        if (ot !== "attack" && ot !== "forcefire"){
+          let desired = null;
+
+          const tgt = findNearestEnemyFor(u.team, u.x, u.y, u.range, false, true);
+          if (tgt && tgt.alive && tgt.kind !== "harvester"){
+            desired = worldVecToDir8(tgt.x - u.x, tgt.y - u.y);
+          } else {
+            const vx = u.vx || 0, vy = u.vy || 0;
+            const spd = Math.hypot(vx, vy);
+            if (spd > 20) desired = worldVecToDir8(vx, vy);
+            else if (typeof u.bodyDir === "number") desired = u.bodyDir;
+            else if (typeof u.dir === "number") desired = u.dir;
+          }
+
+          if (desired != null){
+            _tankUpdateTurret(u, desired, dt);
+          }
+        }
+      }
+    }
+
     // Resolve overlaps after movement so units don't clump forever.
     resolveUnitOverlaps();
   }
@@ -9944,35 +10041,35 @@ function drawFootprintTiles(tx, ty, tw, th, mask, okFill, badFill, okStroke, bad
   }
 
   function drawHpBlocksAtScreen(px, py, blocks, ratio){
-    // Draw blocky HP bar like RA2 (always visible). Color depends on HP%.
+    // Draw C&C-ish small rectangular blocks (filled count = ceil(blocks*ratio))
     const z = (typeof cam !== "undefined" && cam && typeof cam.zoom==="number") ? cam.zoom : 1;
+    const w = 10 * z;
+    const h = 8 * z;
+    const gap = 3 * z;
 
-    const hpPct = clamp(ratio ?? 1, 0, 1);
-    let fillCol = "#34d058"; // green
-    if (hpPct < 0.20) fillCol = "#ff3b30"; // red
-    else if (hpPct < 0.50) fillCol = "#ffd60a"; // yellow
+    const filled = Math.max(0, Math.min(blocks, Math.round(blocks * ratio)));
+    const totalW = blocks*w + (blocks-1)*gap;
 
-    const w = (blocks * 6) * z;
-    const h = 6 * z;
-    const gap = 1 * z;
-    const bw = 5 * z;
-    const bh = 5 * z;
+    const x0 = px - totalW/2;
+    const y0 = py;
 
-    // Soft black base/backdrop
     ctx.save();
-    ctx.globalAlpha = 0.9;
-    ctx.fillStyle = "rgba(0,0,0,0.55)";
-    ctx.fillRect(px - w/2 - 1*z, py - h/2 - 1*z, w + 2*z, h + 2*z);
-    ctx.restore();
-
-    // Filled blocks
-    const filled = Math.max(0, Math.min(blocks, Math.ceil(blocks * hpPct)));
+    // Background blocks
+    ctx.fillStyle = "rgba(0,0,0,0.45)";
     for (let i=0;i<blocks;i++){
-      const x = px - w/2 + i * (bw + gap);
-      const y = py - h/2 + 0.5*z;
-      ctx.fillStyle = (i < filled) ? fillCol : "rgba(20,20,20,0.55)";
-      ctx.fillRect(x, y, bw, bh);
+      const x = x0 + i*(w+gap);
+      ctx.fillRect(x, y0, w, h);
     }
+    // Filled (green)
+    const fillColor = (ratio < 0.20) ? "rgba(255,70,60,0.95)"
+                    : (ratio < 0.50) ? "rgba(255,220,70,0.95)"
+                    : "rgba(40,255,90,0.95)";
+    ctx.fillStyle = fillColor;
+    for (let i=0;i<filled;i++){
+      const x = x0 + i*(w+gap);
+      ctx.fillRect(x, y0, w, h);
+    }
+    ctx.restore();
   }
 
   function drawUnitHpBlocks(ent, p){
@@ -10180,7 +10277,7 @@ function updateInfDeathFx(){
     const filled = clamp(Math.round(segN * ratio), 0, segN);
     const missing = segN - filled;
 
-    const fillColor = (ratio < 0.30) ? "rgba(255,70,60,0.98)"
+    const fillColor = (ratio < 0.20) ? "rgba(255,70,60,0.98)"
                     : (ratio < 0.50) ? "rgba(255,220,70,0.98)"
                     : "rgba(110,255,90,0.98)";
 
@@ -10517,7 +10614,8 @@ function drawPathFx(){
     // Building production: two independent lanes (main/def) with reservation FIFO.
     // Each lane: can reserve many -> one active build -> READY (await placement) -> then next.
     const pf = getPowerFactor(TEAM.PLAYER);
-    const speed = pf * GAME_SPEED * BUILD_PROD_MULT;
+    const speedBase = pf * GAME_SPEED * BUILD_PROD_MULT;
+    const debugFastBuild = !!(state.debug && state.debug.fastProd); // player-only building fast-complete
 
     function startNextIfIdle(lane){
       if (!lane) return;
@@ -10539,6 +10637,11 @@ function drawPathFx(){
       if (lane.ready) return;
 
       const q = lane.queue;
+      const debugFast = debugFastBuild; // buildings are player-only lanes
+      if (debugFast){
+        // Debug fast build: finish this build in ~1s real-time, ignore money/power throttles.
+        q.paused = false; q.autoPaused = false; q._autoToast = false;
+      }
       // Auto-resume if we were paused only because of insufficient money.
       if (q.paused){
         if (q.autoPaused){
@@ -10557,11 +10660,12 @@ function drawPathFx(){
           return;
         }
       }
+      const speed = debugFast ? (q.tNeed || 1) : speedBase;
       const want = dt * speed;
       const costTotal = q.cost || 0;
       const tNeed = q.tNeed || 0.001;
       const payRate = (costTotal<=0) ? 0 : (costTotal / tNeed);
-      const canByMoney = (payRate<=0) ? want : (state.player.money / payRate);
+      const canByMoney = debugFast ? want : ((payRate<=0) ? want : (state.player.money / payRate));
       const delta = Math.min(want, canByMoney);
       // Out of money => auto-pause (do NOT confuse 'no progress' with 'no money').
       // If want<=0, we are simply not progressing this frame (pause, power, etc). Don't force a money-wait state.
@@ -10573,7 +10677,7 @@ function drawPathFx(){
         if (tNeed <= 0){
           return;
         }
-        if (payRate>0 && (teamWallet.money / payRate) <= 0){
+        if (payRate>0 && (state.player.money / payRate) <= 0){
           q.paused = true;
           q.autoPaused = true;
           if (!q._autoToast){ q._autoToast=true; toast("대기"); }
@@ -10581,9 +10685,14 @@ function drawPathFx(){
         return;
       }
 
-      const pay = payRate * delta;
-      state.player.money -= pay;
-      q.paid = (q.paid||0) + pay;
+      let pay = payRate * delta;
+      if (debugFast){
+        pay = 0;
+        q.paid = costTotal;
+      } else {
+        state.player.money -= pay;
+        q.paid = (q.paid||0) + pay;
+      }
       q.t += delta;
 
       if (q.t >= tNeed - 1e-6){
@@ -11415,10 +11524,12 @@ ctx.fill();
     drawSmokeWaves(ctx);
 
     // HQ sprite explosion (exp1) above the ground smoke ring
+    drawDustPuffs(ctx);
     drawExp1Fxs(ctx);
 
     // Smoke plume (puffs) can sit above the explosion a bit
     drawSmokePuffs(ctx);
+    drawDmgSmokePuffs(ctx);
 // Building fire FX (critical HP)
     for (const f of fires){
       const p = worldToScreen(f.x, f.y);
@@ -11910,6 +12021,10 @@ startBtn.addEventListener("click", () => {
     state.colors.enemy  = eColorInput.value;
 
     fogEnabled = !(fogOffChk && fogOffChk.checked);
+
+    // Debug: player-only instant production/build completion (1s)
+    state.debug = state.debug || {};
+    state.debug.fastProd = !!(fastProdChk && fastProdChk.checked);
 
     START_MONEY = startMoney;
     state.player.money = START_MONEY;
@@ -12429,48 +12544,6 @@ function validateWorld(){
   _assert(Array.isArray(occAll) && occAll.length === W*H, "occAll size mismatch");
   _assert(Array.isArray(occBld) && occBld.length === W*H, "occBld size mismatch");
 }
-
-  function postUnitsFx(dt){
-    for (let i=0;i<units.length;i++){
-      const u = units[i];
-      if (!u || !u.alive) continue;
-
-      // Tank: turret auto-aim rules + dust trails
-      if (u.kind === "tank"){
-        _tankAutoTurret(u, dt);
-
-        const mv = Math.hypot(u.vx||0, u.vy||0);
-        if (mv > 6){
-          u._dustAcc = (u._dustAcc || 0) + dt;
-          if (u._dustAcc >= 0.085){
-            u._dustAcc = 0;
-            spawnDustPuff(u.x, u.y, (u._moveDir!=null?u._moveDir:(u.bodyDir||1)));
-          }
-        } else {
-          u._dustAcc = 0;
-        }
-      }
-
-      // Vehicle damage smoke (HP < 50%): smoke from the turret/muzzle area.
-      if (u.cls === "veh" || u.kind === "tank" || u.kind === "ifv" || u.kind === "harvester"){
-        const hpPct = (u.hpMax>0) ? (u.hp / u.hpMax) : 1;
-        if (hpPct < 0.50){
-          u._dmgSmokeAcc = (u._dmgSmokeAcc || 0) + dt;
-          if (u._dmgSmokeAcc >= 0.24){
-            u._dmgSmokeAcc = 0;
-            const d = (u.kind==="tank" ? (u.turretDir || u.bodyDir || 1) : (u.dir || u.bodyDir || 1));
-            const v = _dir8UnitVec(d);
-            const ox = v.x * 16;
-            const oy = v.y * 16;
-            spawnDamageSmokePuff(u.x + ox, u.y + oy);
-          }
-        } else {
-          u._dmgSmokeAcc = 0;
-        }
-      }
-    }
-  }
-
 
 function sanityCheck(){
     const must = [
