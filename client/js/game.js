@@ -1000,6 +1000,10 @@ function getBaseBuildTime(kind){
   _updateTuneOverlay();
 
   // === Team palette swap cache (for building sprites) ===
+  // Team-color brightness tuning (higher = brighter team stripes).
+  const TEAM_ACCENT_LUMA_GAIN = 1.35; // try 1.15~1.60
+  const TEAM_ACCENT_LUMA_BIAS = 0.10; // try 0.00~0.20
+  const TEAM_ACCENT_LUMA_GAMMA = 0.80; // <1 brightens midtones; 1 = linear
   // Recolors only "neon magenta" accent pixels into team color.
   const _teamSpriteCache = new Map(); // key -> canvas
 
@@ -1008,15 +1012,16 @@ function getBaseBuildTime(kind){
 
     // Wider heuristic: "neon magenta / purple" highlight pixels.
     // We want high R & B (or high B & R) and G noticeably lower.
-    const rbHi = (r >= 110 && b >= 110);
+    const rbHi = (r >= 85 && b >= 85);
     if (!rbHi) return false;
 
     // G must be relatively low compared to R/B (prevents catching greys)
-    if (g > 180) return false;
-    if (g > Math.min(r, b) - 18) return false;
+    if (g > 220) return false;
+    // Allow a wider magenta radius (less strict than before)
+    if (g > Math.min(r, b) - 6) return false;
 
     // Don't be too strict about R-B balance, but avoid pure red/blue
-    if (Math.abs(r - b) > 170) return false;
+    if (Math.abs(r - b) > 200) return false;
 
     return true;
   }
@@ -1060,9 +1065,11 @@ function getBaseBuildTime(kind){
 
         // brightness keeps shading; luma is stable for highlights
         const l = (0.2126*r + 0.7152*g + 0.0722*b) / 255;
-        d[i]   = Math.max(0, Math.min(255, tr * l));
-        d[i+1] = Math.max(0, Math.min(255, tg * l));
-        d[i+2] = Math.max(0, Math.min(255, tb * l));
+        // brighten team accents so they pop like unit stripes
+        const l2 = Math.min(1, Math.pow(l, TEAM_ACCENT_LUMA_GAMMA) * TEAM_ACCENT_LUMA_GAIN + TEAM_ACCENT_LUMA_BIAS);
+        d[i]   = Math.max(0, Math.min(255, tr * l2));
+        d[i+1] = Math.max(0, Math.min(255, tg * l2));
+        d[i+2] = Math.max(0, Math.min(255, tb * l2));
         // alpha unchanged
       }
 
