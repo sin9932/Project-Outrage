@@ -863,6 +863,7 @@ function getBaseBuildTime(kind){
     const footprintW = (ent.tw + ent.th) * ISO_X;
 
     // Use the cropped bbox as our "source size" to fit-to-footprint scaling.
+    const tune = SPRITE_TUNE[ent.kind] || {};
     const crop = cfg.crop || { x: 0, y: 0, w: img.naturalWidth, h: img.naturalHeight };
     const scale = (footprintW / (crop.w || img.naturalWidth)) * (tune.scaleMul ?? 1.0);
 
@@ -870,7 +871,7 @@ function getBaseBuildTime(kind){
     const dh = crop.h * scale * z;
 
     // Anchor point (matches your placement box math)
-    const tune = SPRITE_TUNE[ent.kind] || {};
+
     const anchorMode = tune.anchor || "south";
 
     let anchorX, anchorY;
