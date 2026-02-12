@@ -4746,17 +4746,14 @@ function spawnTurretMGTracers(shooter, target){
 //      - a burst of dusty smoke blobs + lingering smoke puffs.
 //      (kept deterministic-ish and cheap)
 try{
-  const burstN = Math.floor(24 * _smkS);
-  for (let i=0;i<burstN;i++){
-    const ang = Math.random()*Math.PI*2;
-    const spd = (TILE*6) * (0.35 + Math.random()*0.65);
-    const vx = Math.cos(ang) * spd;
-    const vy = Math.sin(ang) * spd;
-    spawnDustPuff(b.x, b.y, vx, vy, 1.6 * _smkS);
-  }
-  const puffN = Math.floor(16 * _smkS);
+  // Restored: "noisy gradient" smoke blob burst (no circular shockwave/ring).
+  const puffN = Math.floor(26 * _smkS);
   for (let i=0;i<puffN;i++){
-    spawnSmokePuff(b.x, b.y, 1.25 * _smkS);
+    spawnSmokePuff(b.x, b.y, 1.35 * _smkS);
+  }
+  const hazeN = Math.floor(6 * _smkS);
+  for (let i=0;i<hazeN;i++){
+    spawnSmokeHaze(b.x, b.y, 1.10 * _smkS);
   }
 }catch(_e){}
     // 2.5) HQ special: play large exp1 sprite explosion + world camera shake (UI not affected)
