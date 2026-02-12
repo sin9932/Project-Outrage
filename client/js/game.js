@@ -1,4 +1,11 @@
 (function(){
+
+  // helpers (safe in all environments)
+  const now = (typeof performance!=='undefined' && performance.now) ? () => performance.now() : () => Date.now();
+  const rand = (a,b) => {
+    if (b === undefined) { b = a; a = 0; }
+    return a + Math.random() * (b - a);
+  };
   // Debug/validation mode: add ?debug=1 to URL
   const DEV_VALIDATE = /(?:\?|&)debug=1(?:&|$)/.test(location.search);
   const DEV_VALIDATE_THROW = false; // if true, throws on first invariant failure
@@ -329,7 +336,7 @@ function fitMini() {
   const clamp = (v,a,b)=>Math.max(a,Math.min(b,v));
   const dist2 = (ax,ay,bx,by)=>{ const dx=ax-bx, dy=ay-by; return dx*dx+dy*dy; };
   const rnd = (a,b)=> a + Math.random()*(b-a);
-  const rand = Math.random; // alias for legacy calls (rand())
+    const rand01 = Math.random; // legacy alias
 
 
 
