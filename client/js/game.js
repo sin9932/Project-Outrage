@@ -5102,69 +5102,115 @@ function addBloodBurst(wx, wy, size=1){
 
 
 function drawDustPuffs(ctx){
-    const _now = (typeof performance!=="undefined" && performance && typeof performance.now==="function")
-      ? ()=>performance.now()
-      : ()=>Date.now();
-    const tNow = _now();
-
-    for (let i=dustPuffs.length-1;i>=0;i--){
-      const p = dustPuffs[i];
-      const life = Number.isFinite(p.life) && p.life>0 ? p.life : 300;
-      const t = (tNow - (p.t0||tNow)) / life;
-
-      if (!Number.isFinite(t) || t>=1){
-        dustPuffs.splice(i,1);
-        continue;
+  if(!ctx) return;
+  const _now = (typeof performance!=="undefined" && performance.now)?performance.now():Date.now();
+  // Convert a color-ish value to rgba with custom alpha (handles string/array/object)
+  function rgbaFrom(col, a){
+    a = Math.max(0, Math.min(1, (isFinite(a)?a:0)));
+    let r=180,g=170,b=150;
+    if(typeof col === "string"){
+      const s = col.trim();
+      // rgba()/rgb()
+      let m = s.match(/^rgba?\(\s*([0-9.]+)\s*,\s*([0-9.]+)\s*,\s*([0-9.]+)(?:\s*,\s*([0-9.]+))?\s*\)$/i);
+      if(m){
+        r = +m[1]; g = +m[2]; b = +m[3];
+        // If original includes alpha, multiply
+        if(m[4]!=null){
+          const oa = +m[4];
+          if(isFinite(oa)) a *= Math.max(0, Math.min(1, oa));
+        }
+      } else {
+        // hex #rgb/#rrggbb
+        m = s.match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i);
+        if(m){
+          const h = m[1];
+          if(h.length===3){
+            r = parseInt(h[0]+h[0],16);
+            g = parseInt(h[1]+h[1],16);
+            b = parseInt(h[2]+h[2],16);
+          }else{
+            r = parseInt(h.slice(0,2),16);
+            g = parseInt(h.slice(2,4),16);
+            b = parseInt(h.slice(4,6),16);
+          }
+        }
       }
+    } else if(Array.isArray(col) && col.length>=3){
+      r = +col[0]; g = +col[1]; b = +col[2];
+    } else if(col && typeof col === "object"){
+      if("r" in col) r = +col.r;
+      if("g" in col) g = +col.g;
+      if("b" in col) b = +col.b;
+    }
+    r = Math.max(0, Math.min(255, isFinite(r)?r:180));
+    g = Math.max(0, Math.min(255, isFinite(g)?g:170));
+    b = Math.max(0, Math.min(255, isFinite(b)?b:150));
+    return `rgba(${r|0},${g|0},${b|0},${a})`;
+  }
 
-      const tt = Math.max(0, Math.min(1, t));
-      const ease = tt*(2-tt); // easeOutQuad
+  for(let i=dustPuffs.length-1;i>=0;i--){
+    const p = dustPuffs[i];
+    const age = _now - (p.t0||_now);
+    const dur = (p.dur||420);
+    const t = dur>0 ? (age/dur) : 1;
+    if(t>=1 || !isFinite(t)){
+      dustPuffs.splice(i,1);
+      continue;
+    }
 
-      let r = (Number.isFinite(p.r0)?p.r0:8) + ease*(Number.isFinite(p.grow)?p.grow:18);
-      if (!Number.isFinite(r)) r = 12;
-      r = Math.max(0.25, r);
+    const s = (p.s!=null)?p.s:1;
+    const x = (p.x!=null)?p.x:0;
+    const y = (p.y!=null)?p.y:0;
+    const baseR = (p.r!=null)?p.r:10;
+    const rr = baseR * s;
 
-      const a0 = Number.isFinite(p.a0)?p.a0:0.35;
-      const a1 = Number.isFinite(p.a1)?p.a1:0.0;
-      const alpha = a0 + (a1-a0)*tt;
+    if(!isFinite(x) || !isFinite(y) || !isFinite(rr) || rr<=0){
+      dustPuffs.splice(i,1);
+      continue;
+    }
 
-      const seed = Number.isFinite(p.seed)?p.seed:0;
-      const drift = Number.isFinite(p.drift)?p.drift:10;
-      const jx = (hash1(seed+tt*13.1)-0.5) * drift * (0.6+tt);
-      const jy = (hash1(seed+tt*19.7)-0.5) * drift * (0.6+tt);
+    const grow = 1 + t*0.9;
+    const a = (p.a!=null? p.a:1) * (1-t) * 0.65;
 
-      const x = (Number.isFinite(p.x)?p.x:0) + jx;
-      const y = (Number.isFinite(p.y)?p.y:0) + jy;
+    // Soft, noisy-ish dust like building smoke: layered gradients with small specks
+    ctx.save();
+    ctx.globalCompositeOperation = "source-over";
+    ctx.globalAlpha = 1;
 
-      // Soft noisy radial puff, similar to building-destruction smoke vibe
-      const z = 1 + (hash1(seed+tt*7.3)-0.5)*0.25;
-      const rr = Math.max(0.25, r*z);
-      const ox = (hash1(seed+tt*3.7)-0.5) * r*0.20;
-      const oy = (hash1(seed+tt*5.9)-0.5) * r*0.20;
-
-      const gx = x + ox;
-      const gy = y + oy;
-      if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(rr) || !Number.isFinite(ox) || !Number.isFinite(oy) || !Number.isFinite(gx) || !Number.isFinite(gy)) {
-        dustPuffs.splice(i,1);
-        continue;
-      }
-
-      let g;
-      try {
-        g = ctx.createRadialGradient(gx, gy, rr*0.10, x, y, rr);
-      } catch (e) {
-        dustPuffs.splice(i,1);
-        continue;
-      }
-      const c = p.color || "rgba(180,170,150,1)";
-      g.addColorStop(0, c.replace(/rgba\(([^)]+)\)/, (m,inner)=>`rgba(${inner.split(',').slice(0,3).join(',')},${Math.max(0,alpha)})`));
-      g.addColorStop(1, c.replace(/rgba\(([^)]+)\)/, (m,inner)=>`rgba(${inner.split(',').slice(0,3).join(',')},0)`));
-      ctx.fillStyle = g;
+    // Main plume
+    {
+      const r1 = rr*grow;
+      const g1 = ctx.createRadialGradient(x, y, 0, x, y, r1);
+      g1.addColorStop(0, rgbaFrom(p.color, a));
+      g1.addColorStop(0.55, rgbaFrom(p.color, a*0.35));
+      g1.addColorStop(1, rgbaFrom(p.color, 0));
+      ctx.fillStyle = g1;
       ctx.beginPath();
-      ctx.arc(x, y, rr, 0, Math.PI*2);
+      ctx.arc(x, y, r1, 0, Math.PI*2);
       ctx.fill();
     }
+
+    // Add a few darker specks to break "perfect circle"
+    const specks = (p.specks!=null)?p.specks:3;
+    for(let k=0;k<specks;k++){
+      const jx = (Math.random()-0.5)*rr*0.9;
+      const jy = (Math.random()-0.5)*rr*0.9;
+      const r2 = rr*(0.18 + Math.random()*0.22);
+      const ax = x + jx, ay = y + jy;
+      if(!isFinite(ax) || !isFinite(ay) || !isFinite(r2) || r2<=0) continue;
+      const g2 = ctx.createRadialGradient(ax, ay, 0, ax, ay, r2);
+      g2.addColorStop(0, rgbaFrom(p.dark||p.color, a*0.35));
+      g2.addColorStop(1, rgbaFrom(p.dark||p.color, 0));
+      ctx.fillStyle = g2;
+      ctx.beginPath();
+      ctx.arc(ax, ay, r2, 0, Math.PI*2);
+      ctx.fill();
+    }
+
+    ctx.restore();
   }
+}
+
 
 function drawDmgSmokePuffs(ctx){
   if (!dmgSmokePuffs.length) return;
