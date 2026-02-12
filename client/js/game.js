@@ -1417,6 +1417,16 @@ function getBaseBuildTime(kind){
     muzzleMov:null
   };
 
+  // Harvester (no turret) uses same 8-dir + 32-frame turning law as lite tank hull.
+  const HARVESTER_BASE = "asset/sprite/unit/tank/harvester/";
+  const HARVESTER_BASE_SCALE = 0.13; // match lite tank baseline; tweak via Units.UNIT.harvester.spriteScale
+  const HARVESTER = {
+    ok:false,
+    idle:null,
+    mov:null
+  };
+
+
   // Force turret frames to align to the same ground pivot as the hull.
   // TexturePacker anchors differ between hull and turret; using a shared anchor prevents the turret from sitting on the ground.
   const LITE_TANK_TURRET_ANCHOR = { x: 0.5, y: 0.555 };
@@ -1552,11 +1562,12 @@ function getBaseBuildTime(kind){
   }
 
   function _tankBodyFrameName(u){
+    const prefix = (u.kind==="harvester") ? "hav" : "lightank";
     if (u.bodyTurn && u.bodyTurn.frameNum){
-      return "lightank_mov" + u.bodyTurn.frameNum + ".png";
+      return prefix + "_mov" + u.bodyTurn.frameNum + ".png";
     }
     const idx = _dirToIdleIdx[u.bodyDir ?? u.dir ?? 6] || 1;
-    return "lightank_idle" + idx + ".png";
+    return prefix + "_idle" + idx + ".png";
   }
 
   function _tankMuzzleFrameName(u){
@@ -1622,6 +1633,25 @@ function getBaseBuildTime(kind){
     return true;
   }
 
+
+  function drawHarvesterSprite(u, p){
+    if (!HARVESTER.ok) return false;
+    const getSpec = (window.G && G.Units && typeof G.Units.getSpec==="function") ? G.Units.getSpec.bind(G.Units) : null;
+    const specScale = getSpec ? (getSpec("harvester")?.spriteScale ?? getSpec("tank")?.spriteScale ?? 1) : 1;
+    const s = (cam.zoom || 1) * HARVESTER_BASE_SCALE * specScale;
+
+    const bodyName = _tankBodyFrameName(u);
+    const atlas = (bodyName.indexOf("_mov")>=0) ? HARVESTER.mov : HARVESTER.idle;
+
+    const ok = _drawTPFrame(atlas, bodyName, p.x, p.y, s, u.team);
+    if (!ok){
+      // atlas mismatch fallback
+      _drawTPFrame(HARVESTER.mov, bodyName, p.x, p.y, s, u.team);
+      _drawTPFrame(HARVESTER.idle, bodyName, p.x, p.y, s, u.team);
+    }
+    return true;
+  }
+
   // Kick off lite tank atlas loads early (non-blocking)
   (async()=>{
     try{
@@ -1641,7 +1671,24 @@ function getBaseBuildTime(kind){
       console.warn("[lite_tank] atlas load failed:", e);
       LITE_TANK.ok = false;
     }
+  })()
+
+  // Kick off harvester atlas loads early (non-blocking)
+  (async()=>{
+    try{
+      const [idle, mov] = await Promise.all([
+        _loadTPAtlasFromUrl(HARVESTER_BASE + "harvester_idle.json", HARVESTER_BASE),
+        _loadTPAtlasFromUrl(HARVESTER_BASE + "harvester_mov.json", HARVESTER_BASE),
+      ]);
+      HARVESTER.idle = idle;
+      HARVESTER.mov = mov;
+      HARVESTER.ok = true;
+      console.log("[sprite] harvester atlases loaded");
+    }catch(err){
+      console.warn("[sprite] harvester atlas load failed", err);
+    }
   })();
+;
 
 
 
@@ -2453,6 +2500,9 @@ function addUnit(team, kind, x, y){
     if (kind === "tank"){
       u.bodyDir = 6;
       u.turretDir = 6;
+    } else if (kind === "harvester"){
+      u.bodyDir = 6;
+      u.turretDir = null;
     }
     units.push(u);
     return u;
@@ -3488,7 +3538,7 @@ function followPath(u, dt){
     if ((u.fireHoldT||0) > 0 && u.fireDir!=null){
       // Firing facing: turret/aim direction
       u.faceDir = u.fireDir;
-      if (u.kind !== "tank"){
+      if (u.kind !== "tank" && u.kind !== "harvester"){
         u.dir = u.fireDir;
       } else {
         if (u.bodyDir==null) u.bodyDir = (u.dir!=null ? u.dir : 6);
@@ -3497,7 +3547,7 @@ function followPath(u, dt){
     } else if (movingDir){
       const fd = worldVecToDir8(ax, ay);
 
-      if (u.kind === "tank"){
+      if (u.kind === "tank" || u.kind === "harvester"){
         // RA2-style: hull turns in place before actually translating.
         if (u.bodyDir == null) u.bodyDir = (u.dir!=null ? u.dir : 6);
 
@@ -5489,7 +5539,7 @@ function drawBlood(ctx){
     spawnTrace(mx, my, mx + nx*26, my + ny*26, shooter.team, { kind:"mg", life: 0.06, delay: 0 });
 
     // ballistic shell (fast)
-    spawnBullet(shooter.team, mx, my, target.x, target.y, shooter.dmg, shooter.id, { kind:\"shell\", dur: 0.12, h: 18, tid: target.id, allowFriendly: !!(shooter.order && shooter.order.allowFriendly) });
+    spawnBullet(shooter.team, mx, my, target.x, target.y, shooter.dmg, shooter.id, { kind:"shell", dur: 0.12, h: 18, tid: target.id, allowFriendly: !!(shooter.order && shooter.order.allowFriendly) });
   }
 
   function fireIFVMissiles(u, t){
@@ -11254,6 +11304,8 @@ let rX = ent.x, rY = ent.y;
           let drewSprite = false;
           if (ent.kind==="tank"){
             drewSprite = drawLiteTankSprite(ent, p);
+          } else if (ent.kind==="harvester"){
+            drewSprite = drawHarvesterSprite(ent, p);
           }
 
           if (!drewSprite){

@@ -1,0 +1,820 @@
+{
+	"textures": [
+		{
+			"image": "harvester_mov.png",
+			"format": "RGBA8888",
+			"size": {
+				"w": 990,
+				"h": 2692
+			},
+			"scale": 1,
+			"frames": [
+				{
+					"filename": "hav_mov6.png",
+					"rotated": false,
+					"trimmed": false,
+					"sourceSize": {
+						"w": 342,
+						"h": 267
+					},
+					"spriteSourceSize": {
+						"x": 0,
+						"y": 0,
+						"w": 342,
+						"h": 267
+					},
+					"frame": {
+						"x": 1,
+						"y": 1,
+						"w": 342,
+						"h": 267
+					},
+					"anchor": {
+						"x": 0.5,
+						"y": 0.55
+					}
+				},
+				{
+					"filename": "hav_mov27.png",
+					"rotated": false,
+					"trimmed": false,
+					"sourceSize": {
+						"w": 342,
+						"h": 267
+					},
+					"spriteSourceSize": {
+						"x": 0,
+						"y": 0,
+						"w": 342,
+						"h": 267
+					},
+					"frame": {
+						"x": 345,
+						"y": 1,
+						"w": 342,
+						"h": 267
+					},
+					"anchor": {
+						"x": 0.5,
+						"y": 0.55
+					}
+				},
+				{
+					"filename": "hav_mov13.png",
+					"rotated": false,
+					"trimmed": false,
+					"sourceSize": {
+						"w": 294,
+						"h": 254
+					},
+					"spriteSourceSize": {
+						"x": 0,
+						"y": 0,
+						"w": 294,
+						"h": 254
+					},
+					"frame": {
+						"x": 689,
+						"y": 1,
+						"w": 294,
+						"h": 254
+					},
+					"anchor": {
+						"x": 0.5,
+						"y": 0.55
+					}
+				},
+				{
+					"filename": "hav_mov20.png",
+					"rotated": false,
+					"trimmed": false,
+					"sourceSize": {
+						"w": 294,
+						"h": 254
+					},
+					"spriteSourceSize": {
+						"x": 0,
+						"y": 0,
+						"w": 294,
+						"h": 254
+					},
+					"frame": {
+						"x": 689,
+						"y": 257,
+						"w": 294,
+						"h": 254
+					},
+					"anchor": {
+						"x": 0.5,
+						"y": 0.55
+					}
+				},
+				{
+					"filename": "hav_mov5.png",
+					"rotated": false,
+					"trimmed": false,
+					"sourceSize": {
+						"w": 336,
+						"h": 288
+					},
+					"spriteSourceSize": {
+						"x": 0,
+						"y": 0,
+						"w": 336,
+						"h": 288
+					},
+					"frame": {
+						"x": 1,
+						"y": 270,
+						"w": 336,
+						"h": 288
+					},
+					"anchor": {
+						"x": 0.5,
+						"y": 0.55
+					}
+				},
+				{
+					"filename": "hav_mov28.png",
+					"rotated": false,
+					"trimmed": false,
+					"sourceSize": {
+						"w": 336,
+						"h": 288
+					},
+					"spriteSourceSize": {
+						"x": 0,
+						"y": 0,
+						"w": 336,
+						"h": 288
+					},
+					"frame": {
+						"x": 339,
+						"y": 270,
+						"w": 336,
+						"h": 288
+					},
+					"anchor": {
+						"x": 0.5,
+						"y": 0.55
+					}
+				},
+				{
+					"filename": "hav_mov4.png",
+					"rotated": false,
+					"trimmed": false,
+					"sourceSize": {
+						"w": 293,
+						"h": 313
+					},
+					"spriteSourceSize": {
+						"x": 0,
+						"y": 0,
+						"w": 293,
+						"h": 313
+					},
+					"frame": {
+						"x": 677,
+						"y": 513,
+						"w": 293,
+						"h": 313
+					},
+					"anchor": {
+						"x": 0.5,
+						"y": 0.55
+					}
+				},
+				{
+					"filename": "hav_mov11.png",
+					"rotated": false,
+					"trimmed": false,
+					"sourceSize": {
+						"w": 336,
+						"h": 255
+					},
+					"spriteSourceSize": {
+						"x": 0,
+						"y": 0,
+						"w": 336,
+						"h": 255
+					},
+					"frame": {
+						"x": 1,
+						"y": 560,
+						"w": 336,
+						"h": 255
+					},
+					"anchor": {
+						"x": 0.5,
+						"y": 0.55
+					}
+				},
+				{
+					"filename": "hav_mov22.png",
+					"rotated": false,
+					"trimmed": false,
+					"sourceSize": {
+						"w": 336,
+						"h": 255
+					},
+					"spriteSourceSize": {
+						"x": 0,
+						"y": 0,
+						"w": 336,
+						"h": 255
+					},
+					"frame": {
+						"x": 339,
+						"y": 560,
+						"w": 336,
+						"h": 255
+					},
+					"anchor": {
+						"x": 0.5,
+						"y": 0.55
+					}
+				},
+				{
+					"filename": "hav_mov23.png",
+					"rotated": false,
+					"trimmed": false,
+					"sourceSize": {
+						"w": 336,
+						"h": 246
+					},
+					"spriteSourceSize": {
+						"x": 0,
+						"y": 0,
+						"w": 336,
+						"h": 246
+					},
+					"frame": {
+						"x": 1,
+						"y": 817,
+						"w": 336,
+						"h": 246
+					},
+					"anchor": {
+						"x": 0.5,
+						"y": 0.55
+					}
+				},
+				{
+					"filename": "hav_mov10.png",
+					"rotated": false,
+					"trimmed": false,
+					"sourceSize": {
+						"w": 336,
+						"h": 245
+					},
+					"spriteSourceSize": {
+						"x": 0,
+						"y": 0,
+						"w": 336,
+						"h": 245
+					},
+					"frame": {
+						"x": 339,
+						"y": 817,
+						"w": 336,
+						"h": 245
+					},
+					"anchor": {
+						"x": 0.5,
+						"y": 0.55
+					}
+				},
+				{
+					"filename": "hav_mov29.png",
+					"rotated": false,
+					"trimmed": false,
+					"sourceSize": {
+						"w": 293,
+						"h": 313
+					},
+					"spriteSourceSize": {
+						"x": 0,
+						"y": 0,
+						"w": 293,
+						"h": 313
+					},
+					"frame": {
+						"x": 677,
+						"y": 828,
+						"w": 293,
+						"h": 313
+					},
+					"anchor": {
+						"x": 0.5,
+						"y": 0.55
+					}
+				},
+				{
+					"filename": "hav_mov7.png",
+					"rotated": false,
+					"trimmed": false,
+					"sourceSize": {
+						"w": 334,
+						"h": 253
+					},
+					"spriteSourceSize": {
+						"x": 0,
+						"y": 0,
+						"w": 334,
+						"h": 253
+					},
+					"frame": {
+						"x": 339,
+						"y": 1064,
+						"w": 334,
+						"h": 253
+					},
+					"anchor": {
+						"x": 0.5,
+						"y": 0.55
+					}
+				},
+				{
+					"filename": "hav_mov26.png",
+					"rotated": false,
+					"trimmed": false,
+					"sourceSize": {
+						"w": 334,
+						"h": 253
+					},
+					"spriteSourceSize": {
+						"x": 0,
+						"y": 0,
+						"w": 334,
+						"h": 253
+					},
+					"frame": {
+						"x": 1,
+						"y": 1065,
+						"w": 334,
+						"h": 253
+					},
+					"anchor": {
+						"x": 0.5,
+						"y": 0.55
+					}
+				},
+				{
+					"filename": "hav_mov14.png",
+					"rotated": false,
+					"trimmed": false,
+					"sourceSize": {
+						"w": 270,
+						"h": 249
+					},
+					"spriteSourceSize": {
+						"x": 0,
+						"y": 0,
+						"w": 270,
+						"h": 249
+					},
+					"frame": {
+						"x": 675,
+						"y": 1143,
+						"w": 270,
+						"h": 249
+					},
+					"anchor": {
+						"x": 0.5,
+						"y": 0.55
+					}
+				},
+				{
+					"filename": "hav_mov9.png",
+					"rotated": false,
+					"trimmed": false,
+					"sourceSize": {
+						"w": 328,
+						"h": 232
+					},
+					"spriteSourceSize": {
+						"x": 0,
+						"y": 0,
+						"w": 328,
+						"h": 232
+					},
+					"frame": {
+						"x": 337,
+						"y": 1319,
+						"w": 328,
+						"h": 232
+					},
+					"anchor": {
+						"x": 0.5,
+						"y": 0.55
+					}
+				},
+				{
+					"filename": "hav_mov24.png",
+					"rotated": false,
+					"trimmed": false,
+					"sourceSize": {
+						"w": 328,
+						"h": 232
+					},
+					"spriteSourceSize": {
+						"x": 0,
+						"y": 0,
+						"w": 328,
+						"h": 232
+					},
+					"frame": {
+						"x": 1,
+						"y": 1320,
+						"w": 328,
+						"h": 232
+					},
+					"anchor": {
+						"x": 0.5,
+						"y": 0.55
+					}
+				},
+				{
+					"filename": "hav_mov8.png",
+					"rotated": false,
+					"trimmed": false,
+					"sourceSize": {
+						"w": 315,
+						"h": 233
+					},
+					"spriteSourceSize": {
+						"x": 0,
+						"y": 0,
+						"w": 315,
+						"h": 233
+					},
+					"frame": {
+						"x": 667,
+						"y": 1394,
+						"w": 315,
+						"h": 233
+					},
+					"anchor": {
+						"x": 0.5,
+						"y": 0.55
+					}
+				},
+				{
+					"filename": "hav_mov21.png",
+					"rotated": false,
+					"trimmed": false,
+					"sourceSize": {
+						"w": 324,
+						"h": 258
+					},
+					"spriteSourceSize": {
+						"x": 0,
+						"y": 0,
+						"w": 324,
+						"h": 258
+					},
+					"frame": {
+						"x": 331,
+						"y": 1553,
+						"w": 324,
+						"h": 258
+					},
+					"anchor": {
+						"x": 0.5,
+						"y": 0.55
+					}
+				},
+				{
+					"filename": "hav_mov12.png",
+					"rotated": false,
+					"trimmed": false,
+					"sourceSize": {
+						"w": 324,
+						"h": 257
+					},
+					"spriteSourceSize": {
+						"x": 0,
+						"y": 0,
+						"w": 324,
+						"h": 257
+					},
+					"frame": {
+						"x": 1,
+						"y": 1554,
+						"w": 324,
+						"h": 257
+					},
+					"anchor": {
+						"x": 0.5,
+						"y": 0.55
+					}
+				},
+				{
+					"filename": "hav_mov25.png",
+					"rotated": false,
+					"trimmed": false,
+					"sourceSize": {
+						"w": 315,
+						"h": 233
+					},
+					"spriteSourceSize": {
+						"x": 0,
+						"y": 0,
+						"w": 315,
+						"h": 233
+					},
+					"frame": {
+						"x": 657,
+						"y": 1629,
+						"w": 315,
+						"h": 233
+					},
+					"anchor": {
+						"x": 0.5,
+						"y": 0.55
+					}
+				},
+				{
+					"filename": "hav_mov19.png",
+					"rotated": false,
+					"trimmed": false,
+					"sourceSize": {
+						"w": 270,
+						"h": 249
+					},
+					"spriteSourceSize": {
+						"x": 0,
+						"y": 0,
+						"w": 270,
+						"h": 249
+					},
+					"frame": {
+						"x": 1,
+						"y": 1813,
+						"w": 270,
+						"h": 249
+					},
+					"anchor": {
+						"x": 0.5,
+						"y": 0.55
+					}
+				},
+				{
+					"filename": "hav_mov3.png",
+					"rotated": false,
+					"trimmed": false,
+					"sourceSize": {
+						"w": 260,
+						"h": 316
+					},
+					"spriteSourceSize": {
+						"x": 0,
+						"y": 0,
+						"w": 260,
+						"h": 316
+					},
+					"frame": {
+						"x": 273,
+						"y": 1813,
+						"w": 260,
+						"h": 316
+					},
+					"anchor": {
+						"x": 0.5,
+						"y": 0.55
+					}
+				},
+				{
+					"filename": "hav_mov30.png",
+					"rotated": false,
+					"trimmed": false,
+					"sourceSize": {
+						"w": 260,
+						"h": 316
+					},
+					"spriteSourceSize": {
+						"x": 0,
+						"y": 0,
+						"w": 260,
+						"h": 316
+					},
+					"frame": {
+						"x": 1,
+						"y": 2064,
+						"w": 260,
+						"h": 316
+					},
+					"anchor": {
+						"x": 0.5,
+						"y": 0.55
+					}
+				},
+				{
+					"filename": "hav_mov32.png",
+					"rotated": false,
+					"trimmed": false,
+					"sourceSize": {
+						"w": 219,
+						"h": 309
+					},
+					"spriteSourceSize": {
+						"x": 0,
+						"y": 0,
+						"w": 219,
+						"h": 309
+					},
+					"frame": {
+						"x": 1,
+						"y": 2382,
+						"w": 219,
+						"h": 309
+					},
+					"anchor": {
+						"x": 0.5,
+						"y": 0.55
+					}
+				},
+				{
+					"filename": "hav_mov1.png",
+					"rotated": false,
+					"trimmed": false,
+					"sourceSize": {
+						"w": 218,
+						"h": 308
+					},
+					"spriteSourceSize": {
+						"x": 0,
+						"y": 0,
+						"w": 218,
+						"h": 308
+					},
+					"frame": {
+						"x": 222,
+						"y": 2382,
+						"w": 218,
+						"h": 308
+					},
+					"anchor": {
+						"x": 0.5,
+						"y": 0.55
+					}
+				},
+				{
+					"filename": "hav_mov15.png",
+					"rotated": false,
+					"trimmed": false,
+					"sourceSize": {
+						"w": 247,
+						"h": 242
+					},
+					"spriteSourceSize": {
+						"x": 0,
+						"y": 0,
+						"w": 247,
+						"h": 242
+					},
+					"frame": {
+						"x": 263,
+						"y": 2131,
+						"w": 247,
+						"h": 242
+					},
+					"anchor": {
+						"x": 0.5,
+						"y": 0.55
+					}
+				},
+				{
+					"filename": "hav_mov2.png",
+					"rotated": false,
+					"trimmed": false,
+					"sourceSize": {
+						"w": 236,
+						"h": 314
+					},
+					"spriteSourceSize": {
+						"x": 0,
+						"y": 0,
+						"w": 236,
+						"h": 314
+					},
+					"frame": {
+						"x": 442,
+						"y": 2375,
+						"w": 236,
+						"h": 314
+					},
+					"anchor": {
+						"x": 0.5,
+						"y": 0.55
+					}
+				},
+				{
+					"filename": "hav_mov18.png",
+					"rotated": false,
+					"trimmed": false,
+					"sourceSize": {
+						"w": 247,
+						"h": 242
+					},
+					"spriteSourceSize": {
+						"x": 0,
+						"y": 0,
+						"w": 247,
+						"h": 242
+					},
+					"frame": {
+						"x": 512,
+						"y": 2131,
+						"w": 247,
+						"h": 242
+					},
+					"anchor": {
+						"x": 0.5,
+						"y": 0.55
+					}
+				},
+				{
+					"filename": "hav_mov16.png",
+					"rotated": false,
+					"trimmed": false,
+					"sourceSize": {
+						"w": 228,
+						"h": 234
+					},
+					"spriteSourceSize": {
+						"x": 0,
+						"y": 0,
+						"w": 228,
+						"h": 234
+					},
+					"frame": {
+						"x": 761,
+						"y": 1864,
+						"w": 228,
+						"h": 234
+					},
+					"anchor": {
+						"x": 0.5,
+						"y": 0.55
+					}
+				},
+				{
+					"filename": "hav_mov17.png",
+					"rotated": false,
+					"trimmed": false,
+					"sourceSize": {
+						"w": 228,
+						"h": 234
+					},
+					"spriteSourceSize": {
+						"x": 0,
+						"y": 0,
+						"w": 228,
+						"h": 234
+					},
+					"frame": {
+						"x": 761,
+						"y": 2100,
+						"w": 228,
+						"h": 234
+					},
+					"anchor": {
+						"x": 0.5,
+						"y": 0.55
+					}
+				},
+				{
+					"filename": "hav_mov31.png",
+					"rotated": false,
+					"trimmed": false,
+					"sourceSize": {
+						"w": 236,
+						"h": 314
+					},
+					"spriteSourceSize": {
+						"x": 0,
+						"y": 0,
+						"w": 236,
+						"h": 314
+					},
+					"frame": {
+						"x": 680,
+						"y": 2375,
+						"w": 236,
+						"h": 314
+					},
+					"anchor": {
+						"x": 0.5,
+						"y": 0.55
+					}
+				}
+			]
+		}
+	],
+	"meta": {
+		"app": "https://www.codeandweb.com/texturepacker",
+		"version": "3.0",
+		"smartupdate": "$TexturePacker:SmartUpdate:745c307335e0c307cc47985ea562c2f6:b0a6c5584362b6fd435b49ca3879256a:72a2f052f54d6987d7635ebcf7a52f3f$"
+	}
+}

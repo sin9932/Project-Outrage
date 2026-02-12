@@ -1,0 +1,220 @@
+{
+	"textures": [
+		{
+			"image": "harvester_idle.png",
+			"format": "RGBA8888",
+			"size": {
+				"w": 833,
+				"h": 874
+			},
+			"scale": 1,
+			"frames": [
+				{
+					"filename": "hav_idle1.png",
+					"rotated": false,
+					"trimmed": false,
+					"sourceSize": {
+						"w": 190,
+						"h": 306
+					},
+					"spriteSourceSize": {
+						"x": 0,
+						"y": 0,
+						"w": 190,
+						"h": 306
+					},
+					"frame": {
+						"x": 1,
+						"y": 1,
+						"w": 190,
+						"h": 306
+					},
+					"anchor": {
+						"x": 0.5,
+						"y": 0.55
+					}
+				},
+				{
+					"filename": "hav_idle2.png",
+					"rotated": false,
+					"trimmed": false,
+					"sourceSize": {
+						"w": 318,
+						"h": 305
+					},
+					"spriteSourceSize": {
+						"x": 0,
+						"y": 0,
+						"w": 318,
+						"h": 305
+					},
+					"frame": {
+						"x": 193,
+						"y": 1,
+						"w": 318,
+						"h": 305
+					},
+					"anchor": {
+						"x": 0.5,
+						"y": 0.55
+					}
+				},
+				{
+					"filename": "hav_idle3.png",
+					"rotated": false,
+					"trimmed": false,
+					"sourceSize": {
+						"w": 316,
+						"h": 226
+					},
+					"spriteSourceSize": {
+						"x": 0,
+						"y": 0,
+						"w": 316,
+						"h": 226
+					},
+					"frame": {
+						"x": 513,
+						"y": 1,
+						"w": 316,
+						"h": 226
+					},
+					"anchor": {
+						"x": 0.5,
+						"y": 0.55
+					}
+				},
+				{
+					"filename": "hav_idle4.png",
+					"rotated": false,
+					"trimmed": false,
+					"sourceSize": {
+						"w": 315,
+						"h": 257
+					},
+					"spriteSourceSize": {
+						"x": 0,
+						"y": 0,
+						"w": 315,
+						"h": 257
+					},
+					"frame": {
+						"x": 1,
+						"y": 309,
+						"w": 315,
+						"h": 257
+					},
+					"anchor": {
+						"x": 0.5,
+						"y": 0.55
+					}
+				},
+				{
+					"filename": "hav_idle5.png",
+					"rotated": false,
+					"trimmed": false,
+					"sourceSize": {
+						"w": 197,
+						"h": 221
+					},
+					"spriteSourceSize": {
+						"x": 0,
+						"y": 0,
+						"w": 197,
+						"h": 221
+					},
+					"frame": {
+						"x": 318,
+						"y": 309,
+						"w": 197,
+						"h": 221
+					},
+					"anchor": {
+						"x": 0.5,
+						"y": 0.55
+					}
+				},
+				{
+					"filename": "hav_idle6.png",
+					"rotated": false,
+					"trimmed": false,
+					"sourceSize": {
+						"w": 315,
+						"h": 257
+					},
+					"spriteSourceSize": {
+						"x": 0,
+						"y": 0,
+						"w": 315,
+						"h": 257
+					},
+					"frame": {
+						"x": 517,
+						"y": 309,
+						"w": 315,
+						"h": 257
+					},
+					"anchor": {
+						"x": 0.5,
+						"y": 0.55
+					}
+				},
+				{
+					"filename": "hav_idle7.png",
+					"rotated": false,
+					"trimmed": false,
+					"sourceSize": {
+						"w": 316,
+						"h": 226
+					},
+					"spriteSourceSize": {
+						"x": 0,
+						"y": 0,
+						"w": 316,
+						"h": 226
+					},
+					"frame": {
+						"x": 1,
+						"y": 568,
+						"w": 316,
+						"h": 226
+					},
+					"anchor": {
+						"x": 0.5,
+						"y": 0.55
+					}
+				},
+				{
+					"filename": "hav_idle8.png",
+					"rotated": false,
+					"trimmed": false,
+					"sourceSize": {
+						"w": 318,
+						"h": 305
+					},
+					"spriteSourceSize": {
+						"x": 0,
+						"y": 0,
+						"w": 318,
+						"h": 305
+					},
+					"frame": {
+						"x": 319,
+						"y": 568,
+						"w": 318,
+						"h": 305
+					},
+					"anchor": {
+						"x": 0.5,
+						"y": 0.55
+					}
+				}
+			]
+		}
+	],
+	"meta": {
+		"app": "https://www.codeandweb.com/texturepacker",
+		"version": "3.0",
+		"smartupdate": "$TexturePacker:SmartUpdate:29063673e1e9864f2da9fd9df619f1d1:4f91f4a2b7f350335067a0a19918b223:955963b7ad9f8199268c2b0ead287634$"
+	}
+}
