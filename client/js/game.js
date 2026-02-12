@@ -1,9 +1,16 @@
-var dg = (globalThis.dg = (globalThis.dg ?? false));
-
 (function(){
+
+// BUILD_ID: harv-sprite-build-2026-02-12b
+window.__BUILD_ID = "harv-sprite-build-2026-02-12b";
+console.log("[build]", window.__BUILD_ID);
+var dg = (globalThis.dg = (globalThis.dg ?? false));
   // Debug/validation mode: add ?debug=1 to URL
   const DEV_VALIDATE = /(?:\?|&)debug=1(?:&|$)/.test(location.search);
   const DEV_VALIDATE_THROW = false; // if true, throws on first invariant failure
+
+  // Some builds reference `dg` (debug flag) in AI/update code; define it to avoid ReferenceError.
+  const dg = DEV_VALIDATE;
+  window.dg = dg;
 
   function _assert(cond, msg){
     if (cond) return;
@@ -1247,6 +1254,10 @@ function getBaseBuildTime(kind){
       dx, dy, dw, dh
     );
     ctx.restore();
+    if (!ok){
+      if (dg) console.warn("[sprite] harvester frame missing:", bodyName);
+      return false;
+    }
     return true;
   }
 
@@ -1419,6 +1430,16 @@ function getBaseBuildTime(kind){
     muzzleMov:null
   };
 
+  // Harvester (no turret) uses same 8-dir + 32-frame turning law as lite tank hull.
+  const HARVESTER_BASE = "asset/sprite/unit/tank/harvester/";
+  const HARVESTER_BASE_SCALE = 0.13; // match lite tank baseline; tweak via Units.UNIT.harvester.spriteScale
+  const HARVESTER = {
+    ok:false,
+    idle:null,
+    mov:null
+  };
+
+
   // Force turret frames to align to the same ground pivot as the hull.
   // TexturePacker anchors differ between hull and turret; using a shared anchor prevents the turret from sitting on the ground.
   const LITE_TANK_TURRET_ANCHOR = { x: 0.5, y: 0.555 };
@@ -1554,11 +1575,12 @@ function getBaseBuildTime(kind){
   }
 
   function _tankBodyFrameName(u){
+    const prefix = (u.kind==="harvester") ? "hav" : "lightank";
     if (u.bodyTurn && u.bodyTurn.frameNum){
-      return "lightank_mov" + u.bodyTurn.frameNum + ".png";
+      return prefix + "_mov" + u.bodyTurn.frameNum + ".png";
     }
     const idx = _dirToIdleIdx[u.bodyDir ?? u.dir ?? 6] || 1;
-    return "lightank_idle" + idx + ".png";
+    return prefix + "_idle" + idx + ".png";
   }
 
   function _tankMuzzleFrameName(u){
@@ -1579,6 +1601,15 @@ function getBaseBuildTime(kind){
     const srcS = fr.sourceSize || { w: crop.w, h: crop.h };
     const anc = anchorOverride || fr.anchor || { x:0.5, y:0.5 };
 
+// allow non-uniform scaling: pass scale as number or {x,y}
+const _sc = (typeof scale === "number")
+  ? { x: scale, y: scale }
+  : (scale && typeof scale === "object")
+    ? { x: (scale.x ?? scale.sx ?? 1), y: (scale.y ?? scale.sy ?? (scale.x ?? scale.sx ?? 1)) }
+    : { x: 1, y: 1 };
+const scaleX = _sc.x;
+const scaleY = _sc.y;
+
     const sx = (crop.x|0), sy = (crop.y|0), sw = (crop.w|0), sh = (crop.h|0);
 
     // Team tint only inside this cropped rect
@@ -1590,11 +1621,11 @@ function getBaseBuildTime(kind){
       ssx = 0; ssy = 0;
     }
 
-    const dx = screenX - (anc.x * srcS.w * scale) + (sss.x * scale);
-    const dy = screenY - (anc.y * srcS.h * scale) + (sss.y * scale);
-    const odx = (offsetOverride && offsetOverride.x) ? (offsetOverride.x * scale) : 0;
-    const ody = (offsetOverride && offsetOverride.y) ? (offsetOverride.y * scale) : 0;
-    ctx.drawImage(srcImg, ssx, ssy, sw, sh, dx + odx, dy + ody, sw*scale, sh*scale);
+    const dx = screenX - (anc.x * srcS.w * scaleX) + (sss.x * scaleX);
+    const dy = screenY - (anc.y * srcS.h * scaleY) + (sss.y * scaleY);
+    const odx = (offsetOverride && offsetOverride.x) ? (offsetOverride.x * scaleX) : 0;
+    const ody = (offsetOverride && offsetOverride.y) ? (offsetOverride.y * scaleY) : 0;
+    ctx.drawImage(srcImg, ssx, ssy, sw, sh, dx + odx, dy + ody, sw*scaleX, sh*scaleY);
     return true;
   }
 
@@ -1624,8 +1655,33 @@ function getBaseBuildTime(kind){
     return true;
   }
 
+
+  function drawHarvesterSprite(u, p){
+    if (!HARVESTER.ok) return false;
+const getSpec = (window.G && G.Units && typeof G.Units.getSpec==="function") ? G.Units.getSpec.bind(G.Units) : null;
+const harvSpec = getSpec ? (getSpec("harvester") || null) : null;
+const tankSpec = getSpec ? (getSpec("tank") || null) : null;
+
+const specScaleX = (harvSpec?.spriteScaleX ?? harvSpec?.spriteScale ?? tankSpec?.spriteScaleX ?? tankSpec?.spriteScale ?? 1);
+const specScaleY = (harvSpec?.spriteScaleY ?? harvSpec?.spriteScale ?? tankSpec?.spriteScaleY ?? tankSpec?.spriteScale ?? 1);
+
+const baseS = (cam.zoom || 1) * HARVESTER_BASE_SCALE;
+const s = { x: baseS * specScaleX, y: baseS * specScaleY };
+
+    const bodyName = _tankBodyFrameName(u);
+    const atlas = (bodyName.indexOf("_mov")>=0) ? HARVESTER.mov : HARVESTER.idle;
+
+    const ok = _drawTPFrame(atlas, bodyName, p.x, p.y, s, u.team);
+    if (!ok){
+      // atlas mismatch fallback
+      _drawTPFrame(HARVESTER.mov, bodyName, p.x, p.y, s, u.team);
+      _drawTPFrame(HARVESTER.idle, bodyName, p.x, p.y, s, u.team);
+    }
+    return true;
+  }
+
   // Kick off lite tank atlas loads early (non-blocking)
-  (async()=>{
+  ;(async()=>{
     try{
       const [bodyIdle, bodyMov, muzzleIdle, muzzleMov] = await Promise.all([
         _loadTPAtlasFromUrl(LITE_TANK_BASE + "lite_tank.json", LITE_TANK_BASE),
@@ -1644,6 +1700,23 @@ function getBaseBuildTime(kind){
       LITE_TANK.ok = false;
     }
   })();
+
+  // Kick off harvester atlas loads early (non-blocking)
+  (async()=>{
+    try{
+      const [idle, mov] = await Promise.all([
+        _loadTPAtlasFromUrl(HARVESTER_BASE + "harvester_idle.json", HARVESTER_BASE),
+        _loadTPAtlasFromUrl(HARVESTER_BASE + "harvester_mov.json", HARVESTER_BASE),
+      ]);
+      HARVESTER.idle = idle;
+      HARVESTER.mov = mov;
+      HARVESTER.ok = true;
+      console.log("[sprite] harvester atlases loaded");
+    }catch(err){
+      console.warn("[sprite] harvester atlas load failed", err);
+    }
+  })();
+;
 
 
 
@@ -2455,6 +2528,9 @@ function addUnit(team, kind, x, y){
     if (kind === "tank"){
       u.bodyDir = 6;
       u.turretDir = 6;
+    } else if (kind === "harvester"){
+      u.bodyDir = 6;
+      u.turretDir = null;
     }
     units.push(u);
     return u;
@@ -3490,7 +3566,7 @@ function followPath(u, dt){
     if ((u.fireHoldT||0) > 0 && u.fireDir!=null){
       // Firing facing: turret/aim direction
       u.faceDir = u.fireDir;
-      if (u.kind !== "tank"){
+      if (u.kind !== "tank" && u.kind !== "harvester"){
         u.dir = u.fireDir;
       } else {
         if (u.bodyDir==null) u.bodyDir = (u.dir!=null ? u.dir : 6);
@@ -3499,7 +3575,7 @@ function followPath(u, dt){
     } else if (movingDir){
       const fd = worldVecToDir8(ax, ay);
 
-      if (u.kind === "tank"){
+      if (u.kind === "tank" || u.kind === "harvester"){
         // RA2-style: hull turns in place before actually translating.
         if (u.bodyDir == null) u.bodyDir = (u.dir!=null ? u.dir : 6);
 
@@ -11256,6 +11332,8 @@ let rX = ent.x, rY = ent.y;
           let drewSprite = false;
           if (ent.kind==="tank"){
             drewSprite = drawLiteTankSprite(ent, p);
+          } else if (ent.kind==="harvester"){
+            drewSprite = drawHarvesterSprite(ent, p);
           }
 
           if (!drewSprite){
