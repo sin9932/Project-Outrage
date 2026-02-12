@@ -1048,6 +1048,11 @@ function getBaseBuildTime(kind){
     // Extra coverage for bright hot-pink highlights that may have a bit more green from filtering
     if(rbAvg > 165 && magScore > 65 && g < 170) return true;
 
+
+    // Extra coverage for darker magenta stripes (some sheets have "dirty" magenta with more green)
+    // Condition: R and B both present, G suppressed relative to them.
+    if (r > 70 && b > 70 && (r + b) > 220 && g < (r * 0.72) && g < (b * 0.72)) return true;
+
     // If it's basically grey, don't treat as key color.
     if(sat < 0.10) return false;
 
@@ -4755,7 +4760,7 @@ function spawnDustPuff(wx, wy, vx, vy, strength=1){
     ttl: 0.95 + Math.random()*0.55,
     r0: (14 + Math.random()*10) * size,
     grow: (46 + Math.random()*34) * size,
-    a0: 0.16 + Math.random()*0.10
+    a0: 0.22 + Math.random()*0.10
   });
 }
 
@@ -8172,7 +8177,16 @@ if (needMove){
 
       // Dust trail for vehicles (tank/ifv/etc) while moving
       if (u.cls==="veh"){
-        const vx = u.vx || 0, vy = u.vy || 0;
+        // Velocity estimate from actual displacement (movement code may not maintain u.vx/u.vy consistently)
+        let vx = 0, vy = 0;
+        if (u._fxLastX!=null && u._fxLastY!=null && dt>0){
+          vx = (u.x - u._fxLastX) / dt;
+          vy = (u.y - u._fxLastY) / dt;
+        }
+        u._fxLastX = u.x; u._fxLastY = u.y;
+        // Keep legacy fields updated for other systems
+        u.vx = vx; u.vy = vy;
+
         const spd = Math.hypot(vx, vy);
         if (spd > 20){
           u._dustAcc = (u._dustAcc || 0) + dt;
@@ -12019,6 +12033,29 @@ function spawnStartingUnits(){
 startBtn.addEventListener("click", () => {
     state.colors.player = pColorInput.value;
     state.colors.enemy  = eColorInput.value;
+
+    // Apply chosen colors to team palette (for magenta->team recolor) and clear caches.
+    try{
+      const prgb = hexToRgb(state.colors.player) || [80,180,255];
+      const ergb = hexToRgb(state.colors.enemy)  || [255,60,60];
+      TEAM_ACCENT.PLAYER = prgb;
+      TEAM_ACCENT.ENEMY  = ergb;
+
+      // Sprite recolor caches are keyed only by teamId, so must be cleared when colors change.
+      _teamSpriteCache.clear();
+      INF_TEAM_SHEET_IDLE.clear();
+      INF_TEAM_SHEET_ATK.clear();
+      INF_TEAM_SHEET_DIE.clear();
+      INF_TEAM_SHEET_MOV.clear();
+      INF_TEAM_SHEET_MOV_NE.clear();
+      INF_TEAM_SHEET_MOV_N.clear();
+      INF_TEAM_SHEET_MOV_NW.clear();
+      INF_TEAM_SHEET_MOV_W.clear();
+      INF_TEAM_SHEET_MOV_SW.clear();
+      INF_TEAM_SHEET_MOV_S.clear();
+      INF_TEAM_SHEET_MOV_SE.clear();
+    }catch(_e){}
+
 
     fogEnabled = !(fogOffChk && fogOffChk.checked);
 
