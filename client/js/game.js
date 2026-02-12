@@ -1,6 +1,6 @@
 (function(){
 
-// BUILD_ID: harv-sprite-build-2026-02-12c
+// BUILD_ID: harv-sprite-build-2026-02-12d
 window.__BUILD_ID = "harv-sprite-build-2026-02-12b";
 console.log("[build]", window.__BUILD_ID);
 try {
@@ -5750,7 +5750,7 @@ function tickBullets(dt){
           let hit=null;
           // dmg bonus: tank
           let dmg = bl.dmg;
-          const owner = getEntityById(bl.ownerId);
+          const shooter = getEntityById(bl.ownerId);
 
 
           // Friendly-fire support (CTRL force-attack testing):
@@ -5791,7 +5791,7 @@ const tx=tileOfX(u.x), ty=tileOfY(u.y);
           }
 
           // dmg bonus: tank (moved outside detection block)
-          if (owner && owner.kind==="tank" && hit){
+          if (shooter && shooter.kind==="tank" && hit){
             // vs infantry: slightly reduced (shells track infantry but shouldn't erase them)
             if (hit.cls==="inf") dmg *= 0.70;
             // vs structures/vehicles: mild bonus
@@ -5862,7 +5862,7 @@ const tx=tileOfX(u.x), ty=tileOfY(u.y);
             if (segIntersectsAABB(px,py, bl.x,bl.y, x0,y0,x1,y1)){ hit=b; break; }
           }
         }
-          if (owner && owner.kind==="tank"){
+          if (shooter && shooter.kind==="tank"){
             // slightly reduced vs infantry (tank was deleting infantry too fast)
             if (hit && hit.cls==="inf") dmg *= 0.70;
             // modest bonus vs vehicles/buildings
@@ -5916,7 +5916,7 @@ const tx=tileOfX(u.x), ty=tileOfY(u.y);
         }
         let dmg = bl.dmg;
         const owner = getEntityById(bl.ownerId);
-        if (owner && owner.kind==="tank"){
+        if (shooter && shooter.kind==="tank"){
           if (BUILD[hit.kind] || hit.kind==="tank") dmg *= 1.25;
         }
         applyDamage(hit, dmg, bl.ownerId, bl.team);
