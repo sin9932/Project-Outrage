@@ -1,4 +1,4 @@
-;(function(){
+(function(){
   // Debug/validation mode: add ?debug=1 to URL
   const DEV_VALIDATE = /(?:\?|&)debug=1(?:&|$)/.test(location.search);
   const DEV_VALIDATE_THROW = false; // if true, throws on first invariant failure
@@ -10,7 +10,7 @@
   }
 
 
-;(() => {
+(() => {
   window.addEventListener("error", (e) => {
     document.body.innerHTML =
       `<pre style="white-space:pre-wrap;padding:16px;color:#fff;background:#000;">
@@ -282,6 +282,8 @@ function fitMini() {
   }
 
   const TILE = 110;
+try{ if (typeof SmokeFX!=="undefined" && SmokeFX && typeof SmokeFX.setTile==="function") SmokeFX.setTile(TILE); }catch(_e){}
+
   const GAME_SPEED = 1.30;
   const BUILD_PROD_MULT = 1.30; // additional +30% for building & unit production speed
   // Enemy AI cheats (difficulty)
@@ -993,7 +995,7 @@ function getBaseBuildTime(kind){
   _loadTune();
 
   // apply HTML-provided preset (overrides persisted storage)
-  ;(function(){
+  (function(){
     try{
       const preset = (typeof window !== "undefined") ? window.SPRITE_TUNE_PRESET : null;
       if (!preset || typeof preset !== "object") return;
@@ -1653,7 +1655,7 @@ function getBaseBuildTime(kind){
   }
 
   // Kick off lite tank atlas loads early (non-blocking)
-  ;(async()=>{
+  (async()=>{
     try{
       const [bodyIdle, bodyMov, muzzleIdle, muzzleMov] = await Promise.all([
         _loadTPAtlasFromUrl(LITE_TANK_BASE + "lite_tank.json", LITE_TANK_BASE),
@@ -1671,10 +1673,10 @@ function getBaseBuildTime(kind){
       console.warn("[lite_tank] atlas load failed:", e);
       LITE_TANK.ok = false;
     }
-  })();
+  })()
 
   // Kick off harvester atlas loads early (non-blocking)
-  ;(async()=>{
+  (async()=>{
     try{
       const [idle, mov] = await Promise.all([
         _loadTPAtlasFromUrl(HARVESTER_BASE + "harvester_idle.json", HARVESTER_BASE),
@@ -1693,7 +1695,7 @@ function getBaseBuildTime(kind){
 
 
   // Kick off json load early (non-blocking)
-  ;(async()=>{
+  (async()=>{
     try{
       const r = await fetch(EXP1_JSON, {cache:"no-store"});
       if (!r.ok) throw new Error("HTTP "+r.status);
@@ -4777,42 +4779,58 @@ function spawnTurretMGTracers(shooter, target){
 
 
   
-// ===== Smoke FX (delegated) =====
-// NOTE: The actual implementation lives in fx_all.js / fx_smoke.js (loaded BEFORE game.js).
-// game.js only calls these thin wrappers so simulation code stays clean.
+// ===== Smoke ring + smoke particles (building destruction) =====
+// 목표:
+// - 파동 연기: "원형으로 퍼지되", 아이소메트리라서 위아래 납작 + 라인 없이 흐릿한 연무 타입
+// - 파티클/폭발을 가리지 않도록 렌더 순서는 최하위(지형 위, 폭발/파편 아래)
+const smokePuffs = [];
+function spawnDustPuff(wx, wy, vx, vy, strength=1){
+  if (typeof SmokeFX!=="undefined" && SmokeFX && typeof SmokeFX.spawnDustPuff==="function") {
+    return SmokeFX.spawnDustPuff(wx, wy, vx, vy, strength);
+  }
+}
+
+function spawnDmgSmokePuff(wx, wy, strength=1){
+  if (typeof SmokeFX!=="undefined" && SmokeFX && typeof SmokeFX.spawnDmgSmokePuff==="function") {
+    return SmokeFX.spawnDmgSmokePuff(wx, wy, strength);
+  }
+}
 function addSmokeWave(wx, wy, size=1){
-  try{ if (window.FX && typeof FX.addSmokeWave==="function") return FX.addSmokeWave(wx,wy,size); }catch(_){}
-}
-function spawnSmokePuff(wx, wy, size=1){
-  try{ if (window.FX && typeof FX.spawnSmokePuff==="function") return FX.spawnSmokePuff(wx,wy,size); }catch(_){}
-}
-function spawnSmokeHaze(wx, wy, size=1){
-  try{ if (window.FX && typeof FX.spawnSmokeHaze==="function") return FX.spawnSmokeHaze(wx,wy,size); }catch(_){}
+  if (typeof SmokeFX!=="undefined" && SmokeFX && typeof SmokeFX.addSmokeWave==="function") {
+    return SmokeFX.addSmokeWave(wx, wy, size);
+  }
 }
 function addSmokeEmitter(wx, wy, size=1){
-  try{ if (window.FX && typeof FX.addSmokeEmitter==="function") return FX.addSmokeEmitter(wx,wy,size); }catch(_){}
+  if (typeof SmokeFX!=="undefined" && SmokeFX && typeof SmokeFX.addSmokeEmitter==="function") {
+    return SmokeFX.addSmokeEmitter(wx, wy, size);
+  }
 }
-function spawnDustPuff(wx, wy, vx, vy, strength=1){
-  try{ if (window.FX && typeof FX.spawnDustPuff==="function") return FX.spawnDustPuff(wx,wy,vx,vy,strength); }catch(_){}
+function spawnSmokePuff(wx, wy, vx, vy, strength=1){
+  if (typeof SmokeFX!=="undefined" && SmokeFX && typeof SmokeFX.spawnSmokePuff==="function") {
+    return SmokeFX.spawnSmokePuff(wx, wy, vx, vy, strength);
+  }
 }
-function spawnDmgSmokePuff(wx, wy, strength=1){
-  try{ if (window.FX && typeof FX.spawnDmgSmokePuff==="function") return FX.spawnDmgSmokePuff(wx,wy,strength); }catch(_){}
+function spawnSmokeHaze(wx, wy, size=1){
+  if (typeof SmokeFX!=="undefined" && SmokeFX && typeof SmokeFX.spawnSmokeHaze==="function") {
+    return SmokeFX.spawnSmokeHaze(wx, wy, size);
+  }
 }
 function updateSmoke(dt){
-  try{ if (window.FX && typeof FX.updateSmoke==="function") return FX.updateSmoke(dt); }catch(_){}
+  if (typeof SmokeFX!=="undefined" && SmokeFX && typeof SmokeFX.updateSmoke==="function") {
+    return SmokeFX.updateSmoke(dt);
+  }
 }
-function drawSmokeWaves(ctx, worldToScreen, cam){
-  try{ if (window.FX && typeof FX.drawSmokeWaves==="function") return FX.drawSmokeWaves(ctx, worldToScreen, cam); }catch(_){}
+function drawSmokeWaves(ctx){
+  if (typeof SmokeFX!=="undefined" && SmokeFX && typeof SmokeFX.drawSmokeWaves==="function") {
+    return SmokeFX.drawSmokeWaves(ctx);
+  }
 }
-function drawSmokePuffs(ctx, worldToScreen, cam){
-  try{ if (window.FX && typeof FX.drawSmokePuffs==="function") return FX.drawSmokePuffs(ctx, worldToScreen, cam); }catch(_){}
+function drawSmokePuffs(ctx){
+  if (typeof SmokeFX!=="undefined" && SmokeFX && typeof SmokeFX.drawSmokePuffs==="function") {
+    return SmokeFX.drawSmokePuffs(ctx);
+  }
 }
-function drawDustPuffs(ctx, worldToScreen, cam){
-  try{ if (window.FX && typeof FX.drawDustPuffs==="function") return FX.drawDustPuffs(ctx, worldToScreen, cam); }catch(_){}
-}
-function drawDmgSmokePuffs(ctx, worldToScreen, cam){
-  try{ if (window.FX && typeof FX.drawDmgSmokePuffs==="function") return FX.drawDmgSmokePuffs(ctx, worldToScreen, cam); }catch(_){}
-}
+
 
 
 // ===== Blood particles (infantry death) =====
@@ -4863,7 +4881,16 @@ function addBloodBurst(wx, wy, size=1){
   }
 }
 
-
+function drawDustPuffs(ctx){
+  if (typeof SmokeFX!=="undefined" && SmokeFX && typeof SmokeFX.drawDustPuffs==="function") {
+    return SmokeFX.drawDustPuffs(ctx);
+  }
+}
+function drawDmgSmokePuffs(ctx){
+  if (typeof SmokeFX!=="undefined" && SmokeFX && typeof SmokeFX.drawDmgSmokePuffs==="function") {
+    return SmokeFX.drawDmgSmokePuffs(ctx);
+  }
+}
 
 function updateBlood(dt){
   // Stains
@@ -5464,9 +5491,9 @@ const tx=tileOfX(u.x), ty=tileOfY(u.y);
             if (hit && (BUILD[hit.kind] || hit.kind==="tank")) dmg *= 1.15;
           }
 
-          if (hit) applyDamage(hit, dmg, bl.ownerId, bl.team);
           }
 
+          if (hit) applyDamage(hit, dmg, bl.ownerId, bl.team);
 
           // impact FX: ellipse dodge + sparks
           flashes.push({x: bl.x, y: bl.y, r: 48 + Math.random()*10, life: 0.10, delay: 0});
@@ -7960,8 +7987,8 @@ if (needMove){
           if (u._dustAcc >= interval){
             u._dustAcc = 0;
             const backx = -vx / spd, backy = -vy / spd;
-            const wx = u.x + backx * (TILE * 0.10);
-            const wy = u.y + backy * (TILE * 0.10);
+            const wx = u.x + backx * (TILE * 0.42);
+            const wy = u.y + backy * (TILE * 0.42);
             spawnDustPuff(wx, wy, vx, vy, 1.0);
           }
         } else {
@@ -11303,15 +11330,15 @@ ctx.fill();
     drawExplosions(ctx);
 
     // Smoke ring (ground layer) should render *below* sprite FX like exp1
-    drawSmokeWaves(ctx, worldToScreen, cam);
+    drawSmokeWaves(ctx);
 
     // HQ sprite explosion (exp1) above the ground smoke ring
-    drawDustPuffs(ctx, worldToScreen, cam);
+    drawDustPuffs(ctx);
     drawExp1Fxs(ctx);
 
     // Smoke plume (puffs) can sit above the explosion a bit
-    drawSmokePuffs(ctx, worldToScreen, cam);
-    drawDmgSmokePuffs(ctx, worldToScreen, cam);
+    drawSmokePuffs(ctx);
+    drawDmgSmokePuffs(ctx);
 // Building fire FX (critical HP)
     for (const f of fires){
       const p = worldToScreen(f.x, f.y);
@@ -12521,7 +12548,7 @@ function pushOrderFx(unitId, kind, x, y, targetId=null, color=null){
   });
 }
 
-// window.setPathTo (removed dead statement)
+window.setPathTo
 
 window.setPathTo = setPathTo;
 window.findPath = findPath;
