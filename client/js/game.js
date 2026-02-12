@@ -4756,13 +4756,14 @@ function spawnDustPuff(wx, wy, vx, vy, strength=1){
 
   dustPuffs.push({
     x, y,
+    seed: (Math.random()*1e9)|0,
     vx: backx*(TILE*0.18*size) + (Math.random()*2-1)*(TILE*0.05*size),
     vy: backy*(TILE*0.18*size) + (Math.random()*2-1)*(TILE*0.05*size),
     t: 0,
-    ttl: 1.35 + Math.random()*0.75,
-    r0: (22 + Math.random()*14) * size,
-    grow: (92 + Math.random()*60) * size,
-    a0: 0.48 + Math.random()*0.18
+    ttl: 0.85 + Math.random()*0.55,
+    r0: (14 + Math.random()*10) * size,
+    grow: (48 + Math.random()*40) * size,
+    a0: 0.26 + Math.random()*0.12
   });
 }
 
@@ -5083,19 +5084,48 @@ function addBloodBurst(wx, wy, size=1){
 function drawDustPuffs(ctx){
   if (!dustPuffs.length) return;
   const z = (typeof cam !== "undefined" && cam && typeof cam.zoom==="number") ? cam.zoom : 1;
-  ctx.save();
+
+  // deterministic tiny hash (no flicker frame-to-frame)
+  const h = (n)=>{ const x = Math.sin(n) * 43758.5453123; return x - Math.floor(x); };
+
   for (const p of dustPuffs){
-    const k = p.t / p.ttl;
+    const k = clamp(p.t / Math.max(0.001, p.ttl), 0, 1);
     const a = (1-k) * p.a0;
     const r = (p.r0 + p.grow*k) * z;
     const s = worldToScreen(p.x, p.y);
-    // sandy haze
-    ctx.fillStyle = `rgba(220, 205, 175, ${a})`;
-    ctx.beginPath();
-    ctx.ellipse(s.x, s.y, r*1.45, r*1.00, 0, 0, Math.PI*2);
-    ctx.fill();
+
+    // "noisy" smoke-style blob (like building-destruction smoke), but sand-tinted + flattened
+    ctx.save();
+    ctx.globalCompositeOperation = "source-over";
+
+    // flatten to match isometric ground feel
+    ctx.translate(s.x, s.y);
+    ctx.scale(1.55, 1.0);
+
+    const seed = (p.seed ?? 0) + 0.0001;
+
+    // 3 overlapping soft blobs to break the perfect circle look
+    for (let i=0;i<3;i++){
+      const ox = (h(seed + i*13.1) - 0.5) * r * 0.55;
+      const oy = (h(seed + i*17.7) - 0.5) * r * 0.28;
+      const rr = r * (0.95 - i*0.18);
+      const aa = a * (i===0 ? 0.55 : 0.35);
+
+      ctx.globalAlpha = aa;
+
+      const g = ctx.createRadialGradient(ox, oy, 0, ox, oy, rr);
+      g.addColorStop(0.00, "rgba(220,205,175,0.22)");
+      g.addColorStop(0.38, "rgba(190,175,150,0.16)");
+      g.addColorStop(1.00, "rgba(120,110,100,0.0)");
+      ctx.fillStyle = g;
+
+      ctx.beginPath();
+      ctx.arc(ox, oy, rr, 0, Math.PI*2);
+      ctx.fill();
+    }
+
+    ctx.restore();
   }
-  ctx.restore();
 }
 
 function drawDmgSmokePuffs(ctx){
