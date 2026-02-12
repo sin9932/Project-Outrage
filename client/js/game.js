@@ -4892,6 +4892,49 @@ function spawnSmokePuff(wx, wy, size=1){
   });
 }
 
+function spawnTrailPuff(wx, wy, vx, vy, strength=1){
+  // Subtle, "noise-like gradient" trail puff for vehicles.
+  const size = clamp(strength, 0.35, 1.20);
+
+  // Drift opposite of movement (normalize)
+  const mag = Math.max(0.0001, Math.hypot(vx||0, vy||0));
+  const backx = -(vx||0) / mag;
+  const backy = -(vy||0) / mag;
+
+  // Slight jitter to avoid looking like a clean wave.
+  const j = TILE * 0.10 * size;
+  const x = wx + (Math.random()*2-1)*j;
+  const y = wy + (Math.random()*2-1)*j;
+
+  // Push directly into smokePuffs so it uses the same soft radial gradient renderer.
+  smokePuffs.push({
+    x, y,
+    vx: backx*(TILE*0.12*size) + (Math.random()*2-1)*(TILE*0.04*size),
+    vy: backy*(TILE*0.12*size) + (Math.random()*2-1)*(TILE*0.04*size) - (TILE*0.02*size),
+    t: 0,
+    ttl: 0.95 + Math.random()*0.55,
+    r0: (10 + Math.random()*8) * size,
+    grow: (18 + Math.random()*16) * size,
+    a0: 0.07 + Math.random()*0.06
+  });
+
+  // Extra micro-puffs to fake "noisy" edges without being loud.
+  const microN = 2 + ((Math.random()*2)|0);
+  for (let i=0;i<microN;i++){
+    smokePuffs.push({
+      x: x + (Math.random()*2-1)*(TILE*0.16*size),
+      y: y + (Math.random()*2-1)*(TILE*0.12*size),
+      vx: backx*(TILE*0.09*size) + (Math.random()*2-1)*(TILE*0.05*size),
+      vy: backy*(TILE*0.09*size) + (Math.random()*2-1)*(TILE*0.05*size) - (TILE*0.02*size),
+      t: 0,
+      ttl: 0.75 + Math.random()*0.45,
+      r0: (7 + Math.random()*6) * size,
+      grow: (14 + Math.random()*14) * size,
+      a0: 0.05 + Math.random()*0.05
+    });
+  }
+}
+
 function spawnSmokeHaze(wx, wy, size=1){
   const spread = TILE * 1.15 * size;
   const ang = Math.random() * Math.PI * 2;
@@ -8292,10 +8335,10 @@ if (needMove){
             const wx = u.x + backx * backOff + px * sideOff;
             const wy = u.y + backy * backOff + py * sideOff;
 
-            // Primary puff + a small trailing puff for "noise" density
-            spawnDustPuff(wx, wy, vx, vy, 1.25);
-            spawnDustPuff(wx + px*(TILE*0.08), wy + py*(TILE*0.08), vx, vy, 0.95);
-          }
+            // Subtle track haze (uses the same soft gradient style as building smoke)
+            spawnTrailPuff(wx, wy, vx, vy, 0.85);
+            spawnTrailPuff(wx + px*(TILE*0.10), wy + py*(TILE*0.10), vx, vy, 0.65);
+}
         } else {
           u._dustAcc = 0;
         }
