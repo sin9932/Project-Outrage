@@ -4290,7 +4290,8 @@ function getPowerFactor(team){
         t:0, dur,
         h: opt.h ?? (18 + Math.min(46, dist*0.10)),
         dmg, ownerId,
-        tid: opt.tid ?? null
+        tid: opt.tid ?? null,
+        allowFriendly: !!opt.allowFriendly
       });
       return;
     }
@@ -4757,10 +4758,10 @@ function spawnDustPuff(wx, wy, vx, vy, strength=1){
     vx: backx*(TILE*0.18*size) + (Math.random()*2-1)*(TILE*0.05*size),
     vy: backy*(TILE*0.18*size) + (Math.random()*2-1)*(TILE*0.05*size),
     t: 0,
-    ttl: 0.95 + Math.random()*0.55,
-    r0: (14 + Math.random()*10) * size,
-    grow: (46 + Math.random()*34) * size,
-    a0: 0.22 + Math.random()*0.10
+    ttl: 1.35 + Math.random()*0.75,
+    r0: (22 + Math.random()*14) * size,
+    grow: (92 + Math.random()*60) * size,
+    a0: 0.48 + Math.random()*0.18
   });
 }
 
@@ -5088,9 +5089,9 @@ function drawDustPuffs(ctx){
     const r = (p.r0 + p.grow*k) * z;
     const s = worldToScreen(p.x, p.y);
     // sandy haze
-    ctx.fillStyle = `rgba(200, 180, 130, ${a})`;
+    ctx.fillStyle = `rgba(220, 205, 175, ${a})`;
     ctx.beginPath();
-    ctx.ellipse(s.x, s.y, r*1.25, r*0.85, 0, 0, Math.PI*2);
+    ctx.ellipse(s.x, s.y, r*1.45, r*1.00, 0, 0, Math.PI*2);
     ctx.fill();
   }
   ctx.restore();
@@ -5488,7 +5489,7 @@ function drawBlood(ctx){
     spawnTrace(mx, my, mx + nx*26, my + ny*26, shooter.team, { kind:"mg", life: 0.06, delay: 0 });
 
     // ballistic shell (fast)
-    spawnBullet(shooter.team, mx, my, target.x, target.y, shooter.dmg, shooter.id, { kind:"shell", dur: 0.12, h: 18, tid: target.id });
+    spawnBullet(shooter.team, mx, my, target.x, target.y, shooter.dmg, shooter.id, { kind:\"shell\", dur: 0.12, h: 18, tid: target.id, allowFriendly: !!(shooter.order && shooter.order.allowFriendly) });
   }
 
   function fireIFVMissiles(u, t){
@@ -5665,9 +5666,21 @@ function tickBullets(dt){
 
         if (t >= 1){
           // impact at destination
-          const enemyTeam = bl.team===TEAM.PLAYER ? TEAM.ENEMY : TEAM.PLAYER;
           let hit=null;
 
+          // Friendly-fire support (CTRL force-attack testing):
+          // If a shell was fired with allowFriendly and tracks a specific entity id,
+          // allow damage regardless of team.
+          if (bl.allowFriendly && bl.tid){
+            const tEnt = getEntityById(bl.tid);
+            if (tEnt && tEnt.alive && !tEnt.inTransport && !tEnt.hidden){
+              hit = tEnt;
+            }
+          }
+
+          const enemyTeam = bl.team===TEAM.PLAYER ? TEAM.ENEMY : TEAM.PLAYER;
+
+          if (!hit){
           // units
           for (const u of units){
             if (!u.alive || u.team!==enemyTeam || u.inTransport || u.hidden) continue;
@@ -5698,6 +5711,8 @@ const tx=tileOfX(u.x), ty=tileOfY(u.y);
             if (hit && hit.cls==="inf") dmg *= 0.70;
             // modest bonus vs vehicles/buildings
             if (hit && (BUILD[hit.kind] || hit.kind==="tank")) dmg *= 1.15;
+          }
+
           }
 
           if (hit) applyDamage(hit, dmg, bl.ownerId, bl.team);
@@ -7000,7 +7015,7 @@ function issueAttack(targetId){
       if ((e.range||0)<=0) continue;
       e.guard=null; e.guardFrom=false;
             if (shouldIgnoreCmd(e,'forceattack',e.x,e.y,targetId)) continue;
-e.order={type:"attack", x:e.x,y:e.y, tx:null,ty:null, manual:true, allowAuto:false, lockTarget:true};
+e.order={type:"attack", x:e.x,y:e.y, tx:null,ty:null, manual:true, allowAuto:false, lockTarget:true, allowFriendly: (t.team===e.team)};
       e.holdPos = false;
       e.target=targetId;
       e.forceFire = null;
@@ -8188,9 +8203,9 @@ if (needMove){
         u.vx = vx; u.vy = vy;
 
         const spd = Math.hypot(vx, vy);
-        if (spd > 20){
+        if (spd > 6){
           u._dustAcc = (u._dustAcc || 0) + dt;
-          const interval = 0.085;
+          const interval = 0.06;
           if (u._dustAcc >= interval){
             u._dustAcc = 0;
             const backx = -vx / spd, backy = -vy / spd;
