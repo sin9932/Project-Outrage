@@ -1,9 +1,16 @@
 (function(){
 
-// BUILD_ID: harv-sprite-build-2026-02-12b
+// BUILD_ID: harv-sprite-build-2026-02-12c
 window.__BUILD_ID = "harv-sprite-build-2026-02-12b";
 console.log("[build]", window.__BUILD_ID);
-var dg = (globalThis.dg = (globalThis.dg ?? false));
+try {
+  const _q = new URLSearchParams(location.search);
+  globalThis.dg = (globalThis.dg ?? _q.has("debug"));
+} catch (e) {
+  globalThis.dg = (globalThis.dg ?? false);
+}
+var dg = globalThis.dg;
+console.log("[build] dg", dg);
   // Debug/validation mode: add ?debug=1 to URL
   const DEV_VALIDATE = /(?:\?|&)debug=1(?:&|$)/.test(location.search);
   // Keep global debug flag in sync with URL
