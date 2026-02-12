@@ -3,6 +3,7 @@
   // helpers (safe in all environments)
   const now = (typeof performance!=='undefined' && performance.now) ? () => performance.now() : () => Date.now();
   const rand = (a,b) => {
+  console.log("[build] harv-sprite-build-2026-02-12h");
     if (b === undefined) { b = a; a = 0; }
     return a + Math.random() * (b - a);
   };
@@ -4750,23 +4751,34 @@ const dustPuffs = [];
 const dmgSmokePuffs = [];
 
 // Dust puff for moving vehicles (sandy haze). World-positioned (does NOT follow units).
-function spawnDustPuff(x,y, strength=1, color="rgba(180,170,150,1)"){
-  // Track dust should be subtle: small + noisy, like the building-smoke style but shorter-lived.
-  const r0   = (6 + rand()*4) * strength;       // small start radius
-  const grow = (14 + rand()*10) * strength;     // modest expansion
-  const a0   = 0.10 + rand()*0.08;              // low alpha
-  const life = 420 + rand()*280;                // ~0.4–0.7s
-  dustPuffs.push({
-    x, y,
-    vx: (rand()-0.5)*0.15,
-    vy: -0.08 - rand()*0.12,
-    r0, grow, a0,
-    life,
-    born: now(),
-    seed: rand()*9999,
-    col: color
-  });
-}
+function spawnDustPuff(x,y,strength=1,color="rgba(180,170,150,1)"){
+    // Safe helpers: avoid crashing if globals like now()/rand() were stripped or shadowed.
+    if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+    const _now = (typeof performance!=="undefined" && performance && typeof performance.now==="function")
+      ? ()=>performance.now()
+      : ()=>Date.now();
+    const _rand = ()=>Math.random();
+
+    strength = (Number.isFinite(strength) && strength>0) ? strength : 1;
+
+    const t0 = _now();
+    const r0   = (6  + _rand()*4 ) * strength;
+    const grow = (14 + _rand()*10) * strength;
+    const life = (260 + _rand()*220) * (0.9 + strength*0.2);
+    const drift= (8  + _rand()*14) * strength;
+
+    dustPuffs.push({
+      x, y, t0,
+      life,
+      r0,
+      grow,
+      drift,
+      a0: 0.38,
+      a1: 0.0,
+      color,
+      seed: (t0*0.001 + x*12.9898 + y*78.233) % 10000
+    });
+  }
 
 // Damage smoke from a crippled unit (from turret area). World-positioned.
 function spawnDmgSmokePuff(wx, wy, strength=1){
@@ -5083,51 +5095,61 @@ function addBloodBurst(wx, wy, size=1){
 
 
 function drawDustPuffs(ctx){
-  if (!dustPuffs.length) return;
-  const z = (typeof cam !== "undefined" && cam && typeof cam.zoom==="number") ? cam.zoom : 1;
+    const _now = (typeof performance!=="undefined" && performance && typeof performance.now==="function")
+      ? ()=>performance.now()
+      : ()=>Date.now();
+    const tNow = _now();
 
-  // deterministic tiny hash (no flicker frame-to-frame)
-  const h = (n)=>{ const x = Math.sin(n) * 43758.5453123; return x - Math.floor(x); };
+    for (let i=dustPuffs.length-1;i>=0;i--){
+      const p = dustPuffs[i];
+      const life = Number.isFinite(p.life) && p.life>0 ? p.life : 300;
+      const t = (tNow - (p.t0||tNow)) / life;
 
-  for (const p of dustPuffs){
-    const k = clamp(p.t / Math.max(0.001, p.ttl), 0, 1);
-    const a = (1-k) * p.a0;
-    const r = (p.r0 + p.grow*k) * z;
-    const s = worldToScreen(p.x, p.y);
+      if (!Number.isFinite(t) || t>=1){
+        dustPuffs.splice(i,1);
+        continue;
+      }
 
-    // "noisy" smoke-style blob (like building-destruction smoke), but sand-tinted + flattened
-    ctx.save();
-    ctx.globalCompositeOperation = "source-over";
+      const tt = Math.max(0, Math.min(1, t));
+      const ease = tt*(2-tt); // easeOutQuad
 
-    // flatten to match isometric ground feel
-    ctx.translate(s.x, s.y);
-    ctx.scale(1.55, 1.0);
+      let r = (Number.isFinite(p.r0)?p.r0:8) + ease*(Number.isFinite(p.grow)?p.grow:18);
+      if (!Number.isFinite(r)) r = 12;
+      r = Math.max(0.25, r);
 
-    const seed = (p.seed ?? 0) + 0.0001;
+      const a0 = Number.isFinite(p.a0)?p.a0:0.35;
+      const a1 = Number.isFinite(p.a1)?p.a1:0.0;
+      const alpha = a0 + (a1-a0)*tt;
 
-    // 3 overlapping soft blobs to break the perfect circle look
-    for (let i=0;i<3;i++){
-      const ox = (h(seed + i*13.1) - 0.5) * r * 0.55;
-      const oy = (h(seed + i*17.7) - 0.5) * r * 0.28;
-      const rr = r * (0.95 - i*0.18);
-      const aa = a * (i===0 ? 0.55 : 0.35);
+      const seed = Number.isFinite(p.seed)?p.seed:0;
+      const drift = Number.isFinite(p.drift)?p.drift:10;
+      const jx = (hash1(seed+tt*13.1)-0.5) * drift * (0.6+tt);
+      const jy = (hash1(seed+tt*19.7)-0.5) * drift * (0.6+tt);
 
-      ctx.globalAlpha = aa;
+      const x = (Number.isFinite(p.x)?p.x:0) + jx;
+      const y = (Number.isFinite(p.y)?p.y:0) + jy;
 
-      const g = ctx.createRadialGradient(ox, oy, 0, ox, oy, rr);
-      g.addColorStop(0.00, "rgba(220,205,175,0.22)");
-      g.addColorStop(0.38, "rgba(190,175,150,0.16)");
-      g.addColorStop(1.00, "rgba(120,110,100,0.0)");
+      // Soft noisy radial puff, similar to building-destruction smoke vibe
+      const z = 1 + (hash1(seed+tt*7.3)-0.5)*0.25;
+      const rr = Math.max(0.25, r*z);
+      const ox = (hash1(seed+tt*3.7)-0.5) * r*0.20;
+      const oy = (hash1(seed+tt*5.9)-0.5) * r*0.20;
+
+      if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(rr) || !Number.isFinite(ox) || !Number.isFinite(oy)) {
+        dustPuffs.splice(i,1);
+        continue;
+      }
+
+      const g = ctx.createRadialGradient(x+ox, y+oy, rr*0.10, x, y, rr);
+      const c = p.color || "rgba(180,170,150,1)";
+      g.addColorStop(0, c.replace(/rgba\(([^)]+)\)/, (m,inner)=>`rgba(${inner.split(',').slice(0,3).join(',')},${Math.max(0,alpha)})`));
+      g.addColorStop(1, c.replace(/rgba\(([^)]+)\)/, (m,inner)=>`rgba(${inner.split(',').slice(0,3).join(',')},0)`));
       ctx.fillStyle = g;
-
       ctx.beginPath();
-      ctx.arc(ox, oy, rr, 0, Math.PI*2);
+      ctx.arc(x, y, rr, 0, Math.PI*2);
       ctx.fill();
     }
-
-    ctx.restore();
   }
-}
 
 function drawDmgSmokePuffs(ctx){
   if (!dmgSmokePuffs.length) return;
