@@ -7556,8 +7556,8 @@ if (u.range>0 && u.kind!=="harvester" && u.kind!=="engineer"){
   // (2) Auto-acquire if we don't have a target and are not currently committed to a building attack
   const committed = (u.order && u.order.type==="attack" && u.target!=null);
   const okAuto = (!committed) && !u.target && !manualLock &&
-    ;(u.order.type==="idle" || u.order.type==="guard" || u.order.type==="guard_return" ||
-     ;(u.order.type==="move" && !(u.forceMoveUntil && state.t < u.forceMoveUntil)));
+    (u.order.type==="idle" || u.order.type==="guard" || u.order.type==="guard_return" ||
+     (u.order.type==="move" && !(u.forceMoveUntil && state.t < u.forceMoveUntil)));
 
   if (u.aggroCd<=0 && okAuto){
     const vis = UNIT[u.kind].vision || 280;
@@ -8746,10 +8746,10 @@ function aiTick(){
       const valueOf = (b)=>{
         const c = COST[b.kind] || 0;
         const pr = (b.kind==="hq")? 1000000 :
-                   ;(b.kind==="factory")? 900000 :
-                   ;(b.kind==="refinery")? 700000 :
-                   ;(b.kind==="radar")? 500000 :
-                   ;(b.kind==="barracks")? 350000 : 0;
+                   (b.kind==="factory")? 900000 :
+                   (b.kind==="refinery")? 700000 :
+                   (b.kind==="radar")? 500000 :
+                   (b.kind==="barracks")? 350000 : 0;
         return pr + Math.max(0, c - (COST.engineer||800)) + (c*0.1);
       };
       for (const eng of engs){
@@ -9398,7 +9398,7 @@ if (picked && picked.alive && picked.team===TEAM.PLAYER && !BUILD[picked.kind] &
       const id=[...state.selection][0];
       const b=getEntityById(id);
       if (b && b.alive && BUILD[b.kind] && !b.civ && b.team===TEAM.PLAYER &&
-          ;(b.kind==="barracks" || b.kind==="factory" || b.kind==="hq")){
+          (b.kind==="barracks" || b.kind==="factory" || b.kind==="hq")){
         b.rally = { x:sp.x, y:sp.y };
         state.drag.on=false;
         return;
@@ -9552,7 +9552,7 @@ if (state.selection.size>0 && inMap(tx,ty) && ore[idx(tx,ty)]>0){
 
     // If this lane is already constructing something else (or has READY pending), block switching.
     if ((lane.queue && lane.queue.kind && lane.queue.kind !== kind) ||
-        ;(lane.ready && lane.ready !== kind)){
+        (lane.ready && lane.ready !== kind)){
       toast("명령을 따를 수 없습니다. 건설 중입니다");
       return;
     }
@@ -11020,11 +11020,11 @@ function drawPathFx(){
 
     if (qTxtMain) qTxtMain.textContent = mainLane.ready ? `READY: ${NAME_KO[mainLane.ready]}` :
       mainLane.queue ? `${NAME_KO[mainLane.queue.kind]} ${Math.round(lanePct(mainLane)*100)}%` :
-      ;(mainLane.fifo && mainLane.fifo.length) ? `예약 ${mainLane.fifo.length}` : "-";
+      (mainLane.fifo && mainLane.fifo.length) ? `예약 ${mainLane.fifo.length}` : "-";
 
     if (qTxtDef) qTxtDef.textContent = defLane.ready ? `READY: ${NAME_KO[defLane.ready]}` :
       defLane.queue ? `${NAME_KO[defLane.queue.kind]} ${Math.round(lanePct(defLane)*100)}%` :
-      ;(defLane.fifo && defLane.fifo.length) ? `예약 ${defLane.fifo.length}` : "-";
+      (defLane.fifo && defLane.fifo.length) ? `예약 ${defLane.fifo.length}` : "-";
 
     // Unit producers
     // barracks: infantry+engineer share
@@ -11284,9 +11284,9 @@ let rX = ent.x, rY = ent.y;
         const isInf = isInfantry || isSnip;
         const infDir = isInf ? (
           // While firing, force render direction to the firing direction (prevents backwards-looking shots)
-          ;(ent.fireHoldT>0 && ent.fireDir!=null) ? ent.fireDir :
-          ;(ent.faceDir!=null) ? ent.faceDir :
-          ;(ent.order && (ent.order.type==="move" || ent.order.type==="attackmove" || ent.order.type==="attack") && (ent.order.x!=null) && (ent.order.y!=null))
+          (ent.fireHoldT>0 && ent.fireDir!=null) ? ent.fireDir :
+          (ent.faceDir!=null) ? ent.faceDir :
+          (ent.order && (ent.order.type==="move" || ent.order.type==="attackmove" || ent.order.type==="attack") && (ent.order.x!=null) && (ent.order.y!=null))
             ? worldVecToDir8(ent.order.x - ent.x, ent.order.y - ent.y)
             : 6
         ) : 6;
