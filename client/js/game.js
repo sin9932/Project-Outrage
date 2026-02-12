@@ -1,19 +1,5 @@
 (function(){
-
-  // helpers (safe in all environments)
-  const now = (typeof performance!=='undefined' && performance.now) ? () => performance.now() : () => Date.now();
-  const rand = (a,b) => {
-    if (b === undefined) { b = a; a = 0; }
-    return a + Math.random() * (b - a);
-  };
-
-  // Deterministic 0..1 hash. Keeps particle noise stable and prevents NaN/Infinity.
-  const hash1 = (n) => {
-    n = Number(n);
-    if (!Number.isFinite(n)) n = 0;
-    const x = Math.sin(n*127.1 + 311.7) * 43758.5453123;
-    return x - Math.floor(x);
-  };
+  'use strict';
   // Debug/validation mode: add ?debug=1 to URL
   const DEV_VALIDATE = /(?:\?|&)debug=1(?:&|$)/.test(location.search);
   const DEV_VALIDATE_THROW = false; // if true, throws on first invariant failure
@@ -26,6 +12,8 @@
 
 
 (() => {
+  const FX = window.FX;
+  if (!FX) { console.error('FX modules missing: load fx_core.js + fx_* before game.js'); }
   window.addEventListener("error", (e) => {
     document.body.innerHTML =
       `<pre style="white-space:pre-wrap;padding:16px;color:#fff;background:#000;">
@@ -297,6 +285,7 @@ function fitMini() {
   }
 
   const TILE = 110;
+  FX && FX.setTile && FX.setTile(TILE);
   const GAME_SPEED = 1.30;
   const BUILD_PROD_MULT = 1.30; // additional +30% for building & unit production speed
   // Enemy AI cheats (difficulty)
@@ -344,8 +333,6 @@ function fitMini() {
   const clamp = (v,a,b)=>Math.max(a,Math.min(b,v));
   const dist2 = (ax,ay,bx,by)=>{ const dx=ax-bx, dy=ay-by; return dx*dx+dy*dy; };
   const rnd = (a,b)=> a + Math.random()*(b-a);
-    const rand01 = Math.random; // legacy alias
-
 
 
   // ===== ENEMY AGGRESSION / ANTI-CLUSTER HELPERS =====
@@ -548,15 +535,15 @@ function fitMini() {
   const units=[];
   const buildings=[];
   const bullets=[];
-  const traces=[];
-  const impacts=[]; // MG bullet impact sparks
-  const fires=[]; // building fire particles (low HP)
-  const explosions=[]; // building destruction explosions
+  const traces = FX.traces;
+  const impacts = FX.impacts; // MG bullet impact sparks
+  const fires = FX.fires; // building fire particles (low HP)
+  const explosions = FX.explosions; // building destruction explosions
 
-  const healMarks=[]; // red-cross marks for repairs
-  const flashes=[]; // muzzle flashes
-  const casings=[]; // MG shell casings
-  const repairWrenches=[]; // building repair wrench FX
+  const healMarks = FX.healMarks; // red-cross marks for repairs
+  const flashes = FX.flashes; // muzzle flashes
+  const casings = FX.casings; // MG shell casings
+  const repairWrenches = FX.repairWrenches; // building repair wrench FX
   const infDeathFxs=[]; // infantry death animation FX
 
 
@@ -1434,6 +1421,16 @@ function getBaseBuildTime(kind){
     muzzleMov:null
   };
 
+  // Harvester (no turret) uses same 8-dir + 32-frame turning law as lite tank hull.
+  const HARVESTER_BASE = "asset/sprite/unit/tank/harvester/";
+  const HARVESTER_BASE_SCALE = 0.13; // match lite tank baseline; tweak via Units.UNIT.harvester.spriteScale
+  const HARVESTER = {
+    ok:false,
+    idle:null,
+    mov:null
+  };
+
+
   // Force turret frames to align to the same ground pivot as the hull.
   // TexturePacker anchors differ between hull and turret; using a shared anchor prevents the turret from sitting on the ground.
   const LITE_TANK_TURRET_ANCHOR = { x: 0.5, y: 0.555 };
@@ -1569,11 +1566,12 @@ function getBaseBuildTime(kind){
   }
 
   function _tankBodyFrameName(u){
+    const prefix = (u.kind==="harvester") ? "hav" : "lightank";
     if (u.bodyTurn && u.bodyTurn.frameNum){
-      return "lightank_mov" + u.bodyTurn.frameNum + ".png";
+      return prefix + "_mov" + u.bodyTurn.frameNum + ".png";
     }
     const idx = _dirToIdleIdx[u.bodyDir ?? u.dir ?? 6] || 1;
-    return "lightank_idle" + idx + ".png";
+    return prefix + "_idle" + idx + ".png";
   }
 
   function _tankMuzzleFrameName(u){
@@ -1639,6 +1637,25 @@ function getBaseBuildTime(kind){
     return true;
   }
 
+
+  function drawHarvesterSprite(u, p){
+    if (!HARVESTER.ok) return false;
+    const getSpec = (window.G && G.Units && typeof G.Units.getSpec==="function") ? G.Units.getSpec.bind(G.Units) : null;
+    const specScale = getSpec ? (getSpec("harvester")?.spriteScale ?? getSpec("tank")?.spriteScale ?? 1) : 1;
+    const s = (cam.zoom || 1) * HARVESTER_BASE_SCALE * specScale;
+
+    const bodyName = _tankBodyFrameName(u);
+    const atlas = (bodyName.indexOf("_mov")>=0) ? HARVESTER.mov : HARVESTER.idle;
+
+    const ok = _drawTPFrame(atlas, bodyName, p.x, p.y, s, u.team);
+    if (!ok){
+      // atlas mismatch fallback
+      _drawTPFrame(HARVESTER.mov, bodyName, p.x, p.y, s, u.team);
+      _drawTPFrame(HARVESTER.idle, bodyName, p.x, p.y, s, u.team);
+    }
+    return true;
+  }
+
   // Kick off lite tank atlas loads early (non-blocking)
   (async()=>{
     try{
@@ -1658,7 +1675,24 @@ function getBaseBuildTime(kind){
       console.warn("[lite_tank] atlas load failed:", e);
       LITE_TANK.ok = false;
     }
+  })()
+
+  // Kick off harvester atlas loads early (non-blocking)
+  (async()=>{
+    try{
+      const [idle, mov] = await Promise.all([
+        _loadTPAtlasFromUrl(HARVESTER_BASE + "harvester_idle.json", HARVESTER_BASE),
+        _loadTPAtlasFromUrl(HARVESTER_BASE + "harvester_mov.json", HARVESTER_BASE),
+      ]);
+      HARVESTER.idle = idle;
+      HARVESTER.mov = mov;
+      HARVESTER.ok = true;
+      console.log("[sprite] harvester atlases loaded");
+    }catch(err){
+      console.warn("[sprite] harvester atlas load failed", err);
+    }
   })();
+;
 
 
 
@@ -2417,7 +2451,6 @@ function addUnit(team, kind, x, y){
       type:"unit",
       id: nextId++,
       team, kind,
-      cls: spec.cls,
       grp: 0,
       guard: null,
       guardFrom: false,
@@ -2471,6 +2504,9 @@ function addUnit(team, kind, x, y){
     if (kind === "tank"){
       u.bodyDir = 6;
       u.turretDir = 6;
+    } else if (kind === "harvester"){
+      u.bodyDir = 6;
+      u.turretDir = null;
     }
     units.push(u);
     return u;
@@ -3506,7 +3542,7 @@ function followPath(u, dt){
     if ((u.fireHoldT||0) > 0 && u.fireDir!=null){
       // Firing facing: turret/aim direction
       u.faceDir = u.fireDir;
-      if (u.kind !== "tank"){
+      if (u.kind !== "tank" && u.kind !== "harvester"){
         u.dir = u.fireDir;
       } else {
         if (u.bodyDir==null) u.bodyDir = (u.dir!=null ? u.dir : 6);
@@ -3515,7 +3551,7 @@ function followPath(u, dt){
     } else if (movingDir){
       const fd = worldVecToDir8(ax, ay);
 
-      if (u.kind === "tank"){
+      if (u.kind === "tank" || u.kind === "harvester"){
         // RA2-style: hull turns in place before actually translating.
         if (u.bodyDir == null) u.bodyDir = (u.dir!=null ? u.dir : 6);
 
@@ -4745,776 +4781,40 @@ function spawnTurretMGTracers(shooter, target){
 
 
   
-// ===== Smoke ring + smoke particles (building destruction) =====
-// 목표:
-// - 파동 연기: "원형으로 퍼지되", 아이소메트리라서 위아래 납작 + 라인 없이 흐릿한 연무 타입
-// - 파티클/폭발을 가리지 않도록 렌더 순서는 최하위(지형 위, 폭발/파편 아래)
-const smokeWaves = [];
-const smokePuffs = [];
-const smokeEmitters = [];
-
-// Extra ground FX for vehicles
-const dustPuffs = [];
-const dmgSmokePuffs = [];
-
-// Dust puff for moving vehicles (sandy haze). World-positioned (does NOT follow units).
-function spawnDustPuff(x,y,strength=1,color="rgba(180,170,150,1)"){
-    // Safe helpers: avoid crashing if globals like now()/rand() were stripped or shadowed.
-    if (!Number.isFinite(x) || !Number.isFinite(y)) return;
-    const _now = (typeof performance!=="undefined" && performance && typeof performance.now==="function")
-      ? ()=>performance.now()
-      : ()=>Date.now();
-    const _rand = ()=>Math.random();
-
-    strength = (Number.isFinite(strength) && strength>0) ? strength : 1;
-
-    const t0 = _now();
-    const r0   = (6  + _rand()*4 ) * strength;
-    const grow = (14 + _rand()*10) * strength;
-    const life = (260 + _rand()*220) * (0.9 + strength*0.2);
-    const drift= (8  + _rand()*14) * strength;
-
-    dustPuffs.push({
-      x, y, t0,
-      life,
-      r0,
-      grow,
-      drift,
-      a0: 0.38,
-      a1: 0.0,
-      color,
-      seed: (t0*0.001 + x*12.9898 + y*78.233) % 10000
-    });
-  }
-
-// Damage smoke from a crippled unit (from turret area). World-positioned.
-function spawnDmgSmokePuff(wx, wy, strength=1){
-  const size = clamp(strength, 0.6, 2.4);
-  const spread = TILE * 0.22 * size;
-  const ang = Math.random() * Math.PI * 2;
-  const rad = Math.sqrt(Math.random()) * spread;
-  const x = wx + Math.cos(ang) * rad;
-  const y = wy + Math.sin(ang) * rad;
-
-  dmgSmokePuffs.push({
-    x, y,
-    vx: (Math.random()*2-1)*(TILE*0.03*size),
-    vy: (Math.random()*2-1)*(TILE*0.03*size) - (TILE*0.02*size),
-    t: 0,
-    ttl: 1.55 + Math.random()*0.75,
-    r0: (10 + Math.random()*10) * size,
-    grow: (48 + Math.random()*40) * size,
-    a0: 0.10 + Math.random()*0.06
-  });
-}
-
-function addSmokeWave(wx, wy, size=1){
-  const sz = clamp(size, 0.6, 2.1);
-  smokeWaves.push({
-    x: wx, y: wy,
-    t: 0,
-    ttl: 1.55,
-    size: sz,
-    seed: (Math.random()*1e9)|0,
-    squash: 0.62 // y flatten
-  });
-}
-
-function addSmokeEmitter(wx, wy, size=1){
-  const sz = clamp(size, 0.6, 2.3);
-  smokeEmitters.push({ x:wx, y:wy, t:0, ttl:3.4, size: sz, acc:0 });
-
-  // 잔류 연무(넓게 퍼지는 옅은 연기) 몇 덩이 깔기
-  for (let i=0;i<7;i++) spawnSmokeHaze(wx, wy, sz * (0.95 + Math.random()*0.28));
-}
-
-function spawnSmokePuff(wx, wy, size=1){
-  const spread = TILE * 0.85 * size;
-  const ang = Math.random() * Math.PI * 2;
-  const rad = Math.sqrt(Math.random()) * spread;
-
-  const x = wx + Math.cos(ang) * rad;
-  const y = wy + Math.sin(ang) * rad;
-
-  smokePuffs.push({
-    x, y,
-    vx: (Math.random()*2-1) * (TILE * 0.22 * size) + Math.cos(ang)*(TILE*0.08*size),
-    vy: (Math.random()*2-1) * (TILE * 0.22 * size) + Math.sin(ang)*(TILE*0.08*size),
-    t: 0,
-    ttl: 2.8 + Math.random()*2.2,
-    r0: (18 + Math.random()*26) * size,
-    grow: (30 + Math.random()*44) * size,
-    a0: 0.12 + Math.random()*0.12
-  });
-}
-
-function spawnSmokeHaze(wx, wy, size=1){
-  const spread = TILE * 1.15 * size;
-  const ang = Math.random() * Math.PI * 2;
-  const rad = Math.sqrt(Math.random()) * spread;
-
-  const x = wx + Math.cos(ang) * rad;
-  const y = wy + Math.sin(ang) * rad;
-
-  smokePuffs.push({
-    x, y,
-    vx: (Math.random()*2-1) * (TILE * 0.10 * size) + Math.cos(ang)*(TILE*0.06*size),
-    vy: (Math.random()*2-1) * (TILE * 0.10 * size) + Math.sin(ang)*(TILE*0.06*size),
-    t: 0,
-    ttl: 4.2 + Math.random()*2.2,
-    r0: (34 + Math.random()*24) * size,
-    grow: (70 + Math.random()*70) * size,
-    a0: 0.06 + Math.random()*0.05
-  });
-}
-
-function updateSmoke(dt){
-  // Waves
-  for (let i=smokeWaves.length-1;i>=0;i--){
-    const w = smokeWaves[i];
-    w.t += dt;
-    if (w.t >= w.ttl) smokeWaves.splice(i,1);
-  }
-
-  // Emitters
-  for (let i=smokeEmitters.length-1;i>=0;i--){
-    const e = smokeEmitters[i];
-    e.t += dt;
-    e.acc += dt;
-
-    const rate = 18 * e.size;
-    const step = 1 / Math.max(6, rate);
-
-    while (e.acc >= step){
-      e.acc -= step;
-      spawnSmokePuff(e.x, e.y, e.size);
-    }
-    if (e.t >= e.ttl) smokeEmitters.splice(i,1);
-  }
-
-  // Puffs
-  for (let i=smokePuffs.length-1;i>=0;i--){
-    const p = smokePuffs[i];
-    p.t += dt;
-    if (p.t >= p.ttl){ smokePuffs.splice(i,1); continue; }
-
-    p.x += p.vx * dt;
-    p.y += p.vy * dt;
-
-    const damp = Math.pow(0.992, dt*60);
-    p.vx *= damp;
-    p.vy *= damp;
-  }
-
-  // Dust puffs
-  for (let i=dustPuffs.length-1;i>=0;i--){
-    const p = dustPuffs[i];
-    p.t += dt;
-    if (p.t >= p.ttl){ dustPuffs.splice(i,1); continue; }
-    p.x += p.vx * dt;
-    p.y += p.vy * dt;
-    const damp = Math.pow(0.975, dt*60);
-    p.vx *= damp;
-    p.vy *= damp;
-  }
-
-  // Damage smoke puffs
-  for (let i=dmgSmokePuffs.length-1;i>=0;i--){
-    const p = dmgSmokePuffs[i];
-    p.t += dt;
-    if (p.t >= p.ttl){ dmgSmokePuffs.splice(i,1); continue; }
-    p.x += p.vx * dt;
-    p.y += p.vy * dt;
-    const damp = Math.pow(0.988, dt*60);
-    p.vx *= damp;
-    p.vy *= damp;
-  }
-}
-
-function drawSmokeWaves(ctx){
-  if (!smokeWaves.length) return;
-  const z = (typeof cam !== "undefined" && cam && typeof cam.zoom==="number") ? cam.zoom : 1;
-
-  // deterministic-ish per-wave rand
-  const pr = (seed, n)=>{
-    const x = Math.sin((seed + n) * 12.9898) * 43758.5453;
-    return x - Math.floor(x);
-  };
-
-  for (const w of smokeWaves){
-    const p = worldToScreen(w.x, w.y);
-    const t = clamp(w.t / Math.max(0.001, w.ttl), 0, 1);
-    const ease = 1 - Math.pow(1 - t, 4); // fast -> slow
-
-    // 너무 커지지 않게(건물 크기 대비)
-    const R0 = (TILE * 0.10) * z;
-    const R1 = (TILE * 1.05 * w.size) * z;
-    const R  = R0 + (R1 - R0) * ease;
-
-    // "잔류연기처럼" 흐릿: 라인X, 그라데이션 필
-    const aBase = 0.32 * Math.pow(1 - t, 0.60);
-
-    const squash = (w.squash ?? 0.62);
-    const th = (TILE * 0.34 * w.size) * z; // 부드러운 두께
-
-    ctx.save();
-    ctx.globalCompositeOperation = "source-over";
-
-    // ellipse gradient: scale Y so radial gradient becomes flattened in screen space
-    ctx.translate(p.x, p.y);
-    ctx.scale(1, squash);
-
-    // 3겹 연무 레이어(살짝 흔들리는)
-    for (let k=0;k<3;k++){
-      const jx = (pr(w.seed, 10+k)-0.5) * (TILE * 0.09 * w.size) * z;
-      const jy = (pr(w.seed, 20+k)-0.5) * (TILE * 0.09 * w.size) * z;
-      const rr = 1 + (pr(w.seed, 30+k)-0.5) * 0.07;
-
-      const a = aBase * (0.66 - k*0.16);
-
-      // 깨끗한 라인 방지용 블러
-      ctx.shadowColor = "rgba(0,0,0,0.22)";
-      ctx.shadowBlur  = 28 * z;
-
-      const inner = Math.max(0, (R*rr) - th*0.55);
-      const outer = (R*rr) + th*1.45;
-
-      const g = ctx.createRadialGradient(jx, jy, inner, jx, jy, outer);
-      g.addColorStop(0.00, "rgba(0,0,0,0)");
-      g.addColorStop(0.42, `rgba(110,110,110,${a*0.10})`);
-      g.addColorStop(0.60, `rgba(85,85,85,${a*0.22})`);
-      g.addColorStop(0.80, `rgba(70,70,70,${a*0.18})`);
-      g.addColorStop(1.00, "rgba(0,0,0,0)");
-
-      ctx.fillStyle = g;
-      ctx.beginPath();
-      ctx.arc(jx, jy, outer, 0, Math.PI*2);
-      ctx.fill();
-    }
-
-    // 링 가장자리의 옅은 연무 덩이(연기 느낌)
-    ctx.shadowBlur = 18 * z;
-    for (let i=0;i<12;i++){
-      const ang = (i/12) * (Math.PI*2) + pr(w.seed, 100+i)*0.70;
-      const rad = R * (0.86 + pr(w.seed, 130+i)*0.24);
-
-      const x = Math.cos(ang) * rad;
-      const y = Math.sin(ang) * rad;
-
-      const r = (TILE * (0.10 + pr(w.seed, 160+i)*0.12) * w.size) * z;
-      const a = aBase * 0.14 * (0.6 + pr(w.seed, 190+i)*0.9);
-
-      const g = ctx.createRadialGradient(x, y, 0, x, y, r*2.4);
-      g.addColorStop(0.0, `rgba(150,150,150,${a*0.20})`);
-      g.addColorStop(0.5, `rgba(90,90,90,${a*0.18})`);
-      g.addColorStop(1.0, "rgba(0,0,0,0)");
-
-      ctx.fillStyle = g;
-      ctx.beginPath();
-      ctx.arc(x, y, r*2.4, 0, Math.PI*2);
-      ctx.fill();
-    }
-
-    ctx.restore();
-  }
-}
-
-  function drawSmokePuffs(ctx){
-    if (!smokePuffs.length) return;
-    const z = (typeof cam !== "undefined" && cam && typeof cam.zoom==="number") ? cam.zoom : 1;
-
-    for (const s of smokePuffs){
-      const p = worldToScreen(s.x, s.y);
-      const t = clamp(s.t / Math.max(0.001, s.ttl), 0, 1);
-
-      const r = (s.r0 + s.grow * t) * z;
-
-      // fade out slowly
-      const a = s.a0 * Math.pow(1 - t, 0.65);
-
-      ctx.save();
-      ctx.globalCompositeOperation = "source-over";
-      ctx.globalAlpha = a;
-
-      const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, r);
-      g.addColorStop(0.0, "rgba(220,220,220,0.22)");
-      g.addColorStop(0.35, "rgba(130,130,130,0.20)");
-      g.addColorStop(1.0, "rgba(50,50,50,0.0)");
-      ctx.fillStyle = g;
-
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, r, 0, Math.PI*2);
-      ctx.fill();
-
-      ctx.restore();
-    }
-  }
-
-
-
-// ===== Blood particles (infantry death) =====
-// - Uses the same "soft radial particle" style as smoke puffs, but tinted red/brown.
-// - Two layers:
-//   1) bloodStains: ground decal (flattened ellipse) lingering longer
-//   2) bloodPuffs : short-lived mist/droplets that spread out and fade
-const bloodStains = [];
-const bloodPuffs  = [];
-
-function addBloodBurst(wx, wy, size=1){
-  const sz = clamp(size, 0.6, 1.8);
-  // Spawn puffs a bit above ground so it feels like it comes from the body, not the floor.
-  const BLOOD_PUFF_LIFT = (TILE * 0.32) * sz; // tweak if needed
-
-  // Ground stain (isometric flattened)
-  bloodStains.push({
-    x: wx, y: wy,
-    t: 0,
-    ttl: 14 + Math.random()*10,
-    size: sz,
-    r0: (TILE * (0.12 + Math.random()*0.06)) * sz,
-    grow: (TILE * (0.10 + Math.random()*0.06)) * sz,
-    a0: 0.26 + Math.random()*0.12,
-    squash: 0.56 + Math.random()*0.06
-  });
-
-  // Mist/droplet particles
-  const N = Math.round(10 + Math.random()*6);
-  for (let i=0;i<N;i++){
-    const ang = Math.random()*Math.PI*2;
-    const spd = (TILE * (0.45 + Math.random()*0.55)) * sz;
-
-    bloodPuffs.push({
-      x: wx + (Math.random()*2-1) * TILE*0.06*sz,
-      y: (wy - BLOOD_PUFF_LIFT) + (Math.random()*2-1) * TILE*0.06*sz,
-      vx: Math.cos(ang)*spd + (Math.random()*2-1)*TILE*0.10*sz,
-      vy: Math.sin(ang)*spd + (Math.random()*2-1)*TILE*0.10*sz,
-      t: 0,
-      ttl: 0.9 + Math.random()*0.8,
-      r0: (6 + Math.random()*8) * sz,
-      grow: (10 + Math.random()*16) * sz,
-      a0: 0.22 + Math.random()*0.18,
-      rise: 0,
-      vrise: (22 + Math.random()*38) * sz, // screen-space rise (px/s), for a little "splash"
-      kind: (Math.random() < 0.45) ? "droplet" : "mist"
-    });
-  }
-}
-
-
-function drawDustPuffs(ctx){
-  if(!ctx) return;
-  const _now = (typeof performance!=="undefined" && performance.now)?performance.now():Date.now();
-  // Convert a color-ish value to rgba with custom alpha (handles string/array/object)
-  function rgbaFrom(col, a){
-    a = Math.max(0, Math.min(1, (isFinite(a)?a:0)));
-    let r=180,g=170,b=150;
-    if(typeof col === "string"){
-      const s = col.trim();
-      // rgba()/rgb()
-      let m = s.match(/^rgba?\(\s*([0-9.]+)\s*,\s*([0-9.]+)\s*,\s*([0-9.]+)(?:\s*,\s*([0-9.]+))?\s*\)$/i);
-      if(m){
-        r = +m[1]; g = +m[2]; b = +m[3];
-        // If original includes alpha, multiply
-        if(m[4]!=null){
-          const oa = +m[4];
-          if(isFinite(oa)) a *= Math.max(0, Math.min(1, oa));
-        }
-      } else {
-        // hex #rgb/#rrggbb
-        m = s.match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i);
-        if(m){
-          const h = m[1];
-          if(h.length===3){
-            r = parseInt(h[0]+h[0],16);
-            g = parseInt(h[1]+h[1],16);
-            b = parseInt(h[2]+h[2],16);
-          }else{
-            r = parseInt(h.slice(0,2),16);
-            g = parseInt(h.slice(2,4),16);
-            b = parseInt(h.slice(4,6),16);
-          }
-        }
-      }
-    } else if(Array.isArray(col) && col.length>=3){
-      r = +col[0]; g = +col[1]; b = +col[2];
-    } else if(col && typeof col === "object"){
-      if("r" in col) r = +col.r;
-      if("g" in col) g = +col.g;
-      if("b" in col) b = +col.b;
-    }
-    r = Math.max(0, Math.min(255, isFinite(r)?r:180));
-    g = Math.max(0, Math.min(255, isFinite(g)?g:170));
-    b = Math.max(0, Math.min(255, isFinite(b)?b:150));
-    return `rgba(${r|0},${g|0},${b|0},${a})`;
-  }
-
-  for(let i=dustPuffs.length-1;i>=0;i--){
-    const p = dustPuffs[i];
-    const age = _now - (p.t0||_now);
-    const dur = (p.dur||420);
-    const t = dur>0 ? (age/dur) : 1;
-    if(t>=1 || !isFinite(t)){
-      dustPuffs.splice(i,1);
-      continue;
-    }
-
-    const s = (p.s!=null)?p.s:1;
-    const x = (p.x!=null)?p.x:0;
-    const y = (p.y!=null)?p.y:0;
-    const baseR = (p.r!=null)?p.r:10;
-    const rr = baseR * s;
-
-    if(!isFinite(x) || !isFinite(y) || !isFinite(rr) || rr<=0){
-      dustPuffs.splice(i,1);
-      continue;
-    }
-
-    const grow = 1 + t*0.9;
-    const a = (p.a!=null? p.a:1) * (1-t) * 0.65;
-
-    // Soft, noisy-ish dust like building smoke: layered gradients with small specks
-    ctx.save();
-    ctx.globalCompositeOperation = "source-over";
-    ctx.globalAlpha = 1;
-
-    // Main plume
-    {
-      const r1 = rr*grow;
-      const g1 = ctx.createRadialGradient(x, y, 0, x, y, r1);
-      g1.addColorStop(0, rgbaFrom(p.color, a));
-      g1.addColorStop(0.55, rgbaFrom(p.color, a*0.35));
-      g1.addColorStop(1, rgbaFrom(p.color, 0));
-      ctx.fillStyle = g1;
-      ctx.beginPath();
-      ctx.arc(x, y, r1, 0, Math.PI*2);
-      ctx.fill();
-    }
-
-    // Add a few darker specks to break "perfect circle"
-    const specks = (p.specks!=null)?p.specks:3;
-    for(let k=0;k<specks;k++){
-      const jx = (Math.random()-0.5)*rr*0.9;
-      const jy = (Math.random()-0.5)*rr*0.9;
-      const r2 = rr*(0.18 + Math.random()*0.22);
-      const ax = x + jx, ay = y + jy;
-      if(!isFinite(ax) || !isFinite(ay) || !isFinite(r2) || r2<=0) continue;
-      const g2 = ctx.createRadialGradient(ax, ay, 0, ax, ay, r2);
-      g2.addColorStop(0, rgbaFrom(p.dark||p.color, a*0.35));
-      g2.addColorStop(1, rgbaFrom(p.dark||p.color, 0));
-      ctx.fillStyle = g2;
-      ctx.beginPath();
-      ctx.arc(ax, ay, r2, 0, Math.PI*2);
-      ctx.fill();
-    }
-
-    ctx.restore();
-  }
-}
-
-
-function drawDmgSmokePuffs(ctx){
-  if (!dmgSmokePuffs.length) return;
-  const z = (typeof cam !== "undefined" && cam && typeof cam.zoom==="number") ? cam.zoom : 1;
-  ctx.save();
-  for (const p of dmgSmokePuffs){
-    const k = p.t / p.ttl;
-    const a = (1-k) * p.a0;
-    const r = (p.r0 + p.grow*k) * z;
-    const s = worldToScreen(p.x, p.y);
-    ctx.fillStyle = `rgba(160, 160, 160, ${a})`;
-    ctx.beginPath();
-    ctx.ellipse(s.x, s.y, r*1.05, r*0.95, 0, 0, Math.PI*2);
-    ctx.fill();
-  }
-  ctx.restore();
-}
-
-function updateBlood(dt){
-  // Stains
-  for (let i=bloodStains.length-1;i>=0;i--){
-    const s = bloodStains[i];
-    s.t += dt;
-    if (s.t >= s.ttl) bloodStains.splice(i,1);
-  }
-
-  // Puffs
-  for (let i=bloodPuffs.length-1;i>=0;i--){
-    const p = bloodPuffs[i];
-    p.t += dt;
-    if (p.t >= p.ttl){ bloodPuffs.splice(i,1); continue; }
-
-    p.x += p.vx * dt;
-    p.y += p.vy * dt;
-
-    // dampen movement
-    const damp = Math.pow(0.985, dt*60);
-    p.vx *= damp;
-    p.vy *= damp;
-
-    // rise is screen-space (used only in draw)
-    p.rise += p.vrise * dt;
-    p.vrise *= Math.pow(0.94, dt*60);
-  }
-}
-
-function drawBlood(ctx){
-  const z = (typeof cam !== "undefined" && cam && typeof cam.zoom==="number") ? cam.zoom : 1;
-
-  // 1) ground stains (very subtle, long lasting)
-  for (const s of bloodStains){
-    const p = worldToScreen(s.x, s.y);
-    const t = clamp(s.t / Math.max(0.001, s.ttl), 0, 1);
-    const a = s.a0 * Math.pow(1 - t, 0.55);
-    const r = (s.r0 + s.grow * t) * z;
-
-    ctx.save();
-    ctx.globalCompositeOperation = "source-over";
-    ctx.globalAlpha = a;
-
-    ctx.translate(p.x, p.y);
-    ctx.scale(1, s.squash ?? 0.58);
-
-    const g = ctx.createRadialGradient(0, 0, 0, 0, 0, r);
-    // darker center, softer edge
-    g.addColorStop(0.0, "rgba(80, 0, 0, 0.55)");
-    g.addColorStop(0.35, "rgba(60, 0, 0, 0.35)");
-    g.addColorStop(1.0, "rgba(0, 0, 0, 0.0)");
-    ctx.fillStyle = g;
-
-    ctx.beginPath();
-    ctx.arc(0, 0, r, 0, Math.PI*2);
-    ctx.fill();
-    ctx.restore();
-  }
-
-  // 2) mist/droplets (short-lived)
-  for (const b of bloodPuffs){
-    const p = worldToScreen(b.x, b.y);
-    const t = clamp(b.t / Math.max(0.001, b.ttl), 0, 1);
-    const a = b.a0 * Math.pow(1 - t, 0.70);
-
-    const r = (b.r0 + b.grow * t) * z;
-    const yLift = (b.rise || 0) * z;
-
-    ctx.save();
-    ctx.globalCompositeOperation = "source-over";
-    ctx.globalAlpha = a;
-
-    if (b.kind === "droplet"){
-      // small, denser blob
-      const rr = Math.max(2, r*0.35);
-      const g = ctx.createRadialGradient(p.x, p.y - yLift, 0, p.x, p.y - yLift, rr*2.2);
-      g.addColorStop(0.0, "rgba(160, 0, 0, 0.65)");
-      g.addColorStop(0.45, "rgba(120, 0, 0, 0.28)");
-      g.addColorStop(1.0, "rgba(0,0,0,0)");
-      ctx.fillStyle = g;
-      ctx.beginPath();
-      ctx.arc(p.x, p.y - yLift, rr*2.2, 0, Math.PI*2);
-      ctx.fill();
-    } else {
-      // misty puff
-      const g = ctx.createRadialGradient(p.x, p.y - yLift, 0, p.x, p.y - yLift, r);
-      g.addColorStop(0.0, "rgba(120, 0, 0, 0.28)");
-      g.addColorStop(0.35, "rgba(70, 0, 0, 0.16)");
-      g.addColorStop(1.0, "rgba(0,0,0,0)");
-      ctx.fillStyle = g;
-      ctx.beginPath();
-      ctx.arc(p.x, p.y - yLift, r, 0, Math.PI*2);
-      ctx.fill();
-    }
-
-    ctx.restore();
-  }
-}
-
-
-
-  // ===== Building Destruction Explosion FX =====
-  // Creates a big flash + ground glow + streak sparks + flame plumes (roughly like the screenshot).
-  function addBuildingExplosion(b){
-    if (!b) return;
-    const w = (b.w||0), h = (b.h||0);
-    let size = Math.sqrt((w*w+h*h)) / (TILE*1.25);
-    size = clamp(size, 2.4, 7.5); // HUGE explosion scale
-    const ex = {
-      x: b.x, y: b.y,
-      t: 0,
-      ttl: 1.15,
-      size,
-      parts: []
-    };
-
-    // Streak sparks (fast, thin)
-    const sparkN = 54;
-    for (let i=0;i<sparkN;i++){
-      const ang = (-Math.PI/2) + (Math.random()*Math.PI) + (Math.random()*0.35 - 0.175);
-      const spd = 420 + Math.random()*520;
-      ex.parts.push({
-        kind:"streak",
-        x: ex.x + (Math.random()*2-1)*TILE*0.10,
-        y: ex.y + (Math.random()*2-1)*TILE*0.10,
-        vx: Math.cos(ang)*spd,
-        vy: Math.sin(ang)*spd,
-        life: 0.28 + Math.random()*0.18,
-        ttl: 0.28 + Math.random()*0.18,
-        w: 1.2 + Math.random()*1.8
-      });
-    }
-
-    // Flame plumes (slow, rising)
-    const flameN = 34;
-    for (let i=0;i<flameN;i++){
-      const ang = Math.random()*Math.PI*2;
-      const spd = 70 + Math.random()*120;
-      ex.parts.push({
-        kind:"flame",
-        x: ex.x + (Math.random()*2-1)*TILE*0.18,
-        y: ex.y + (Math.random()*2-1)*TILE*0.18,
-        vx: Math.cos(ang)*spd,
-        vy: Math.sin(ang)*spd,
-        rise: 160 + Math.random()*190,
-        life: 0.65 + Math.random()*0.35,
-        ttl: 0.65 + Math.random()*0.35,
-        r: 40 + Math.random()*70
-      });
-    }
-
-    // A few embers (mid speed)
-    const emberN = 28;
-    for (let i=0;i<emberN;i++){
-      const ang = (-Math.PI/2) + (Math.random()*Math.PI);
-      const spd = 170 + Math.random()*220;
-      ex.parts.push({
-        kind:"ember",
-        x: ex.x + (Math.random()*2-1)*TILE*0.14,
-        y: ex.y + (Math.random()*2-1)*TILE*0.14,
-        vx: Math.cos(ang)*spd,
-        vy: Math.sin(ang)*spd,
-        life: 0.55 + Math.random()*0.25,
-        ttl: 0.55 + Math.random()*0.25,
-        r: 6 + Math.random()*8
-      });
-    }
-
-    explosions.push(ex);
-  }
-
-  function updateExplosions(dt){
-    for (let i=explosions.length-1;i>=0;i--){
-      const e = explosions[i];
-      e.t += dt;
-      for (let j=e.parts.length-1;j>=0;j--){
-        const p = e.parts[j];
-        p.life -= dt;
-        if (p.life<=0){ e.parts.splice(j,1); continue; }
-        p.x += p.vx*dt;
-        p.y += p.vy*dt;
-        // Gravity-ish pull down a bit for sparks/embers
-        if (p.kind==="streak" || p.kind==="ember"){
-          p.vy += 820*dt;
-          p.vx *= (1 - Math.min(1, dt*1.8));
-          p.vy *= (1 - Math.min(1, dt*1.2));
-        } else if (p.kind==="flame"){
-          // Flames drift + rise
-          p.vx *= (1 - Math.min(1, dt*1.2));
-          p.vy *= (1 - Math.min(1, dt*1.2));
-          p.rise *= (1 - Math.min(1, dt*2.6));
-        }
-      }
-      if (e.t >= e.ttl && e.parts.length===0){
-        explosions.splice(i,1);
-      }
-    }
-  }
-
-  function drawExplosions(ctx){
-    if (!explosions.length) return;
-    const z = (typeof cam !== "undefined" && cam && typeof cam.zoom==="number") ? cam.zoom : 1;
-
-    for (const e of explosions){
-      const p = worldToScreen(e.x, e.y);
-      const k = clamp(1 - (e.t / Math.max(0.001, e.ttl)), 0, 1);
-
-      // Big ground glow (additive)
-      ctx.save();
-      ctx.globalCompositeOperation = "lighter";
-      ctx.globalAlpha = 0.95 * Math.pow(k, 0.55);
-      const R = (TILE*2.60*e.size) * z;
-      const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, R);
-      g.addColorStop(0.0, "rgba(255,255,235,0.92)");
-      g.addColorStop(0.28, "rgba(255,220,120,0.70)");
-      g.addColorStop(0.62, "rgba(255,170,70,0.28)");
-      g.addColorStop(1.0, "rgba(255,140,50,0.0)");
-      ctx.fillStyle = g;
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, R, 0, Math.PI*2);
-      ctx.fill();
-
-      // Central flash
-      ctx.globalAlpha = 0.85 * Math.pow(k, 0.35);
-      const R2 = (TILE*1.25*e.size) * z; // HUGE central flash
-      const g2 = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, R2);
-      g2.addColorStop(0.0, "rgba(255,255,255,0.95)");
-      g2.addColorStop(0.5, "rgba(255,245,210,0.55)");
-      g2.addColorStop(1.0, "rgba(255,220,140,0.0)");
-      ctx.fillStyle = g2;
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, R2, 0, Math.PI*2);
-      ctx.fill();
-
-      // Particles
-      for (const prt of e.parts){
-        const pp = worldToScreen(prt.x, prt.y);
-        const a = clamp(prt.life / Math.max(0.001, prt.ttl), 0, 1);
-
-        if (prt.kind==="streak"){
-          // thin streak line
-          const len = (TILE*1.40*e.size) * z * (0.7 + (1-a)*1.2);
-          const dx = (prt.vx) * 0.006 * z;
-          const dy = (prt.vy) * 0.006 * z;
-          const norm = Math.hypot(dx,dy) || 1;
-          const ux = dx/norm, uy = dy/norm;
-          ctx.globalAlpha = 0.70 * a;
-          ctx.lineWidth = prt.w * z;
-          ctx.strokeStyle = "rgba(255,230,150,1)";
-          ctx.beginPath();
-          ctx.moveTo(pp.x - ux*len, pp.y - uy*len);
-          ctx.lineTo(pp.x + ux*len*0.15, pp.y + uy*len*0.15);
-          ctx.stroke();
-        } else if (prt.kind==="ember"){
-          const rr = (prt.r * z) * (0.35 + (1-a)*0.25);
-          ctx.globalAlpha = 0.65 * a;
-          const ge = ctx.createRadialGradient(pp.x, pp.y, 0, pp.x, pp.y, rr);
-          ge.addColorStop(0, "rgba(255,255,235,0.9)");
-          ge.addColorStop(0.5, "rgba(255,200,90,0.55)");
-          ge.addColorStop(1, "rgba(255,160,60,0.0)");
-          ctx.fillStyle = ge;
-          ctx.beginPath();
-          ctx.arc(pp.x, pp.y, rr, 0, Math.PI*2);
-          ctx.fill();
-        } else if (prt.kind==="flame"){
-          const lift = (prt.rise * (1-a)) * z * 0.10;
-          const rr = (prt.r * z) * (0.75 + (1-a)*0.55);
-          ctx.globalAlpha = 0.55 * a;
-          const gf = ctx.createRadialGradient(pp.x, pp.y - lift, 0, pp.x, pp.y - lift, rr);
-          gf.addColorStop(0, "rgba(255,255,235,0.85)");
-          gf.addColorStop(0.35, "rgba(255,210,110,0.62)");
-          gf.addColorStop(0.70, "rgba(255,140,60,0.26)");
-          gf.addColorStop(1, "rgba(255,120,40,0.0)");
-          ctx.fillStyle = gf;
-          ctx.beginPath();
-          ctx.arc(pp.x, pp.y - lift, rr, 0, Math.PI*2);
-          ctx.fill();
-        }
-      }
-
-      ctx.restore();
-    }
-  }
-
-
-  // Small area damage around a point (used for force-fire on ground).
-  function applyAreaDamageAt(x,y, radius, dmg, srcId=null, srcTeam=null){
+// ===== Smoke ring + smoke particles (moved to ./js/fx_all.js) =====
+  const smokeWaves = FX.smokeWaves;
+  const smokePuffs = FX.smokePuffs;
+  const smokeEmitters = FX.smokeEmitters;
+  const dustPuffs = FX.dustPuffs;
+  const dmgSmokePuffs = FX.dmgSmokePuffs;
+
+  function addSmokeWave(wx, wy, scale=1){ return FX.addSmokeWave(wx, wy, scale); }
+  function spawnSmokePuff(wx, wy, size=1){ return FX.spawnSmokePuff(wx, wy, size, TILE); }
+  function spawnSmokeHaze(wx, wy, size=1){ return FX.spawnSmokeHaze(wx, wy, size, TILE); }
+  function addSmokeEmitter(wx, wy, ttl=1.2, rate=18, size=1){ return FX.addSmokeEmitter(wx, wy, ttl, rate, size, TILE); }
+  function spawnDustPuff(wx, wy, size=1){ return FX.spawnDustPuff(wx, wy, size, TILE); }
+  function spawnDmgSmokePuff(wx, wy, size=1){ return FX.spawnDmgSmokePuff(wx, wy, size, TILE); }
+  function updateSmoke(dt){ return FX.updateSmoke(dt); }
+
+  function drawSmokeWaves(ctx){ return FX.drawSmokeWaves(ctx, worldToScreen, cam); }
+  function drawSmokePuffs(ctx){ return FX.drawSmokePuffs(ctx, worldToScreen, cam); }
+  function drawDustPuffs(ctx){ return FX.drawDustPuffs(ctx, worldToScreen, cam); }
+  function drawDmgSmokePuffs(ctx){ return FX.drawDmgSmokePuffs(ctx, worldToScreen, cam); }
+
+  // ===== Blood particles (moved to ./js/fx_all.js) =====
+  const bloodStains = FX.bloodStains;
+  const bloodPuffs = FX.bloodPuffs;
+
+  function addBloodBurst(wx, wy, intensity=1){ return FX.addBloodBurst(wx, wy, intensity, TILE); }
+  function updateBlood(dt){ return FX.updateBlood(dt); }
+  function drawBlood(ctx){ return FX.drawBlood(ctx, worldToScreen, cam); }
+
+// ===== Building Destruction Explosion FX (moved to ./js/fx_all.js) =====
+  function addBuildingExplosion(wx, wy, scale=1){ return FX.addBuildingExplosion(wx, wy, scale, TILE); }
+  function updateExplosions(dt){ return FX.updateExplosions(dt, TILE); }
+  function drawExplosions(ctx){ return FX.drawExplosions(ctx, worldToScreen, cam); }
+
+function applyAreaDamageAt(x,y, radius, dmg, srcId=null, srcTeam=null){
     const r2 = radius*radius;
     for (const u of units){
       if (!u.alive || u.inTransport || u.hidden) continue;
@@ -5796,34 +5096,39 @@ function tickBullets(dt){
           const enemyTeam = bl.team===TEAM.PLAYER ? TEAM.ENEMY : TEAM.PLAYER;
 
           if (!hit){
-            // units
-            for (const u of units){
-              if (!u.alive || u.team!==enemyTeam || u.inTransport || u.hidden) continue;
-              const tx=tileOfX(u.x), ty=tileOfY(u.y);
-              if (enemyTeam===TEAM.ENEMY){
-                if (inMap(tx,ty) && !explored[TEAM.PLAYER][idx(tx,ty)]) continue;
-              }
-              if (dist2(bl.x, bl.y, u.x, u.y) <= (u.r+10)*(u.r+10)){ hit=u; break; }
+          // units
+          for (const u of units){
+            if (!u.alive || u.team!==enemyTeam || u.inTransport || u.hidden) continue;
+const tx=tileOfX(u.x), ty=tileOfY(u.y);
+            if (enemyTeam===TEAM.ENEMY){
+              if (inMap(tx,ty) && !explored[TEAM.PLAYER][idx(tx,ty)]) continue;
             }
-            // buildings
-            if (!hit){
-              for (const b of buildings){
-                if (!b.alive || b.team!==enemyTeam) continue;
-                const tx=tileOfX(b.x), ty=tileOfY(b.y);
-                if (enemyTeam===TEAM.ENEMY){
-                  if (inMap(tx,ty) && !explored[TEAM.PLAYER][idx(tx,ty)]) continue;
-                }
-                if (dist2(bl.x, bl.y, b.x, b.y) <= (b.r+14)*(b.r+14)){ hit=b; break; }
+            if (dist2(bl.x, bl.y, u.x, u.y) <= (u.r+10)*(u.r+10)){ hit=u; break; }
+          }
+          // buildings
+          if (!hit){
+            for (const b of buildings){
+              if (!b.alive || b.team!==enemyTeam) continue;
+              if (b.attackable===false) continue;
+              if (enemyTeam===TEAM.ENEMY){
+                if (!buildingAnyExplored(TEAM.PLAYER,b)) continue;
               }
+              const x0=b.x-b.w/2, y0=b.y-b.h/2;
+              if (bl.x>=x0-8 && bl.x<=x0+b.w+8 && bl.y>=y0-8 && bl.y<=y0+b.h+8){ hit=b; break; }
             }
           }
 
-          // compute damage (must exist even when we already have a hit)
-          let dmg = bl.dmg || 0;
+          // dmg bonus: tank
+          let dmg = bl.dmg;
+          const owner = getEntityById(bl.ownerId);
+          if (owner && owner.kind==="tank"){
+            // slightly reduced vs infantry (tank was deleting infantry too fast)
+            if (hit && hit.cls==="inf") dmg *= 0.70;
+            // modest bonus vs vehicles/buildings
+            if (hit && (BUILD[hit.kind] || hit.kind==="tank")) dmg *= 1.15;
+          }
 
-          // small bonus if shooter is a tank (keeps current feel but avoids ReferenceError)
-          const ownerEnt = (typeof getEntityById === "function") ? getEntityById(bl.ownerId) : null;
-          if (ownerEnt && ownerEnt.kind==="tank") dmg *= 1.15;
+          }
 
           if (hit) applyDamage(hit, dmg, bl.ownerId, bl.team);
 
@@ -5942,106 +5247,8 @@ function tickBullets(dt){
         bullets.splice(i,1);
       }
     }
-    for (let i=impacts.length-1;i>=0;i--){
-      const p = impacts[i];
-      p.delay = (p.delay||0) - dt;
-      if (p.delay > 0) continue;
-      p.life -= dt;
-      p.x += p.vx*dt;
-      p.y += p.vy*dt;
-      // quick drag
-      p.vx *= (1 - Math.min(1, dt*7.5));
-      p.vy *= (1 - Math.min(1, dt*7.5));
-      if (p.life<=0) impacts.splice(i,1);
-    }
-    // Building fire particles when HP is critically low (<30%)
-    for (const b of buildings){
-      if (b.attackable===false) continue;
-      const r = (b.hpMax>0) ? (b.hp/b.hpMax) : 1;
-      if (r < 0.30){
-        b._fireAcc = (b._fireAcc||0) + dt;
-        if (b._fireAcc >= 0.08){
-          b._fireAcc = 0;
-          const tw = (b.tw||1), th = (b.th||1);
-          // spawn near the roof area
-          const rx = (Math.random()-0.5) * tw * TILE * 0.55;
-          const ry = (Math.random()-0.5) * th * TILE * 0.55;
-          fires.push({
-            x: b.x + rx, y: b.y + ry,
-            vx: (Math.random()*2-1)*12,
-            vy: (Math.random()*2-1)*12,
-            rise: 18 + Math.random()*26,
-            life: 0.55 + Math.random()*0.35
-          });
-        }
-      } else {
-        b._fireAcc = 0;
-      }
-    }
-
-    for (let i=fires.length-1;i>=0;i--){
-      const f = fires[i];
-      f.life -= dt;
-      if (f.life<=0){ fires.splice(i,1); continue; }
-      f.x += f.vx*dt; f.y += f.vy*dt;
-      f.rise *= (1 - Math.min(1, dt*2.5));
-    }
-
-    updateExplosions(dt);
-
-    for (let i=healMarks.length-1;i>=0;i--){
-      const h = healMarks[i];
-      h.life -= dt;
-      if (h.life<=0) healMarks.splice(i,1);
-    }
-
-    // shell casings physics (simple hop + fall)
-    for (let i=casings.length-1;i>=0;i--){
-      const c = casings[i];
-      c.delay = (c.delay||0) - dt;
-      if (c.delay > 0) continue;
-
-      c.life -= dt;
-      c.x += c.vx*dt;
-      c.y += c.vy*dt;
-
-      // gravity on z
-      c.vz -= 820*dt;
-      c.z += c.vz*dt;
-
-      // ground bounce
-      if (c.z < 0){
-        c.z = 0;
-        c.vz *= -0.42;
-        c.vx *= 0.78;
-        c.vy *= 0.78;
-      }
-
-      // air/ground drag
-      c.vx *= (1 - Math.min(1, dt*1.6));
-      c.vy *= (1 - Math.min(1, dt*1.6));
-      c.rot += (c.vx*0.003 + c.vy*0.003);
-
-      if (c.life<=0) casings.splice(i,1);
-    }
-
-    for (let i=traces.length-1;i>=0;i--){
-      traces[i].delay = (traces[i].delay||0) - dt;
-      if (traces[i].delay > 0) continue;
-      traces[i].life -= dt;
-      if (traces[i].life<=0) traces.splice(i,1);
-    }
-
-    for (let i=flashes.length-1;i>=0;i--){
-      flashes[i].delay = (flashes[i].delay||0) - dt;
-      if (flashes[i].delay > 0) continue;
-      flashes[i].life -= dt;
-      if (flashes[i].life<=0) flashes.splice(i,1);
-    }
-  }
-
-  function resolveUnitOverlaps(){
-  const clsOf = (u)=> (u && UNIT[u.kind] && UNIT[u.kind].cls) ? UNIT[u.kind].cls : "";
+        FX.tickCombatFx(dt, buildings, TILE);
+const clsOf = (u)=> (u && UNIT[u.kind] && UNIT[u.kind].cls) ? UNIT[u.kind].cls : "";
   // Infantry sub-slot crowding: treat infantry collision as much smaller so 4 can share a tile.
   const effCollR = (u)=> (clsOf(u)==="inf" ? 9 : (u.r||18));
   // De-clump without making idle units "walk" on their own.
@@ -11364,6 +10571,8 @@ let rX = ent.x, rY = ent.y;
           let drewSprite = false;
           if (ent.kind==="tank"){
             drewSprite = drawLiteTankSprite(ent, p);
+          } else if (ent.kind==="harvester"){
+            drewSprite = drawHarvesterSprite(ent, p);
           }
 
           if (!drewSprite){
@@ -11506,159 +10715,13 @@ let rX = ent.x, rY = ent.y;
       }
     }
 
-    for (const tr of traces){
-      if ((tr.delay||0) > 0) continue;
-      const a=worldToScreen(tr.x0,tr.y0);
-      const b=worldToScreen(tr.x1,tr.y1);
-      let alpha;
-      if (tr.kind === "snip"){
-        alpha = Math.min(1, tr.life / (tr.maxLife ?? 0.80));
-      } else {
-        alpha = Math.min(1, tr.life / (tr.kind==="mg" ? 0.14 : 0.09));
-      }
-      ctx.globalAlpha = alpha;
+        FX.drawTraces(ctx, worldToScreen, cam);
 
-      if (tr.kind === "mg"){
-        // Solid yellow tracer with glow (auto-rifle 느낌: 선이 깜빡이며 나감)
-        ctx.save();
-        ctx.lineCap = "round";
-
-        // outer glow
-        ctx.globalAlpha = alpha*0.85;
-        ctx.shadowBlur = 22;
-        ctx.shadowColor = "rgba(255, 195, 80, 1.0)";
-        ctx.strokeStyle = "rgba(255, 220, 120, 0.70)";
-        ctx.lineWidth = 6.2;
-        ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke();
-
-        // bright core
-        ctx.shadowBlur = 0;
-        ctx.globalAlpha = alpha;
-        ctx.strokeStyle = "rgba(255, 248, 185, 1.0)";
-        ctx.lineWidth = 2.6;
-        ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke();
-
-// tiny end-point glint for readability
-ctx.globalAlpha = alpha;
-ctx.fillStyle = "rgba(255, 245, 200, 1.0)";
-ctx.beginPath();
-ctx.arc(b.x, b.y, 2.2, 0, Math.PI*2);
-ctx.fill();
-
-        ctx.restore();
-      } else if (tr.kind === "tmg"){
-        // Turret MG tracer: thicker + brighter than infantry tracer
-        ctx.save();
-        ctx.lineCap = "round";
-
-        // outer glow
-        ctx.globalAlpha = alpha*0.95;
-        ctx.shadowBlur = 34;
-        ctx.shadowColor = "rgba(255, 170, 40, 1.0)";
-        ctx.strokeStyle = "rgba(255, 210, 90, 0.85)";
-        ctx.lineWidth = 10.5;
-        ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke();
-
-        // hot core
-        ctx.shadowBlur = 0;
-        ctx.globalAlpha = alpha;
-        ctx.strokeStyle = "rgba(255, 250, 200, 1.0)";
-        ctx.lineWidth = 4.8;
-        ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke();
-
-        // end glint
-        ctx.globalAlpha = alpha;
-        ctx.fillStyle = "rgba(255, 255, 220, 1.0)";
-        ctx.beginPath(); ctx.arc(b.x, b.y, 3.0, 0, Math.PI*2); ctx.fill();
-
-        ctx.restore();
-      
-      } else if (tr.kind === "snip"){
-        // Sniper: glowing team-colored beam with thicker stroke + long afterimage
-        ctx.save();
-        ctx.lineCap = "round";
-        const isP = (tr.team===TEAM.PLAYER);
-        const glow = isP ? "rgba(0, 160, 255, 1.0)" : "rgba(255, 60, 60, 1.0)";
-        const mid  = isP ? "rgba(0, 140, 255, 0.75)" : "rgba(255, 70, 70, 0.75)";
-        const core = "rgba(255, 255, 255, 1.0)";
-
-        // outer glow
-        ctx.globalAlpha = alpha*0.80;
-        ctx.shadowBlur = 28;
-        ctx.shadowColor = glow;
-        ctx.strokeStyle = mid;
-        ctx.lineWidth = 7.2;
-        ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke();
-
-        // bright core
-        ctx.shadowBlur = 0;
-        ctx.globalAlpha = alpha;
-        ctx.strokeStyle = core;
-        ctx.lineWidth = 3.2;
-        ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke();
-
-        // end glint for readability
-        ctx.globalAlpha = alpha;
-        ctx.fillStyle = core;
-        ctx.beginPath();
-        ctx.arc(b.x, b.y, 3.2, 0, Math.PI*2);
-        ctx.fill();
-
-        ctx.restore();
-
-      } else if (tr.kind === "impE"){
-        // impact ellipse dodge (isometric)
-        const c = worldToScreen(tr.x0, tr.y0);
-        const range = tr.fx?.range ?? 48;
-        const px = worldToScreen(tr.x0 + range, tr.y0);
-        const py = worldToScreen(tr.x0, tr.y0 + range);
-        const rx = Math.abs(px.x - c.x);
-        const ry = Math.abs(py.y - c.y);
-
-        ctx.save();
-        ctx.beginPath();
-        ctx.ellipse(c.x, c.y, rx, ry, 0, 0, Math.PI*2);
-
-        ctx.fillStyle = (tr.team===TEAM.PLAYER) ? "rgba(255, 200, 90, 0.16)" : "rgba(255, 200, 90, 0.16)";
-        ctx.strokeStyle = "rgba(255, 210, 110, 0.88)";
-        ctx.lineWidth = tr.fx?.strokeW ?? 4.6;
-        ctx.shadowBlur = 22;
-        ctx.shadowColor = "rgba(255, 170, 60, 1.0)";
-        ctx.fill();
-        ctx.stroke();
-        ctx.restore();
-} else {
-        ctx.strokeStyle=(tr.team===TEAM.PLAYER) ? "rgba(255,255,255,0.85)" : "rgba(255,210,210,0.85)";
-        ctx.lineWidth=1.6;
-        ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke();
-      }
-
-      ctx.globalAlpha=1;
-    }
 
     
     // Muzzle flashes (soft radial gradient)
-    for (const f of flashes){
-      if ((f.delay||0) > 0) continue;
-      const p=worldToScreen(f.x,f.y);
-      const a = Math.min(1, f.life/0.06);
-      ctx.globalAlpha = a;
-      const r = Number(f.r);
-      // Guard against NaN/Infinity so CanvasGradient never explodes the whole tick.
-      if (!Number.isFinite(p.x) || !Number.isFinite(p.y) || !Number.isFinite(r) || r <= 0) {
-        ctx.globalAlpha = 1;
-        continue;
-      }
-      const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, r);
-      g.addColorStop(0, "rgba(255, 245, 200, 0.95)");
-      g.addColorStop(0.25, "rgba(255, 220, 120, 0.55)");
-      g.addColorStop(1, "rgba(255, 200, 80, 0.0)");
-      ctx.fillStyle = g;
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, r, 0, Math.PI*2);
-      ctx.fill();
-      ctx.globalAlpha = 1;
-    }
+        FX.drawFlashes(ctx, worldToScreen, cam);
+
 
 
     // Building destruction explosions
@@ -11675,76 +10738,23 @@ ctx.fill();
     drawSmokePuffs(ctx);
     drawDmgSmokePuffs(ctx);
 // Building fire FX (critical HP)
-    for (const f of fires){
-      const p = worldToScreen(f.x, f.y);
-      const a = clamp(f.life/0.6, 0, 1);
-      const z = (typeof cam !== "undefined" && cam && typeof cam.zoom==="number") ? cam.zoom : 1;
-      ctx.globalAlpha = a;
-      // flame pillar (zoom-consistent)
-      const h = (16 + f.rise*0.6) * z;
-      ctx.fillStyle = "rgba(255, 120, 20, 0.95)";
-      ctx.fillRect(p.x-1.6*z, p.y-h, 3.2*z, h);
-      ctx.fillStyle = "rgba(255, 200, 80, 0.95)";
-      ctx.fillRect(p.x-0.9*z, p.y-h*0.72, 1.8*z, h*0.72);
-      ctx.globalAlpha = 1;
-    }
+        FX.drawFires(ctx, worldToScreen, cam);
+
 
 // MG impact sparks (tiny yellow particles on ground)
-    for (const p0 of impacts){
-      const p=worldToScreen(p0.x,p0.y);
-      ctx.globalAlpha = Math.min(1, p0.life/0.22);
-      ctx.fillStyle = "rgba(255, 210, 90, 0.95)";
-      ctx.fillRect(p.x-1.4, p.y-1.4, 2.8, 2.8);
-      ctx.globalAlpha = 1;
-    }
+        FX.drawImpacts(ctx, worldToScreen, cam);
+
 
     // Blood (infantry death)
     drawBlood(ctx);
 
     // Repair mark (red cross) + subtle pulse
-    for (const h of healMarks){
-      const p = worldToScreen(h.x, h.y);
-      const a = Math.min(1, h.life/0.45);
-      const s = 10 + (1-a)*6;
-      ctx.save();
-      ctx.globalAlpha = a;
-      ctx.strokeStyle = "rgba(255,255,255,0.85)";
-      ctx.lineWidth = 3.2;
-      ctx.beginPath();
-      ctx.moveTo(p.x, p.y - s);
-      ctx.lineTo(p.x, p.y + s);
-      ctx.moveTo(p.x - s, p.y);
-      ctx.lineTo(p.x + s, p.y);
-      ctx.stroke();
-      ctx.strokeStyle = "rgba(220,40,40,0.95)";
-      ctx.lineWidth = 2.0;
-      ctx.beginPath();
-      ctx.moveTo(p.x, p.y - s);
-      ctx.lineTo(p.x, p.y + s);
-      ctx.moveTo(p.x - s, p.y);
-      ctx.lineTo(p.x + s, p.y);
-      ctx.stroke();
-      ctx.restore();
-    }
+        FX.drawHealMarks(ctx, worldToScreen, cam);
+
 
 // Shell casings (small brass rectangles)
-    for (const c of casings){
-      if ((c.delay||0) > 0) continue;
-      const p=worldToScreen(c.x, c.y);
-      const y = p.y - (c.z||0)*0.18; // lift a bit while in air
-      const a = Math.min(1, c.life/0.35);
-      ctx.save();
-      ctx.globalAlpha = a*0.95;
-      ctx.translate(p.x, y);
-      ctx.rotate(c.rot||0);
-      // subtle glow for visibility
-      ctx.shadowBlur = 8;
-      ctx.shadowColor = "rgba(255, 210, 110, 0.55)";
-      ctx.fillStyle = "rgba(255, 200, 90, 0.95)";
-      ctx.fillRect(-(c.w||4)/2, -(c.h||2)/2, (c.w||4), (c.h||2));
-      ctx.restore();
-      ctx.globalAlpha = 1;
-    }
+        FX.drawCasings(ctx, worldToScreen, cam);
+
 
     refreshPrimaryBuildingBadgesUI();
     drawClickWaves();
@@ -12882,9 +11892,6 @@ function pushOrderFx(unitId, kind, x, y, targetId=null, color=null){
     r: isAtk ? 5.8 : 5.2
   });
 }
-
-window.setPathTo
-
 window.setPathTo = setPathTo;
 window.findPath = findPath;
 window.issueIFVRepair = issueIFVRepair;
