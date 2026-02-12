@@ -3,6 +3,10 @@
   const DEV_VALIDATE = /(?:\?|&)debug=1(?:&|$)/.test(location.search);
   const DEV_VALIDATE_THROW = false; // if true, throws on first invariant failure
 
+  // Some builds reference `dg` (debug flag) in AI/update code; define it to avoid ReferenceError.
+  const dg = DEV_VALIDATE;
+  window.dg = dg;
+
   function _assert(cond, msg){
     if (cond) return;
     console.error("[ASSERT]", msg);
