@@ -3,9 +3,16 @@
   // helpers (safe in all environments)
   const now = (typeof performance!=='undefined' && performance.now) ? () => performance.now() : () => Date.now();
   const rand = (a,b) => {
-  console.log("[build] harv-sprite-build-2026-02-12h");
     if (b === undefined) { b = a; a = 0; }
     return a + Math.random() * (b - a);
+  };
+
+  // Deterministic 0..1 hash. Keeps particle noise stable and prevents NaN/Infinity.
+  const hash1 = (n) => {
+    n = Number(n);
+    if (!Number.isFinite(n)) n = 0;
+    const x = Math.sin(n*127.1 + 311.7) * 43758.5453123;
+    return x - Math.floor(x);
   };
   // Debug/validation mode: add ?debug=1 to URL
   const DEV_VALIDATE = /(?:\?|&)debug=1(?:&|$)/.test(location.search);
@@ -5135,12 +5142,20 @@ function drawDustPuffs(ctx){
       const ox = (hash1(seed+tt*3.7)-0.5) * r*0.20;
       const oy = (hash1(seed+tt*5.9)-0.5) * r*0.20;
 
-      if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(rr) || !Number.isFinite(ox) || !Number.isFinite(oy)) {
+      const gx = x + ox;
+      const gy = y + oy;
+      if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(rr) || !Number.isFinite(ox) || !Number.isFinite(oy) || !Number.isFinite(gx) || !Number.isFinite(gy)) {
         dustPuffs.splice(i,1);
         continue;
       }
 
-      const g = ctx.createRadialGradient(x+ox, y+oy, rr*0.10, x, y, rr);
+      let g;
+      try {
+        g = ctx.createRadialGradient(gx, gy, rr*0.10, x, y, rr);
+      } catch (e) {
+        dustPuffs.splice(i,1);
+        continue;
+      }
       const c = p.color || "rgba(180,170,150,1)";
       g.addColorStop(0, c.replace(/rgba\(([^)]+)\)/, (m,inner)=>`rgba(${inner.split(',').slice(0,3).join(',')},${Math.max(0,alpha)})`));
       g.addColorStop(1, c.replace(/rgba\(([^)]+)\)/, (m,inner)=>`rgba(${inner.split(',').slice(0,3).join(',')},0)`));
@@ -11582,7 +11597,12 @@ ctx.fill();
       const p=worldToScreen(f.x,f.y);
       const a = Math.min(1, f.life/0.06);
       ctx.globalAlpha = a;
-      const r = f.r;
+      const r = Number(f.r);
+      // Guard against NaN/Infinity so CanvasGradient never explodes the whole tick.
+      if (!Number.isFinite(p.x) || !Number.isFinite(p.y) || !Number.isFinite(r) || r <= 0) {
+        ctx.globalAlpha = 1;
+        continue;
+      }
       const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, r);
       g.addColorStop(0, "rgba(255, 245, 200, 0.95)");
       g.addColorStop(0.25, "rgba(255, 220, 120, 0.55)");
