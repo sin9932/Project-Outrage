@@ -1,7 +1,7 @@
 (function(){
 
 // BUILD_ID: harv-sprite-build-2026-02-12d
-window.__BUILD_ID = "harv-sprite-build-2026-02-12b";
+window.__BUILD_ID = "harv-sprite-build-2026-02-12e";
 console.log("[build]", window.__BUILD_ID);
 try {
   const _q = new URLSearchParams(location.search);
@@ -5733,6 +5733,10 @@ function tickBullets(dt){
 
     for (let i=bullets.length-1;i>=0;i--){
       const bl = bullets[i];
+
+      // shooter + base damage (shared)
+      const shooter = getEntityById(bl.ownerId);
+      let dmg = (bl.dmg==null ? 0 : bl.dmg);
 
       if (bl.kind==="shell"){
         // track moving target so shells can actually hit infantry
