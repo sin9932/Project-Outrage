@@ -1,7 +1,7 @@
 (function(){
 
 // BUILD_ID: harv-sprite-build-2026-02-12c
-window.__BUILD_ID = "harv-sprite-build-2026-02-12b";
+window.__BUILD_ID = "harv-sprite-build-2026-02-12d";
 console.log("[build]", window.__BUILD_ID);
 try {
   const _q = new URLSearchParams(location.search);
@@ -5792,8 +5792,6 @@ const tx=tileOfX(u.x), ty=tileOfY(u.y);
             if (hit && hit.cls==="inf") dmg *= 0.70;
             // modest bonus vs vehicles/buildings
             if (hit && (BUILD[hit.kind] || hit.kind==="tank")) dmg *= 1.15;
-          }
-
           }
 
           if (hit) applyDamage(hit, dmg, bl.ownerId, bl.team);
