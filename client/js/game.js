@@ -1,7 +1,7 @@
 (function(){
 
 // BUILD_ID: harv-sprite-build-2026-02-12c
-window.__BUILD_ID = "harv-sprite-build-2026-02-12d";
+window.__BUILD_ID = "harv-sprite-build-2026-02-12b";
 console.log("[build]", window.__BUILD_ID);
 try {
   const _q = new URLSearchParams(location.search);
@@ -5748,6 +5748,10 @@ function tickBullets(dt){
         if (t >= 1){
           // impact at destination
           let hit=null;
+          // dmg bonus: tank
+          let dmg = bl.dmg;
+          const owner = getEntityById(bl.ownerId);
+
 
           // Friendly-fire support (CTRL force-attack testing):
           // If a shell was fired with allowFriendly and tracks a specific entity id,
@@ -5784,14 +5788,15 @@ const tx=tileOfX(u.x), ty=tileOfY(u.y);
             }
           }
 
-          // dmg bonus: tank
-          let dmg = bl.dmg;
-          const owner = getEntityById(bl.ownerId);
-          if (owner && owner.kind==="tank"){
-            // slightly reduced vs infantry (tank was deleting infantry too fast)
-            if (hit && hit.cls==="inf") dmg *= 0.70;
-            // modest bonus vs vehicles/buildings
-            if (hit && (BUILD[hit.kind] || hit.kind==="tank")) dmg *= 1.15;
+          }
+
+          // dmg bonus: tank (moved outside detection block)
+          if (owner && owner.kind==="tank" && hit){
+            // vs infantry: slightly reduced (shells track infantry but shouldn't erase them)
+            if (hit.cls==="inf") dmg *= 0.70;
+            // vs structures/vehicles: mild bonus
+            if (hit.cls==="b") dmg *= 1.15;
+            if (hit.cls==="v") dmg *= 1.10;
           }
 
           if (hit) applyDamage(hit, dmg, bl.ownerId, bl.team);
@@ -5857,6 +5862,13 @@ const tx=tileOfX(u.x), ty=tileOfY(u.y);
             if (segIntersectsAABB(px,py, bl.x,bl.y, x0,y0,x1,y1)){ hit=b; break; }
           }
         }
+          if (owner && owner.kind==="tank"){
+            // slightly reduced vs infantry (tank was deleting infantry too fast)
+            if (hit && hit.cls==="inf") dmg *= 0.70;
+            // modest bonus vs vehicles/buildings
+            if (hit && (BUILD[hit.kind] || hit.kind==="tank")) dmg *= 1.15;
+          }
+
         if (hit){
           bl.tid = hit.id;
           explodeMissile(bl, bl.x, bl.y);
