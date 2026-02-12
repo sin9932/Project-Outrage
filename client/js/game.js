@@ -10,7 +10,7 @@
   }
 
 
-;(() => {
+(() => {
   window.addEventListener("error", (e) => {
     document.body.innerHTML =
       `<pre style="white-space:pre-wrap;padding:16px;color:#fff;background:#000;">
@@ -993,7 +993,7 @@ function getBaseBuildTime(kind){
   _loadTune();
 
   // apply HTML-provided preset (overrides persisted storage)
-  ;(function(){
+  (function(){
     try{
       const preset = (typeof window !== "undefined") ? window.SPRITE_TUNE_PRESET : null;
       if (!preset || typeof preset !== "object") return;
@@ -1653,7 +1653,7 @@ function getBaseBuildTime(kind){
   }
 
   // Kick off lite tank atlas loads early (non-blocking)
-  ;(async()=>{
+  (async()=>{
     try{
       const [bodyIdle, bodyMov, muzzleIdle, muzzleMov] = await Promise.all([
         _loadTPAtlasFromUrl(LITE_TANK_BASE + "lite_tank.json", LITE_TANK_BASE),
@@ -1671,10 +1671,10 @@ function getBaseBuildTime(kind){
       console.warn("[lite_tank] atlas load failed:", e);
       LITE_TANK.ok = false;
     }
-  })();
+  })()
 
   // Kick off harvester atlas loads early (non-blocking)
-  ;(async()=>{
+  (async()=>{
     try{
       const [idle, mov] = await Promise.all([
         _loadTPAtlasFromUrl(HARVESTER_BASE + "harvester_idle.json", HARVESTER_BASE),
@@ -1693,7 +1693,7 @@ function getBaseBuildTime(kind){
 
 
   // Kick off json load early (non-blocking)
-  ;(async()=>{
+  (async()=>{
     try{
       const r = await fetch(EXP1_JSON, {cache:"no-store"});
       if (!r.ok) throw new Error("HTTP "+r.status);
@@ -5763,9 +5763,9 @@ const tx=tileOfX(u.x), ty=tileOfY(u.y);
             if (hit && (BUILD[hit.kind] || hit.kind==="tank")) dmg *= 1.15;
           }
 
+          if (hit) applyDamage(hit, dmg, bl.ownerId, bl.team);
           }
 
-          if (hit) applyDamage(hit, dmg, bl.ownerId, bl.team);
 
           // impact FX: ellipse dodge + sparks
           flashes.push({x: bl.x, y: bl.y, r: 48 + Math.random()*10, life: 0.10, delay: 0});
@@ -12820,7 +12820,7 @@ function pushOrderFx(unitId, kind, x, y, targetId=null, color=null){
   });
 }
 
-window.setPathTo
+// window.setPathTo (removed dead statement)
 
 window.setPathTo = setPathTo;
 window.findPath = findPath;
