@@ -4743,6 +4743,23 @@ function spawnTurretMGTracers(shooter, target){
     }catch(_e){}
     try{ addSmokeWave(b.x, b.y, _smkS); }catch(_e){}
     try{ addSmokeEmitter(b.x, b.y, _smkS); }catch(_e){}
+// 2.3) Restore the old "noisy gradient smoke particle" feel:
+//      - a burst of dusty smoke blobs + lingering smoke puffs.
+//      (kept deterministic-ish and cheap)
+try{
+  const burstN = Math.floor(24 * _smkS);
+  for (let i=0;i<burstN;i++){
+    const ang = Math.random()*Math.PI*2;
+    const spd = (TILE*6) * (0.35 + Math.random()*0.65);
+    const vx = Math.cos(ang) * spd;
+    const vy = Math.sin(ang) * spd;
+    spawnDustPuff(b.x, b.y, vx, vy, 1.6 * _smkS);
+  }
+  const puffN = Math.floor(16 * _smkS);
+  for (let i=0;i<puffN;i++){
+    spawnSmokePuff(b.x, b.y, 1.25 * _smkS);
+  }
+}catch(_e){}
     // 2.5) HQ special: play large exp1 sprite explosion + world camera shake (UI not affected)
     if (b.kind === "hq"){
       // HQ special: exp1 sprite explosion + world camera shake (UI not affected)
@@ -8255,13 +8272,28 @@ if (needMove){
         const spd = Math.hypot(vx, vy);
         if (spd > 6){
           u._dustAcc = (u._dustAcc || 0) + dt;
-          const interval = 0.06;
+          const interval = 0.04;
           if (u._dustAcc >= interval){
             u._dustAcc = 0;
+
             const backx = -vx / spd, backy = -vy / spd;
-            const wx = u.x + backx * (TILE * 0.10);
-            const wy = u.y + backy * (TILE * 0.10);
-            spawnDustPuff(wx, wy, vx, vy, 1.0);
+
+            // Track smoke should come from the *rear* of the hull (visible behind the sprite).
+            const backOff = TILE * 0.42;
+
+            // Alternate left/right to feel like two tracks.
+            u._dustSide = (u._dustSide || 0) ^ 1;
+            const sideSign = u._dustSide ? 1 : -1;
+
+            const px = -backy, py = backx; // perpendicular unit (since backx/backy is unit)
+            const sideOff = TILE * 0.16 * sideSign;
+
+            const wx = u.x + backx * backOff + px * sideOff;
+            const wy = u.y + backy * backOff + py * sideOff;
+
+            // Primary puff + a small trailing puff for "noise" density
+            spawnDustPuff(wx, wy, vx, vy, 1.25);
+            spawnDustPuff(wx + px*(TILE*0.08), wy + py*(TILE*0.08), vx, vy, 0.95);
           }
         } else {
           u._dustAcc = 0;
@@ -8269,7 +8301,7 @@ if (needMove){
 
         // Damage smoke when HP is in yellow/red (spawned at the time, does NOT follow unit)
         const hpPct = (u.hpMax>0) ? (u.hp / u.hpMax) : 1;
-        if (hpPct < 0.50 && u.kind !== "harvester"){
+        if (hpPct < 0.50 && (UNIT[u.kind] && UNIT[u.kind].cls==="veh")){
           u._dmgSmokeAcc = (u._dmgSmokeAcc || 0) + dt;
           const interval = (hpPct < 0.20) ? 0.08 : 0.14;
           if (u._dmgSmokeAcc >= interval){
