@@ -4741,7 +4741,6 @@ function spawnTurretMGTracers(shooter, target){
       let s = Math.sqrt(bw*bw + bh*bh) / (TILE*2.0);
       _smkS = clamp(s, 0.8, 2.2);
     }catch(_e){}
-    try{ addSmokeWave(b.x, b.y, _smkS); }catch(_e){}
     try{ addSmokeEmitter(b.x, b.y, _smkS); }catch(_e){}
 // 2.3) Restore the old "noisy gradient smoke particle" feel:
 //      - a burst of dusty smoke blobs + lingering smoke puffs.
@@ -8258,7 +8257,9 @@ if (needMove){
       if (!u.alive || u.inTransport) continue;
 
       // Dust trail for vehicles (tank/ifv/etc) while moving
-      if (u.cls==="veh"){
+      const _uDef = (typeof UNIT!=="undefined" && UNIT) ? UNIT[u.kind] : null;
+      const _isVeh = (u.cls==="veh") || (_uDef && _uDef.cls==="veh");
+      if (_isVeh){
         // Velocity estimate from actual displacement (movement code may not maintain u.vx/u.vy consistently)
         let vx = 0, vy = 0;
         if (u._fxLastX!=null && u._fxLastY!=null && dt>0){
