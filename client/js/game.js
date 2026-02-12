@@ -1254,10 +1254,6 @@ function getBaseBuildTime(kind){
       dx, dy, dw, dh
     );
     ctx.restore();
-    if (!ok){
-      if (dg) console.warn("[sprite] harvester frame missing:", bodyName);
-      return false;
-    }
     return true;
   }
 
