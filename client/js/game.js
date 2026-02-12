@@ -329,6 +329,8 @@ function fitMini() {
   const clamp = (v,a,b)=>Math.max(a,Math.min(b,v));
   const dist2 = (ax,ay,bx,by)=>{ const dx=ax-bx, dy=ay-by; return dx*dx+dy*dy; };
   const rnd = (a,b)=> a + Math.random()*(b-a);
+  const rand = Math.random; // alias for legacy calls (rand())
+
 
 
   // ===== ENEMY AGGRESSION / ANTI-CLUSTER HELPERS =====
