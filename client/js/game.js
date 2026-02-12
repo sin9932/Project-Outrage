@@ -1,4 +1,5 @@
-;(function(){
+;
+    barracks:{ anchor:"center", scaleMul:1.0, pivotNudge:{x:0,y:0}, offsetNudge:{x:0,y:0} },(function(){
   // Debug/validation mode: add ?debug=1 to URL
   const DEV_VALIDATE = /(?:\?|&)debug=1(?:&|$)/.test(location.search);
   const DEV_VALIDATE_THROW = false; // if true, throws on first invariant failure
@@ -957,6 +958,20 @@ function getBaseBuildTime(kind){
       return;
     }
     el.style.display = "block";
+
+    // auto-target: if exactly one building is selected, tune that kind
+    try{
+      let selKind=null; let selCount=0;
+      for (const id of state.selection){
+        const e=getEntityById(id);
+        if (!e || !e.alive) continue;
+        if (e.type!=="building") continue;
+        selKind=e.kind; selCount++;
+        if (selCount>1) break;
+      }
+      if (selCount===1 && selKind) TUNER.targetKind = selKind;
+    }catch(_e){}
+
     const t = _tuneObj(TUNER.targetKind);
     el.innerHTML =
       "<b>SPRITE TUNER (F2)</b><br/>" +
@@ -1174,6 +1189,104 @@ function getBaseBuildTime(kind){
   }
 
   function drawBuildingSprite(ent){
+
+// Barracks animated building (TexturePacker atlas)
+if (ent && ent.kind==="barracks" && BARRACKS && BARRACKS.ok && BARRACKS.idle){
+  const z = cam.zoom || 1;
+  const tune = SPRITE_TUNE.barracks || {};
+  const anchorMode = tune.anchor || "center";
+
+  let anchorX, anchorY;
+  if (anchorMode === "center") {
+    const cx = (ent.tx + ent.tw * 0.5) * TILE;
+    const cy = (ent.ty + ent.th * 0.5) * TILE;
+    const cW = worldToScreen(cx, cy);
+    anchorX = cW.x; anchorY = cW.y;
+  } else {
+    const southW = worldToScreen((ent.tx + ent.tw) * TILE, (ent.ty + ent.th) * TILE);
+    anchorX = southW.x; anchorY = southW.y;
+  }
+
+  let mode = "idle";
+  if (ent._anim && ent._anim.mode) mode = ent._anim.mode;
+  else {
+    const hpR = (ent.hpMax>0) ? (ent.hp/ent.hpMax) : 1;
+    if (hpR <= 0.35) mode = "dist";
+  }
+
+  let atlas = BARRACKS.idle;
+  let frames = BARRACKS_FR.idle;
+  let frameDur = 0.095;
+
+  if (mode==="dist"){
+    atlas = BARRACKS.idle;
+    frames = BARRACKS_FR.dist;
+    frameDur = 0.2;
+  } else if (mode==="const"){
+    atlas = BARRACKS.con;
+    frames = BARRACKS_FR.con;
+    frameDur = (ent._anim && ent._anim.frameDur) ? ent._anim.frameDur : 0.06;
+  } else if (mode==="destroy"){
+    atlas = BARRACKS.dest;
+    frames = BARRACKS_FR.dest;
+    frameDur = (ent._anim && ent._anim.frameDur) ? ent._anim.frameDur : 0.045;
+  } else if (mode==="sell"){
+    atlas = BARRACKS.con;
+    frames = BARRACKS_FR.con;
+    frameDur = (ent._anim && ent._anim.frameDur) ? ent._anim.frameDur : 0.055;
+  }
+
+  const now = state.t || 0;
+  let idxF = 0;
+
+  if (mode==="const" || mode==="destroy" || mode==="sell"){
+    const t0 = (ent._anim && typeof ent._anim.t0==="number") ? ent._anim.t0 : now;
+    const age = Math.max(0, now - t0);
+    const step = Math.floor(age / Math.max(1e-6, frameDur));
+    if (mode==="sell"){
+      idxF = (frames.length-1) - step;
+      if (idxF <= 0){
+        idxF = 0;
+        ent._keepUntil = now - 1;
+      }
+    } else {
+      idxF = Math.min(frames.length-1, step);
+      if (step >= frames.length){
+        if (mode==="const") ent._anim = null;
+        if (mode==="destroy") ent._keepUntil = now - 1;
+      }
+    }
+  } else if (mode==="dist"){
+    idxF = 0;
+  } else {
+    const seed = (ent.id||0) * 0.1337;
+    idxF = Math.floor((now + seed) / frameDur) % Math.max(1, frames.length);
+  }
+
+  const fname = frames[Math.max(0, Math.min(frames.length-1, idxF))];
+  if (!fname) return false;
+
+  const fr = atlas.frames && atlas.frames.get(fname);
+  if (!fr) return false;
+  const ss = fr.sourceSize || { w: (fr.frame?fr.frame.w:fr.w||1), h:(fr.frame?fr.frame.h:fr.h||1) };
+
+  const footprintW = (ent.tw + ent.th) * ISO_X;
+  const scaleBase = (footprintW / Math.max(1, ss.w)) * (tune.scaleMul ?? 1.0);
+  const sc = scaleBase * z;
+
+  const nudgeX = (tune.pivotNudge?.x ?? 0);
+  const nudgeY = (tune.pivotNudge?.y ?? 0);
+  const offX = (tune.offsetNudge?.x ?? 0);
+  const offY = (tune.offsetNudge?.y ?? 0);
+
+  const sx = anchorX + offX * z - (nudgeX * sc);
+  const sy = anchorY + offY * z - (nudgeY * sc);
+
+  const anc = (anchorMode==="center") ? {x:0.5,y:0.5} : {x:0.5,y:1.0};
+
+  return drawTPFrame(atlas, fname, sx, sy, sc, ent.team ?? TEAM.PLAYER, anc, null);
+}
+
     const cfg = BUILD_SPRITE[ent.kind];
     if (!cfg) return false;
     const img = cfg.img;
@@ -1406,6 +1519,48 @@ function getBaseBuildTime(kind){
     return { img, frames: parsed.frames, image: imgName };
   }
 
+function _parseTPTexturesAtlasMulti(json){
+  const frames = new Map();
+  const images = [];
+  if (!json || !json.textures || !json.textures.length) return { images, frames };
+  for (let ti=0; ti<json.textures.length; ti++){
+    const tex = json.textures[ti];
+    if (!tex) continue;
+    images.push(tex.image);
+    const farr = tex.frames || [];
+    for (let i=0;i<farr.length;i++){
+      const fr = farr[i];
+      if (!fr || !fr.filename) continue;
+      const fr2 = Object.assign({}, fr, { _imgIndex: ti|0 });
+      frames.set(fr.filename, fr2);
+    }
+  }
+  return { images, frames };
+}
+
+async function _loadTPAtlasMultiFromUrl(jsonUrl, baseDir){
+  const cacheBust = (jsonUrl.includes("?") ? "&" : "?") + "v=" + Date.now();
+  const url = jsonUrl + cacheBust;
+  const res = await fetch(url, { cache: "no-store" });
+  if (!res.ok) throw new Error("Failed to fetch atlas JSON: " + jsonUrl);
+  const json = await res.json();
+  const parsed = _parseTPTexturesAtlasMulti(json);
+  const imgs = [];
+  for (let i=0;i<parsed.images.length;i++){
+    const im = new Image();
+    im.src = (baseDir || "") + parsed.images[i];
+    imgs.push(im);
+  }
+  await Promise.all(imgs.map(im => new Promise(resolve=>{
+    if (im.complete) return resolve();
+    im.onload = ()=>resolve();
+    im.onerror = ()=>resolve();
+  })));
+  return { imgs, img: imgs[0], frames: parsed.frames };
+}
+
+
+
   // === Lite Tank (RA2-style hull turn + independent turret) ===
   const LITE_TANK_BASE = "asset/sprite/unit/tank/lite_tank/";
   const LITE_TANK_BASE_SCALE = 0.13; // base scale for TILE=48, sourceSize=600 (tweak via Units.UNIT.tank.spriteScale)
@@ -1579,9 +1734,12 @@ function getBaseBuildTime(kind){
   }
 
   function _drawTPFrame(atlas, filename, screenX, screenY, scale, team, anchorOverride=null, offsetOverride=null){
-    if (!atlas || !atlas.img || !atlas.img.complete || !atlas.frames) return false;
+    if (!atlas || !atlas.frames) return false;
     const fr = atlas.frames.get(filename);
     if (!fr) return false;
+    const imgIdx = (fr._imgIndex|0) || 0;
+    const baseImg = (atlas.imgs && atlas.imgs.length) ? atlas.imgs[imgIdx] : atlas.img;
+    if (!baseImg || !baseImg.complete) return false;
 
     const crop = fr.frame || fr;
     const sss = fr.spriteSourceSize || { x:0, y:0, w: crop.w, h: crop.h };
@@ -1591,7 +1749,7 @@ function getBaseBuildTime(kind){
     const sx = (crop.x|0), sy = (crop.y|0), sw = (crop.w|0), sh = (crop.h|0);
 
     // Team tint only inside this cropped rect
-    let srcImg = atlas.img;
+    let srcImg = baseImg;
     let ssx = sx, ssy = sy;
     const tinted = _getTeamCroppedSprite(atlas.img, { x:sx, y:sy, w:sw, h:sh }, team);
     if (tinted){
@@ -1688,6 +1846,38 @@ function getBaseBuildTime(kind){
       console.warn("[sprite] harvester atlas load failed", err);
     }
   })();
+
+// Barracks (2x3) building animations (TexturePacker atlas)
+const BARRACKS = { ok:false, idle:null, con:null, dest:null };
+
+const BARRACKS_IDLE_BASE  = "asset/sprite/const/normal/barrack/";
+const BARRACKS_CONST_BASE = "asset/sprite/const/const_anim/barrack/";
+const BARRACKS_DEST_BASE  = "asset/sprite/const/destruct/barrack/";
+
+const BARRACKS_FR = {
+  idle: Array.from({length:18}, (_,i)=>`barrack_idle${i+1}.png`),
+  dist: ["barrack_dist.png"], // damaged idle (red HP)
+  con:  Array.from({length:17}, (_,i)=>`barrack_con_complete_${i+1}.png`),
+  dest: Array.from({length:37}, (_,i)=>`barrack_distruction_${i+1}.png`),
+};
+
+;(async()=>{
+  try{
+    const [idleAtlas, conAtlas, destAtlas] = await Promise.all([
+      _loadTPAtlasFromUrl(BARRACKS_IDLE_BASE + "Barrack_idle.json", BARRACKS_IDLE_BASE),
+      _loadTPAtlasFromUrl(BARRACKS_CONST_BASE + "barrack_const.json", BARRACKS_CONST_BASE),
+      _loadTPAtlasMultiFromUrl(BARRACKS_DEST_BASE + "barrack_distruction.json", BARRACKS_DEST_BASE),
+    ]);
+    BARRACKS.idle = idleAtlas;
+    BARRACKS.con  = conAtlas;
+    BARRACKS.dest = destAtlas;
+    BARRACKS.ok = true;
+    console.log("[sprite] barracks atlases loaded");
+  }catch(err){
+    console.warn("[sprite] barracks atlas load failed", err);
+  }
+})();
+
 ;
 
 
@@ -2373,6 +2563,11 @@ function buildingWorldFromTileOrigin(tx,ty,tw,th){
       oregenT:0
     };
     buildings.push(b);
+// Building animation init
+if (kind==="barracks"){
+  b._anim = { mode:"const", t0: state.t, frameDur: 0.06 };
+}
+
     // Auto-assign PRIMARY producer if none.
     if (team===TEAM.PLAYER){
       if (kind==="barracks" && !state.primary.player.barracks) state.primary.player.barracks = b.id;
@@ -4779,7 +4974,13 @@ try{
 
 
     // 3) Remove from gameplay
-    b.alive = false;
+    
+if (b.kind==="barracks"){
+  b._anim = { mode:"destroy", t0: state.t, frameDur: 0.045 };
+  b._keepUntil = state.t + (37 * (b._anim.frameDur||0.05)) + 0.4;
+}
+b.alive = false;
+
     state.selection.delete(b.id);
     setBuildingOcc(b, 0);
     recomputePower();
@@ -9092,7 +9293,7 @@ const keys=new Set();
   canvas.addEventListener("mousedown",(e)=>{
     if (!running || gameOver) return;
 
-    // Sprite tuner: hijack LMB drag while enabled (requires HQ selected)
+    // Sprite tuner: hijack LMB drag while enabled (requires a building selected)
     if (TUNER.on && e.button===0){
       const bSel = _selectedBuildingOfKind(TUNER.targetKind);
       // Always swallow clicks while tuner is on (avoid accidental orders)
@@ -9102,7 +9303,7 @@ const keys=new Set();
       TUNER.lastPx = pT.x;
       TUNER.lastPy = pT.y;
       if (!bSel){
-        toast("HQ 선택하고 드래그해");
+        toast("건물 선택하고 드래그해");
       }
       _updateTuneOverlay();
       e.preventDefault();
@@ -9196,11 +9397,19 @@ const keys=new Set();
 
       const t = _tuneObj(TUNER.targetKind);
       if (bSel){
-        const cfg = BUILD_SPRITE[TUNER.targetKind];
-        const img = cfg && cfg.img;
-        const crop = (cfg && cfg.crop) ? cfg.crop : { x:0, y:0, w:(img?img.naturalWidth:1), h:(img?img.naturalHeight:1) };
         const footprintW = (bSel.tw + bSel.th) * ISO_X;
-        const baseScale = (footprintW / (crop.w || 1)) * (t.scaleMul ?? 1.0);
+        let srcW = 1;
+        if (TUNER.targetKind==="barracks" && BARRACKS && BARRACKS.ok && BARRACKS.idle && BARRACKS.idle.frames){
+          const fr0 = BARRACKS.idle.frames.get("barrack_idle1.png") || BARRACKS.idle.frames.get("barrack_dist.png");
+          const ss = fr0 && (fr0.sourceSize || fr0.source || null);
+          srcW = (ss && ss.w) ? ss.w : 1;
+        } else {
+          const cfg = BUILD_SPRITE[TUNER.targetKind];
+          const img = cfg && cfg.img;
+          const crop = (cfg && cfg.crop) ? cfg.crop : { x:0, y:0, w:(img?img.naturalWidth:1), h:(img?img.naturalHeight:1) };
+          srcW = crop.w || 1;
+        }
+        const baseScale = (footprintW / Math.max(1, srcW)) * (t.scaleMul ?? 1.0);
 
         if (TUNER.dragMode === "pivot"){
           // pivotNudge is in SOURCE px; moving pivot moves sprite in opposite direction on screen
@@ -11249,7 +11458,9 @@ function draw(){
     updateSnipDeathFx();
 
     const drawables=[];
-    for (const b of buildings) if (b.alive) drawables.push(b);
+    for (const b of buildings){
+      if (b.alive || (b._keepUntil && state.t < b._keepUntil)) drawables.push(b);
+    }
     for (const u of units) if (u.alive) drawables.push(u);
     // Depth-sorted infantry death FX (so buildings can occlude it)
     for (let i=0;i<infDeathFxs.length;i++){
@@ -12769,7 +12980,13 @@ function sanityCheck(){
       tickBullets(dt);
 
       for (let i=units.length-1;i>=0;i--) if (!units[i].alive) units.splice(i,1);
-      for (let i=buildings.length-1;i>=0;i--) if (!buildings[i].alive) buildings.splice(i,1);
+      for (let i=buildings.length-1;i>=0;i--){
+        const b=buildings[i];
+        if (!b.alive){
+          if (b._keepUntil && state.t < b._keepUntil) continue;
+          buildings.splice(i,1);
+        }
+      }
 
       if (DEV_VALIDATE){
         state._valAcc = (state._valAcc || 0) + dt;
