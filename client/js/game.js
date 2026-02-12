@@ -4741,29 +4741,21 @@ const dustPuffs = [];
 const dmgSmokePuffs = [];
 
 // Dust puff for moving vehicles (sandy haze). World-positioned (does NOT follow units).
-function spawnDustPuff(wx, wy, vx, vy, strength=1){
-  const size = clamp(strength, 0.6, 2.2);
-  const spread = TILE * 0.30 * size;
-  const ang = Math.random() * Math.PI * 2;
-  const rad = Math.sqrt(Math.random()) * spread;
-  const x = wx + Math.cos(ang) * rad;
-  const y = wy + Math.sin(ang) * rad;
-
-  // drift roughly opposite of movement (normalize vx/vy)
-  const mag = Math.max(0.0001, Math.hypot(vx||0, vy||0));
-  const backx = -(vx||0) / mag;
-  const backy = -(vy||0) / mag;
-
+function spawnDustPuff(x,y, strength=1, color="rgba(180,170,150,1)"){
+  // Track dust should be subtle: small + noisy, like the building-smoke style but shorter-lived.
+  const r0   = (6 + rand()*4) * strength;       // small start radius
+  const grow = (14 + rand()*10) * strength;     // modest expansion
+  const a0   = 0.10 + rand()*0.08;              // low alpha
+  const life = 420 + rand()*280;                // ~0.4–0.7s
   dustPuffs.push({
     x, y,
-    seed: (Math.random()*1e9)|0,
-    vx: backx*(TILE*0.18*size) + (Math.random()*2-1)*(TILE*0.05*size),
-    vy: backy*(TILE*0.18*size) + (Math.random()*2-1)*(TILE*0.05*size),
-    t: 0,
-    ttl: 0.85 + Math.random()*0.55,
-    r0: (14 + Math.random()*10) * size,
-    grow: (48 + Math.random()*40) * size,
-    a0: 0.26 + Math.random()*0.12
+    vx: (rand()-0.5)*0.15,
+    vy: -0.08 - rand()*0.12,
+    r0, grow, a0,
+    life,
+    born: now(),
+    seed: rand()*9999,
+    col: color
   });
 }
 
@@ -5712,39 +5704,34 @@ function tickBullets(dt){
           const enemyTeam = bl.team===TEAM.PLAYER ? TEAM.ENEMY : TEAM.PLAYER;
 
           if (!hit){
-          // units
-          for (const u of units){
-            if (!u.alive || u.team!==enemyTeam || u.inTransport || u.hidden) continue;
-const tx=tileOfX(u.x), ty=tileOfY(u.y);
-            if (enemyTeam===TEAM.ENEMY){
-              if (inMap(tx,ty) && !explored[TEAM.PLAYER][idx(tx,ty)]) continue;
-            }
-            if (dist2(bl.x, bl.y, u.x, u.y) <= (u.r+10)*(u.r+10)){ hit=u; break; }
-          }
-          // buildings
-          if (!hit){
-            for (const b of buildings){
-              if (!b.alive || b.team!==enemyTeam) continue;
-              if (b.attackable===false) continue;
+            // units
+            for (const u of units){
+              if (!u.alive || u.team!==enemyTeam || u.inTransport || u.hidden) continue;
+              const tx=tileOfX(u.x), ty=tileOfY(u.y);
               if (enemyTeam===TEAM.ENEMY){
-                if (!buildingAnyExplored(TEAM.PLAYER,b)) continue;
+                if (inMap(tx,ty) && !explored[TEAM.PLAYER][idx(tx,ty)]) continue;
               }
-              const x0=b.x-b.w/2, y0=b.y-b.h/2;
-              if (bl.x>=x0-8 && bl.x<=x0+b.w+8 && bl.y>=y0-8 && bl.y<=y0+b.h+8){ hit=b; break; }
+              if (dist2(bl.x, bl.y, u.x, u.y) <= (u.r+10)*(u.r+10)){ hit=u; break; }
+            }
+            // buildings
+            if (!hit){
+              for (const b of buildings){
+                if (!b.alive || b.team!==enemyTeam) continue;
+                const tx=tileOfX(b.x), ty=tileOfY(b.y);
+                if (enemyTeam===TEAM.ENEMY){
+                  if (inMap(tx,ty) && !explored[TEAM.PLAYER][idx(tx,ty)]) continue;
+                }
+                if (dist2(bl.x, bl.y, b.x, b.y) <= (b.r+14)*(b.r+14)){ hit=b; break; }
+              }
             }
           }
 
-          // dmg bonus: tank
-          let dmg = bl.dmg;
-          const owner = getEntityById(bl.ownerId);
-          if (owner && owner.kind==="tank"){
-            // slightly reduced vs infantry (tank was deleting infantry too fast)
-            if (hit && hit.cls==="inf") dmg *= 0.70;
-            // modest bonus vs vehicles/buildings
-            if (hit && (BUILD[hit.kind] || hit.kind==="tank")) dmg *= 1.15;
-          }
+          // compute damage (must exist even when we already have a hit)
+          let dmg = bl.dmg || 0;
 
-          }
+          // small bonus if shooter is a tank (keeps current feel but avoids ReferenceError)
+          const ownerEnt = (typeof getEntityById === "function") ? getEntityById(bl.ownerId) : null;
+          if (ownerEnt && ownerEnt.kind==="tank") dmg *= 1.15;
 
           if (hit) applyDamage(hit, dmg, bl.ownerId, bl.team);
 
