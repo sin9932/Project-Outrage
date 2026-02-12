@@ -6,11 +6,11 @@ console.log("[build]", window.__BUILD_ID);
 var dg = (globalThis.dg = (globalThis.dg ?? false));
   // Debug/validation mode: add ?debug=1 to URL
   const DEV_VALIDATE = /(?:\?|&)debug=1(?:&|$)/.test(location.search);
+  // Keep global debug flag in sync with URL
+  globalThis.dg = DEV_VALIDATE;
+  dg = globalThis.dg;
   const DEV_VALIDATE_THROW = false; // if true, throws on first invariant failure
 
-  // Some builds reference `dg` (debug flag) in AI/update code; define it to avoid ReferenceError.
-  const dg = DEV_VALIDATE;
-  window.dg = dg;
 
   function _assert(cond, msg){
     if (cond) return;
