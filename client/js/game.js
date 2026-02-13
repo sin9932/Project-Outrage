@@ -3219,10 +3219,7 @@ const ni=ny*W+nx;
   }
 
   
-  
-    const __cls = (UNIT[u.kind] && UNIT[u.kind].cls) ? UNIT[u.kind].cls : "";
-    if (__cls==="inf") return null;
-function findBypassStep(u, fromTx, fromTy, toTx, toTy){
+  function findBypassStep(u, fromTx, fromTy, toTx, toTy){
     // Try a short sidestep when the next tile is temporarily blocked by other units.
     // We prefer tiles that are walkable, have capacity, and still move us generally toward the target.
     const goal = (u.path && u.path.length) ? u.path[u.path.length-1] : {tx:toTx, ty:toTy};
@@ -3402,20 +3399,6 @@ if (u.cls==="inf"){
       const _combatOrder = (u && u.order && (u.order.type==="attack" || u.order.type==="attackmove"));
       const _canEnter = (_combatOrder && _tGoal && BUILD[_tGoal.kind]) ? canEnterTileGoal(u, p.tx, p.ty, _tGoal) : canEnterTile(u, p.tx, p.ty);
       if (!_canEnter || !reserveTile(u, p.tx, p.ty)) {
-      // Infantry crowd rule: never bypass/retarget-jitter when blocked by friendly crowd.
-      // RA2-like behavior: if the next tile isn't enterable, just wait and retry.
-      {
-        const __cls = (UNIT[u.kind] && UNIT[u.kind].cls) ? UNIT[u.kind].cls : "";
-        if (__cls==="inf"){
-          u.blockedT = (u.blockedT||0) + dt;
-          // avoid spinning: don't change path, don't inject bypass, don't retarget.
-          u.vx = 0; u.vy = 0;
-          // tiny cooldown so we don't spam repath elsewhere
-          u.repathCd = Math.max(u.repathCd||0, 0.12);
-          return true;
-        }
-      }
-
         // FINAL-TILE RETARGET: if our destination tile is occupied/reserved, pick a nearby free tile once.
         // This prevents late arrivals from 'dancing' in place trying to steal an already-occupied tile.
         if (u.pathI >= (u.path.length-1)) {
@@ -6872,10 +6855,8 @@ function stampCmd(e, type, x, y, targetId=null){
     return out;
   }
 
-  
-function issueMoveAll(x,y){
+  function issueMoveAll(x,y){
     const ids=[...state.selection];
-
     // Snap click to nearest tile center
     const snap = snapWorldToTileCenter(x,y);
     const baseTx=snap.tx, baseTy=snap.ty;
@@ -6885,25 +6866,13 @@ function issueMoveAll(x,y){
     const intentVX = x - baseCenter.x;
     const intentVY = y - baseCenter.y;
 
-    // Capacity-aware formation:
-    // - vehicles/non-inf reserve 1 per tile
-    // - infantry can share up to INF_SLOT_MAX per tile
-    let infN=0, otherN=0;
-    for (const id of ids){
-      const e=getEntityById(id);
-      if (!e || e.team!==TEAM.PLAYER) continue;
-      if (BUILD[e.kind]) continue;
-      const cls = (UNIT[e.kind] && UNIT[e.kind].cls) ? UNIT[e.kind].cls : "";
-      if (cls==="inf") infN++; else otherN++;
-    }
-    const needTiles = otherN + Math.ceil(infN / INF_SLOT_MAX);
-    const offsets = buildFormationOffsets(Math.max(24, needTiles*14)); // enough rings to find space
 
-    // planned occupancy (so infantry doesn't all pick same tile just because occInf isn't updated yet)
-    const plannedInf = new Map();  // tileKey -> count
-    const plannedHard = new Set(); // tileKey reserved exclusively for non-inf
-    const __tileSubMask = new Map(); // tileKey -> 4-bit mask for assigned infantry subslots this command
-
+    // Precompute candidate offsets sized to selection
+    const offsets = buildFormationOffsets(Math.max(16, ids.length*6));
+    const usedInf = new Map();
+    const usedHard = new Set();
+    // RA2-feel: for infantry, assign a stable destination sub-slot per target tile
+    const __tileSubMask = new Map();
     let k=0;
     for (const id of ids){
       const e=getEntityById(id);
@@ -6919,123 +6888,70 @@ function issueMoveAll(x,y){
       e.forceMoveUntil = state.t + 1.25;
       e.repathCd=0.15;
 
-      const cls = (UNIT[e.kind] && UNIT[e.kind].cls) ? UNIT[e.kind].cls : "";
-
+      // pick best nearby free tile among offsets, biased to the actual mouse world point (x,y)
+      // so clicking near a unit lets you place destinations to its side/front more predictably.
       let chosen=null;
       let bestScore=1e18;
-
-      // helper: can this unit be planned into (tx,ty)?
-      const canPlanHere = (tx,ty)=>{
-        if (!inMap(tx,ty)) return false;
-        if (plannedHard.has(tx+","+ty)) return false;
-
-        // strict base walkability first (fast reject)
-        if (!isWalkableTile(tx,ty)) return false;
-        if (isSqueezedTile(tx,ty)) return false;
-
-        const key = tx+","+ty;
-        const i = idx(tx,ty);
-
-        if (cls==="inf"){
-          // cannot mix with vehicles / enemy team
-          if (occVeh[i] > 0) return false;
-          if (occTeam[i]!==0 && occTeam[i]!==e.team) return false;
-
-          // planned capacity check
-          const already = (plannedInf.get(key) || 0);
-          if ((occInf[i] + already) >= INF_SLOT_MAX) return false;
-
-          // also avoid hard-reserved tiles (veh etc.)
-          // allow sharing with other infantry planned
-          return true;
-        } else {
-          // non-inf uses normal collision rules + reservation guard
-          if (isReservedByOther(e, tx, ty)) return false;
-          if (!canEnterTile(e, tx, ty)) return false;
-          // don't let non-inf step onto a tile already planned for infantry overflow
-          const infPlanned = (plannedInf.get(key) || 0);
-          if (infPlanned > 0) return false;
-          return true;
-        }
-      };
-
-      // pick best nearby tile among offsets, biased to mouse point and intent direction
       for (let j=0; j<offsets.length; j++){
         const tx = baseTx + offsets[j].dx;
         const ty = baseTy + offsets[j].dy;
-        if (!canPlanHere(tx,ty)) continue;
-
-        const key = tx+","+ty;
+        if (!inMap(tx,ty)) continue;
+        const key = tx+"," + ty;
+        // allow up to INF_SLOT_MAX infantry per tile; vehicles/buildings are hard-reserved
+        if (usedHard.has(key)) continue;
+        if (cls==="inf") {
+          const c = usedInf.get(key) || 0;
+          if (c >= INF_SLOT_MAX) continue;
+        }
+        if (!canEnterTile(e, tx, ty)) continue;
         const wpC = tileToWorldCenter(tx,ty);
+        // score: distance to the actual click + tiny ring penalty (prefer closer rings)
         const dxw = (wpC.x - x), dyw = (wpC.y - y);
         const ring = (Math.abs(offsets[j].dx)+Math.abs(offsets[j].dy));
         const dot = (offsets[j].dx*intentVX + offsets[j].dy*intentVY);
+        // Lower score is better; dot>0 means tile is in the direction you clicked within the occupied tile.
         const score = dxw*dxw + dyw*dyw + ring*9 - dot*1.2;
-
         if (score < bestScore){
           bestScore=score;
           chosen={tx,ty};
         }
+        // Early exit for perfect hit
         if (score < 1) break;
       }
-
-      // If still nothing, expand aggressively (never dump everyone onto base tile).
-      if (!chosen){
-        // brute ring search up to 40 tiles away
-        let found=null;
-        for (let r=1; r<=40 && !found; r++){
-          for (let dx=-r; dx<=r && !found; dx++){
-            const dy = r - Math.abs(dx);
-            const candidates = dy===0 ? [{dx,dy:0}] : [{dx,dy},{dx,dy:-dy}];
-            for (const o of candidates){
-              const tx=baseTx+o.dx, ty=baseTy+o.dy;
-              if (canPlanHere(tx,ty)){
-                found={tx,ty};
-                break;
-              }
-            }
+      // reserve chosen now (so other units won't pick it)
+      if (chosen){
+        if (!reserveTile(e, chosen.tx, chosen.ty)){
+          chosen=null;
+        } else {
+          const ckey = chosen.tx+","+chosen.ty;
+          if (cls==="inf") {
+            usedInf.set(ckey, (usedInf.get(ckey)||0)+1);
+          } else {
+            usedHard.add(ckey);
           }
         }
-        if (found) chosen=found;
       }
+      // if nothing free, fall back to base tile center
+      if (!chosen) chosen={tx:baseTx, ty:baseTy};// RA2-feel: vehicles still go to tile center; infantry go to a reserved sub-slot inside the tile
+const cls = (UNIT[e.kind] && UNIT[e.kind].cls) ? UNIT[e.kind].cls : "";
+let wp;
+let subSlot = null;
+if (cls==="inf"){
+  const tkey = chosen.tx + "," + chosen.ty;
+  let mask = __tileSubMask.get(tkey) || 0;
+  let pick = 0;
+  for (let s=0; s<4; s++){
+    if (((mask>>s)&1)===0){ pick=s; break; }
+  }
+  subSlot = pick;
+  mask = (mask | (1<<pick)) & 0x0F;
+  __tileSubMask.set(tkey, mask);
+  wp = tileToWorldSubslot(chosen.tx, chosen.ty, pick);
+} else {
+  wp = tileToWorldCenter(chosen.tx, chosen.ty);
+}
+e.order={type:"move", x:wp.x, y:wp.y, tx:chosen.tx, ty:chosen.ty, subSlot:subSlot};
 
-      // Absolute last resort: base tile (still capacity-aware for infantry)
-      if (!chosen){
-        chosen={tx:baseTx, ty:baseTy};
-      }
-
-      // Mark planned occupancy
-      const key = chosen.tx+","+chosen.ty;
-      if (cls==="inf"){
-        plannedInf.set(key, (plannedInf.get(key)||0) + 1);
-      } else {
-        plannedHard.add(key);
-        // persist real reservation for non-inf
-        reserveTile(e, chosen.tx, chosen.ty);
-      }
-
-      // compute waypoint: infantry to subslot, others to center
-      let wp;
-      let subSlot=null;
-      if (cls==="inf"){
-        let mask = __tileSubMask.get(key) || 0;
-
-        // if the tile already has occInf, try to pick a subslot offset from existing ones:
-        // we don't know exact subslot occupancy, so just pick first free in planned mask.
-        let pick = -1;
-        for (let s=0; s<4; s++){
-          if (((mask>>s)&1)===0){ pick=s; break; }
-        }
-        if (pick<0) pick=0; // should not happen due to capacity check, but safe
-        subSlot=pick;
-        mask = (mask | (1<<pick)) & 0x0F;
-        __tileSubMask.set(key, mask);
-        wp = tileToWorldSubslot(chosen.tx, chosen.ty, pick);
-      } else {
-        wp = tileToWorldCenter(chosen.tx, chosen.ty);
-      }
-
-      e.order={type:"move", x:wp.x, y:wp.y, tx:chosen.tx, ty:chosen.ty, subSlot:subSlot};
       e.holdPos = false;
 
       pushOrderFx(e.id,"move",wp.x,wp.y,null,"rgba(90,255,90,0.95)");
@@ -7045,7 +6961,6 @@ function issueMoveAll(x,y){
       k++;
     }
   }
-
 
   function issueMoveCombatOnly(x,y){
     const ids=[...state.selection];
