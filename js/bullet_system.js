@@ -1,9 +1,3 @@
-/* FIX: ensure global impacts array exists (ESM/legacy bridge) */
-globalThis.__impacts = globalThis.__impacts || [];
-var __impacts = globalThis.__impacts;
-var fires = (typeof fires !== 'undefined' && fires) ? fires : [];
-try { if (typeof window !== 'undefined') window.fires = fires; } catch(e) {}
-
 /* bullet_system.js
    - Extracted from game.js (tickBullets/applyDamage/applyAreaDamageAt)
    - Runs in global scope and expects game.js to call it with a context object.
@@ -11,77 +5,6 @@ try { if (typeof window !== 'undefined') window.fires = fires; } catch(e) {}
 (function(){
   "use strict";
 
-
-/*__LEGACY_GLOBAL_BOOTSTRAP__*/
-// ---- legacy global bootstrap (stop the endless 'is not defined') ----
-(function initLegacyGlobals(){
-  var g;
-  try { g = (typeof globalThis !== 'undefined') ? globalThis : (typeof window !== 'undefined' ? window : this); } catch(e) { g = (typeof window !== 'undefined' ? window : this); }
-
-  function ensureArray(name) {
-    try {
-      if (g[name] === undefined) g[name] = [];
-      return g[name];
-    } catch(e) {
-      return [];
-    }
-  }
-
-  function ensureFn(name) {
-    try {
-      if (typeof g[name] !== 'function') g[name] = function(){};
-      return g[name];
-    } catch(e) {
-      return function(){};
-    }
-  }
-
-  // Arrays the legacy bullet system expects
-  ensureArray('__impacts');
-  ensureArray('fires');
-  ensureArray('healMarks');
-  ensureArray('casings');
-
-  // likely FX queues referenced across legacy code paths
-  ensureArray('sparks');
-  ensureArray('smokes');
-  ensureArray('traces');
-  ensureArray('debris');
-  ensureArray('decals');
-
-  // Functions the legacy bullet system expects
-  ensureFn('updateExplosions');
-})();
- // ---------------------------------------------------------------
-var casings = (typeof globalThis!=='undefined' ? globalThis.casings : (typeof window!=='undefined' ? window.casings : undefined)) || [];
-var sparks = (typeof globalThis!=='undefined' ? globalThis.sparks : (typeof window!=='undefined' ? window.sparks : undefined)) || [];
-var smokes = (typeof globalThis!=='undefined' ? globalThis.smokes : (typeof window!=='undefined' ? window.smokes : undefined)) || [];
-var traces = (typeof globalThis!=='undefined' ? globalThis.traces : (typeof window!=='undefined' ? window.traces : undefined)) || [];
-var debris = (typeof globalThis!=='undefined' ? globalThis.debris : (typeof window!=='undefined' ? window.debris : undefined)) || [];
-var decals = (typeof globalThis!=='undefined' ? globalThis.decals : (typeof window!=='undefined' ? window.decals : undefined)) || [];
-// ---- module-compat shims (legacy expected globals) ----
-var updateExplosions = function proxy_updateExplosions() {
-  try {
-    var fn = (typeof globalThis !== 'undefined') ? globalThis.updateExplosions : (typeof window !== 'undefined' ? window.updateExplosions : undefined);
-    if (typeof fn === 'function') return fn.apply(null, arguments);
-  } catch(e) {}
-  // no-op fallback
-};
-// -------------------------------------------------------
-
-// legacy expected global: healMarks (fx marks / decals)
-var healMarks = function proxy_healMarks() {
-  try {
-    var v = (typeof globalThis !== 'undefined') ? globalThis.healMarks : (typeof window !== 'undefined' ? window.healMarks : undefined);
-    if (v === undefined) {
-      v = [];
-      try { if (typeof globalThis !== 'undefined') globalThis.healMarks = v; } catch(e) {}
-      try { if (typeof window !== 'undefined') window.healMarks = v; } catch(e) {}
-    }
-    return v;
-  } catch(e) { return []; }
-}();
-// -------------------------------------------------------
   const BulletSystem = {};
 
 
@@ -132,28 +55,19 @@ var healMarks = function proxy_healMarks() {
   function tickBullets(dt, C){
   
   // ---- external deps (injected from game.js) ----
-const {
-  bullets = [], units = [], buildings = [],
-  flashes = [], sparks = [], particles = [],
-  explored = null,
-  TEAM, BUILD, state = { t: 0 },
-  TILE = 48,
-  inMap = (()=>true), idx = (()=>0),
-  dist = ((ax,ay,bx,by)=>Math.hypot(bx-ax,by-ay)),
-  dist2 = ((ax,ay,bx,by)=>{const dx=bx-ax, dy=by-ay; return dx*dx+dy*dy;}),
-  norm = ((x,y)=>{const l=Math.hypot(x,y)||1; return {x:x/l,y:y/l};}),
-  rand = Math.random,
-  getEntityById = (()=>null),
-  buildingAnyExplored = (()=>true),
-  notifyPlayerAttacked = (()=>{}),
-  handleEntityDeath = (()=>{}),
-  impacts = null,
-} = (C||{});
-
-// Some legacy code uses `impacts` for hit particles.
-// If not provided, fall back to particles array.
-const _impacts = impacts || particles;
-
+  const {
+    bullets, units, buildings,
+    flashes, sparks, particles,
+    explored,
+    TEAM, BUILD, state,
+    TILE,
+    inMap, idx,
+    dist, dist2, norm, rand,
+    getEntityById,
+    buildingAnyExplored,
+    notifyPlayerAttacked,
+    handleEntityDeath,
+  } = C;
   
   // Local wrappers that keep API identical to original code
   const applyDamageLocal = (target, dmg, srcId=null, srcTeam=null) =>
@@ -171,7 +85,7 @@ const _impacts = impacts || particles;
         for (let k=0;k<6;k++){
           const ang = Math.random()*Math.PI*2;
           const spd = 70 + Math.random()*160;
-          _impacts.push({x:ix,y:iy,vx:Math.cos(ang)*spd,vy:Math.sin(ang)*spd,life:0.20,delay:0});
+          impacts.push({x:ix,y:iy,vx:Math.cos(ang)*spd,vy:Math.sin(ang)*spd,life:0.20,delay:0});
         }
   
         // direct hit + splash
@@ -274,7 +188,7 @@ const _impacts = impacts || particles;
             for (let k=0;k<6;k++){
               const ang = Math.random()*Math.PI*2;
               const spd = 60 + Math.random()*140;
-              _impacts.push({x:bl.x,y:bl.y,vx:Math.cos(ang)*spd,vy:Math.sin(ang)*spd,life:0.22,delay:0});
+              impacts.push({x:bl.x,y:bl.y,vx:Math.cos(ang)*spd,vy:Math.sin(ang)*spd,life:0.22,delay:0});
             }
   
             // Ore deformation: explosive shell impacts on ore will shallow it over time.
@@ -384,8 +298,8 @@ const _impacts = impacts || particles;
           bullets.splice(i,1);
         }
       }
-      for (let i=__impacts.length-1;i>=0;i--){
-        const p = _impacts[i];
+      for (let i=impacts.length-1;i>=0;i--){
+        const p = impacts[i];
         p.delay = (p.delay||0) - dt;
         if (p.delay > 0) continue;
         p.life -= dt;
@@ -394,7 +308,7 @@ const _impacts = impacts || particles;
         // quick drag
         p.vx *= (1 - Math.min(1, dt*7.5));
         p.vy *= (1 - Math.min(1, dt*7.5));
-        if (p.life<=0) _impacts.splice(i,1);
+        if (p.life<=0) impacts.splice(i,1);
       }
       // Building fire particles when HP is critically low (<30%)
       for (const b of buildings){

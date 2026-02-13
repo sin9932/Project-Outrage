@@ -17,19 +17,3 @@ export const CONFIG = Object.freeze({
     startMoneyDefault: 10000,
   }
 });
-
-// Compatibility constants for legacy systems (bullet_system.js etc.)
-export const TEAM = Object.freeze({ PLAYER: 0, ENEMY: 1 });
-
-// Building kind registry used by legacy BulletSystem to decide "player attacked" alerts.
-export const BUILD = Object.freeze({
-  hq: true,
-  power: true,
-  refinery: true,
-  barracks: true,
-  factory: true,
-  radar: true,
-  turret: true,
-  wall: true,
-  // add more as you introduce them
-});

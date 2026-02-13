@@ -14,11 +14,6 @@ import { renderWorld } from "./render/renderWorld.js";
 import { renderUI } from "./render/renderUI.js";
 import { renderEffects } from "./render/renderEffects.js";
 
-import "./legacy/index.js";
-import { spawnUnit } from "./entities/unitFactory.js";
-import { placeBuilding } from "./entities/buildingFactory.js";
-import { TEAM } from "./core/config.js";
-
 const bus = createEventBus();
 
 function $(id){ return document.getElementById(id); }
@@ -77,7 +72,6 @@ function setupCanvas(state){
 }
 
 function gameTick(state, dt){
-  state.sim.t += dt;
   // systems (pure-ish): mutate state only
   tickAI(state, dt, bus);
   tickProduction(state, dt, bus);
@@ -100,30 +94,6 @@ function boot(){
 
   setupCanvas(state);
   bindPregameUI(state);
-// Spawn a small test setup so you can verify rendering + bullet system wiring.
-// Replace these with your real spawn logic once movement/production are migrated.
-bus.on("game:start", ()=>{
-  state.players.self.money = state.settings.startMoney;
-  state.players.enemy.money = state.settings.startMoney;
-
-  // Buildings
-
-  placeBuilding(state, { kind:"hq", team: TEAM.PLAYER, tx: 6, ty: 10, w: 3, h: 3, hp: 1200 });
-  placeBuilding(state, { kind:"barracks", team: TEAM.PLAYER, tx: 10, ty: 12, w: 2, h: 3, hp: 700 });
-
-  placeBuilding(state, { kind:"hq", team: TEAM.ENEMY, tx: 42, ty: 18, w: 3, h: 3, hp: 1200 });
-
-  // Units (3 snipers + 3 IFV example placeholder circles)
-  for(let i=0;i<3;i++){
-    spawnUnit(state, { kind:"sniper", team: TEAM.PLAYER, x: 340 + i*28, y: 420, hp: 90, radius: 10 });
-    spawnUnit(state, { kind:"ifv", team: TEAM.PLAYER, x: 340 + i*28, y: 470, hp: 220, radius: 14 });
-  }
-  // enemy scouts
-  for(let i=0;i<4;i++){
-    spawnUnit(state, { kind:"inf", team: TEAM.ENEMY, x: 900 + i*24, y: 560, hp: 100, radius: 10 });
-  }
-});
-
 
   // basic pause overlay wiring (minimal)
   const overlay = $("pauseOverlay");

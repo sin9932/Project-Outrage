@@ -2,8 +2,6 @@ export function createInitialState(CONFIG){
   return {
     running: false,
 
-      sim: { t: 0 },
-
     // global settings configured in pregame
     settings: {
       spawn: "left",

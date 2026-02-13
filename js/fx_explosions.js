@@ -199,7 +199,3 @@
     addBuildingExplosion, updateExplosions, drawExplosions
   });
 })();
-
-
-// ES module scope: expose legacy globals expected by bullet_system.js
-try { if (typeof window !== 'undefined' && typeof updateExplosions === 'function') window.updateExplosions = updateExplosions; } catch(e) {}
