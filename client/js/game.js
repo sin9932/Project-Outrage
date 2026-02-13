@@ -3372,14 +3372,18 @@ if (u.cls==="inf"){
     }
   }
 
+  // Commit this slot immediately so later units in the same tick won't pick it too.
+  if (slot>=0){
+    mask |= (1<<slot);
+    if (u.team===0) infSlotMask0[ni] = mask;
+    else           infSlotMask1[ni] = mask;
+  }
+
   if (slot<0){
-    // Tile is temporarily full: don't oscillate, just queue behind.
+    // Tile is temporarily full: infantry must WAIT (no bypass, no oscillation).
     u.vx = 0; u.vy = 0;
     u.queueWaitT = (u.queueWaitT||0) + dt;
-
-    // If we have been waiting too long, allow bypass logic below to kick in.
-    // But for short waits, returning here prevents "부들부들".
-    if (u.queueWaitT < 0.35) return false;
+    return false;
   } else {
     u.queueWaitT = 0;
     const sp = tileToWorldSubslot(p.tx, p.ty, slot);
@@ -3772,9 +3776,11 @@ const nx=u.x+ax*step, ny=u.y+ay*step;
         u.yieldCd = Math.max(u.yieldCd||0, 0.15);
         return true;
       } else if (goal){
-        // Infantry: do NOT bypass-jitter when jammed. Just repath and yield a bit.
-        setPathTo(u, (goal.tx+0.5)*TILE, (goal.ty+0.5)*TILE);
-        u.yieldCd = Math.max(u.yieldCd||0, 0.20);
+        // Infantry: insert a bypass step to break the jam, else repath.
+        const b = findBypassStep(u, curTx, curTy, goal.tx, goal.ty);
+        if (b){ u.path.splice(u.pathI, 0, b); }
+        else { setPathTo(u, (goal.tx+0.5)*TILE, (goal.ty+0.5)*TILE); }
+        u.yieldCd = Math.max(u.yieldCd||0, 0.12);
         return true;
       } else {
         // No goal: just stop at current center.
@@ -6919,24 +6925,7 @@ function stampCmd(e, type, x, y, targetId=null){
         }
       }
       // if nothing free, fall back to base tile center
-      if (!chosen){
-        // Never collapse the whole group onto the same base tile.
-        // Instead, expand search radius until we find a truly enterable+reservable tile.
-        const baseWx = (baseTx+0.5)*TILE, baseWy = (baseTy+0.5)*TILE;
-        let found = null;
-        for (let rr=2; rr<=14 && !found; rr++){
-          const spot = findNearestFreePoint(baseWx, baseWy, e, rr);
-          const tx = tileOfX(spot.x), ty = tileOfY(spot.y);
-          const key = tx + "," + ty;
-          if (!used.has(key) && canEnterTile(e, tx, ty) && reserveTile(e, tx, ty)){
-            used.add(key);
-            found = {tx, ty};
-            break;
-          }
-        }
-        if (found) chosen = found;
-        else chosen = {tx:baseTx, ty:baseTy}; // last resort, should be rare
-      };// RA2-feel: vehicles still go to tile center; infantry go to a reserved sub-slot inside the tile
+      if (!chosen) chosen={tx:baseTx, ty:baseTy};// RA2-feel: vehicles still go to tile center; infantry go to a reserved sub-slot inside the tile
 const cls = (UNIT[e.kind] && UNIT[e.kind].cls) ? UNIT[e.kind].cls : "";
 let wp;
 let subSlot = null;
@@ -7390,6 +7379,63 @@ function isEnemyInf(e){
   if (BUILD[e.kind]) return false;
   return (UNIT[e.kind]?.cls==="inf");
 }
+
+
+  // --- Infantry anti-blob combat positioning ---
+  function allocInfSubSlot(u, tx, ty, purpose){
+    if (!inMap(tx,ty)) return (u.id & 3);
+    const ni = idx(tx,ty);
+    let mask = (u.team===0) ? infSlotMask0[ni] : infSlotMask1[ni];
+    const key = (tx<<16) ^ (ty & 0xFFFF);
+
+    let slot = -1;
+    if (purpose==="atk" && u.atkSlot!=null && u.atkSlotKey===key){
+      const s0 = (u.atkSlot & 3);
+      if (((mask>>s0)&1)===0) slot = s0;
+    }
+    if (slot<0){
+      for (let s=0; s<4; s++){
+        if (((mask>>s)&1)===0){ slot=s; break; }
+      }
+    }
+    if (slot>=0){
+      mask |= (1<<slot);
+      if (u.team===0) infSlotMask0[ni] = mask;
+      else           infSlotMask1[ni] = mask;
+      if (purpose==="atk"){ u.atkSlot = slot; u.atkSlotKey = key; }
+      return slot;
+    }
+    return (u.id & 3);
+  }
+
+  function pickInfantryAttackSpot(u, t){
+    const baseTx = tileOfX(t.x), baseTy = tileOfY(t.y);
+    const desiredR = Math.max(1, Math.floor((u.range*0.85)/TILE));
+    const maxR = desiredR + 5;
+    const seed = (((u.id * 0.61803398875) % 1) + 0.271828) % 1;
+
+    for (let r=desiredR; r<=maxR; r++){
+      const steps = Math.max(16, r*10);
+      for (let k=0; k<steps; k++){
+        const ang = (seed + (k/steps)) * Math.PI * 2;
+        const tx = baseTx + Math.round(Math.cos(ang) * r);
+        const ty = baseTy + Math.round(Math.sin(ang) * r);
+        if (!inMap(tx,ty)) continue;
+        if (canEnterTileGoal(u, tx, ty, t)) return {tx,ty};
+      }
+    }
+    // fallback: nearest walkable tile
+    for (let r=0; r<=2; r++){
+      for (let dy=-r; dy<=r; dy++){
+        for (let dx=-r; dx<=r; dx++){
+          const tx = baseTx + dx, ty = baseTy + dy;
+          if (!inMap(tx,ty)) continue;
+          if (canEnterTileGoal(u, tx, ty, t)) return {tx,ty};
+        }
+      }
+    }
+    return {tx: baseTx, ty: baseTy};
+  }
 
 function tickUnits(dt){
     clearOcc(dt);
@@ -8289,7 +8335,35 @@ u.path = null; u.pathI = 0;
 u.vx = 0; u.vy = 0;
 u.repathCd = Math.max(u.repathCd||0, 0.20);
 // Record an attack anchor when we enter in-range hold.
-if (u.atkX==null || u.atkY==null){ u.atkX = u.x; u.atkY = u.y; }
+if (u.atkX==null || u.atkY==null){
+  const ucls = (UNIT[u.kind] && UNIT[u.kind].cls) ? UNIT[u.kind].cls : "";
+  if (ucls==="inf" && !u.inTransport){
+    let ax = tileOfX(u.x), ay = tileOfY(u.y);
+
+    // When attacking a building, pick a per-unit attack spot around it to avoid blobs.
+    if (isB){
+      if (u.atkSpotId!==t.id || u.atkSpotTx==null || u.atkSpotTy==null){
+        const sp = pickInfantryAttackSpot(u, t);
+        u.atkSpotId = t.id; u.atkSpotTx = sp.tx; u.atkSpotTy = sp.ty;
+      }
+      ax = u.atkSpotTx; ay = u.atkSpotTy;
+    }
+
+    const slot = allocInfSubSlot(u, ax, ay, "atk");
+    const wp = tileToWorldSubslot(ax, ay, slot);
+    u.atkX = wp.x; u.atkY = wp.y;
+
+    // Snap into slot if close, otherwise we will drift there without oscillation.
+    const dd = (u.x-u.atkX)*(u.x-u.atkX) + (u.y-u.atkY)*(u.y-u.atkY);
+    if (dd < (INF_HOLD_EPS*INF_HOLD_EPS)){
+      u.x = u.atkX; u.y = u.atkY;
+      u.vx = 0; u.vy = 0;
+      u.holdPos = true;
+    }
+  } else {
+    u.atkX = u.x; u.atkY = u.y;
+  }
+}
 // Keep a small hold timer so other systems won't micro-adjust this frame.
 u.holdPosT = Math.max(u.holdPosT||0, 0.25);
     u.combatGoalT = Math.max(0, (u.combatGoalT||0) - dt);
@@ -8303,10 +8377,26 @@ u.atkX = null; u.atkY = null;
 
 let goalX, goalY;
 if (isB){
-  const targetRad = Math.max(t.w||0, t.h||0) * 0.5;
-  const wantDist = u.range * 0.88;
-  const g = getStandoffPoint(u, t, wantDist, true, targetRad, u.atkSeedAng);
-  goalX = g.x; goalY = g.y;
+  const ucls = (UNIT[u.kind] && UNIT[u.kind].cls) ? UNIT[u.kind].cls : "";
+  if (ucls==="inf" && !u.inTransport){
+    // Spread infantry around buildings using stable per-unit "attack spot" tiles.
+    if (u.atkSpotId!==t.id || u.atkSpotTx==null || u.atkSpotTy==null || (u.atkSpotT||0)<=0){
+      const sp = pickInfantryAttackSpot(u, t);
+      u.atkSpotId = t.id; u.atkSpotTx = sp.tx; u.atkSpotTy = sp.ty;
+      u.atkSpotT = 0.6; // refresh cadence
+      u.atkSlot = null; u.atkSlotKey = null;
+    } else {
+      u.atkSpotT -= dt;
+    }
+    const slot = allocInfSubSlot(u, u.atkSpotTx, u.atkSpotTy, "atk");
+    const wp = tileToWorldSubslot(u.atkSpotTx, u.atkSpotTy, slot);
+    goalX = wp.x; goalY = wp.y;
+  } else {
+    const targetRad = Math.max(t.w||0, t.h||0) * 0.5;
+    const wantDist = u.range * 0.88;
+    const g = getStandoffPoint(u, t, wantDist, true, targetRad, u.atkSeedAng);
+    goalX = g.x; goalY = g.y;
+  }
 } else {
   // Use target TILE center as chase goal to avoid constant repath "움찔" on moving targets.
   const ttX = tileOfX(t.x), ttY = tileOfY(t.y);
