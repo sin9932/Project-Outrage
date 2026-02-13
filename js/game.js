@@ -156,3 +156,24 @@ function startGame(){
 }
 
 console.log("Refactored RTS Core Loaded.");
+
+
+/* ======================
+   PUBLIC API BRIDGE (NO BEHAVIOR CHANGE)
+   - keeps old globals usable (lexical globals)
+   - also exposes a single namespace for gradual decoupling: window.RTS
+   ====================== */
+(function exposeRTS(){
+  const RTS = window.RTS || (window.RTS = {});
+  Object.assign(RTS, {
+    GameState,
+    Entities,
+    Selection,
+    Combat,
+    Bullets,
+    AI,
+    tick,
+    startGame,
+    dist2
+  });
+})();
