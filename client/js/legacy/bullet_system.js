@@ -21,6 +21,20 @@ var updateExplosions = function proxy_updateExplosions() {
   // no-op fallback
 };
 // -------------------------------------------------------
+
+// legacy expected global: healMarks (fx marks / decals)
+var healMarks = function proxy_healMarks() {
+  try {
+    var v = (typeof globalThis !== 'undefined') ? globalThis.healMarks : (typeof window !== 'undefined' ? window.healMarks : undefined);
+    if (v === undefined) {
+      v = [];
+      try { if (typeof globalThis !== 'undefined') globalThis.healMarks = v; } catch(e) {}
+      try { if (typeof window !== 'undefined') window.healMarks = v; } catch(e) {}
+    }
+    return v;
+  } catch(e) { return []; }
+}();
+// -------------------------------------------------------
   const BulletSystem = {};
 
 
