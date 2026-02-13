@@ -11,11 +11,70 @@
   PO.buildings = MOD;
 
   const _loaded = {
-    barracks: { ready:false, loading:false, idle:null, cons:null, dest:null, err:null }
+    barracks: { ready:false, loading:false, idle:null, cons:null, dest:null, idleT:null, consT:null, destT:null, err:null }
   };
 
   const _live = new Map();
   const _ghosts = [];
+
+
+  // Team accent recolor for TexturePacker atlases (magenta -> team accent).
+  // Uses the same heuristic as game.js: detect "magenta band" pixels and recolor by luminance.
+  const TEAM_ACCENT = (typeof window !== "undefined" && window.TEAM_ACCENT) ? window.TEAM_ACCENT : {
+    PLAYER: [80,  180, 255],  // blue-ish
+    ENEMY:  [255, 80,  90],   // red-ish
+    NEUTRAL:[140, 140, 140]
+  };
+  const TEAM_ACCENT_LUMA_GAMMA = (typeof window !== "undefined" && window.TEAM_ACCENT_LUMA_GAMMA!=null) ? window.TEAM_ACCENT_LUMA_GAMMA : 0.70;
+  const TEAM_ACCENT_LUMA_GAIN  = (typeof window !== "undefined" && window.TEAM_ACCENT_LUMA_GAIN!=null) ? window.TEAM_ACCENT_LUMA_GAIN : 1.35;
+  const TEAM_ACCENT_LUMA_BIAS  = (typeof window !== "undefined" && window.TEAM_ACCENT_LUMA_BIAS!=null) ? window.TEAM_ACCENT_LUMA_BIAS : 0.06;
+
+  function _isAccentPixel(r,g,b,a){
+    if (a < 8) return false;
+    const magentaBand = (r >= 150 && b >= 150 && g <= 140);
+    const gNotDominant = (g <= Math.min(r,b) + 35);
+    const rbPresence = (r + b) >= 160;
+    return magentaBand && gNotDominant && rbPresence;
+  }
+
+  function _applyTeamPaletteToImage(img, teamRGB){
+    const w = img.width, h = img.height;
+    const c = document.createElement("canvas"); c.width = w; c.height = h;
+    const ctx = c.getContext("2d", { willReadFrequently:true });
+    ctx.drawImage(img, 0, 0);
+    const im = ctx.getImageData(0,0,w,h);
+    const d = im.data;
+    const tr = teamRGB[0]||0, tg = teamRGB[1]||0, tb = teamRGB[2]||0;
+
+    for (let i=0;i<d.length;i+=4){
+      const r=d[i], g=d[i+1], b=d[i+2], a=d[i+3];
+      if (!_isAccentPixel(r,g,b,a)) continue;
+      const l = (0.2126*r + 0.7152*g + 0.0722*b)/255; // perceived luma
+      const l2 = Math.min(1, Math.pow(l, TEAM_ACCENT_LUMA_GAMMA) * TEAM_ACCENT_LUMA_GAIN + TEAM_ACCENT_LUMA_BIAS);
+      d[i]   = Math.max(0, Math.min(255, tr * l2));
+      d[i+1] = Math.max(0, Math.min(255, tg * l2));
+      d[i+2] = Math.max(0, Math.min(255, tb * l2));
+      // alpha preserved
+    }
+    ctx.putImageData(im,0,0);
+    // Return as an Image-like object usable in drawImage
+    return c;
+  }
+
+  function _cloneAtlasWithRecoloredTextures(atlas, teamRGB){
+    if (!atlas || !atlas.textures) return atlas;
+    // Shallow clone object and textures array; keep frames Map (frame rects identical)
+    const out = { textures: [], frames: atlas.frames };
+    for (const t of atlas.textures){
+      const nt = Object.assign({}, t);
+      if (t && t.img){
+        nt.img = _applyTeamPaletteToImage(t.img, teamRGB);
+      }
+      out.textures.push(nt);
+    }
+    return out;
+  }
+
 
   function _numSuffix(name){
     const m = /(\d+)(?=\.png$)/i.exec(name);
@@ -23,6 +82,15 @@
   }
   function _sorted(list){
     return list.slice().sort((a,b)=>_numSuffix(a)-_numSuffix(b));
+  }
+
+
+  function _pickTeamAtlas(slot, mode, team){
+    const t = (team==null) ? 0 : team;
+    if (mode==="idle" && slot.idleT) return slot.idleT[t] || slot.idle;
+    if (mode==="cons" && slot.consT) return slot.consT[t] || slot.cons;
+    if (mode==="dest" && slot.destT) return slot.destT[t] || slot.dest;
+    return (mode==="cons") ? slot.cons : (mode==="dest") ? slot.dest : slot.idle;
   }
 
   const BARR = {
@@ -49,8 +117,33 @@
         if (!atlasTP || !atlasTP.loadTPAtlasMulti) throw new Error("atlas_tp.js not loaded");
         const idle = await atlasTP.loadTPAtlasMulti(PATH.barracks.idle.json, PATH.barracks.idle.base);
         const cons = await atlasTP.loadTPAtlasMulti(PATH.barracks.cons.json, PATH.barracks.cons.base);
-        const dest = await atlasTP.loadTPAtlasMulti(PATH.barracks.dest.json, PATH.barracks.dest.base);
+        let dest = null;
+        try{
+          dest = await atlasTP.loadTPAtlasMulti(PATH.barracks.dest.json, PATH.barracks.dest.base);
+        }catch(_e1){
+          // Fallback for common filename variants
+          try{
+            dest = await atlasTP.loadTPAtlasMulti("asset/sprite/const/destruct/barrack/barrack_destruction.json", PATH.barracks.dest.base);
+          }catch(_e2){
+            // If still missing, degrade gracefully (no destruction frames)
+            dest = null;
+          }
+        }
+
         slot.idle = idle; slot.cons = cons; slot.dest = dest;
+
+        // Build per-team recolored atlases (PLAYER=0, ENEMY=1).
+        try{
+          const pRGB = TEAM_ACCENT.PLAYER || [80,180,255];
+          const eRGB = TEAM_ACCENT.ENEMY  || [255,80,90];
+          slot.idleT = { 0:_cloneAtlasWithRecoloredTextures(idle, pRGB), 1:_cloneAtlasWithRecoloredTextures(idle, eRGB) };
+          slot.consT = { 0:_cloneAtlasWithRecoloredTextures(cons, pRGB), 1:_cloneAtlasWithRecoloredTextures(cons, eRGB) };
+          slot.destT = { 0:_cloneAtlasWithRecoloredTextures(dest, pRGB), 1:_cloneAtlasWithRecoloredTextures(dest, eRGB) };
+        }catch(_e){
+          // If recolor fails (tainted canvas etc), fall back to base atlases.
+          slot.idleT = null; slot.consT = null; slot.destT = null;
+        }
+
         slot.ready = true;
       }catch(e){
         slot.err = e;
@@ -196,11 +289,11 @@
       let atlas=null, name=null;
       if (g.mode==="dest"){
         const idx = Math.min(BARR.dest.length-1, Math.floor(g.t / g.spf));
-        atlas = slot.dest; name = BARR.dest[idx];
+        atlas = _pickTeamAtlas(slot,'dest', g.team); name = BARR.dest[idx];
       } else if (g.mode==="sell"){
         const idx = Math.min(BARR.cons.length-1, Math.floor(g.t / g.spf));
         const rev = (BARR.cons.length-1) - idx;
-        atlas = slot.cons; name = BARR.cons[rev];
+        atlas = _pickTeamAtlas(slot,'cons', g.team); name = BARR.cons[rev];
       }
       if (!atlas || !name) continue;
 

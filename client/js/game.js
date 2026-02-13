@@ -711,7 +711,7 @@ function getBaseBuildTime(kind){
     power:    { hLevel:2, tw:2, th:2, hp:750,  vision:420, provideR: 600 },
     refinery: { hLevel:2, tw:3, th:4, hp:1000, vision:520, provideR: 650 },
     factory:  { hLevel:2, tw:3, th:4, hp:1000, vision:500, provideR: 650 },
-    barracks: { hLevel:2, tw:2, th:3, hp:500,  vision:460, provideR: 600 },
+    barracks: { hLevel:2, tw:3, th:2, hp:500,  vision:460, provideR: 600 },
     radar:    { hLevel:3, tw:2, th:2, hp:1000, vision:600, provideR: 650 },
     turret:   { hLevel:1, tw:1, th:1, hp:400,  vision:560, provideR: 0   },
     civ_oregen: { hLevel:0, tw:2, th:2, hp:999999, vision:0, provideR:0, attackable:false, selectable:false, hideUI:true }
@@ -1675,7 +1675,7 @@ function getBaseBuildTime(kind){
       console.warn("[lite_tank] atlas load failed:", e);
       LITE_TANK.ok = false;
     }
-  })();
+  })()
 
   // Kick off harvester atlas loads early (non-blocking)
   (async()=>{
@@ -5383,11 +5383,11 @@ function drawBlood(ctx){
       // Big ground glow (additive)
       ctx.save();
       ctx.globalCompositeOperation = "lighter";
-      ctx.globalAlpha = 0.95 * Math.pow(k, 0.55);
+      ctx.globalAlpha = 0.55 * Math.pow(k, 0.65);
       const R = (TILE*2.60*e.size) * z;
       const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, R);
-      g.addColorStop(0.0, "rgba(255,255,235,0.92)");
-      g.addColorStop(0.28, "rgba(255,220,120,0.70)");
+      g.addColorStop(0.0, "rgba(255,255,235,0.55)");
+      g.addColorStop(0.28, "rgba(255,220,120,0.42)");
       g.addColorStop(0.62, "rgba(255,170,70,0.28)");
       g.addColorStop(1.0, "rgba(255,140,50,0.0)");
       ctx.fillStyle = g;
@@ -5396,11 +5396,11 @@ function drawBlood(ctx){
       ctx.fill();
 
       // Central flash
-      ctx.globalAlpha = 0.85 * Math.pow(k, 0.35);
-      const R2 = (TILE*1.25*e.size) * z; // HUGE central flash
+      ctx.globalAlpha = 0.35 * Math.pow(k, 0.55);
+      const R2 = (TILE*0.85*e.size) * z; // toned-down central flash
       const g2 = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, R2);
-      g2.addColorStop(0.0, "rgba(255,255,255,0.95)");
-      g2.addColorStop(0.5, "rgba(255,245,210,0.55)");
+      g2.addColorStop(0.0, "rgba(255,255,255,0.45)");
+      g2.addColorStop(0.5, "rgba(255,235,190,0.28)");
       g2.addColorStop(1.0, "rgba(255,220,140,0.0)");
       ctx.fillStyle = g2;
       ctx.beginPath();
