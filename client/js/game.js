@@ -283,7 +283,7 @@ function fitMini() {
 
   const TILE = 110;
   
-  window.__RA2_PATCH_VERSION__="v17";
+  window.__RA2_PATCH_VERSION__="v18";
 const GAME_SPEED = 1.30;
   const BUILD_PROD_MULT = 1.30; // additional +30% for building & unit production speed
   // Enemy AI cheats (difficulty)
@@ -2753,7 +2753,7 @@ function tileToWorldSubslot(tx, ty, slot){
 
 // RA2 PATCH V17: deterministic 2x2 sub-cell ownership (kills overlap -> kills jitter)
 function _slotOwnerArr(team){
-  return team===0 ? infSlotOwner0 : infSlotOwner1;
+  return (team===0 ? infSlotOwner0 : infSlotOwner1);
 }
 function _slotMaskArr(team){
   return team===0 ? infSlotMask0 : infSlotMask1;
@@ -2847,7 +2847,9 @@ function applyInfSlotCorrection(u, dt){
     infSlotNext1.fill(0);
     infSlotMask0.fill(0);
     infSlotMask1.fill(0);
-    // Rebuild reservations from units (kept in u.resTx/u.resTy)
+        infSlotOwner0.fill(0);
+    infSlotOwner1.fill(0);
+// Rebuild reservations from units (kept in u.resTx/u.resTy)
     for (const u of units){
       if (!u.alive) continue;
       if (u.resTx!=null && u.resTy!=null && inMap(u.resTx,u.resTy)){
