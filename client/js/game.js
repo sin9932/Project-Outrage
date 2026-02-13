@@ -1675,7 +1675,7 @@ function getBaseBuildTime(kind){
       console.warn("[lite_tank] atlas load failed:", e);
       LITE_TANK.ok = false;
     }
-  })()
+  })();
 
   // Kick off harvester atlas loads early (non-blocking)
   (async()=>{
