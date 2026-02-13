@@ -360,7 +360,32 @@ function enemyAttackTarget(){
 }
 
 // ===== ENGINEER BEHAVIOR FIX =====
-function pushEngineerOut
+function pushEngineerOut(u){
+  if (!u || !u.alive) return;
+  if (u.kind!=="engineer") return;
+  if (u.team!==TEAM.ENEMY) return;
+
+  const nearProd = buildings.some(b =>
+    b.alive &&
+    !b.civ &&
+    b.team===TEAM.ENEMY &&
+    (b.kind==="barracks" || b.kind==="hq") &&
+    dist2(u.x,u.y,b.x,b.y) < (420*420)
+  );
+
+  const noProd = (u._noProdUntil && state.t < u._noProdUntil);
+
+  if (nearProd || noProd){
+    const rx = ai.rally.x + rnd(-TILE*2.4, TILE*2.4);
+    const ry = ai.rally.y + rnd(-TILE*2.4, TILE*2.4);
+
+    u.order = {type:"move", x:rx, y:ry, tx:null, ty:null};
+    setPathTo(u, rx, ry);
+
+    u.repathCd = 0.06;
+    u._noProdUntil = state.t + 7.0;
+  }
+}
 (u){
     if (!u || !u.alive || u.kind!=="engineer" || u.team!==TEAM.ENEMY) return;
     // If hanging near own barracks/HQ, force it to rally so it doesn't block exits.
