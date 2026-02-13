@@ -3180,7 +3180,7 @@ const ni=ny*W+nx;
     // If the goal tile is crowded, we only "snap" to a nearby free tile for non-combat move orders.
     // For combat orders we intentionally keep the goal stable and allow compression; otherwise backliners can "dance".
     const _combatOrder = (u && u.order && (u.order.type==="attack" || u.order.type==="attackmove"));
-    if (!_combatOrder){
+    if (true){
       if (!canEnterTile(u, gTx, gTy)){
         let best=null, bestD=1e9;
         for (let r=1;r<=6;r++){
@@ -6869,8 +6869,8 @@ function stampCmd(e, type, x, y, targetId=null){
 
     // Precompute candidate offsets sized to selection
     const offsets = buildFormationOffsets(Math.max(16, ids.length*6));
-    const usedInf = new Map();
-    const usedHard = new Set();
+    const used = new Set();
+  const infCount = new Map();
     // RA2-feel: for infantry, assign a stable destination sub-slot per target tile
     const __tileSubMask = new Map();
     let k=0;
@@ -6879,8 +6879,7 @@ function stampCmd(e, type, x, y, targetId=null){
       if (!e || e.team!==TEAM.PLAYER) continue;
       if (BUILD[e.kind]) continue;
       if (shouldIgnoreCmd(e,'move',x,y,null)) continue;
-      const cls = (UNIT[e.kind] && UNIT[e.kind].cls) ? UNIT[e.kind].cls : "";
-      
+
       e.guard=null; e.guardFrom=false;
       e.restX=null; e.restY=null;
       e.target=null;
@@ -6898,11 +6897,8 @@ function stampCmd(e, type, x, y, targetId=null){
         const ty = baseTy + offsets[j].dy;
         if (!inMap(tx,ty)) continue;
         const key = tx+"," + ty;
-        if (usedHard.has(key)) continue;
-        if (cls==="inf") {
-          const c = usedInf.get(key) || 0;
-          if (c >= INF_SLOT_MAX) continue;
-        }
+        if(UNIT[u.kind]?.cls!=="inf") { if(used.has(key)) continue; }
+        else { const c = infCount.get(key)||0; if(c>=INF_SLOT_MAX) continue; infCount.set(key,c+1); }
         if (!canEnterTile(e, tx, ty)) continue;
         const wpC = tileToWorldCenter(tx,ty);
         // score: distance to the actual click + tiny ring penalty (prefer closer rings)
@@ -6923,16 +6919,12 @@ function stampCmd(e, type, x, y, targetId=null){
         if (!reserveTile(e, chosen.tx, chosen.ty)){
           chosen=null;
         } else {
-          const ckey = chosen.tx+","+chosen.ty;
-          if (cls==="inf") {
-            usedInf.set(ckey, (usedInf.get(ckey)||0)+1);
-          } else {
-            usedHard.add(ckey);
-          }
+          used.add(chosen.tx+","+chosen.ty);
         }
       }
       // if nothing free, fall back to base tile center
       if (!chosen) chosen={tx:baseTx, ty:baseTy};// RA2-feel: vehicles still go to tile center; infantry go to a reserved sub-slot inside the tile
+const cls = (UNIT[e.kind] && UNIT[e.kind].cls) ? UNIT[e.kind].cls : "";
 let wp;
 let subSlot = null;
 if (cls==="inf"){

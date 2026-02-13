@@ -6887,7 +6887,7 @@ function stampCmd(e, type, x, y, targetId=null){
       e.fireHoldT=0; e.fireDir=null;
       e.forceMoveUntil = state.t + 1.25;
       e.repathCd=0.15;
-
+      const cls = e.cls || ((UNIT[e.kind] && UNIT[e.kind].cls) ? UNIT[e.kind].cls : "");
       const cls = e.cls || ((UNIT[e.kind] && UNIT[e.kind].cls) ? UNIT[e.kind].cls : \"\");
 
       // pick best nearby free tile among offsets, biased to the actual mouse world point (x,y)
