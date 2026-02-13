@@ -3425,9 +3425,11 @@ function followPath(u, dt){
     if (d < 2 || (u.pathI >= (u.path.length-1) && d < 12)){
       // Reduce "tile-by-tile fidget": only hard-snap on the FINAL node.
       if (u.pathI >= (u.path.length-1)){
-        if (u.cls==="inf" && u.subSlot!=null){
-          const sp = tileToWorldSubslot(p.tx, p.ty, u.subSlot);
-          u.x = sp.x; u.y = sp.y;
+        if (u.cls==="inf"){
+  // Prefer the destination slot assigned at command time (prevents "everyone rushes tile center" jitter).
+  let slot = (u.order && u.order.tx===p.tx && u.order.ty===p.ty && u.order.subSlot!=null) ? (u.order.subSlot|0) : (u.subSlot|0);
+  const sp = tileToWorldSubslot(p.tx, p.ty, slot);
+  u.x = sp.x; u.y = sp.y;
           u.vx = 0; u.vy = 0;
           u.holdPos = true;
         } else {
@@ -6825,6 +6827,8 @@ function stampCmd(e, type, x, y, targetId=null){
     // Precompute candidate offsets sized to selection
     const offsets = buildFormationOffsets(Math.max(16, ids.length*6));
     const used = new Set();
+    // RA2-feel: for infantry, assign a stable destination sub-slot per target tile
+    const __tileSubMask = new Map();
     let k=0;
     for (const id of ids){
       const e=getEntityById(id);
@@ -6874,10 +6878,26 @@ function stampCmd(e, type, x, y, targetId=null){
         }
       }
       // if nothing free, fall back to base tile center
-      if (!chosen) chosen={tx:baseTx, ty:baseTy};
+      if (!chosen) chosen={tx:baseTx, ty:baseTy};// RA2-feel: vehicles still go to tile center; infantry go to a reserved sub-slot inside the tile
+const cls = (UNIT[e.kind] && UNIT[e.kind].cls) ? UNIT[e.kind].cls : "";
+let wp;
+let subSlot = null;
+if (cls==="inf"){
+  const tkey = chosen.tx + "," + chosen.ty;
+  let mask = __tileSubMask.get(tkey) || 0;
+  let pick = 0;
+  for (let s=0; s<4; s++){
+    if (((mask>>s)&1)===0){ pick=s; break; }
+  }
+  subSlot = pick;
+  mask = (mask | (1<<pick)) & 0x0F;
+  __tileSubMask.set(tkey, mask);
+  wp = tileToWorldSubslot(chosen.tx, chosen.ty, pick);
+} else {
+  wp = tileToWorldCenter(chosen.tx, chosen.ty);
+}
+e.order={type:"move", x:wp.x, y:wp.y, tx:chosen.tx, ty:chosen.ty, subSlot:subSlot};
 
-      const wp = tileToWorldCenter(chosen.tx, chosen.ty);
-      e.order={type:"move", x:wp.x, y:wp.y, tx:chosen.tx, ty:chosen.ty};
       e.holdPos = false;
 
       pushOrderFx(e.id,"move",wp.x,wp.y,null,"rgba(90,255,90,0.95)");

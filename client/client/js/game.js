@@ -3343,10 +3343,7 @@ function followPath(u, dt){
     if (u.yieldCd && u.yieldCd>0){ u.yieldCd -= dt; if (u.yieldCd>0) return false; u.yieldCd=0; }
 
     const p = u.path[u.pathI];
-    let wx = (p.tx+0.5)*TILE, wy=(p.ty+0.5)*TILE;
-    const isFinal = (u.pathI >= (u.path.length-1));
-    // If this is the final node, respect the *actual* order point (infantry sub-slot / formation offset).
-    if (isFinal && u.order && u.order.x!=null && u.order.y!=null){ wx = u.order.x; wy = u.order.y; }
+    const wx = (p.tx+0.5)*TILE, wy=(p.ty+0.5)*TILE;
 
     // HARD HOLD: if infantry is already locked to its sub-slot in this tile, don't keep steering.
     if (u.cls==="inf" && u.holdPos && tileOfX(u.x)===p.tx && tileOfY(u.y)===p.ty) return false;
@@ -3425,15 +3422,14 @@ function followPath(u, dt){
 
 
     // Arrival threshold: allow a small epsilon on the final node so avoidance steering doesn't cause endless micro-dancing.
-        const eps = (u.cls==="inf") ? INF_HOLD_EPS : 2;
-    if (d < eps || (isFinal && d < 12)){
+    if (d < 2 || (u.pathI >= (u.path.length-1) && d < 12)){
       // Reduce "tile-by-tile fidget": only hard-snap on the FINAL node.
       if (u.pathI >= (u.path.length-1)){
         if (u.cls==="inf"){
-          const slot = (u.goalSubSlot!=null && u.order && u.order.tx===p.tx && u.order.ty===p.ty) ? (u.goalSubSlot & 3) : ((u.subSlot!=null)?(u.subSlot & 3):0);
-          const sp = tileToWorldSubslot(p.tx, p.ty, slot);
-          u.subSlot = slot; u.subSlotTx = p.tx; u.subSlotTy = p.ty;
-          u.x = sp.x; u.y = sp.y;
+  // Prefer the destination slot assigned at command time (prevents "everyone rushes tile center" jitter).
+  let slot = (u.order && u.order.tx===p.tx && u.order.ty===p.ty && u.order.subSlot!=null) ? (u.order.subSlot|0) : (u.subSlot|0);
+  const sp = tileToWorldSubslot(p.tx, p.ty, slot);
+  u.x = sp.x; u.y = sp.y;
           u.vx = 0; u.vy = 0;
           u.holdPos = true;
         } else {
@@ -6831,7 +6827,8 @@ function stampCmd(e, type, x, y, targetId=null){
     // Precompute candidate offsets sized to selection
     const offsets = buildFormationOffsets(Math.max(16, ids.length*6));
     const used = new Set();
-    const infSlotPick = new Map();
+    // RA2-feel: for infantry, assign a stable destination sub-slot per target tile
+    const __tileSubMask = new Map();
     let k=0;
     for (const id of ids){
       const e=getEntityById(id);
@@ -6881,27 +6878,26 @@ function stampCmd(e, type, x, y, targetId=null){
         }
       }
       // if nothing free, fall back to base tile center
-      if (!chosen) chosen={tx:baseTx, ty:baseTy};
+      if (!chosen) chosen={tx:baseTx, ty:baseTy};// RA2-feel: vehicles still go to tile center; infantry go to a reserved sub-slot inside the tile
+const cls = (UNIT[e.kind] && UNIT[e.kind].cls) ? UNIT[e.kind].cls : "";
+let wp;
+let subSlot = null;
+if (cls==="inf"){
+  const tkey = chosen.tx + "," + chosen.ty;
+  let mask = __tileSubMask.get(tkey) || 0;
+  let pick = 0;
+  for (let s=0; s<4; s++){
+    if (((mask>>s)&1)===0){ pick=s; break; }
+  }
+  subSlot = pick;
+  mask = (mask | (1<<pick)) & 0x0F;
+  __tileSubMask.set(tkey, mask);
+  wp = tileToWorldSubslot(chosen.tx, chosen.ty, pick);
+} else {
+  wp = tileToWorldCenter(chosen.tx, chosen.ty);
+}
+e.order={type:"move", x:wp.x, y:wp.y, tx:chosen.tx, ty:chosen.ty, subSlot:subSlot};
 
-      // Infantry: assign a deterministic sub-slot INSIDE the destination tile.
-      // This is the big RA2-style anti-jitter trick: units don't all aim at the same tile center.
-      let wp;
-      const cls = (e.cls || (UNIT[e.kind] && UNIT[e.kind].cls) || "");
-      if (cls==="inf"){
-        const key = chosen.tx + "," + chosen.ty;
-        const n = infSlotPick.get(key) || 0;
-        const slot = (n & 3);
-        infSlotPick.set(key, n+1);
-        e.goalTx = chosen.tx; e.goalTy = chosen.ty;
-        e.goalSubSlot = slot;
-        wp = tileToWorldSubslot(chosen.tx, chosen.ty, slot);
-      } else {
-        e.goalTx = chosen.tx; e.goalTy = chosen.ty;
-        e.goalSubSlot = null;
-        wp = tileToWorldCenter(chosen.tx, chosen.ty);
-      }
-
-      e.order={type:"move", x:wp.x, y:wp.y, tx:chosen.tx, ty:chosen.ty};
       e.holdPos = false;
 
       pushOrderFx(e.id,"move",wp.x,wp.y,null,"rgba(90,255,90,0.95)");
@@ -6927,23 +6923,6 @@ function stampCmd(e, type, x, y, targetId=null){
       let gx=x+ox, gy=y+oy;
       const spot=findNearestFreePoint(gx,gy,e,4);
       if (spot && spot.found){ gx=spot.x; gy=spot.y; }
-      // Infantry sub-slot in the destination tile (prevents jittering pile-ups on attack-move too).
-      const cls = (u.cls || (UNIT[u.kind] && UNIT[u.kind].cls) || "");
-      if (cls==="inf"){
-        const tx = tileOfX(gx), ty = tileOfY(gy);
-        if (inMap(tx,ty)){
-          const key = tx + "," + ty;
-          const n = infSlotPick.get(key) || 0;
-          const slot = (n & 3);
-          infSlotPick.set(key, n+1);
-          u.goalTx = tx; u.goalTy = ty;
-          u.goalSubSlot = slot;
-          const sp = tileToWorldSubslot(tx, ty, slot);
-          gx = sp.x; gy = sp.y;
-        }
-      } else {
-        u.goalSubSlot = null;
-      }
       e.order={type:"move", x:gx, y:gy, tx:null,ty:null, manual:true, allowAuto:false, lockTarget:false};
       e.restX=null; e.restY=null;
       e.target=null;
@@ -6960,7 +6939,6 @@ function stampCmd(e, type, x, y, targetId=null){
   }
   function issueAttackMove(x,y){
     const ids=[...state.selection];
-    const infSlotPick = new Map();
     let k=0; const spacing=46;
     for (const id of ids){
       const u=getEntityById(id);
@@ -6976,26 +6954,9 @@ function stampCmd(e, type, x, y, targetId=null){
       let gx=x+ox, gy=y+oy;
       const spot=findNearestFreePoint(gx,gy,u,4);
       if (spot && spot.found){ gx=spot.x; gy=spot.y; }
-      // Infantry sub-slot in the destination tile (prevents jittering pile-ups on attack-move too).
-      const cls = (u.cls || (UNIT[u.kind] && UNIT[u.kind].cls) || "");
-      if (cls==="inf"){
-        const tx = tileOfX(gx), ty = tileOfY(gy);
-        if (inMap(tx,ty)){
-          const key = tx + "," + ty;
-          const n = infSlotPick.get(key) || 0;
-          const slot = (n & 3);
-          infSlotPick.set(key, n+1);
-          u.goalTx = tx; u.goalTy = ty;
-          u.goalSubSlot = slot;
-          const sp = tileToWorldSubslot(tx, ty, slot);
-          gx = sp.x; gy = sp.y;
-        }
-      } else {
-        u.goalSubSlot = null;
-      }
 
             if (shouldIgnoreCmd(u,'attackmove',gx,gy,null)) { k++; continue; }
-      u.order={type:"attackmove", x:gx, y:gy, tx:tileOfX(gx), ty:tileOfY(gy), manual:true, allowAuto:true, lockTarget:false};
+u.order={type:"attackmove", x:gx, y:gy, tx:null,ty:null, manual:true, allowAuto:true, lockTarget:false};
       u.holdPos = false;
       u.target=null;
       // Cancel firing animation immediately when moving (attack-move)
