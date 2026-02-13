@@ -1,3 +1,7 @@
+
+// === RA2 PATCH V2 MARKER ===
+console.log("RA2 PATCH V2 LOADED");
+window.__RA2_PATCH_VERSION__="v2";
 ;(function(){
   // Debug/validation mode: add ?debug=1 to URL
   const DEV_VALIDATE = /(?:\?|&)debug=1(?:&|$)/.test(location.search);
