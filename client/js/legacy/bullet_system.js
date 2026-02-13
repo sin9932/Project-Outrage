@@ -12,6 +12,53 @@ try { if (typeof window !== 'undefined') window.fires = fires; } catch(e) {}
   "use strict";
 
 
+/*__LEGACY_GLOBAL_BOOTSTRAP__*/
+// ---- legacy global bootstrap (stop the endless 'is not defined') ----
+(function initLegacyGlobals(){
+  var g;
+  try { g = (typeof globalThis !== 'undefined') ? globalThis : (typeof window !== 'undefined' ? window : this); } catch(e) { g = (typeof window !== 'undefined' ? window : this); }
+
+  function ensureArray(name) {
+    try {
+      if (g[name] === undefined) g[name] = [];
+      return g[name];
+    } catch(e) {
+      return [];
+    }
+  }
+
+  function ensureFn(name) {
+    try {
+      if (typeof g[name] !== 'function') g[name] = function(){};
+      return g[name];
+    } catch(e) {
+      return function(){};
+    }
+  }
+
+  // Arrays the legacy bullet system expects
+  ensureArray('__impacts');
+  ensureArray('fires');
+  ensureArray('healMarks');
+  ensureArray('casings');
+
+  // likely FX queues referenced across legacy code paths
+  ensureArray('sparks');
+  ensureArray('smokes');
+  ensureArray('traces');
+  ensureArray('debris');
+  ensureArray('decals');
+
+  // Functions the legacy bullet system expects
+  ensureFn('updateExplosions');
+})();
+ // ---------------------------------------------------------------
+var casings = (typeof globalThis!=='undefined' ? globalThis.casings : (typeof window!=='undefined' ? window.casings : undefined)) || [];
+var sparks = (typeof globalThis!=='undefined' ? globalThis.sparks : (typeof window!=='undefined' ? window.sparks : undefined)) || [];
+var smokes = (typeof globalThis!=='undefined' ? globalThis.smokes : (typeof window!=='undefined' ? window.smokes : undefined)) || [];
+var traces = (typeof globalThis!=='undefined' ? globalThis.traces : (typeof window!=='undefined' ? window.traces : undefined)) || [];
+var debris = (typeof globalThis!=='undefined' ? globalThis.debris : (typeof window!=='undefined' ? window.debris : undefined)) || [];
+var decals = (typeof globalThis!=='undefined' ? globalThis.decals : (typeof window!=='undefined' ? window.decals : undefined)) || [];
 // ---- module-compat shims (legacy expected globals) ----
 var updateExplosions = function proxy_updateExplosions() {
   try {
