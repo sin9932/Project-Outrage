@@ -711,7 +711,7 @@ function getBaseBuildTime(kind){
     power:    { hLevel:2, tw:2, th:2, hp:750,  vision:420, provideR: 600 },
     refinery: { hLevel:2, tw:3, th:4, hp:1000, vision:520, provideR: 650 },
     factory:  { hLevel:2, tw:3, th:4, hp:1000, vision:500, provideR: 650 },
-    barracks: { hLevel:2, tw:3, th:2, hp:500,  vision:460, provideR: 600 },
+    barracks: { hLevel:2, tw:2, th:3, hp:500,  vision:460, provideR: 600 },
     radar:    { hLevel:3, tw:2, th:2, hp:1000, vision:600, provideR: 650 },
     turret:   { hLevel:1, tw:1, th:1, hp:400,  vision:560, provideR: 0   },
     civ_oregen: { hLevel:0, tw:2, th:2, hp:999999, vision:0, provideR:0, attackable:false, selectable:false, hideUI:true }
@@ -932,34 +932,6 @@ function getBaseBuildTime(kind){
     document.body.appendChild(el);
     return el;
   }
-
-function _ensureTuneButton(){
-  let btn = document.getElementById("tuneBtn");
-  if (btn) return btn;
-  btn = document.createElement("button");
-  btn.id = "tuneBtn";
-  btn.textContent = "TUNE";
-  btn.style.position = "fixed";
-  btn.style.left = "12px";
-  btn.style.top = "12px";
-  btn.style.zIndex = "100000";
-  btn.style.padding = "8px 10px";
-  btn.style.borderRadius = "999px";
-  btn.style.border = "1px solid rgba(255,255,255,0.35)";
-  btn.style.background = "rgba(0,0,0,0.55)";
-  btn.style.color = "#fff";
-  btn.style.font = "600 12px system-ui, -apple-system, Segoe UI, Roboto, sans-serif";
-  btn.style.cursor = "pointer";
-  btn.title = "Sprite tuner toggle (F2)";
-  btn.addEventListener("click", ()=>{
-    TUNER.on = !TUNER.on;
-    TUNER.dragging = false;
-    _updateTuneOverlay();
-    try{ toast(TUNER.on ? "TUNER ON" : "TUNER OFF"); }catch(_e){}
-  });
-  document.body.appendChild(btn);
-  return btn;
-}
 
   function _saveTune(){
     try{
@@ -1703,7 +1675,7 @@ function _ensureTuneButton(){
       console.warn("[lite_tank] atlas load failed:", e);
       LITE_TANK.ok = false;
     }
-  })();
+  })()
 
   // Kick off harvester atlas loads early (non-blocking)
   (async()=>{
@@ -2383,7 +2355,6 @@ function buildingWorldFromTileOrigin(tx,ty,tw,th){
     const b = {
       id: nextId++,
       team, kind,
-      cls,
       grp: 0,
       tx, ty, tw, th,
       x: wpos.cx, y: wpos.cy,
@@ -2479,7 +2450,6 @@ function onBuildingPlaced(b){
 
 function addUnit(team, kind, x, y){
     const spec = UNIT[kind] || UNIT.infantry;
-    const cls = spec.cls || ((kind==="tank"||kind==="ifv"||kind==="harvester") ? "veh" : "inf");
     const u = {
       type:"unit",
       id: nextId++,
@@ -4702,35 +4672,31 @@ function spawnTurretMGTracers(shooter, target){
 }
 
 
+    function __getBulletCtx(){
+    return {
+      bullets, units, buildings,
+      flashes, sparks, particles,
+      explored,
+      TEAM, BUILD, state,
+      TILE,
+      inMap, idx,
+      dist, dist2, norm, rand,
+      getEntityById,
+      buildingAnyExplored,
+      notifyPlayerAttacked,
+      handleEntityDeath,
+    };
+  }
+
   function applyDamage(target, dmg, srcId=null, srcTeam=null){
+    if (window.BulletSystem && window.BulletSystem.applyDamage){
+      return window.BulletSystem.applyDamage(target, dmg, srcId, srcTeam, __getBulletCtx());
+    }
+    // Fallback: keep game running even if script order broke
     if (!target || !target.alive) return;
     if (target.attackable === false) return;
-
-  window.__combatUntil = Math.max(window.__combatUntil||0, performance.now()+12000);
-    target.lastDamaged = state.t;
-    if (srcId!=null){
-      target.lastAttacker = srcId;
-      target.lastAttackerTeam = srcTeam;
-      target.lastAttackedAt = state.t;
-    }
-
-    // Sniper: being attacked reveals for 1.5s; if not hit again, auto-cloaks when timer expires.
-    if (target.kind==="sniper"){
-      target.cloakBreak = Math.max(target.cloakBreak||0, 1.5);
-      target.cloaked = false;
-    }
-
-    // Player under attack: toast + minimap ping + SPACE jump memory (4s window, max 2 saved).
-    if (srcTeam===TEAM.ENEMY && target.team===TEAM.PLAYER){
-      if (target.kind==="harvester" || BUILD[target.kind]) notifyPlayerAttacked(target);
-    }
-
-    target.hp -= dmg;
-
-    if (target.hp > 0) return;
-
-    // Centralized death handling: NEVER do partial cleanup in random call sites.
-    handleEntityDeath(target, srcId, srcTeam);
+    target.hp -= (dmg||0);
+    if (target.hp<=0) handleEntityDeath(target, srcId, srcTeam);
   }
 
   function handleEntityDeath(ent, srcId=null, srcTeam=null){
@@ -5413,11 +5379,11 @@ function drawBlood(ctx){
       // Big ground glow (additive)
       ctx.save();
       ctx.globalCompositeOperation = "lighter";
-      ctx.globalAlpha = 0.55 * Math.pow(k, 0.65);
+      ctx.globalAlpha = 0.95 * Math.pow(k, 0.55);
       const R = (TILE*2.60*e.size) * z;
       const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, R);
-      g.addColorStop(0.0, "rgba(255,255,235,0.55)");
-      g.addColorStop(0.28, "rgba(255,220,120,0.42)");
+      g.addColorStop(0.0, "rgba(255,255,235,0.92)");
+      g.addColorStop(0.28, "rgba(255,220,120,0.70)");
       g.addColorStop(0.62, "rgba(255,170,70,0.28)");
       g.addColorStop(1.0, "rgba(255,140,50,0.0)");
       ctx.fillStyle = g;
@@ -5426,11 +5392,11 @@ function drawBlood(ctx){
       ctx.fill();
 
       // Central flash
-      ctx.globalAlpha = 0.35 * Math.pow(k, 0.55);
-      const R2 = (TILE*0.85*e.size) * z; // toned-down central flash
+      ctx.globalAlpha = 0.85 * Math.pow(k, 0.35);
+      const R2 = (TILE*1.25*e.size) * z; // HUGE central flash
       const g2 = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, R2);
-      g2.addColorStop(0.0, "rgba(255,255,255,0.45)");
-      g2.addColorStop(0.5, "rgba(255,235,190,0.28)");
+      g2.addColorStop(0.0, "rgba(255,255,255,0.95)");
+      g2.addColorStop(0.5, "rgba(255,245,210,0.55)");
       g2.addColorStop(1.0, "rgba(255,220,140,0.0)");
       ctx.fillStyle = g2;
       ctx.beginPath();
@@ -5489,7 +5455,11 @@ function drawBlood(ctx){
 
 
   // Small area damage around a point (used for force-fire on ground).
-  function applyAreaDamageAt(x,y, radius, dmg, srcId=null, srcTeam=null){
+    function applyAreaDamageAt(x,y, radius, dmg, srcId=null, srcTeam=null){
+    if (window.BulletSystem && window.BulletSystem.applyAreaDamageAt){
+      return window.BulletSystem.applyAreaDamageAt(x, y, radius, dmg, srcId, srcTeam, __getBulletCtx());
+    }
+    // Fallback
     const r2 = radius*radius;
     for (const u of units){
       if (!u.alive || u.inTransport || u.hidden) continue;
@@ -5497,7 +5467,6 @@ function drawBlood(ctx){
     }
     for (const b of buildings){
       if (!b.alive || b.civ) continue;
-      // Buildings: use center distance
       if (dist2(x,y,b.x,b.y) <= r2){ applyDamage(b, dmg, srcId, srcTeam); }
     }
   }
@@ -5700,323 +5669,9 @@ const tx=tileOfX(u.x), ty=tileOfY(u.y);
     return false;
   }
 
-function tickBullets(dt){
-    // bullets + shells
-
-    function explodeMissile(bl, ix, iy){
-      // impact FX (missile)
-      flashes.push({x: ix, y: iy, r: 44 + Math.random()*10, life: 0.10, delay: 0});
-      for (let k=0;k<6;k++){
-        const ang = Math.random()*Math.PI*2;
-        const spd = 70 + Math.random()*160;
-        impacts.push({x:ix,y:iy,vx:Math.cos(ang)*spd,vy:Math.sin(ang)*spd,life:0.20,delay:0});
-      }
-
-      // direct hit + splash
-      const t = (bl.tid!=null) ? getEntityById(bl.tid) : null;
-      if (t && t.alive && t.attackable!==false && t.team!==bl.team){
-        // FIX: buildings are large; checking only center distance makes edge hits deal 0 damage.
-        // If we have an explicit hit target, always apply direct damage.
-        // (Infantry/vehicles still "feel" it via splash too.)
-        applyDamage(t, (bl.dmg||0), bl.ownerId, bl.team);
-      } else {
-        // Fallback: if no explicit target id, still allow edge/side hits on buildings
-        // by checking the impact point against enemy building AABBs.
-        const enemyTeam = bl.team===TEAM.PLAYER ? TEAM.ENEMY : TEAM.PLAYER;
-        for (const b of buildings){
-          if (!b.alive || b.team!==enemyTeam) continue;
-          if (b.attackable===false) continue;
-          const x0=b.x-b.w/2-2, y0=b.y-b.h/2-2;
-          const x1=x0+b.w+4, y1=y0+b.h+4;
-          if (ix>=x0 && ix<=x1 && iy>=y0 && iy<=y1){
-            applyDamage(b, (bl.dmg||0), bl.ownerId, bl.team);
-            break;
-          }
-        }
-      }
-
-      // splash
-      applyAreaDamageAt(ix, iy, 38, (bl.dmg||0)*0.45, bl.ownerId, bl.team);
-    }
-
-
-    for (let i=bullets.length-1;i>=0;i--){
-      const bl = bullets[i];
-
-      if (bl.kind==="shell"){
-        // track moving target so shells can actually hit infantry
-        if (bl.tid){
-          const tEnt = getEntityById(bl.tid);
-          if (tEnt && tEnt.alive){ bl.x1 = tEnt.x; bl.y1 = tEnt.y; }
-        }
-        bl.t += dt / (bl.dur||0.25);
-        const t = Math.min(1, bl.t);
-        bl.x = bl.x0 + (bl.x1 - bl.x0)*t;
-        bl.y = bl.y0 + (bl.y1 - bl.y0)*t;
-
-        if (t >= 1){
-          // impact at destination
-          let hit=null;
-
-          // Friendly-fire support (CTRL force-attack testing):
-          // If a shell was fired with allowFriendly and tracks a specific entity id,
-          // allow damage regardless of team.
-          if (bl.allowFriendly && bl.tid){
-            const tEnt = getEntityById(bl.tid);
-            if (tEnt && tEnt.alive && !tEnt.inTransport && !tEnt.hidden){
-              hit = tEnt;
-            }
-          }
-
-          const enemyTeam = bl.team===TEAM.PLAYER ? TEAM.ENEMY : TEAM.PLAYER;
-
-          if (!hit){
-          // units
-          for (const u of units){
-            if (!u.alive || u.team!==enemyTeam || u.inTransport || u.hidden) continue;
-const tx=tileOfX(u.x), ty=tileOfY(u.y);
-            if (enemyTeam===TEAM.ENEMY){
-              if (inMap(tx,ty) && !explored[TEAM.PLAYER][idx(tx,ty)]) continue;
-            }
-            if (dist2(bl.x, bl.y, u.x, u.y) <= (u.r+10)*(u.r+10)){ hit=u; break; }
-          }
-          // buildings
-          if (!hit){
-            for (const b of buildings){
-              if (!b.alive || b.team!==enemyTeam) continue;
-              if (b.attackable===false) continue;
-              if (enemyTeam===TEAM.ENEMY){
-                if (!buildingAnyExplored(TEAM.PLAYER,b)) continue;
-              }
-              const x0=b.x-b.w/2, y0=b.y-b.h/2;
-              if (bl.x>=x0-8 && bl.x<=x0+b.w+8 && bl.y>=y0-8 && bl.y<=y0+b.h+8){ hit=b; break; }
-            }
-          }
-          }
-
-          // dmg bonus: tank
-          let dmg = (bl.dmg||0);
-          const owner = getEntityById(bl.ownerId);
-          if (owner && owner.kind==="tank"){
-            // slightly reduced vs infantry (tank was deleting infantry too fast)
-            if (hit && hit.cls==="inf") dmg *= 0.70;
-            // modest bonus vs vehicles/buildings
-            if (hit && (BUILD[hit.kind] || hit.kind==="tank")) dmg *= 1.15;
-          }
-
-
-          if (hit) applyDamage(hit, dmg, bl.ownerId, bl.team);
-
-          // impact FX: ellipse dodge + sparks
-          flashes.push({x: bl.x, y: bl.y, r: 48 + Math.random()*10, life: 0.10, delay: 0});
-          for (let k=0;k<6;k++){
-            const ang = Math.random()*Math.PI*2;
-            const spd = 60 + Math.random()*140;
-            impacts.push({x:bl.x,y:bl.y,vx:Math.cos(ang)*spd,vy:Math.sin(ang)*spd,life:0.22,delay:0});
-          }
-
-          // Ore deformation: explosive shell impacts on ore will shallow it over time.
-          try{
-            const owner2 = getEntityById(bl.ownerId);
-            if (owner2 && owner2.kind==="tank"){
-              const tx=(bl.x/TILE)|0, ty=(bl.y/TILE)|0;
-              if (inMap(tx,ty)){
-                const ii=idx(tx,ty);
-                if (ore[ii] > 0){
-                  const dig = 22 + (dmg||0)*0.35;
-                  ore[ii] = Math.max(0, ore[ii] - dig);
-                }
-              }
-            }
-          }catch(_e){}
-
-          bullets.splice(i,1);
-        }
-        continue;
-      }
-
-      // normal bullet (linear)
-      bl.life -= dt;
-      const px = bl.x, py = bl.y;
-      bl.x += bl.vx*dt;
-      bl.y += bl.vy*dt;
-
-      // Swept collision for missiles to prevent tunneling through buildings at high speed.
-      // (Checks the segment [prev -> current] against unit circles and building AABBs.)
-      if (bl.kind==="missile"){
-        const enemyTeam = bl.team===TEAM.PLAYER ? TEAM.ENEMY : TEAM.PLAYER;
-        let hit=null;
-
-        for (const u of units){
-          if (!u.alive||u.team!==enemyTeam||u.inTransport||u.hidden) continue;
-          const txU=tileOfX(u.x), tyU=tileOfY(u.y);
-          if (enemyTeam===TEAM.ENEMY){
-            if (inMap(txU,tyU) && !explored[TEAM.PLAYER][idx(txU,tyU)]) continue;
-          }
-          const rr = (u.r||18) + 3;
-          if (segIntersectsCircle(px,py, bl.x,bl.y, u.x,u.y, rr)){ hit=u; break; }
-        }
-        if (!hit){
-          for (const b of buildings){
-            if (!b.alive||b.team!==enemyTeam) continue;
-            if (b.attackable===false) continue;
-            if (enemyTeam===TEAM.ENEMY){
-              if (!buildingAnyExplored(TEAM.PLAYER,b)) continue;
-            }
-            const x0=b.x-b.w/2-2, y0=b.y-b.h/2-2;
-            const x1=x0+b.w+4, y1=y0+b.h+4;
-            if (segIntersectsAABB(px,py, bl.x,bl.y, x0,y0,x1,y1)){ hit=b; break; }
-          }
-        }
-        if (hit){
-          bl.tid = hit.id;
-          explodeMissile(bl, bl.x, bl.y);
-          bullets.splice(i,1);
-          continue;
-        }
-      }
-
-      if (bl.life<=0){
-        if (bl.kind==="missile"){
-          const ix = (bl.tx??bl.x), iy = (bl.ty??bl.y);
-          explodeMissile(bl, ix, iy);
-        }
-        bullets.splice(i,1); continue;
-      }
-
-      const enemyTeam = bl.team===TEAM.PLAYER ? TEAM.ENEMY : TEAM.PLAYER;
-      let hit=null;
-
-      for (const u of units){
-        if (!u.alive||u.team!==enemyTeam||u.inTransport||u.hidden) continue;
-        const tx=tileOfX(u.x), ty=tileOfY(u.y);
-        if (enemyTeam===TEAM.ENEMY){
-          if (inMap(tx,ty) && !explored[TEAM.PLAYER][idx(tx,ty)]) continue;
-        }
-        if (dist2(bl.x,bl.y,u.x,u.y) <= u.r*u.r){ hit=u; break; }
-      }
-      if (!hit){
-        for (const b of buildings){
-          if (!b.alive||b.team!==enemyTeam) continue;
-          if (b.attackable===false) continue;
-          if (enemyTeam===TEAM.ENEMY){
-                if (!buildingAnyExplored(TEAM.PLAYER,b)) continue;
-              }
-          const x0=b.x-b.w/2, y0=b.y-b.h/2;
-          if (bl.x>=x0 && bl.x<=x0+b.w && bl.y>=y0 && bl.y<=y0+b.h){ hit=b; break; }
-        }
-      }
-      if (hit){
-        if (bl.kind==="missile"){
-          bl.tid = hit.id;
-          explodeMissile(bl, bl.x, bl.y);
-          bullets.splice(i,1);
-          continue;
-        }
-        let dmg = (bl.dmg||0);
-        const owner = getEntityById(bl.ownerId);
-        if (owner && owner.kind==="tank"){
-          if (BUILD[hit.kind] || hit.kind==="tank") dmg *= 1.25;
-        }
-        applyDamage(hit, dmg, bl.ownerId, bl.team);
-        bullets.splice(i,1);
-      }
-    }
-    for (let i=impacts.length-1;i>=0;i--){
-      const p = impacts[i];
-      p.delay = (p.delay||0) - dt;
-      if (p.delay > 0) continue;
-      p.life -= dt;
-      p.x += p.vx*dt;
-      p.y += p.vy*dt;
-      // quick drag
-      p.vx *= (1 - Math.min(1, dt*7.5));
-      p.vy *= (1 - Math.min(1, dt*7.5));
-      if (p.life<=0) impacts.splice(i,1);
-    }
-    // Building fire particles when HP is critically low (<30%)
-    for (const b of buildings){
-      if (b.attackable===false) continue;
-      const r = (b.hpMax>0) ? (b.hp/b.hpMax) : 1;
-      if (r < 0.30){
-        b._fireAcc = (b._fireAcc||0) + dt;
-        if (b._fireAcc >= 0.08){
-          b._fireAcc = 0;
-          const tw = (b.tw||1), th = (b.th||1);
-          // spawn near the roof area
-          const rx = (Math.random()-0.5) * tw * TILE * 0.55;
-          const ry = (Math.random()-0.5) * th * TILE * 0.55;
-          fires.push({
-            x: b.x + rx, y: b.y + ry,
-            vx: (Math.random()*2-1)*12,
-            vy: (Math.random()*2-1)*12,
-            rise: 18 + Math.random()*26,
-            life: 0.55 + Math.random()*0.35
-          });
-        }
-      } else {
-        b._fireAcc = 0;
-      }
-    }
-
-    for (let i=fires.length-1;i>=0;i--){
-      const f = fires[i];
-      f.life -= dt;
-      if (f.life<=0){ fires.splice(i,1); continue; }
-      f.x += f.vx*dt; f.y += f.vy*dt;
-      f.rise *= (1 - Math.min(1, dt*2.5));
-    }
-
-    updateExplosions(dt);
-
-    for (let i=healMarks.length-1;i>=0;i--){
-      const h = healMarks[i];
-      h.life -= dt;
-      if (h.life<=0) healMarks.splice(i,1);
-    }
-
-    // shell casings physics (simple hop + fall)
-    for (let i=casings.length-1;i>=0;i--){
-      const c = casings[i];
-      c.delay = (c.delay||0) - dt;
-      if (c.delay > 0) continue;
-
-      c.life -= dt;
-      c.x += c.vx*dt;
-      c.y += c.vy*dt;
-
-      // gravity on z
-      c.vz -= 820*dt;
-      c.z += c.vz*dt;
-
-      // ground bounce
-      if (c.z < 0){
-        c.z = 0;
-        c.vz *= -0.42;
-        c.vx *= 0.78;
-        c.vy *= 0.78;
-      }
-
-      // air/ground drag
-      c.vx *= (1 - Math.min(1, dt*1.6));
-      c.vy *= (1 - Math.min(1, dt*1.6));
-      c.rot += (c.vx*0.003 + c.vy*0.003);
-
-      if (c.life<=0) casings.splice(i,1);
-    }
-
-    for (let i=traces.length-1;i>=0;i--){
-      traces[i].delay = (traces[i].delay||0) - dt;
-      if (traces[i].delay > 0) continue;
-      traces[i].life -= dt;
-      if (traces[i].life<=0) traces.splice(i,1);
-    }
-
-    for (let i=flashes.length-1;i>=0;i--){
-      flashes[i].delay = (flashes[i].delay||0) - dt;
-      if (flashes[i].delay > 0) continue;
-      flashes[i].life -= dt;
-      if (flashes[i].life<=0) flashes.splice(i,1);
+  function tickBullets(dt){
+    if (window.BulletSystem && window.BulletSystem.tickBullets){
+      return window.BulletSystem.tickBullets(dt, __getBulletCtx());
     }
   }
 
@@ -12768,7 +12423,7 @@ function sanityCheck(){
       tickCivOreGen(dt);
       tickUnits(dt);
       tickTurrets(dt);
-      try{ tickBullets(dt); }catch(e){ console.error('tickBullets crash', e); if (DEV_VALIDATE_THROW) throw e; }
+      tickBullets(dt);
 
       for (let i=units.length-1;i>=0;i--) if (!units[i].alive) units.splice(i,1);
       for (let i=buildings.length-1;i>=0;i--) if (!buildings[i].alive) buildings.splice(i,1);
@@ -12820,7 +12475,6 @@ function sanityCheck(){
   }
 
   setButtonText();
-  try{ _ensureTuneButton(); }catch(_e){}
   requestAnimationFrame(tick);
 
 // Expose a few helpers to window for debugging / sanityCheck
