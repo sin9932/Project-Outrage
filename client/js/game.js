@@ -3488,6 +3488,23 @@ if (u.cls==="inf"){
 
     const dx=wx-u.x, dy=wy-u.y;
     const d=Math.hypot(dx,dy);
+    // RA2 crowd fix: if infantry reached the destination tile area but can't settle into its sub-slot
+    // (due to friendly crowding), STOP circling and just lock into the assigned sub-slot.
+    if (u.cls==="inf" && u.path && u.pathI >= (u.path.length-1)){
+      const cx = (p.tx+0.5)*TILE, cy = (p.ty+0.5)*TILE;
+      const cd = Math.hypot(cx-u.x, cy-u.y);
+      // If we're already inside the destination tile "disc", snap to the slot to kill orbit-jitter.
+      if (cd < TILE*0.58 && d < TILE*0.85){
+        u.x = wx; u.y = wy;
+        u.vx = 0; u.vy = 0;
+        u.holdPos = true;
+        u.blockT = 0; u.stuckT = 0;
+        // Consume the path so we don't re-enter steering next tick.
+        u.path = null; u.pathI = 0;
+        return true;
+      }
+    }
+
 
     
     // Strong anti-jam: soft separation and stuck recovery.
