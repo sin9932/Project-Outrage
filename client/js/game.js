@@ -1,7 +1,3 @@
-
-// === RA2 PATCH V2 MARKER ===
-console.log("RA2 PATCH V2 LOADED");
-window.__RA2_PATCH_VERSION__="v2";
 ;(function(){
   // Debug/validation mode: add ?debug=1 to URL
   const DEV_VALIDATE = /(?:\?|&)debug=1(?:&|$)/.test(location.search);
@@ -3347,7 +3343,50 @@ function followPath(u, dt){
     if (u.yieldCd && u.yieldCd>0){ u.yieldCd -= dt; if (u.yieldCd>0) return false; u.yieldCd=0; }
 
     const p = u.path[u.pathI];
-    const wx = (p.tx+0.5)*TILE, wy=(p.ty+0.5)*TILE;
+    // Waypoint world target
+let wx = (p.tx+0.5)*TILE, wy=(p.ty+0.5)*TILE;
+
+// RA2-feel queueing for infantry:
+// Instead of having everyone steer to tile center (then push/correct/jitter),
+// pick a temporary sub-slot for the NEXT waypoint tile. If no slot is available, WAIT.
+if (u.cls==="inf"){
+  const ni = idx(p.tx,p.ty);
+  let mask = (u.team===0) ? infSlotMask0[ni] : infSlotMask1[ni];
+
+  // keep a short-lived nav slot lock to avoid per-frame slot thrash
+  if (u.navSlotLockT && u.navSlotLockT>0){
+    u.navSlotLockT -= dt;
+    if (u.navSlotLockT<=0){ u.navSlotLockT=0; }
+  }
+
+  let slot = -1;
+  if (u.navSlot!=null && u.navSlotTx===p.tx && u.navSlotTy===p.ty && u.navSlotLockT>0){
+    slot = (u.navSlot & 3);
+  } else {
+    for (let s=0; s<4; s++){
+      if (((mask>>s)&1)===0){ slot = s; break; }
+    }
+    if (slot>=0){
+      u.navSlot = slot; u.navSlotTx = p.tx; u.navSlotTy = p.ty;
+      u.navSlotLockT = 0.25; // seconds
+    }
+  }
+
+  if (slot<0){
+    // Tile is temporarily full: don't oscillate, just queue behind.
+    u.vx = 0; u.vy = 0;
+    u.queueWaitT = (u.queueWaitT||0) + dt;
+
+    // If we have been waiting too long, allow bypass logic below to kick in.
+    // But for short waits, returning here prevents "부들부들".
+    if (u.queueWaitT < 0.35) return false;
+  } else {
+    u.queueWaitT = 0;
+    const sp = tileToWorldSubslot(p.tx, p.ty, slot);
+    wx = sp.x; wy = sp.y;
+  }
+}
+
 
     // HARD HOLD: if infantry is already locked to its sub-slot in this tile, don't keep steering.
     if (u.cls==="inf" && u.holdPos && tileOfX(u.x)===p.tx && tileOfY(u.y)===p.ty) return false;
