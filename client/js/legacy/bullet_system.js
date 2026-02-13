@@ -55,19 +55,28 @@
   function tickBullets(dt, C){
   
   // ---- external deps (injected from game.js) ----
-  const {
-    bullets, units, buildings,
-    flashes, sparks, particles,
-    explored,
-    TEAM, BUILD, state,
-    TILE,
-    inMap, idx,
-    dist, dist2, norm, rand,
-    getEntityById,
-    buildingAnyExplored,
-    notifyPlayerAttacked,
-    handleEntityDeath,
-  } = C;
+const {
+  bullets = [], units = [], buildings = [],
+  flashes = [], sparks = [], particles = [],
+  explored = null,
+  TEAM, BUILD, state = { t: 0 },
+  TILE = 48,
+  inMap = (()=>true), idx = (()=>0),
+  dist = ((ax,ay,bx,by)=>Math.hypot(bx-ax,by-ay)),
+  dist2 = ((ax,ay,bx,by)=>{const dx=bx-ax, dy=by-ay; return dx*dx+dy*dy;}),
+  norm = ((x,y)=>{const l=Math.hypot(x,y)||1; return {x:x/l,y:y/l};}),
+  rand = Math.random,
+  getEntityById = (()=>null),
+  buildingAnyExplored = (()=>true),
+  notifyPlayerAttacked = (()=>{}),
+  handleEntityDeath = (()=>{}),
+  impacts = null,
+} = (C||{});
+
+// Some legacy code uses `impacts` for hit particles.
+// If not provided, fall back to particles array.
+const _impacts = impacts || particles;
+
   
   // Local wrappers that keep API identical to original code
   const applyDamageLocal = (target, dmg, srcId=null, srcTeam=null) =>
@@ -85,7 +94,7 @@
         for (let k=0;k<6;k++){
           const ang = Math.random()*Math.PI*2;
           const spd = 70 + Math.random()*160;
-          impacts.push({x:ix,y:iy,vx:Math.cos(ang)*spd,vy:Math.sin(ang)*spd,life:0.20,delay:0});
+          _impacts.push({x:ix,y:iy,vx:Math.cos(ang)*spd,vy:Math.sin(ang)*spd,life:0.20,delay:0});
         }
   
         // direct hit + splash
@@ -188,7 +197,7 @@
             for (let k=0;k<6;k++){
               const ang = Math.random()*Math.PI*2;
               const spd = 60 + Math.random()*140;
-              impacts.push({x:bl.x,y:bl.y,vx:Math.cos(ang)*spd,vy:Math.sin(ang)*spd,life:0.22,delay:0});
+              _impacts.push({x:bl.x,y:bl.y,vx:Math.cos(ang)*spd,vy:Math.sin(ang)*spd,life:0.22,delay:0});
             }
   
             // Ore deformation: explosive shell impacts on ore will shallow it over time.
@@ -298,8 +307,8 @@
           bullets.splice(i,1);
         }
       }
-      for (let i=impacts.length-1;i>=0;i--){
-        const p = impacts[i];
+      for (let i=__impacts.length-1;i>=0;i--){
+        const p = _impacts[i];
         p.delay = (p.delay||0) - dt;
         if (p.delay > 0) continue;
         p.life -= dt;
@@ -308,7 +317,7 @@
         // quick drag
         p.vx *= (1 - Math.min(1, dt*7.5));
         p.vy *= (1 - Math.min(1, dt*7.5));
-        if (p.life<=0) impacts.splice(i,1);
+        if (p.life<=0) _impacts.splice(i,1);
       }
       // Building fire particles when HP is critically low (<30%)
       for (const b of buildings){
