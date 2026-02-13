@@ -11,6 +11,16 @@ try { if (typeof window !== 'undefined') window.fires = fires; } catch(e) {}
 (function(){
   "use strict";
 
+
+// ---- module-compat shims (legacy expected globals) ----
+var updateExplosions = function proxy_updateExplosions() {
+  try {
+    var fn = (typeof globalThis !== 'undefined') ? globalThis.updateExplosions : (typeof window !== 'undefined' ? window.updateExplosions : undefined);
+    if (typeof fn === 'function') return fn.apply(null, arguments);
+  } catch(e) {}
+  // no-op fallback
+};
+// -------------------------------------------------------
   const BulletSystem = {};
 
 
