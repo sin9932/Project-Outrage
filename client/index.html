@@ -6,12 +6,15 @@
 <meta content="width=device-width,initial-scale=1" name="viewport"/>
 <title>Mini C&amp;C RTS (RA2-ish Stable v11 (v65))</title>
 <link rel="stylesheet" href="./style.css">
-<script>
+<script src="./js/rts_bridge.js"></script>
+  <script>
   // HQ sprite tuning preset (generated from in-game Sprite Tuner)
   window.SPRITE_TUNE_PRESET = {
     hq: { anchor: "center", scaleMul: 1.20, pivotNudge: {x:0, y:0}, offsetNudge: {x:94, y:-26} }
   };
 </script>
+
+<script src="./js/fx_all.js" defer></script>
 <script src="./js/units.js" defer></script>
 
 <script src="./js/game.js" defer></script>
@@ -71,6 +74,7 @@
   <span>디버깅: 아군 모든 생산/건설 1초 완료</span>
 </label>
 <div class="small" style="margin-top:6px; opacity:0.9;">- 적군은 영향 없음</div>
+
 
 </div>
 <div class="startRow">

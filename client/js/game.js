@@ -1392,50 +1392,19 @@ function getBaseBuildTime(kind){
     }
   }
 
-  
-// ===== Asset path fallback (Cloudflare Pages SPA 404 -> HTML) =====
-// Tries both "asset/..." and "client/asset/..." (depending on Pages output directory).
-var _ASSET_PREFIX_CANDIDATES = ["", "client/"];
-
-function _withAssetPrefix(prefix, path){
-  return (prefix ? (prefix + path) : path);
-}
-
-async function _fetchJsonWithAssetFallback(path){
-  let lastErr = null;
-  for (const prefix of (_ASSET_PREFIX_CANDIDATES || ["", "client/"])) {
-    const url = _withAssetPrefix(prefix, path);
-    try{
-      const r = await fetch(url, { cache:"no-store" });
-      if(!r.ok){ lastErr = new Error("HTTP " + r.status + " for " + url); continue; }
-      const txt = (await r.text()) || "";
-      const t = txt.trim();
-      // Cloudflare Pages often returns index.html (<!DOCTYPE ...) for missing files
-      if(t.startsWith("<")) { lastErr = new Error("HTML returned for " + url); continue; }
-      const j = JSON.parse(t);
-      return { json: j, prefix, url };
-    }catch(e){
-      lastErr = e;
-    }
+  async function _loadTPAtlasFromUrl(jsonUrl, baseDir){
+    // baseDir: prefix to prepend to atlas image name.
+    const r = await fetch(jsonUrl, { cache:"no-store" });
+    if (!r.ok) throw new Error("HTTP "+r.status);
+    const j = await r.json();
+    const parsed = _parseTPTexturesAtlas(j);
+    if (!parsed || !parsed.frames || !parsed.frames.size) throw new Error("atlas parse failed");
+    const imgName = parsed.image || null;
+    if (!imgName) throw new Error("atlas image missing");
+    const img = new Image();
+    img.src = (baseDir || "") + imgName;
+    return { img, frames: parsed.frames, image: imgName };
   }
-  throw lastErr || new Error("JSON fetch failed: " + path);
-}
-
-async function _loadTPAtlasFromUrl(jsonUrl, baseDir){
-  // baseDir: prefix to prepend to atlas image name (usually "asset/.../").
-  const got = await _fetchJsonWithAssetFallback(jsonUrl);
-  const j = got.json;
-
-  const parsed = _parseTPTexturesAtlas(j);
-  if (!parsed || !parsed.frames || !parsed.frames.size) throw new Error("atlas parse failed");
-  const imgName = parsed.image || null;
-  if (!imgName) throw new Error("atlas image missing");
-
-  const img = new Image();
-  // Make image path follow the same successful prefix as the JSON.
-  img.src = _withAssetPrefix(got.prefix, (baseDir || "") + imgName);
-  return { img, frames: parsed.frames, image: imgName };
-}
 
   // === Lite Tank (RA2-style hull turn + independent turret) ===
   const LITE_TANK_BASE = "asset/sprite/unit/tank/lite_tank/";
