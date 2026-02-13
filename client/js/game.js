@@ -1,5 +1,5 @@
 ;(function(){
-  window.__RA2_PATCH_VERSION__="v9";
+  window.__RA2_PATCH_VERSION__="v10";
 
   // Debug/validation mode: add ?debug=1 to URL
   const DEV_VALIDATE = /(?:\?|&)debug=1(?:&|$)/.test(location.search);
@@ -283,9 +283,8 @@ function fitMini() {
     return { x: (e.clientX - rect.left) * sx, y: (e.clientY - rect.top) * sy };
   }
 
-  const TILE = 140;
-  const TILE_RATIO = TILE / 110; // 140/110
-const GAME_SPEED = 1.30;
+  const TILE = 110;
+  const GAME_SPEED = 1.30;
   const BUILD_PROD_MULT = 1.30; // additional +30% for building & unit production speed
   // Enemy AI cheats (difficulty)
   const ENEMY_PROD_SPEED = 1.65;
@@ -495,24 +494,6 @@ const GAME_SPEED = 1.30;
   const tileOfX = (x)=> clamp(Math.floor(x/TILE), 0, MAP_W-1);
   const tileOfY = (y)=> clamp(Math.floor(y/TILE), 0, MAP_H-1);
 
-
-
-// RA2 PATCH V8: stable tile for infantry (prevents boundary flip jitter)
-function stableTile(u){
-  const tx = tileOfX(u.x), ty = tileOfY(u.y);
-  const cls = (UNIT[u.kind] && UNIT[u.kind].cls) ? UNIT[u.kind].cls : "";
-  if (cls!=="inf") return {tx,ty};
-  if (u._stTx==null){ u._stTx=tx; u._stTy=ty; return {tx,ty}; }
-  // keep previous tile while still close to its center (hysteresis)
-  const c = tileToWorldCenter(u._stTx, u._stTy);
-  const dx = u.x - c.x, dy = u.y - c.y;
-  const keepR = TILE*0.48;
-  if ((dx*dx + dy*dy) < keepR*keepR){
-    return {tx:u._stTx, ty:u._stTy};
-  }
-  u._stTx = tx; u._stTy = ty;
-  return {tx,ty};
-}
 
   function genMap() {
     terrain.fill(0);
@@ -774,12 +755,12 @@ function getBaseBuildTime(kind){
   // === Unit specs (split to ./js/units.js) ===
   // If ./js/units.js is loaded, it provides window.G.Units.UNIT.
   const DEFAULT_UNIT = {
-    infantry: { r:17, hp:125, speed:293, range:420, dmg:15, rof:0.55, vision:535, hitscan:true,  cls:"inf" },
-    engineer: { r:17, hp:100, speed:346, range:0,   dmg:0,  rof:0,    vision:535, cls:"inf" },
-    sniper:   { r:17, hp:125, speed:261, range:1527, dmg:125, rof:2.20, vision:1527, hitscan:true,  cls:"inf", cloak:false },
-    tank:     { r:25, hp:400, speed:407, range:458, dmg:34, rof:0.90, vision:865, hitscan:false, cls:"veh" },
-    ifv:      { r:24, hp:200, speed:611, range:458, dmg:25, rof:0.85, vision:662, hitscan:false, cls:"veh", transport:1 },
-    harvester:{ r:28, hp:1000, speed:318, range:0,   dmg:0,  rof:0,    vision:662, carryMax:1000, cls:"veh" }
+    infantry: { r:17, hp:125, speed:230, range:330, dmg:15, rof:0.55, vision:420, hitscan:true,  cls:"inf" },
+    engineer: { r:17, hp:100, speed:272, range:0,   dmg:0,  rof:0,    vision:420, cls:"inf" },
+    sniper:   { r:17, hp:125, speed:205, range:1200, dmg:125, rof:2.20, vision:1200, hitscan:true,  cls:"inf", cloak:false },
+    tank:     { r:25, hp:400, speed:320, range:360, dmg:34, rof:0.90, vision:  680, hitscan:false, cls:"veh" },
+    ifv:      { r:24, hp:200, speed:480, range:360, dmg:25, rof:0.85, vision: 520, hitscan:false, cls:"veh", transport:1 },
+    harvester:{ r:28, hp:1000, speed:250, range:0,   dmg:0,  rof:0,    vision: 520, carryMax:1000, cls:"veh" }
   };
 
   const UNIT = (window.G && window.G.Units && window.G.Units.UNIT) ? window.G.Units.UNIT : DEFAULT_UNIT;
@@ -3298,14 +3279,17 @@ const ni=ny*W+nx;
     if (cls!=="inf") return;
     if (!u.alive || u.inTransport) return;
     if (u.target!=null) return;
-    const ot = u.order && u.order.type;
-    if (ot!=="idle" && ot!=="guard") return;
-
+    const queued = !!u.__queue || (u.__queueWait||0)>0 || (u.blockT||0)>0 || (u.finalBlockT||0)>0 || (u.__ra2_wait||0)>0;
+    // Allow settling while queued/blocked even during move orders.
+    if (!queued){
+      const ot = u.order && u.order.type;
+      if (ot!=="idle" && ot!=="guard") return;
+    }
     const __st = stableTile(u); const tx = __st.tx, ty = __st.ty;
     if (!inMap(tx,ty)) return;
 
     // Ensure we have a valid subSlot assigned (filled in clearOcc()).
-    const ss = (u.subSlot==null) ? 0 : (u.subSlot & 3);
+    const ss = (u.subSlot==null) ? 0 : (u.subSlot % INF_SLOT_MAX);
     const sp = tileToWorldSubslot(tx, ty, ss);
 
     // Critically-damped snap (no overshoot).
@@ -3479,39 +3463,21 @@ function followPath(u, dt){
     }
 
 
-    const __stCur = stableTile(u); const curTileTx=__stCur.tx, curTileTy=__stCur.ty;
+    const curTileTx=tileOfX(u.x), curTileTy=tileOfY(u.y);
     if (u.pathI>0){
       const nextTile = u.path[u.pathI];
       if (!(nextTile.tx===curTileTx && nextTile.ty===curTileTy)){
         // Try to reserve the next tile to avoid head-on deadlocks.
-if (!reserveTile(u, nextTile.tx, nextTile.ty) || isReservedByOther(u, nextTile.tx, nextTile.ty)){
-  // Try a small bypass step first.
-  const bp = findBypassStep(u, curTileTx, curTileTy, nextTile.tx, nextTile.ty);
-  if (bp){
-    u.path.splice(u.pathI, 0, {tx:bp.tx, ty:bp.ty});
-    return true;
-  }
-
-  // RA2 PATCH V8: infantry must QUEUE (wait+settle) instead of "compression dancing"
-  const cls = (UNIT[u.kind] && UNIT[u.kind].cls) ? UNIT[u.kind].cls : "";
-  if (cls==="inf"){
-    u.blockT = (u.blockT||0) + dt;
-    u.vx = 0; u.vy = 0;
-    settleInfantryToSubslot(u, dt);
-    return true;
-  }
-  // vehicles can still try to squeeze a bit (keeps tanks from stalling too easily)
-}
-        if (!canEnterTile(u, nextTile.tx, nextTile.ty)){
-          // RA2 PATCH V8: blocked next tile -> infantry queue/settle (no vibration)
-          const cls2 = (UNIT[u.kind] && UNIT[u.kind].cls) ? UNIT[u.kind].cls : "";
-          if (cls2==="inf"){
-            u.blockT = (u.blockT||0) + dt;
-            u.vx = 0; u.vy = 0;
-            settleInfantryToSubslot(u, dt);
+        if (!reserveTile(u, nextTile.tx, nextTile.ty) || isReservedByOther(u, nextTile.tx, nextTile.ty)){
+          // Do NOT pause ("dance") when crowded: try a small bypass step, otherwise keep moving.
+          const bp = findBypassStep(u, curTileTx, curTileTy, nextTile.tx, nextTile.ty);
+          if (bp){
+            u.path.splice(u.pathI, 0, {tx:bp.tx, ty:bp.ty});
             return true;
           }
-
+          // fall through: allow compression movement instead of yielding
+        }
+        if (!canEnterTile(u, nextTile.tx, nextTile.ty)){
           // If the final approach is blocked (crowding), accept arrival near the goal to avoid infinite wiggle.
           if (u.order && (u.order.type==="move" || u.order.type==="attackmove") && u.pathI >= (u.path.length-1)){
             const dd = dist2(u.x,u.y,u.order.x,u.order.y);
@@ -6110,8 +6076,6 @@ const tx=tileOfX(u.x), ty=tileOfY(u.y);
 
   const isAnchored = (u)=>{
     if (!u || !u.alive) return false;
-    // RA2 PATCH V8: treat blocked/queued units as anchored (prevents repulsion jitter)
-    if ((u.blockT||0)>0 || (u.finalBlockT||0)>0 || (u.__ra2_wait||0)>0) return true;
     if (u.path && u.path.length && u.pathI < u.path.length) return false;
     if (u.target!=null){
     const tt = getEntityById(u.target);
@@ -7498,7 +7462,7 @@ if (u.kind==="sniper"){
           // - Heal rate is moderate (no instant full heal).
           u.dmg = 0; u.range = 0; u.hitscan = true;
 
-          const REPAIR_RANGE = 331;         // v54: looser repair range (in-range repairs feel responsive)
+          const REPAIR_RANGE = 260;         // v54: looser repair range (in-range repairs feel responsive)
           const REPAIR_INTERVAL = 1.25;     // seconds per tick (slower ticks, bigger heals)
           const REPAIR_AMOUNT = 24;         // hp per tick
 
@@ -8350,6 +8314,7 @@ if (needMove){
         u._fxLastX = u.x; u._fxLastY = u.y;
         // Keep legacy fields updated for other systems
         u.vx = vx; u.vy = vy;
+      u.__queue = 0;
 
         const spd = Math.hypot(vx, vy);
         if (spd > 6){
