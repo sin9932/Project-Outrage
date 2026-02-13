@@ -847,7 +847,6 @@ function drawBlood(ctx, w2s, cam){
       if (flashes[i].life<=0) flashes.splice(i,1);
     }
   }
-  }
 
   function drawTraces(ctx, w2s, cam){
     const worldToScreen = w2s;
