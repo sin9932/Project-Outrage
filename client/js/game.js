@@ -5790,6 +5790,7 @@ const tx=tileOfX(u.x), ty=tileOfY(u.y);
               if (bl.x>=x0-8 && bl.x<=x0+b.w+8 && bl.y>=y0-8 && bl.y<=y0+b.h+8){ hit=b; break; }
             }
           }
+          }
 
           // dmg bonus: tank
           let dmg = bl.dmg;
@@ -5801,7 +5802,6 @@ const tx=tileOfX(u.x), ty=tileOfY(u.y);
             if (hit && (BUILD[hit.kind] || hit.kind==="tank")) dmg *= 1.15;
           }
 
-          }
 
           if (hit) applyDamage(hit, dmg, bl.ownerId, bl.team);
 
