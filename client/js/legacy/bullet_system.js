@@ -1,6 +1,8 @@
+/* FIX: ensure global impacts array exists (ESM/legacy bridge) */
+globalThis.__impacts = globalThis.__impacts || [];
+var __impacts = globalThis.__impacts;
+
 /* bullet_system.js
-var __impacts = (typeof __impacts !== 'undefined' && __impacts) ? __impacts : [];
-try { if (typeof window !== 'undefined') window.__impacts = __impacts; } catch(e) {}
    - Extracted from game.js (tickBullets/applyDamage/applyAreaDamageAt)
    - Runs in global scope and expects game.js to call it with a context object.
 */
