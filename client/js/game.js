@@ -6879,7 +6879,8 @@ function stampCmd(e, type, x, y, targetId=null){
       if (!e || e.team!==TEAM.PLAYER) continue;
       if (BUILD[e.kind]) continue;
       if (shouldIgnoreCmd(e,'move',x,y,null)) continue;
-
+      const cls = (UNIT[e.kind] && UNIT[e.kind].cls) ? UNIT[e.kind].cls : "";
+      
       e.guard=null; e.guardFrom=false;
       e.restX=null; e.restY=null;
       e.target=null;
@@ -6897,7 +6898,6 @@ function stampCmd(e, type, x, y, targetId=null){
         const ty = baseTy + offsets[j].dy;
         if (!inMap(tx,ty)) continue;
         const key = tx+"," + ty;
-        // allow up to INF_SLOT_MAX infantry per tile; vehicles/buildings are hard-reserved
         if (usedHard.has(key)) continue;
         if (cls==="inf") {
           const c = usedInf.get(key) || 0;
@@ -6933,7 +6933,6 @@ function stampCmd(e, type, x, y, targetId=null){
       }
       // if nothing free, fall back to base tile center
       if (!chosen) chosen={tx:baseTx, ty:baseTy};// RA2-feel: vehicles still go to tile center; infantry go to a reserved sub-slot inside the tile
-const cls = (UNIT[e.kind] && UNIT[e.kind].cls) ? UNIT[e.kind].cls : "";
 let wp;
 let subSlot = null;
 if (cls==="inf"){
