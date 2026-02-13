@@ -1,5 +1,5 @@
 ;(function(){
-  window.__RA2_PATCH_VERSION__="v10";
+  window.__RA2_PATCH_VERSION__="v11";
 
   // Debug/validation mode: add ?debug=1 to URL
   const DEV_VALIDATE = /(?:\?|&)debug=1(?:&|$)/.test(location.search);
@@ -3274,7 +3274,25 @@ const ni=ny*W+nx;
 
   // Infantry settle: when multiple infantry share a tile and a unit has "arrived",
   // keep it glued to its sub-slot to prevent post-arrival vibration.
-  function settleInfantryToSubslot(u, dt){
+  
+
+// RA2 PATCH V11: stable tile hysteresis for infantry (prevents boundary-flip jitter while queued)
+function stableTile(u){
+  const tx = tileOfX(u.x), ty = tileOfY(u.y);
+  const cls = (UNIT[u.kind] && UNIT[u.kind].cls) ? UNIT[u.kind].cls : "";
+  if (cls!=="inf") return {tx,ty};
+  if (u._stTx==null){ u._stTx=tx; u._stTy=ty; return {tx,ty}; }
+  const c = tileToWorldCenter(u._stTx, u._stTy);
+  const dx = u.x - c.x, dy = u.y - c.y;
+  const leaveR = TILE*0.62;
+  if ((dx*dx + dy*dy) < leaveR*leaveR){
+    return {tx:u._stTx, ty:u._stTy};
+  }
+  u._stTx = tx; u._stTy = ty;
+  return {tx,ty};
+}
+
+function settleInfantryToSubslot(u, dt){
     const cls = (UNIT[u.kind] && UNIT[u.kind].cls) ? UNIT[u.kind].cls : "";
     if (cls!=="inf") return;
     if (!u.alive || u.inTransport) return;
@@ -3285,7 +3303,7 @@ const ni=ny*W+nx;
       const ot = u.order && u.order.type;
       if (ot!=="idle" && ot!=="guard") return;
     }
-    const __st = stableTile(u); const tx = __st.tx, ty = __st.ty;
+    const __st = (typeof stableTile==="function") ? stableTile(u) : {tx:tileOfX(u.x), ty:tileOfY(u.y)}; const tx = __st.tx, ty = __st.ty;
     if (!inMap(tx,ty)) return;
 
     // Ensure we have a valid subSlot assigned (filled in clearOcc()).
