@@ -1,5 +1,5 @@
 ;(function(){
-  window.__RA2_PATCH_VERSION__="v12";
+  window.__RA2_PATCH_VERSION__="v13";
 
   // Debug/validation mode: add ?debug=1 to URL
   const DEV_VALIDATE = /(?:\?|&)debug=1(?:&|$)/.test(location.search);
@@ -283,8 +283,9 @@ function fitMini() {
     return { x: (e.clientX - rect.left) * sx, y: (e.clientY - rect.top) * sy };
   }
 
-  const TILE = 110;
-  const GAME_SPEED = 1.30;
+  const TILE = 180;
+  const TILE_RATIO = TILE / 110; // 180/110
+const GAME_SPEED = 1.30;
   const BUILD_PROD_MULT = 1.30; // additional +30% for building & unit production speed
   // Enemy AI cheats (difficulty)
   const ENEMY_PROD_SPEED = 1.65;
@@ -755,12 +756,12 @@ function getBaseBuildTime(kind){
   // === Unit specs (split to ./js/units.js) ===
   // If ./js/units.js is loaded, it provides window.G.Units.UNIT.
   const DEFAULT_UNIT = {
-    infantry: { r:17, hp:125, speed:230, range:330, dmg:15, rof:0.55, vision:420, hitscan:true,  cls:"inf" },
-    engineer: { r:17, hp:100, speed:272, range:0,   dmg:0,  rof:0,    vision:420, cls:"inf" },
-    sniper:   { r:17, hp:125, speed:205, range:1200, dmg:125, rof:2.20, vision:1200, hitscan:true,  cls:"inf", cloak:false },
-    tank:     { r:25, hp:400, speed:320, range:360, dmg:34, rof:0.90, vision:  680, hitscan:false, cls:"veh" },
-    ifv:      { r:24, hp:200, speed:480, range:360, dmg:25, rof:0.85, vision: 520, hitscan:false, cls:"veh", transport:1 },
-    harvester:{ r:28, hp:1000, speed:250, range:0,   dmg:0,  rof:0,    vision: 520, carryMax:1000, cls:"veh" }
+    infantry: { r:17, hp:125, speed:376, range:540, dmg:15, rof:0.55, vision:687, hitscan:true,  cls:"inf" },
+    engineer: { r:17, hp:100, speed:445, range:0,   dmg:0,  rof:0,    vision:687, cls:"inf" },
+    sniper:   { r:17, hp:125, speed:335, range:1964, dmg:125, rof:2.20, vision:1964, hitscan:true,  cls:"inf", cloak:false },
+    tank:     { r:25, hp:400, speed:524, range:589, dmg:34, rof:0.90, vision:1113, hitscan:false, cls:"veh" },
+    ifv:      { r:24, hp:200, speed:785, range:589, dmg:25, rof:0.85, vision:851, hitscan:false, cls:"veh", transport:1 },
+    harvester:{ r:28, hp:1000, speed:409, range:0,   dmg:0,  rof:0,    vision:851, carryMax:1000, cls:"veh" }
   };
 
   const UNIT = (window.G && window.G.Units && window.G.Units.UNIT) ? window.G.Units.UNIT : DEFAULT_UNIT;
@@ -7504,7 +7505,7 @@ if (u.kind==="sniper"){
           // - Heal rate is moderate (no instant full heal).
           u.dmg = 0; u.range = 0; u.hitscan = true;
 
-          const REPAIR_RANGE = 260;         // v54: looser repair range (in-range repairs feel responsive)
+          const REPAIR_RANGE = 425;         // v54: looser repair range (in-range repairs feel responsive)
           const REPAIR_INTERVAL = 1.25;     // seconds per tick (slower ticks, bigger heals)
           const REPAIR_AMOUNT = 24;         // hp per tick
 
