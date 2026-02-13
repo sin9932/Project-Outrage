@@ -2809,53 +2809,6 @@ function tileToWorldSubslot(tx, ty, slot){
 }
   }
   
-
-// Build "intent" masks for infantry: reserve sub-slots of the NEXT tile they are trying to enter.
-// This prevents multiple infantry deciding the same free slot in the same tick (a big cause of jitter/clumping).
-for (const u of units){
-  if (!u.alive) continue;
-  u.intentSlot = null; u.intentTx = null; u.intentTy = null;
-  const cls = (UNIT[u.kind] && UNIT[u.kind].cls) ? UNIT[u.kind].cls : "";
-  if (cls!=="inf") continue;
-
-  let ntx=null, nty=null;
-  if (u.path && u.pathI < u.path.length){
-    const p = u.path[u.pathI];
-    if (p && p.tx!=null && p.ty!=null){ ntx=p.tx; nty=p.ty; }
-  } else if (u.order && u.order.tx!=null && u.order.ty!=null && (u.order.type==="move"||u.order.type==="attackmove"||u.order.type==="guard_return"||u.order.type==="attack")){
-    ntx = u.order.tx; nty = u.order.ty;
-  }
-  if (ntx==null || nty==null || !inMap(ntx,nty)) continue;
-
-  const curTx = tileOfX(u.x), curTy = tileOfY(u.y);
-  if (curTx===ntx && curTy===nty) continue; // already there
-
-  const ii = idx(ntx, nty);
-  let usedMask = (u.team===0) ? (infSlotMask0[ii] | infSlotNext0[ii]) : (infSlotMask1[ii] | infSlotNext1[ii]);
-  usedMask &= 0x0F;
-
-  // Prefer explicitly assigned slot (formation / combat slot)
-  let slot = -1;
-  if (u.order && u.order.subSlot!=null && u.order.tx===ntx && u.order.ty===nty){
-    slot = (u.order.subSlot & 3);
-  } else if (u.navSlot!=null && u.navSlotTx===ntx && u.navSlotTy===nty){
-    slot = (u.navSlot & 3);
-  }
-  if (slot>=0 && ((usedMask>>slot)&1)===0){
-    // ok
-  } else {
-    slot = -1;
-    for (let s=0; s<INF_SLOT_MAX; s++){
-      if (((usedMask>>s)&1)===0){ slot=s; break; }
-    }
-  }
-  if (slot<0) continue; // full, let followPath/retarget handle it
-
-  u.intentSlot = slot; u.intentTx = ntx; u.intentTy = nty;
-  if (u.team===0) infSlotNext0[ii] = (infSlotNext0[ii] | (1<<slot)) & 0x0F;
-  else infSlotNext1[ii] = (infSlotNext1[ii] | (1<<slot)) & 0x0F;
-}
-
   function isReservedByOther(u, tx, ty){
   if (!inMap(tx,ty)) return false;
   const cls = (UNIT[u.kind] && UNIT[u.kind].cls) ? UNIT[u.kind].cls : "";
@@ -2967,11 +2920,6 @@ function canEnterTile(u, tx, ty){
     if (cls==="inf") {
       if (occVeh[i] > 0) return false;
       if (occTeam[i]!==0 && occTeam[i]!==u.team) return false;
-      // Also account for "intent/reservation" masks so latecomers don't all try to enter the same full tile,
-      // which causes push-vs-snap oscillation ("부들부들").
-      const m0 = (u.team===0) ? infSlotMask0[i] : infSlotMask1[i];
-      const n0 = (u.team===0) ? infSlotNext0[i] : infSlotNext1[i];
-      if (((m0 | n0) & 0x0F) === 0x0F) return false;
       return occInf[i] < INF_SLOT_MAX;
     }
     return occAll[i] < 2;
@@ -3372,15 +3320,10 @@ function followPath(u, dt){
       // If we have a move-like order but no path (e.g., path consumed or cleared), finalize when close enough.
       const ot = (u.order && u.order.type) ? u.order.type : null;
       if (ot==="move" || ot==="guard_return" || ot==="attackmove"){
-        let gx = (u.order && u.order.x!=null) ? u.order.x : u.x;
-let gy = (u.order && u.order.y!=null) ? u.order.y : u.y;
-// Infantry with a tile+subSlot goal should snap to the subSlot itself (center snapping leaves "almost in tile" stragglers).
-if (u.cls==="inf" && u.order && u.order.tx!=null && u.order.ty!=null && u.order.subSlot!=null){
-  const sp = tileToWorldSubslot(u.order.tx, u.order.ty, (u.order.subSlot & 3));
-  gx = sp.x; gy = sp.y;
-}
-const d2 = dist2(u.x,u.y,gx,gy);
-if (d2 < 24*24){
+        const gx = (u.order && u.order.x!=null) ? u.order.x : u.x;
+        const gy = (u.order && u.order.y!=null) ? u.order.y : u.y;
+        const d2 = dist2(u.x,u.y,gx,gy);
+        if (d2 < 16*16){
           // snap and stop: prevents 'moving-but-not-moving' vibration after arrival
           u.x = gx; u.y = gy;
           u.vx = 0; u.vy = 0;
@@ -3408,9 +3351,7 @@ let wx = (p.tx+0.5)*TILE, wy=(p.ty+0.5)*TILE;
 // pick a temporary sub-slot for the NEXT waypoint tile. If no slot is available, WAIT.
 if (u.cls==="inf"){
   const ni = idx(p.tx,p.ty);
-  const baseMask = (u.team===0) ? infSlotMask0[ni] : infSlotMask1[ni];
-  const nextMask = (u.team===0) ? infSlotNext0[ni] : infSlotNext1[ni];
-  let mask = (baseMask | nextMask) & 0x0F;
+  let mask = (u.team===0) ? infSlotMask0[ni] : infSlotMask1[ni];
 
   // keep a short-lived nav slot lock to avoid per-frame slot thrash
   if (u.navSlotLockT && u.navSlotLockT>0){
@@ -3418,60 +3359,29 @@ if (u.cls==="inf"){
     if (u.navSlotLockT<=0){ u.navSlotLockT=0; }
   }
 
-  // If clearOcc already assigned an intent slot for this unit into this tile, allow that slot even though
-  // it is included in nextMask (self-intent).
-  let selfSlot = -1;
-  if (u.intentSlot!=null && u.intentTx===p.tx && u.intentTy===p.ty){
-    selfSlot = (u.intentSlot & 3);
-    mask = mask & (~(1<<selfSlot));
-  }
-
   let slot = -1;
-
-  // Prefer: locked nav slot, then self intent, else first free.
   if (u.navSlot!=null && u.navSlotTx===p.tx && u.navSlotTy===p.ty && u.navSlotLockT>0){
     slot = (u.navSlot & 3);
-  } else if (selfSlot>=0){
-    slot = selfSlot;
   } else {
-    for (let s=0; s<INF_SLOT_MAX; s++){
+    for (let s=0; s<4; s++){
       if (((mask>>s)&1)===0){ slot = s; break; }
+    }
+    if (slot>=0){
+      u.navSlot = slot; u.navSlotTx = p.tx; u.navSlotTy = p.ty;
+      u.navSlotLockT = 0.25; // seconds
     }
   }
 
   if (slot<0){
-    // Tile (sub-slots) are full: DO NOT "비집고 들어가기".
-    // Just wait and occasionally retarget to a nearby free tile to naturally spread.
+    // Tile is temporarily full: don't oscillate, just queue behind.
     u.vx = 0; u.vy = 0;
     u.queueWaitT = (u.queueWaitT||0) + dt;
 
-    const canRetarget = (u.lastRetargetT==null || (state.t - u.lastRetargetT) > 0.35);
-    if (u.queueWaitT > 0.12 && canRetarget){
-      const goalWx = (p.tx+0.5)*TILE, goalWy = (p.ty+0.5)*TILE;
-      const spot = findNearestFreePoint(goalWx, goalWy, u, 5);
-      const nTx = tileOfX(spot.x), nTy = tileOfY(spot.y);
-      if ((nTx!==p.tx || nTy!==p.ty) && canEnterTile(u, nTx, nTy)){
-        const wp2 = tileToWorldCenter(nTx, nTy);
-        const ot = (u.order && u.order.type) ? u.order.type : "move";
-        u.order = {type:ot, x:wp2.x, y:wp2.y, tx:nTx, ty:nTy};
-        setPathTo(u, wp2.x, wp2.y);
-        u.lastRetargetT = state.t;
-        u.queueWaitT = 0;
-        return true;
-      }
-      u.lastRetargetT = state.t;
-    }
-
-    return false;
+    // If we have been waiting too long, allow bypass logic below to kick in.
+    // But for short waits, returning here prevents "부들부들".
+    if (u.queueWaitT < 0.35) return false;
   } else {
     u.queueWaitT = 0;
-    // Lock the chosen slot briefly so we don't thrash every frame.
-    u.navSlot = slot; u.navSlotTx = p.tx; u.navSlotTy = p.ty;
-    u.navSlotLockT = 0.25;
-
-    // Keep a matching "intent" so nextMask doesn't fight us.
-    u.intentSlot = slot; u.intentTx = p.tx; u.intentTy = p.ty;
-
     const sp = tileToWorldSubslot(p.tx, p.ty, slot);
     wx = sp.x; wy = sp.y;
   }
@@ -3507,15 +3417,13 @@ if (u.cls==="inf"){
             }
           }
         }
-        // NOTE: Infantry bypass-injection is disabled (it makes dense groups clump and jitter).
-        if (u.cls!=="inf"){
-          const step = findBypassStep(u, curTx, curTy, p.tx, p.ty);
-          if (step && reserveTile(u, step.tx, step.ty)){
-            // Inject a temporary one-step path.
-            u.path = [{tx:step.tx, ty:step.ty}, ...u.path.slice(u.pathI)];
-            u.pathI = 0;
-            return true;
-          }
+
+        const step = findBypassStep(u, curTx, curTy, p.tx, p.ty);
+        if (step && reserveTile(u, step.tx, step.ty)){
+          // Inject a temporary one-step path.
+          u.path = [{tx:step.tx, ty:step.ty}, ...u.path.slice(u.pathI)];
+          u.pathI = 0;
+          return true;
         }
         // Wait a bit and try again next tick. If we keep failing, settle instead of vibrating.
         u.blockT = (u.blockT||0) + dt;
@@ -3654,7 +3562,22 @@ if (u.cls==="inf"){
       const dd=dx2*dx2+dy2*dy2;
       if (dd<=0.0001 || dd>rr*rr) continue;
       const inv = 1/Math.sqrt(dd);
-      const push = (rr - Math.sqrt(dd)) * (same?1.15:0.35);
+      // Same-team infantry shouldn't physically "shove" each other hard (sub-slots already separate them).
+      // Strong push here causes perpetual micro-jitter in dense blobs.
+      let pushK = (same ? 1.15 : 0.35);
+      if (same){
+        const ucls = (UNIT[u.kind] && UNIT[u.kind].cls) ? UNIT[u.kind].cls : "";
+        const ocls = (UNIT[o.kind] && UNIT[o.kind].cls) ? UNIT[o.kind].cls : "";
+        if (ucls==="inf" && ocls==="inf"){
+          const utx=(u.x/TILE)|0, uty=(u.y/TILE)|0;
+          const otx=(o.x/TILE)|0, oty=(o.y/TILE)|0;
+          if (utx===otx && uty===oty){
+            continue; // don't repel inside the same tile
+          }
+          pushK = 0.20;
+        }
+      }
+      const push = (rr - Math.sqrt(dd)) * pushK;
       avoidX += dx2*inv*push;
       avoidY += dy2*inv*push;
     }
@@ -3721,6 +3644,17 @@ const nx=u.x+ax*step, ny=u.y+ay*step;
       const blockedNext = (!canEnterTile(u, ntx, nty) || isReservedByOther(u, ntx, nty));
       if (blockedNext){
         u.blockT = (u.blockT||0) + dt;
+
+        // Infantry jam fix: if the next tile is full (same-team congestion), WAIT instead of constantly bypass/repath.
+        // This prevents backline units from "squeezing" into the formation and vibrating.
+        const _cls = (UNIT[u.kind] && UNIT[u.kind].cls) ? UNIT[u.kind].cls : "";
+        if (_cls==="inf"){
+          u.queueWaitT = (u.queueWaitT||0) + dt;
+          // small yield so vehicles can still push through when needed
+          u.yieldCd = Math.max(u.yieldCd||0, 0.10);
+          return false;
+        }
+
         if ((u.avoidCd||0) <= 0){
           const bypass = findBypassStep(u, curTx, curTy, ntx, nty);
           if (bypass){
@@ -4158,8 +4092,13 @@ function pickAttackTile(u, t, preferDist){
         if (!isWalkableTile(tx, ty)) continue;
 
         const curTx=((u.x/TILE)|0), curTy=((u.y/TILE)|0);
-        // NOTE(v1417): Approach goals may temporarily target tiles occupied/reserved by friendlies.
-        // We still require walkable, but do NOT require canEnterTile here; backliners must keep compressing in.
+        // IMPORTANT: Do not target tiles we can't actually enter.
+        // Let frontliners hold the line; backliners pick nearby open tiles instead of "compressing" and jittering.
+        if (!(tx===curTx && ty===curTy)){
+          const ok = (BUILD[t.kind] ? canEnterTileGoal(u, tx, ty, t) : canEnterTile(u, tx, ty));
+          if (!ok) continue;
+          if (isReservedByOther(u, tx, ty)) continue;
+        }
 
         const cx = (tx + 0.5) * TILE, cy = (ty + 0.5) * TILE;
         const dEff = _effDist(u, t, cx, cy);
@@ -4200,8 +4139,13 @@ function pickApproachTile(u, t){
         if (!isWalkableTile(tx, ty)) continue;
 
         const curTx=((u.x/TILE)|0), curTy=((u.y/TILE)|0);
-        // NOTE(v1417): Approach goals may temporarily target tiles occupied/reserved by friendlies.
-        // We still require walkable, but do NOT require canEnterTile here; backliners must keep compressing in.
+        // IMPORTANT: Do not target tiles we can't actually enter.
+        // Let frontliners hold the line; backliners pick nearby open tiles instead of "compressing" and jittering.
+        if (!(tx===curTx && ty===curTy)){
+          const ok = (BUILD[t.kind] ? canEnterTileGoal(u, tx, ty, t) : canEnterTile(u, tx, ty));
+          if (!ok) continue;
+          if (isReservedByOther(u, tx, ty)) continue;
+        }
 
         const cx = (tx + 0.5) * TILE, cy = (ty + 0.5) * TILE;
         const dEff = _effDist(u, t, cx, cy);
@@ -4252,28 +4196,48 @@ function getCombatGoal(u, t){
     gy = t.y + (dy / L) * stop;
   }
 
-  // Convert to goal tile and ensure it is walkable. For combat goals we intentionally do NOT require
-  // capacity/occupancy here (that was the source of backline "dance"). The path/steering will resolve.
-  let gTx = tileOfX(gx), gTy = tileOfY(gy);
-  if (!inMap(gTx,gTy)){ gTx = clamp(gTx,0,MAP_W-1); gTy = clamp(gTy,0,MAP_H-1); }
+  // 1) Try to pick an actually-enterable in-range tile around the target.
+  // This is the primary anti-clump mechanism: backliners fan out to nearby free tiles instead of
+  // trying to shove into the same tile and vibrating.
+  const preferDist = Math.max(8, (u.range||0) * 0.88);
+  const spread = pickAttackTile(u, t, preferDist);
+  let gTx, gTy;
 
-  if (!isWalkableTile(gTx,gTy)){
-    let best=null, bestD=1e9;
-    for (let r=1;r<=10;r++){
-      for (let dy=-r;dy<=r;dy++){
-        for (let dx=-r;dx<=r;dx++){
-          const tx=gTx+dx, ty=gTy+dy;
-          if (!inMap(tx,ty)) continue;
-          if (!isWalkableTile(tx,ty)) continue;
-          const d = dx*dx+dy*dy;
-          if (d<bestD){ bestD=d; best={tx,ty}; }
+  if (spread){
+    gTx = tileOfX(spread.x);
+    gTy = tileOfY(spread.y);
+  } else {
+    // 2) Fallback: use the dock point, but STILL require enterable capacity.
+    gTx = tileOfX(gx); gTy = tileOfY(gy);
+    if (!inMap(gTx,gTy)){ gTx = clamp(gTx,0,MAP_W-1); gTy = clamp(gTy,0,MAP_H-1); }
+
+    const curTx = tileOfX(u.x), curTy = tileOfY(u.y);
+    const okDock = (BUILD[t.kind] ? canEnterTileGoal(u, gTx, gTy, t) : canEnterTile(u, gTx, gTy));
+    if (!(gTx===curTx && gTy===curTy) && !okDock){
+      // If we can't enter the dock tile, search nearby for the closest enterable one.
+      let best=null, bestD=1e9;
+      for (let r=1;r<=4;r++){
+        for (let dy=-r;dy<=r;dy++){
+          for (let dx=-r;dx<=r;dx++){
+            const tx=gTx+dx, ty=gTy+dy;
+            if (!inMap(tx,ty)) continue;
+            if (!isWalkableTile(tx,ty)) continue;
+            const ok = (BUILD[t.kind] ? canEnterTileGoal(u, tx, ty, t) : canEnterTile(u, tx, ty));
+            if (!(tx===curTx && ty===curTy) && !ok) continue;
+            if (isReservedByOther(u, tx, ty)) continue;
+            const d = dx*dx+dy*dy;
+            if (d<bestD){ bestD=d; best={tx,ty}; }
+          }
         }
+        if (best) break;
       }
-      if (best) break;
+      if (best){ gTx=best.tx; gTy=best.ty; }
+      else {
+        // If absolutely nothing is enterable nearby, just hold position (prevents "낑낑/부들" loop).
+        gTx = curTx; gTy = curTy;
+      }
     }
-    if (best){ gTx=best.tx; gTy=best.ty; }
   }
-
   // Small smoothing: keep goal stable for a short time to avoid flicker.
   u.combatGX = (gTx+0.5)*TILE;
   u.combatGY = (gTy+0.5)*TILE;
