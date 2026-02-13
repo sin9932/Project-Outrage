@@ -155,16 +155,38 @@ function startGame(){
   GameState.time = 0;
 }
 
-console.log("Refactored RTS Core Loaded.");
 
 
-// === RTS namespace bridge (safe refactor aid) ===
-(function(){
-  try {
-    const api = { GameState, Entities, Selection, Combat, Bullets, AI, tick, startGame, dist2 };
-    window.RTS = api;
-    console.log('[RTS] namespace ready:', Object.keys(api));
-  } catch (e) {
-    console.error('[RTS] namespace init failed:', e);
+/* ======================
+   UI BINDINGS (START BUTTON)
+   ====================== */
+function bindStartButton(){
+  const btn = document.getElementById("startBtn");
+  if (!btn) {
+    console.warn("[UI] startBtn not found");
+    return;
   }
-})();
+
+  // Make sure it feels clickable
+  try { btn.style.cursor = "pointer"; } catch(e){}
+
+  btn.addEventListener("click", (ev)=>{
+    ev.preventDefault();
+    ev.stopPropagation();
+
+    // Start the simulation
+    try { startGame(); } catch(e){ console.error("[UI] startGame failed", e); }
+
+    // Hide pregame overlay if it exists
+    const pre = document.getElementById("pregame");
+    if (pre) pre.style.display = "none";
+
+    console.log("[UI] game started");
+  }, { passive: false });
+}
+
+document.addEventListener("DOMContentLoaded", ()=>{
+  bindStartButton();
+});
+
+console.log("Refactored RTS Core Loaded.");
