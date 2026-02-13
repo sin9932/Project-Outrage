@@ -1,0 +1,253 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+KYOCERA MITA Confidential.
+Copyright (c) 2010 KYOCERA MITA Corporation
+All right reserved.
+(2009/4/9)
+-->
+
+<xsd:schema xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+  <xsd:simpleType name="ORIGINAL_SIZE_TYPE">
+    <xsd:restriction base="xsd:string">
+      <xsd:enumeration value="AUTO"/>
+      <xsd:enumeration value="A3"/>
+      <xsd:enumeration value="A4"/>
+      <xsd:enumeration value="A5"/>
+      <xsd:enumeration value="A6"/>
+      <xsd:enumeration value="B4"/>
+      <xsd:enumeration value="B5"/>
+      <xsd:enumeration value="B6"/>
+      <xsd:enumeration value="LEDGER"/>
+      <xsd:enumeration value="LETTER"/>
+      <xsd:enumeration value="LEGAL"/>
+      <xsd:enumeration value="STATEMENT"/>
+      <xsd:enumeration value="_11_X_15"/>
+      <xsd:enumeration value="_8_5_X_13_5"/>
+      <xsd:enumeration value="OFICIO_II"/>
+      <xsd:enumeration value="FOLIO"/>
+      <xsd:enumeration value="_8K"/>
+      <xsd:enumeration value="_16K"/>
+      <xsd:enumeration value="HAGAKI"/>
+      <xsd:enumeration value="OUFUKU_HAGAKI"/>
+      <xsd:enumeration value="CUSTOM"/>
+      <xsd:enumeration value="ENVELOPE_MONARCH"/>
+      <xsd:enumeration value="ENVELOPE_10"/>
+      <xsd:enumeration value="ENVELOPE_9"/>
+      <xsd:enumeration value="ENVELOPE_6"/>
+      <xsd:enumeration value="ENVELOPE_DL"/>
+      <xsd:enumeration value="ENVELOPE_C5"/>
+      <xsd:enumeration value="ISO_B5"/>
+      <xsd:enumeration value="YOUKEI_2"/>
+      <xsd:enumeration value="YOUKEI_4"/>
+      <xsd:enumeration value="_216X340"/>
+      <xsd:enumeration value="EXECUTIVE"/>
+    </xsd:restriction>
+  </xsd:simpleType>
+  
+    <xsd:simpleType name="ORIGINAL_ORIENTATION_TYPE">
+    <xsd:restriction base="xsd:string">
+      <xsd:enumeration value="PORTRAIT_SHORT_EDGE_ALIGNED"/>
+      <xsd:enumeration value="PORTRAIT_LONG_EDGE_ALIGNED"/>
+      <xsd:enumeration value="LANDSCAPE_SHORT_EDGE_ALIGNED"/>
+      <xsd:enumeration value="LANDSCAPE_LONG_EDGE_ALIGNED"/>
+    </xsd:restriction>
+  </xsd:simpleType>
+  
+    <xsd:simpleType name="DUPLEX_MODE_TYPE">
+    <xsd:restriction base="xsd:string">
+      <xsd:enumeration value="SIMPLEX"/>
+      <xsd:enumeration value="DUPLEX"/>
+      <xsd:enumeration value="BOOK"/>
+      <xsd:enumeration value="DUPLEX_TOP"/>
+      <xsd:enumeration value="DP"/>
+      <xsd:enumeration value="AUTO"/>
+    </xsd:restriction>
+  </xsd:simpleType>
+  
+  <xsd:simpleType name="EXPOSURE_LEVEL_TYPE">
+    <xsd:restriction base="xsd:string">
+      <xsd:enumeration value="AUTO"/>
+      <xsd:enumeration value="NEGATIVE_7"/>
+      <xsd:enumeration value="NEGATIVE_6_5"/>
+      <xsd:enumeration value="NEGATIVE_6"/>
+      <xsd:enumeration value="NEGATIVE_5_5"/>
+      <xsd:enumeration value="NEGATIVE_5"/>
+      <xsd:enumeration value="NEGATIVE_4_5"/>
+      <xsd:enumeration value="NEGATIVE_4"/>
+      <xsd:enumeration value="NEGATIVE_3_5"/>
+      <xsd:enumeration value="NEGATIVE_3"/>
+      <xsd:enumeration value="NEGATIVE_2_5"/>
+      <xsd:enumeration value="NEGATIVE_2"/>
+      <xsd:enumeration value="NEGATIVE_1_5"/>
+      <xsd:enumeration value="NEGATIVE_1"/>
+      <xsd:enumeration value="NEGATIVE_0_5"/>
+      <xsd:enumeration value="NEUTRAL_0"/>
+      <xsd:enumeration value="POSITIVE_0_5"/>
+      <xsd:enumeration value="POSITIVE_1"/>
+      <xsd:enumeration value="POSITIVE_1_5"/>
+      <xsd:enumeration value="POSITIVE_2"/>
+      <xsd:enumeration value="POSITIVE_2_5"/>
+      <xsd:enumeration value="POSITIVE_3"/>
+      <xsd:enumeration value="POSITIVE_3_5"/>
+      <xsd:enumeration value="POSITIVE_4"/>
+      <xsd:enumeration value="POSITIVE_4_5"/>
+      <xsd:enumeration value="POSITIVE_5"/>
+      <xsd:enumeration value="POSITIVE_5_5"/>
+      <xsd:enumeration value="POSITIVE_6"/>
+      <xsd:enumeration value="POSITIVE_6_5"/>
+      <xsd:enumeration value="POSITIVE_7"/>
+    </xsd:restriction>
+  </xsd:simpleType>
+  
+   <xsd:simpleType name="ORIGINAL_IMAGE_TYPE">
+    <xsd:restriction base="xsd:string">
+      <xsd:enumeration value="TEXT"/>
+      <xsd:enumeration value="TEXT_AND_PHOTO"/>
+      <xsd:enumeration value="PHOTO"/>
+      <xsd:enumeration value="FOR_OCR"/>
+      <xsd:enumeration value="LIGHT_TEXT"/>
+    </xsd:restriction>
+  </xsd:simpleType>
+  
+    <xsd:simpleType name="SCAN_RESOLUTION_TYPE">
+    <xsd:restriction base="xsd:string">
+      <xsd:enumeration value="RESOLUTION_200X100"/>
+      <xsd:enumeration value="RESOLUTION_200X200"/>
+      <xsd:enumeration value="RESOLUTION_200X400"/>
+      <xsd:enumeration value="RESOLUTION_300X300"/>
+      <xsd:enumeration value="RESOLUTION_400X400"/>
+      <xsd:enumeration value="RESOLUTION_600X600"/>
+      <xsd:enumeration value="RESOLUTION_150X150"/>
+	  <xsd:enumeration value="RESOLUTION_1200X1200"/>
+    </xsd:restriction>
+  </xsd:simpleType>
+  
+    <xsd:simpleType name="COLOR_SELECTION_TYPE">
+    <xsd:restriction base="xsd:string">
+      <xsd:enumeration value="FULL_COLOR"/>
+      <xsd:enumeration value="GRAYSCALE"/>
+      <xsd:enumeration value="BLACK_AND_WHITE"/>
+      <xsd:enumeration value="AUTO"/>
+      <xsd:enumeration value="AUTO_BLACK_AND_WHITE"/>
+      <xsd:enumeration value="AUTO_GRAYSCALE"/>
+    </xsd:restriction>
+  </xsd:simpleType>
+  
+  <xsd:simpleType name="PREVENT_BLEED_THROUGH_TYPE">
+    <xsd:restriction base="xsd:string">
+      <xsd:enumeration value="ON"/>
+      <xsd:enumeration value="OFF"/>
+    </xsd:restriction>
+  </xsd:simpleType>
+  
+  <xsd:simpleType name="SENDING_SIZE_TYPE">
+    <xsd:restriction base="xsd:string">
+      <xsd:enumeration value="SAME_AS_ORIGINAL"/>
+      <xsd:enumeration value="AUTO"/>
+      <xsd:enumeration value="A3"/>
+      <xsd:enumeration value="A4"/>
+      <xsd:enumeration value="A5"/>
+      <xsd:enumeration value="A6"/>
+      <xsd:enumeration value="B4"/>
+      <xsd:enumeration value="B5"/>
+      <xsd:enumeration value="B6"/>
+      <xsd:enumeration value="LEDGER"/>
+      <xsd:enumeration value="LETTER"/>
+      <xsd:enumeration value="LEGAL"/>
+      <xsd:enumeration value="STATEMENT"/>
+      <xsd:enumeration value="_11_X_15"/>
+      <xsd:enumeration value="_8_5_X_13_5"/>
+      <xsd:enumeration value="OFICIO_II"/>
+      <xsd:enumeration value="FOLIO"/>
+      <xsd:enumeration value="_8K"/>
+      <xsd:enumeration value="_16K"/>
+      <xsd:enumeration value="HAGAKI"/>
+      <xsd:enumeration value="OUFUKU_HAGAKI"/>
+      <xsd:enumeration value="ENVELOPE_MONARCH"/>
+      <xsd:enumeration value="ENVELOPE_10"/>
+      <xsd:enumeration value="ENVELOPE_9"/>
+      <xsd:enumeration value="ENVELOPE_6"/>
+      <xsd:enumeration value="ENVELOPE_DL"/>
+      <xsd:enumeration value="ENVELOPE_C5"/>
+      <xsd:enumeration value="ISO_B5"/>
+      <xsd:enumeration value="YOUKEI_2"/>
+      <xsd:enumeration value="YOUKEI_4"/>
+      <xsd:enumeration value="_216X340"/>
+      <xsd:enumeration value="EXECUTIVE"/>
+    </xsd:restriction>
+  </xsd:simpleType>
+  
+  <xsd:simpleType name="CONTRAST_TYPE">
+    <xsd:restriction base="xsd:string">
+      <xsd:enumeration value="NEGATIVE_3"/>
+      <xsd:enumeration value="NEGATIVE_2"/>
+      <xsd:enumeration value="NEGATIVE_1"/>
+      <xsd:enumeration value="NEUTRAL_0"/>
+      <xsd:enumeration value="POSITIVE_1"/>
+      <xsd:enumeration value="POSITIVE_2"/>
+      <xsd:enumeration value="POSITIVE_3"/>
+    </xsd:restriction>
+  </xsd:simpleType>
+  
+  <xsd:simpleType name="REVERSE_IMAGE_TYPE">
+    <xsd:restriction base="xsd:string">
+      <xsd:enumeration value="ON"/>
+      <xsd:enumeration value="OFF"/>
+    </xsd:restriction>
+  </xsd:simpleType>
+  
+  <xsd:simpleType name="ROTATION_TYPE">
+    <xsd:restriction base="xsd:string">
+      <xsd:enumeration value="_0"/>
+      <xsd:enumeration value="_90_CLOCKWISE"/>
+      <xsd:enumeration value="_180_CLOCKWISE"/>
+      <xsd:enumeration value="_270_CLOCKWISE"/>
+    </xsd:restriction>
+  </xsd:simpleType>
+  
+  <xsd:complexType name="FRAME_ENTRY">
+    <xsd:sequence>
+      <xsd:element name="left" type="xsd:float" minOccurs="1" maxOccurs="1"/>
+      <xsd:element name="top" type="xsd:float" minOccurs="1" maxOccurs="1"/>
+      <xsd:element name="right" type="xsd:float" minOccurs="1" maxOccurs="1"/>
+      <xsd:element name="bottom" type="xsd:float" minOccurs="1" maxOccurs="1"/>
+    </xsd:sequence>
+  </xsd:complexType>
+  
+  <xsd:complexType name="SCAN_PARAM_ENTRY">
+    <xsd:sequence>
+      <xsd:element name="original_size" type="ORIGINAL_SIZE_TYPE" minOccurs="0" maxOccurs="1"/>
+      	<xsd:element name="original_orientation" type="ORIGINAL_ORIENTATION_TYPE" minOccurs="0" maxOccurs="1"/>
+      	<xsd:element name="duplex" type="DUPLEX_MODE_TYPE" minOccurs="0" maxOccurs="1"/>
+      	<xsd:element name="exposure_level" type="EXPOSURE_LEVEL_TYPE" minOccurs="0" maxOccurs="1"/>
+      	<xsd:element name="original_image" type="ORIGINAL_IMAGE_TYPE" minOccurs="0" maxOccurs="1"/>
+      	<xsd:element name="resolution" type="SCAN_RESOLUTION_TYPE" minOccurs="0" maxOccurs="1"/>
+        <xsd:element name="color_selection" type="COLOR_SELECTION_TYPE" minOccurs="0" maxOccurs="1"/>
+        <xsd:element name="prevent_bleed_through" type="PREVENT_BLEED_THROUGH_TYPE" minOccurs="0" maxOccurs="1"/>
+        <xsd:element name="sending_size" type="SENDING_SIZE_TYPE" minOccurs="0" maxOccurs="1"/>
+        <xsd:element name="contrast" type="CONTRAST_TYPE" minOccurs="0" maxOccurs="1"/>
+        <xsd:element name="reverse_image" type="REVERSE_IMAGE_TYPE" minOccurs="0" maxOccurs="1"/>
+        <xsd:element name="frame_flag" type="xsd:boolean" minOccurs="0" maxOccurs="1"/>
+        <xsd:element name="frame_entry" type="FRAME_ENTRY" minOccurs="0" maxOccurs="1"/>
+        <xsd:element name="rotation" type="ROTATION_TYPE" minOccurs="0" maxOccurs="1"/>
+    </xsd:sequence>
+  </xsd:complexType>
+  
+  <xsd:complexType name="SCAN_CONFIG_ENTRY">
+    <xsd:sequence>
+      <xsd:element name="config_id" type="xsd:string"/>
+      <xsd:element name="config_name" type="xsd:string"/>
+        <xsd:element name="config_detail" type="xsd:string"/>
+        <xsd:element name="scan_param" type="SCAN_PARAM_ENTRY" minOccurs="0" maxOccurs="1"/>
+        <xsd:element name="model" type="xsd:string" minOccurs="0" maxOccurs="1"/>
+    </xsd:sequence>
+  </xsd:complexType>
+  
+  <xsd:element name="param">
+    <xsd:complexType>
+      <xsd:sequence>
+        <xsd:element name="scan_config" type="SCAN_CONFIG_ENTRY" minOccurs="0" maxOccurs="unbounded"/>
+      </xsd:sequence>
+    </xsd:complexType>
+  </xsd:element>
+</xsd:schema>

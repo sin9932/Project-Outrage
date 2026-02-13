@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!--
+KYOCERA MITA Confidential.
+Copyright (c) 2009 KYOCERA MITA Corporation
+All right reserved.
+(2009/4/9)
+-->
+<param>
+	<device_name>KM-2560</device_name>
+	<device_name>KM-3060</device_name>
+	<device_name>TASKalfa 250ci</device_name>
+	<device_name>TASKalfa 300ci</device_name>
+	<device_name>TASKalfa 400ci</device_name>
+	<device_name>TASKalfa 500ci</device_name>
+</param>

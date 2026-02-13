@@ -1,0 +1,111 @@
+
+[Version]
+Provider = Kyocera
+
+Version = 07/31/2017,5.0.3128
+
+[Information]
+PackageKey = KMINST32
+PackageType = KMINST32
+Category = UTILITY
+Name = "Uninstaller"
+Description = "KmUninstaller"
+Location = 
+MinOSVersion = 5.0
+MaxOSVersion = 10.0
+Connection = USB,NET
+Attribute = HIDE,ALWAYSINSTALL
+Required = 
+Handler = DriverDll.dll
+SourcePath = .
+TargetPath = <MainTarget>
+
+[Default]
+
+[Private]
+
+
+[SourcePath]
+Default = .
+BMP = Setup
+
+[TargetPath]
+BMP = <MainTarget>\Setup
+
+[Install]
+DelLinks = CLEAN_LINKS
+DelItemARP = CLEAN_OLD_ARP
+CopyFiles = SEC1,BMP
+AddLinks = LINK1
+AddItemARP = ARP
+ExecFiles = AppInstall
+
+[Upgrade]
+DelLinks = CLEAN_LINKS
+DelItemARP = CLEAN_OLD_ARP
+CopyFiles = SEC1,BMP
+AddLinks = LINK1
+AddItemARP = ARP
+
+[Remove]
+DelLinks = CLEAN_LINKS
+DelItemARP = CLEAN_OLD_ARP
+DelFiles = BMP,SEC1
+DelLinks = LINK1
+DelItemARP = ARP
+DelDirs = DOC_CLEANUP
+DelDirs = DIRS
+
+[SEC1]
+KmUninstall.exe,,KmUninstall.exe,COPY_NEW_FILE
+KmInst32.exe,,KmInst32.exe,COPY_NEW_FILE
+KmInst64.exe,,KmInst64.exe,COPY_NEW_FILE
+KyoRm.ini,,KyoRm.ini,COPY_NEW_FILE
+KmInstall.ini
+KmInstall.str
+KmInst32.str
+Lang.dat
+
+[BMP]
+KxLogo.png
+
+[LINK1]
+%PRODUCT_NAME% = "<MainTarget>\KmUninstall.exe [-l <UiLanguage>]","<MainLink>","<MainTarget>\KmUninstall.exe",%LINK_DESC%
+
+[ARP]
+%DISPLAY_NAME%,%DISPLAY_NAME%,<MainTarget>\KmUninstall.exe -l <UiLanguage> -ck KYOCERA,KYOCERA Document Solutions Inc.,<MainTarget>,<MainTarget>\KmUninstall.exe
+
+[CLEAN_LINKS]
+"REMOVE_BY_EXECUTABLE" = "KmUninstall.exe","<StartMenu>\Kyocera"
+
+[CLEAN_OLD_ARP]
+"REMOVE_BY_EXECUTABLE" = "KmUninstall.exe","Kyocera"		
+
+[CLEAN_LINKS.NT6]
+"REMOVE_BY_EXECUTABLE" = "KmUninstall.exe","<StartMenu>\Kyocera"
+"REMOVE_BY_EXECUTABLE" = "KmUninstallVista.exe","<StartMenu>\Kyocera"
+
+[CLEAN_OLD_ARP.NT6]
+"REMOVE_BY_EXECUTABLE" = "KmUninstall.exe","Kyocera"
+"REMOVE_BY_EXECUTABLE" = "KmUninstallVista.exe","Kyocera"	
+
+
+[DIRS]
+<MainTarget>\Utility,REMOVE_ALL
+<MainLink>
+<ProgramFiles>\Kyocera
+
+[DOC_CLEANUP]
+<MainTarget>\Documents,REMOVE_ALL
+<MainLink>\Documents,REMOVE_ALL
+
+[AppInstall]
+InstallCmd = "Setup/KmCustom32.exe RESTORE_LM -n ''"
+
+[AppInstall.x64]
+InstallCmd = "Setup/KmCustom64.exe RESTORE_LM -n ''"
+
+; Strings
+;================================================================================================================
+[StringTable]
+LoadString = KmInst32.str
