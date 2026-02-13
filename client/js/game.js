@@ -2383,6 +2383,7 @@ function buildingWorldFromTileOrigin(tx,ty,tw,th){
     const b = {
       id: nextId++,
       team, kind,
+      cls,
       grp: 0,
       tx, ty, tw, th,
       x: wpos.cx, y: wpos.cy,
@@ -2478,6 +2479,7 @@ function onBuildingPlaced(b){
 
 function addUnit(team, kind, x, y){
     const spec = UNIT[kind] || UNIT.infantry;
+    const cls = spec.cls || ((kind==="tank"||kind==="ifv"||kind==="harvester") ? "veh" : "inf");
     const u = {
       type:"unit",
       id: nextId++,
@@ -5793,7 +5795,7 @@ const tx=tileOfX(u.x), ty=tileOfY(u.y);
           }
 
           // dmg bonus: tank
-          let dmg = bl.dmg;
+          let dmg = (bl.dmg||0);
           const owner = getEntityById(bl.ownerId);
           if (owner && owner.kind==="tank"){
             // slightly reduced vs infantry (tank was deleting infantry too fast)
@@ -5911,7 +5913,7 @@ const tx=tileOfX(u.x), ty=tileOfY(u.y);
           bullets.splice(i,1);
           continue;
         }
-        let dmg = bl.dmg;
+        let dmg = (bl.dmg||0);
         const owner = getEntityById(bl.ownerId);
         if (owner && owner.kind==="tank"){
           if (BUILD[hit.kind] || hit.kind==="tank") dmg *= 1.25;
@@ -12766,7 +12768,7 @@ function sanityCheck(){
       tickCivOreGen(dt);
       tickUnits(dt);
       tickTurrets(dt);
-      tickBullets(dt);
+      try{ tickBullets(dt); }catch(e){ console.error('tickBullets crash', e); if (DEV_VALIDATE_THROW) throw e; }
 
       for (let i=units.length-1;i>=0;i--) if (!units[i].alive) units.splice(i,1);
       for (let i=buildings.length-1;i>=0;i--) if (!buildings[i].alive) buildings.splice(i,1);
