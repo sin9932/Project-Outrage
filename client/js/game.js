@@ -332,14 +332,36 @@ function fitMini() {
 
 
   // ===== ENEMY AGGRESSION / ANTI-CLUSTER HELPERS =====
-  function enemyAttackTarget(){
-    // Prefer player HQ if alive, else any player building, else any player unit.
-    for (const b of buildings){
-      if (b.alive && !b.civ && b.team===TEAM.PLAYER && b.kind==="hq") return {x:b.x, y:b.y};
+  
+// ===== ENEMY AGGRESSION / TARGET PICK =====
+function enemyAttackTarget(){
+  // 1. HQ 우선
+  for (const b of buildings){
+    if (b.alive && !b.civ && b.team===TEAM.PLAYER && b.kind==="hq"){
+      return {x:b.x, y:b.y};
     }
+  }
 
-  // ===== ENGINEER BEHAVIOR FIX (v10) =====
-  function pushEngineerOut(u){
+  // 2. 아무 플레이어 건물
+  for (const b of buildings){
+    if (b.alive && !b.civ && b.team===TEAM.PLAYER){
+      return {x:b.x, y:b.y};
+    }
+  }
+
+  // 3. 아무 플레이어 유닛
+  for (const u of units){
+    if (u.alive && u.team===TEAM.PLAYER){
+      return {x:u.x, y:u.y};
+    }
+  }
+
+  return null;
+}
+
+// ===== ENGINEER BEHAVIOR FIX =====
+function pushEngineerOut
+(u){
     if (!u || !u.alive || u.kind!=="engineer" || u.team!==TEAM.ENEMY) return;
     // If hanging near own barracks/HQ, force it to rally so it doesn't block exits.
     const nearProd = buildings.some(b=>b.alive && !b.civ && b.team===TEAM.ENEMY && (b.kind==="barracks"||b.kind==="hq") && dist2(u.x,u.y,b.x,b.y) < (420*420));
@@ -5629,7 +5651,6 @@ function tickTurrets(dt){
       for (const u of units){
         if (!u.alive || u.team!==enemyTeam || u.inTransport || u.hidden) continue;
         if (u.kind==="sniper" && u.cloaked) continue;
-    if (u.kind==="sniper" && u.cloaked) continue;
 const tx=tileOfX(u.x), ty=tileOfY(u.y);
         if (inMap(tx,ty) && !visible[b.team][idx(tx,ty)]) continue;
         const d2=dist2(b.x,b.y,u.x,u.y);
