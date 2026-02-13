@@ -1,0 +1,15 @@
+{
+  "name": "rts-multiplayer-server",
+  "version": "1.0.0",
+  "description": "Server-authoritative RTS engine",
+  "main": "server/index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "node --watch server/index.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "socket.io": "^4.7.5"
+  }
+}

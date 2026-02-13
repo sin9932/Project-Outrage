@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+
+<html lang="ko">
+<head>
+  <link rel="icon" href="data:,">
+
+<meta charset="utf-8"/>
+<meta content="width=device-width,initial-scale=1" name="viewport"/>
+<title>Mini C&amp;C RTS (RA2-ish Stable v11 (v65))</title>
+<link rel="stylesheet" href="./style.css">
+<script>
+  // HQ sprite tuning preset (generated from in-game Sprite Tuner)
+  window.SPRITE_TUNE_PRESET = {
+    hq: { anchor: "center", scaleMul: 1.20, pivotNudge: {x:0, y:0}, offsetNudge: {x:94, y:-26} }
+  };
+</script>
+
+<script src="./js/units.js" defer></script>
+<script src="./js/atlas_tp.js" defer></script>
+<script src="./js/buildings.js" defer></script>
+  <script src="/socket.io/socket.io.js"></script>
+  <script type="module" src="./js/network.js"></script>
+  <script src="./js/game.js" defer></script>
+</head>
+<body>
+<div id="wrap">
+<div id="game">
+<canvas id="c"></canvas>
+<div class="toast" id="toast" style="display:none; opacity:0;"></div>
+<div id="pTip"></div>
+<div id="pregame">
+<div class="card">
+<h2>게임 시작 설정</h2>
+<div class="sub">진영 컬러 / 시작 위치를 정하고 시작하세요.</div>
+<div class="cols">
+<div>
+<label>플레이어 컬러</label>
+<input id="pColor" style="width:100%;height:40px;border-radius:10px;border:1px solid rgba(255,210,110,0.38);background:#000;padding:4px;" type="color" value="#7fd1ff"/>
+<label style="margin-top:10px;">적 컬러</label>
+<input id="eColor" style="width:100%;height:40px;border-radius:10px;border:1px solid rgba(255,210,110,0.38);background:#000;padding:4px;" type="color" value="#ff7f7f"/>
+</div>
+<div>
+<label>시작 위치</label>
+<div class="choiceRow">
+<div class="chip spawn on" data-spawn="left">LEFT</div>
+<div class="chip spawn" data-spawn="center">CENTER</div>
+<div class="chip spawn" data-spawn="right">RIGHT</div>
+</div>
+<div class="small" style="margin-top:10px;">
+- LEFT: 좌측 기지 / 우측 적 기지
+- CENTER: 중앙 기지 (근접전)
+- RIGHT: 우측 기지 / 좌측 적 기지
+            </div>
+</div>
+</div>
+<div>
+<label>초기 자금</label>
+<div class="choiceRow">
+<div class="chip money" data-money="5000">5,000</div>
+<div class="chip money on" data-money="10000">10,000</div>
+<div class="chip money" data-money="15000">15,000</div>
+<div class="chip money" data-money="20000">20,000</div>
+<div class="chip money" data-money="50000">50,000</div>
+<div class="chip money" data-money="100000">100,000</div>
+</div>
+<div class="small" style="margin-top:10px;">선택한 금액으로 아군/적군 둘 다 시작</div>
+</div>
+<div style="margin-top:14px;">
+<label style="display:flex; align-items:center; gap:10px; user-select:none;">
+<input id="fogOff" style="width:18px;height:18px; accent-color:#ffdf8a;" type="checkbox"/>
+<span>디버깅용 전장안개 OFF (전맵 밝힘)</span>
+</label>
+<div class="small" style="margin-top:6px; opacity:.9;">체크하면 전장안개/미탐지 영역 어둡게 표시를 끄고, 맵 전체를 항상 밝게 표시합니다.</div>
+
+<label style="display:flex; align-items:center; gap:10px; user-select:none; margin-top:10px;">
+  <input id="fastProd" style="width:18px;height:18px; accent-color:#ffdf8a;" type="checkbox"/>
+  <span>디버깅: 아군 모든 생산/건설 1초 완료</span>
+</label>
+<div class="small" style="margin-top:6px; opacity:0.9;">- 적군은 영향 없음</div>
+
+
+</div>
+<div class="startRow">
+<button id="startBtn">시작</button>
+</div>
+</div>
+</div>
+</div>
+<div id="ui">
+<div id="powerBarWrap">
+<div id="powerBar" title="전력 게이지">
+<div id="powerNeed"></div>
+<div id="powerFill"></div>
+</div>
+</div>
+<div id="uiMain">
+<div class="frame">
+<div class="row" style="justify-content:flex-end"><span class="pill ok" id="money">$ 0</span></div>
+<span id="power" style="display:none"></span>
+<span id="radarStat" style="display:none"></span>
+</div>
+<div class="frame">
+<div class="row"><strong>미니맵</strong><span id="mmHint" style="display:none"></span></div>
+<div id="minimap" style="margin-top:8px;">
+<canvas id="mmc"></canvas>
+</div>
+</div>
+<div class="frame" id="rsFrame">
+<div class="row" style="justify-content:center; gap:10px">
+<button id="btnRepairMode" style="flex:1; padding:12px 10px; border-radius:14px;">수리</button>
+<button id="btnSellMode" style="flex:1; padding:12px 10px; border-radius:14px;">매각</button>
+</div>
+</div>
+<div class="frame" id="prodFrame">
+<div class="row"><strong>생산</strong><span class="pill" id="buildMode">OFF</span></div>
+<div class="tabrow" style="margin-top:10px">
+<div class="tabbtn on" data-cat="main">메인</div>
+<div class="tabbtn" data-cat="def">방어</div>
+<div class="tabbtn" data-cat="inf">보병</div>
+<div class="tabbtn" data-cat="veh">기갑</div>
+</div>
+<!-- panels -->
+<div class="grid" id="panelMain" style="margin-top:10px">
+<button id="bPow">발전소</button>
+<button id="bRef">정제소</button>
+<button id="bBar">막사<span class="badge" id="badgeBar">주요</span></button>
+<button id="bFac">군수공장<span class="badge" id="badgeFac">주요</span></button>
+<button id="bRad">레이더</button>
+</div>
+<div class="grid" id="panelDef" style="margin-top:10px; display:none">
+<button id="bTur">터렛</button>
+<button id="noopD1"> </button>
+<button id="noopD2"> </button>
+<button id="noopD3"> </button>
+</div>
+<div class="grid" id="panelInf" style="margin-top:10px; display:none">
+<button class="unitBtn" id="pInf">보병</button>
+<button class="unitBtn" id="pEng">엔지니어</button>
+<button class="unitBtn" id="pSnp">저격병</button>
+</div>
+<div class="grid" id="panelVeh" style="margin-top:10px; display:none">
+<button class="unitBtn" id="pTnk">탱크</button>
+<button class="unitBtn" id="pHar">굴착기</button>
+<button class="unitBtn" id="pIFV">IFV</button>
+</div>
+</div>
+<div class="frame">
+<div class="row"><strong>선택 정보</strong><span class="pill" id="selCount">0</span></div>
+<div class="small" id="selInfo" style="margin-top:8px">아무것도 선택 안 됨</div>
+</div>
+</div>
+</div>
+</div>
+<div id="pauseOverlay" aria-hidden="true">
+  <div class="pm" role="dialog" aria-modal="true" aria-label="옵션">
+    <h2>옵션</h2>
+
+    <div class="pmSection">
+            <div class="pmPlayer">
+        <div class="pmHeader">
+          <div class="pmEqBox" aria-hidden="true">
+            <div id="pmEQ" title="EQ"></div>
+          </div>
+
+          <div class="pmTitleBox">
+            <div id="pmTrackName">peace3</div>
+            <div class="pmTimeInline" id="pmTime">0:00 / 0:00</div>
+          </div>
+
+          <div class="pctrl big" aria-label="BGM controls">
+            <button id="pmPrev" title="Previous">⏮</button>
+            <button id="pmPlay" title="Play/Pause">⏯</button>
+            <button id="pmNext" title="Next">⏭</button>
+          </div>
+        </div>
+
+        <div class="pmRow">
+          <span class="lbl">볼륨</span>
+          <input id="pmVol" type="range" min="0" max="1" step="0.01" value="0.7" />
+          <span id="pmVolVal" class="val">0.70</span>
+        </div>
+
+        <div class="pmRow">
+          <span class="lbl">게임 밝기</span>
+          <input id="pmBright" type="range" min="0.6" max="1.6" step="0.01" value="1.00" />
+          <span id="pmBrightVal" class="val">1.00</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="btnRow">
+      <button id="pmResume">게임 돌아가기</button>
+      <button id="pmExit" class="danger">게임 종료</button>
+    </div>
+  </div>
+</div>
+</body>
+</html>
