@@ -1,5 +1,5 @@
 ;(function(){
-  window.__RA2_PATCH_VERSION__="v6";
+  window.__RA2_PATCH_VERSION__="v7";
 
   // Debug/validation mode: add ?debug=1 to URL
   const DEV_VALIDATE = /(?:\?|&)debug=1(?:&|$)/.test(location.search);
@@ -3495,6 +3495,20 @@ function followPath(u, dt){
           u.blockT = (u.blockT||0) + dt; u.vx=0; u.vy=0; return true;
         }
         if (!canEnterTile(u, nextTile.tx, nextTile.ty)){
+
+if (u.cls==="inf"){
+  // RA2 PATCH V7: infantry in crowd should QUEUE at its sub-slot (no steering jitter)
+  u.blockT = (u.blockT||0) + dt;
+  settleInfantryToSubslot(u, dt);
+  // light repath in case the front clears into a better lane
+  if ((u.repathCdInf||0) > 0) u.repathCdInf -= dt;
+  if (u.blockT > 0.28 && (u.repathCdInf||0) <= 0 && u.order && u.order.tx!=null && u.order.ty!=null){
+    u.repathCdInf = 0.45;
+    try { setPathTo(u, (u.order.tx+0.5)*TILE, (u.order.ty+0.5)*TILE); } catch(e){}
+  }
+  return true;
+}
+
           // If the final approach is blocked (crowding), accept arrival near the goal to avoid infinite wiggle.
           if (u.order && (u.order.type==="move" || u.order.type==="attackmove") && u.pathI >= (u.path.length-1)){
             const dd = dist2(u.x,u.y,u.order.x,u.order.y);
@@ -3605,6 +3619,19 @@ const nx=u.x+ax*step, ny=u.y+ay*step;
     if (!(ntx===curTx && nty===curTy)){
       const blockedNext = (!canEnterTile(u, ntx, nty) || isReservedByOther(u, ntx, nty));
       if (blockedNext){
+if (u.cls==="inf"){
+  // RA2 PATCH V7: blockedNext infantry queue (prevents boundary flip + shake)
+  u.blockT = (u.blockT||0) + dt;
+  settleInfantryToSubslot(u, dt);
+  if ((u.repathCdInf||0) > 0) u.repathCdInf -= dt;
+  if (u.blockT > 0.22 && (u.repathCdInf||0) <= 0 && u.order && u.order.tx!=null && u.order.ty!=null){
+    u.repathCdInf = 0.45;
+    try { setPathTo(u, (u.order.tx+0.5)*TILE, (u.order.ty+0.5)*TILE); } catch(e){}
+  }
+  u.yieldCd = Math.max(u.yieldCd||0, 0.10);
+  return true;
+}
+
         u.blockT = (u.blockT||0) + dt;
         if ((u.avoidCd||0) <= 0){
           const bypass = findBypassStep(u, curTx, curTy, ntx, nty);
