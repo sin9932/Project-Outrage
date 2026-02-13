@@ -6,13 +6,22 @@
 <meta content="width=device-width,initial-scale=1" name="viewport"/>
 <title>Mini C&amp;C RTS (RA2-ish Stable v11 (v65))</title>
 <link rel="stylesheet" href="./style.css">
+
+<script>
+  // Auto asset prefix for GitHub/Cloudflare Pages: if index.html is served from repo root, assets may live under /client/asset.
+  // If served from /client/, prefix becomes "".
+  (function(){
+    if (window.ASSET_PREFIX != null) return;
+    const p = location.pathname || "";
+    window.ASSET_PREFIX = (p.includes("/client/") ? "" : "client/");
+  })();
+</script>
 <script>
   // HQ sprite tuning preset (generated from in-game Sprite Tuner)
   window.SPRITE_TUNE_PRESET = {
     hq: { anchor: "center", scaleMul: 1.20, pivotNudge: {x:0, y:0}, offsetNudge: {x:94, y:-26} }
   };
 </script>
-
 <script src="./js/units.js" defer></script>
 
 <script src="./js/game.js" defer></script>
