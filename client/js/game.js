@@ -3351,7 +3351,10 @@ let wx = (p.tx+0.5)*TILE, wy=(p.ty+0.5)*TILE;
 // pick a temporary sub-slot for the NEXT waypoint tile. If no slot is available, WAIT.
 if (u.cls==="inf"){
   const ni = idx(p.tx,p.ty);
-  let mask = (u.team===0) ? infSlotMask0[ni] : infSlotMask1[ni];
+  // include both current occupants AND already-chosen incoming reservations this frame
+  const occMask = (u.team===0) ? infSlotMask0[ni] : infSlotMask1[ni];
+  const resMask = (u.team===0) ? infSlotNext0[ni] : infSlotNext1[ni];
+  let mask = (occMask | resMask) & 0x0F;
 
   // keep a short-lived nav slot lock to avoid per-frame slot thrash
   if (u.navSlotLockT && u.navSlotLockT>0){
@@ -3362,26 +3365,38 @@ if (u.cls==="inf"){
   let slot = -1;
   if (u.navSlot!=null && u.navSlotTx===p.tx && u.navSlotTy===p.ty && u.navSlotLockT>0){
     slot = (u.navSlot & 3);
-  } else {
-    for (let s=0; s<4; s++){
-      if (((mask>>s)&1)===0){ slot = s; break; }
+    // if the slot became unavailable (occupied/reserved), drop it and re-pick below
+    if (((mask >> slot) & 1)!==0) slot = -1;
+  }
+
+  if (slot<0){
+    // Prefer to keep current subSlot when stepping into the next tile (less churn)
+    const prefer = (u.subSlot!=null) ? (u.subSlot & 3) : -1;
+    if (prefer>=0 && (((mask >> prefer) & 1)===0)){
+      slot = prefer;
+    } else {
+      for (let s=0; s<INF_SLOT_MAX; s++){
+        if (((mask >> s) & 1)===0){ slot=s; break; }
+      }
     }
     if (slot>=0){
-      u.navSlot = slot; u.navSlotTx = p.tx; u.navSlotTy = p.ty;
+      u.navSlot = slot;
+      u.navSlotTx = p.tx; u.navSlotTy = p.ty;
       u.navSlotLockT = 0.25; // seconds
     }
   }
 
   if (slot<0){
-    // Tile is temporarily full: don't oscillate, just queue behind.
+    // Tile is temporarily full: don't oscillate, just queue behind (no bypass for infantry).
     u.vx = 0; u.vy = 0;
     u.queueWaitT = (u.queueWaitT||0) + dt;
-
-    // If we have been waiting too long, allow bypass logic below to kick in.
-    // But for short waits, returning here prevents "부들부들".
-    if (u.queueWaitT < 0.35) return false;
+    return false;
   } else {
     u.queueWaitT = 0;
+    // reserve immediately so later units in this same frame won't pick the same sub-slot
+    if (u.team===0) infSlotNext0[ni] = (infSlotNext0[ni] | (1<<slot)) & 0x0F;
+    else            infSlotNext1[ni] = (infSlotNext1[ni] | (1<<slot)) & 0x0F;
+
     const sp = tileToWorldSubslot(p.tx, p.ty, slot);
     wx = sp.x; wy = sp.y;
   }
@@ -3417,19 +3432,27 @@ if (u.cls==="inf"){
             }
           }
         }
-
-        const step = findBypassStep(u, curTx, curTy, p.tx, p.ty);
-        if (step && reserveTile(u, step.tx, step.ty)){
-          // Inject a temporary one-step path.
-          u.path = [{tx:step.tx, ty:step.ty}, ...u.path.slice(u.pathI)];
-          u.pathI = 0;
-          return true;
+        // Infantry should NEVER try to "bypass-insert" into a packed cell.
+        // That behavior is the direct cause of backline jitter ("낑낑/부들부들").
+        if (u.cls!=="inf"){
+          const step = findBypassStep(u, curTx, curTy, p.tx, p.ty);
+          if (step && reserveTile(u, step.tx, step.ty)){
+            // Inject a temporary one-step path.
+            u.path = [{tx:step.tx, ty:step.ty}, ...u.path.slice(u.pathI)];
+            u.pathI = 0;
+            return true;
+          }
         }
         // Wait a bit and try again next tick. If we keep failing, settle instead of vibrating.
         u.blockT = (u.blockT||0) + dt;
         if (u.blockT > 0.85){
-          const cwx=(curTx+0.5)*TILE, cwy=(curTy+0.5)*TILE;
-          u.x=cwx; u.y=cwy;
+          if (u.cls==="inf"){
+            const ss = tileToWorldSubslot(curTx, curTy, (u.subSlot!=null ? (u.subSlot&3) : 0));
+            u.x = ss.x; u.y = ss.y;
+          } else {
+            const cwx=(curTx+0.5)*TILE, cwy=(curTy+0.5)*TILE;
+            u.x=cwx; u.y=cwy;
+          }
 
           // IMPORTANT: never drop into idle while we still have a combat target/order.
           // Doing so caused backliners to "dance" forever when attacking buildings (path nodes rejected as blocked).
@@ -3562,22 +3585,7 @@ if (u.cls==="inf"){
       const dd=dx2*dx2+dy2*dy2;
       if (dd<=0.0001 || dd>rr*rr) continue;
       const inv = 1/Math.sqrt(dd);
-      // Same-team infantry shouldn't physically "shove" each other hard (sub-slots already separate them).
-      // Strong push here causes perpetual micro-jitter in dense blobs.
-      let pushK = (same ? 1.15 : 0.35);
-      if (same){
-        const ucls = (UNIT[u.kind] && UNIT[u.kind].cls) ? UNIT[u.kind].cls : "";
-        const ocls = (UNIT[o.kind] && UNIT[o.kind].cls) ? UNIT[o.kind].cls : "";
-        if (ucls==="inf" && ocls==="inf"){
-          const utx=(u.x/TILE)|0, uty=(u.y/TILE)|0;
-          const otx=(o.x/TILE)|0, oty=(o.y/TILE)|0;
-          if (utx===otx && uty===oty){
-            continue; // don't repel inside the same tile
-          }
-          pushK = 0.20;
-        }
-      }
-      const push = (rr - Math.sqrt(dd)) * pushK;
+      const push = (rr - Math.sqrt(dd)) * (same?1.15:0.35);
       avoidX += dx2*inv*push;
       avoidY += dy2*inv*push;
     }
@@ -3644,17 +3652,6 @@ const nx=u.x+ax*step, ny=u.y+ay*step;
       const blockedNext = (!canEnterTile(u, ntx, nty) || isReservedByOther(u, ntx, nty));
       if (blockedNext){
         u.blockT = (u.blockT||0) + dt;
-
-        // Infantry jam fix: if the next tile is full (same-team congestion), WAIT instead of constantly bypass/repath.
-        // This prevents backline units from "squeezing" into the formation and vibrating.
-        const _cls = (UNIT[u.kind] && UNIT[u.kind].cls) ? UNIT[u.kind].cls : "";
-        if (_cls==="inf"){
-          u.queueWaitT = (u.queueWaitT||0) + dt;
-          // small yield so vehicles can still push through when needed
-          u.yieldCd = Math.max(u.yieldCd||0, 0.10);
-          return false;
-        }
-
         if ((u.avoidCd||0) <= 0){
           const bypass = findBypassStep(u, curTx, curTy, ntx, nty);
           if (bypass){
@@ -4092,13 +4089,8 @@ function pickAttackTile(u, t, preferDist){
         if (!isWalkableTile(tx, ty)) continue;
 
         const curTx=((u.x/TILE)|0), curTy=((u.y/TILE)|0);
-        // IMPORTANT: Do not target tiles we can't actually enter.
-        // Let frontliners hold the line; backliners pick nearby open tiles instead of "compressing" and jittering.
-        if (!(tx===curTx && ty===curTy)){
-          const ok = (BUILD[t.kind] ? canEnterTileGoal(u, tx, ty, t) : canEnterTile(u, tx, ty));
-          if (!ok) continue;
-          if (isReservedByOther(u, tx, ty)) continue;
-        }
+        // NOTE(v1417): Approach goals may temporarily target tiles occupied/reserved by friendlies.
+        // We still require walkable, but do NOT require canEnterTile here; backliners must keep compressing in.
 
         const cx = (tx + 0.5) * TILE, cy = (ty + 0.5) * TILE;
         const dEff = _effDist(u, t, cx, cy);
@@ -4139,13 +4131,8 @@ function pickApproachTile(u, t){
         if (!isWalkableTile(tx, ty)) continue;
 
         const curTx=((u.x/TILE)|0), curTy=((u.y/TILE)|0);
-        // IMPORTANT: Do not target tiles we can't actually enter.
-        // Let frontliners hold the line; backliners pick nearby open tiles instead of "compressing" and jittering.
-        if (!(tx===curTx && ty===curTy)){
-          const ok = (BUILD[t.kind] ? canEnterTileGoal(u, tx, ty, t) : canEnterTile(u, tx, ty));
-          if (!ok) continue;
-          if (isReservedByOther(u, tx, ty)) continue;
-        }
+        // NOTE(v1417): Approach goals may temporarily target tiles occupied/reserved by friendlies.
+        // We still require walkable, but do NOT require canEnterTile here; backliners must keep compressing in.
 
         const cx = (tx + 0.5) * TILE, cy = (ty + 0.5) * TILE;
         const dEff = _effDist(u, t, cx, cy);
@@ -4196,48 +4183,28 @@ function getCombatGoal(u, t){
     gy = t.y + (dy / L) * stop;
   }
 
-  // 1) Try to pick an actually-enterable in-range tile around the target.
-  // This is the primary anti-clump mechanism: backliners fan out to nearby free tiles instead of
-  // trying to shove into the same tile and vibrating.
-  const preferDist = Math.max(8, (u.range||0) * 0.88);
-  const spread = pickAttackTile(u, t, preferDist);
-  let gTx, gTy;
+  // Convert to goal tile and ensure it is walkable. For combat goals we intentionally do NOT require
+  // capacity/occupancy here (that was the source of backline "dance"). The path/steering will resolve.
+  let gTx = tileOfX(gx), gTy = tileOfY(gy);
+  if (!inMap(gTx,gTy)){ gTx = clamp(gTx,0,MAP_W-1); gTy = clamp(gTy,0,MAP_H-1); }
 
-  if (spread){
-    gTx = tileOfX(spread.x);
-    gTy = tileOfY(spread.y);
-  } else {
-    // 2) Fallback: use the dock point, but STILL require enterable capacity.
-    gTx = tileOfX(gx); gTy = tileOfY(gy);
-    if (!inMap(gTx,gTy)){ gTx = clamp(gTx,0,MAP_W-1); gTy = clamp(gTy,0,MAP_H-1); }
-
-    const curTx = tileOfX(u.x), curTy = tileOfY(u.y);
-    const okDock = (BUILD[t.kind] ? canEnterTileGoal(u, gTx, gTy, t) : canEnterTile(u, gTx, gTy));
-    if (!(gTx===curTx && gTy===curTy) && !okDock){
-      // If we can't enter the dock tile, search nearby for the closest enterable one.
-      let best=null, bestD=1e9;
-      for (let r=1;r<=4;r++){
-        for (let dy=-r;dy<=r;dy++){
-          for (let dx=-r;dx<=r;dx++){
-            const tx=gTx+dx, ty=gTy+dy;
-            if (!inMap(tx,ty)) continue;
-            if (!isWalkableTile(tx,ty)) continue;
-            const ok = (BUILD[t.kind] ? canEnterTileGoal(u, tx, ty, t) : canEnterTile(u, tx, ty));
-            if (!(tx===curTx && ty===curTy) && !ok) continue;
-            if (isReservedByOther(u, tx, ty)) continue;
-            const d = dx*dx+dy*dy;
-            if (d<bestD){ bestD=d; best={tx,ty}; }
-          }
+  if (!isWalkableTile(gTx,gTy)){
+    let best=null, bestD=1e9;
+    for (let r=1;r<=10;r++){
+      for (let dy=-r;dy<=r;dy++){
+        for (let dx=-r;dx<=r;dx++){
+          const tx=gTx+dx, ty=gTy+dy;
+          if (!inMap(tx,ty)) continue;
+          if (!isWalkableTile(tx,ty)) continue;
+          const d = dx*dx+dy*dy;
+          if (d<bestD){ bestD=d; best={tx,ty}; }
         }
-        if (best) break;
       }
-      if (best){ gTx=best.tx; gTy=best.ty; }
-      else {
-        // If absolutely nothing is enterable nearby, just hold position (prevents "낑낑/부들" loop).
-        gTx = curTx; gTy = curTy;
-      }
+      if (best) break;
     }
+    if (best){ gTx=best.tx; gTy=best.ty; }
   }
+
   // Small smoothing: keep goal stable for a short time to avoid flicker.
   u.combatGX = (gTx+0.5)*TILE;
   u.combatGY = (gTy+0.5)*TILE;
