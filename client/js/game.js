@@ -3343,6 +3343,7 @@ function followPath(u, dt){
     if (u.yieldCd && u.yieldCd>0){ u.yieldCd -= dt; if (u.yieldCd>0) return false; u.yieldCd=0; }
 
     const p = u.path[u.pathI];
+    const curTx = tileOfX(u.x), curTy = tileOfY(u.y);
     // Waypoint world target
 let wx = (p.tx+0.5)*TILE, wy=(p.ty+0.5)*TILE;
 
