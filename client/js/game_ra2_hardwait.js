@@ -3368,7 +3368,7 @@ if (u.cls==="inf"){
     }
     if (slot>=0){
       u.navSlot = slot; u.navSlotTx = p.tx; u.navSlotTy = p.ty;
-      u.navSlotLockT = 0.25; // seconds
+      u.navSlotLockT = 1.0; // seconds (longer lock prevents slot thrash in crowds)
     }
   }
 
@@ -3379,7 +3379,7 @@ if (u.cls==="inf"){
 
     // If we have been waiting too long, allow bypass logic below to kick in.
     // But for short waits, returning here prevents "부들부들".
-    if (u.queueWaitT < 0.35) return false;
+    return false; // hard-wait: prevents jitter infection in dense infantry clumps
   } else {
     u.queueWaitT = 0;
     const sp = tileToWorldSubslot(p.tx, p.ty, slot);
@@ -6869,8 +6869,8 @@ function stampCmd(e, type, x, y, targetId=null){
 
     // Precompute candidate offsets sized to selection
     const offsets = buildFormationOffsets(Math.max(16, ids.length*6));
-    const usedInf = new Map();
-    const usedHard = new Set();
+    const usedVeh = new Set();
+    const usedInf = new Map(); // key -> count (allow up to INF_SLOT_MAX per tile for infantry)
     // RA2-feel: for infantry, assign a stable destination sub-slot per target tile
     const __tileSubMask = new Map();
     let k=0;
@@ -6879,8 +6879,7 @@ function stampCmd(e, type, x, y, targetId=null){
       if (!e || e.team!==TEAM.PLAYER) continue;
       if (BUILD[e.kind]) continue;
       if (shouldIgnoreCmd(e,'move',x,y,null)) continue;
-      const cls = (UNIT[e.kind] && UNIT[e.kind].cls) ? UNIT[e.kind].cls : "";
-      
+
       e.guard=null; e.guardFrom=false;
       e.restX=null; e.restY=null;
       e.target=null;
@@ -6888,6 +6887,8 @@ function stampCmd(e, type, x, y, targetId=null){
       e.fireHoldT=0; e.fireDir=null;
       e.forceMoveUntil = state.t + 1.25;
       e.repathCd=0.15;
+
+      const cls = e.cls || ((UNIT[e.kind] && UNIT[e.kind].cls) ? UNIT[e.kind].cls : \"\");
 
       // pick best nearby free tile among offsets, biased to the actual mouse world point (x,y)
       // so clicking near a unit lets you place destinations to its side/front more predictably.
@@ -6898,10 +6899,11 @@ function stampCmd(e, type, x, y, targetId=null){
         const ty = baseTy + offsets[j].dy;
         if (!inMap(tx,ty)) continue;
         const key = tx+"," + ty;
-        if (usedHard.has(key)) continue;
-        if (cls==="inf") {
-          const c = usedInf.get(key) || 0;
+        if (cls==="inf"){
+          const c = usedInf.get(key)||0;
           if (c >= INF_SLOT_MAX) continue;
+        } else {
+          if (usedVeh.has(key)) continue;
         }
         if (!canEnterTile(e, tx, ty)) continue;
         const wpC = tileToWorldCenter(tx,ty);
@@ -6923,16 +6925,17 @@ function stampCmd(e, type, x, y, targetId=null){
         if (!reserveTile(e, chosen.tx, chosen.ty)){
           chosen=null;
         } else {
-          const ckey = chosen.tx+","+chosen.ty;
-          if (cls==="inf") {
-            usedInf.set(ckey, (usedInf.get(ckey)||0)+1);
+          if (cls==="inf"){
+            const k2 = chosen.tx+","+chosen.ty;
+            usedInf.set(k2, (usedInf.get(k2)||0)+1);
           } else {
-            usedHard.add(ckey);
+            usedVeh.add(chosen.tx+","+chosen.ty);
           }
         }
       }
       // if nothing free, fall back to base tile center
       if (!chosen) chosen={tx:baseTx, ty:baseTy};// RA2-feel: vehicles still go to tile center; infantry go to a reserved sub-slot inside the tile
+const cls = (UNIT[e.kind] && UNIT[e.kind].cls) ? UNIT[e.kind].cls : "";
 let wp;
 let subSlot = null;
 if (cls==="inf"){
