@@ -2772,6 +2772,7 @@ function tileToWorldSubslot(tx, ty, slot){
       if (u.sepCd && u.sepCd>0){ u.sepCd -= dt; if (u.sepCd<=0){ u.sepCd=0; u.sepOx=0; u.sepOy=0; } }
       let tx=tileOfX(u.x), ty=tileOfY(u.y);
       // Hysteresis: if infantry was already assigned a sub-slot tile, keep it unless it truly left the tile.
+      const cls = (UNIT[u.kind] && UNIT[u.kind].cls) ? UNIT[u.kind].cls : "";
       if (cls==="inf" && u.subSlotTx!=null && u.subSlotTy!=null){
         const cx=(u.subSlotTx+0.5)*TILE, cy=(u.subSlotTy+0.5)*TILE;
         const thr=(TILE*0.62); // ~RA2 subcell boundary tolerance
@@ -2780,7 +2781,6 @@ function tileToWorldSubslot(tx, ty, slot){
       if (!inMap(tx,ty)) continue;
       const i=idx(tx,ty);
       if (occAnyId[i]===0){ occAnyId[i]=u.id; occTeam[i]=u.team; }
-      const cls = (UNIT[u.kind] && UNIT[u.kind].cls) ? UNIT[u.kind].cls : "";
       if (cls==="inf") {
   // Allow up to 4 infantry per tile (same-team only via canEnterTile rules)
   occInf[i] = Math.min(255, occInf[i]+1);
