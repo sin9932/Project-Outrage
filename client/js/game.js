@@ -283,7 +283,7 @@ function fitMini() {
 
   const TILE = 110;
   
-  window.__RA2_PATCH_VERSION__="v16";
+  window.__RA2_PATCH_VERSION__="v17";
 const GAME_SPEED = 1.30;
   const BUILD_PROD_MULT = 1.30; // additional +30% for building & unit production speed
   // Enemy AI cheats (difficulty)
@@ -2750,6 +2750,92 @@ function tileToWorldSubslot(tx, ty, slot){
   const w = isoToWorld(iso.x + o.ix, iso.y + o.iy);
   return w;
 }
+
+// RA2 PATCH V17: deterministic 2x2 sub-cell ownership (kills overlap -> kills jitter)
+function _slotOwnerArr(team){
+  return team===0 ? infSlotOwner0 : infSlotOwner1;
+}
+function _slotMaskArr(team){
+  return team===0 ? infSlotMask0 : infSlotMask1;
+}
+function _slotIndex(ii, ss){ return ii*4 + (ss & 3); }
+
+function releaseInfSlot(u){
+  if (!u || u._slotII==null || u.subSlot==null) return;
+  const arr = _slotOwnerArr(u.team|0);
+  const si = _slotIndex(u._slotII, u.subSlot);
+  const tag = (u.id|0) + 1;
+  if (arr[si] === tag) arr[si] = 0;
+  u._slotII = null;
+}
+
+function claimInfSlot(u, tx, ty, preferSS){
+  const ii = idx(tx,ty);
+  const arr = _slotOwnerArr(u.team|0);
+  const tag = (u.id|0) + 1;
+
+  // keep existing if already ours
+  if (u._slotII===ii && u.subSlot!=null){
+    const si0 = _slotIndex(ii, u.subSlot);
+    if (arr[si0] === tag) return u.subSlot;
+  }
+
+  // leaving previous tile
+  if (u._slotII!=null && u._slotII!==ii){
+    releaseInfSlot(u);
+  }
+
+  // try preferred
+  if (preferSS!=null){
+    const si = _slotIndex(ii, preferSS);
+    if (arr[si]===0 || arr[si]===tag){
+      arr[si]=tag;
+      u._slotII = ii;
+      u.subSlot = preferSS & 3;
+      u.subSlotTx = tx; u.subSlotTy = ty;
+      return u.subSlot;
+    }
+  }
+
+  // pick first free (or ours)
+  for (let ss=0; ss<4; ss++){
+    const si = _slotIndex(ii, ss);
+    if (arr[si]===0 || arr[si]===tag){
+      arr[si]=tag;
+      u._slotII = ii;
+      u.subSlot = ss;
+      u.subSlotTx = tx; u.subSlotTy = ty;
+      return ss;
+    }
+  }
+  return null; // full
+}
+
+function applyInfSlotCorrection(u, dt){
+  if (!u || !UNIT[u.kind] || UNIT[u.kind].cls!=="inf") return;
+  const tx = tileOfX(u.x), ty = tileOfY(u.y);
+  if (!inMap(tx,ty)) return;
+
+  // claim a slot in current tile (keeps everyone separated)
+  const ss = claimInfSlot(u, tx, ty, u.subSlot);
+  if (ss==null) return;
+
+  const wp = tileToWorldSubslot(tx,ty,ss);
+  // spring-like correction (strong enough to defeat micro-jitter, weak enough to not teleport)
+  const dx = wp.x - u.x;
+  const dy = wp.y - u.y;
+  const maxStep = 260 * dt;
+  const len = Math.hypot(dx,dy) || 1;
+  const step = Math.min(maxStep, len);
+  u.x += dx/len * step;
+  u.y += dy/len * step;
+
+  // close enough => snap (prevents endless micro oscillation)
+  if (len < 0.75){
+    u.x = wp.x; u.y = wp.y;
+  }
+}
+
   function clearOcc(dt){
     occAll.fill(0);
     occInf.fill(0);
@@ -3280,17 +3366,9 @@ const ni=ny*W+nx;
     if (!u.alive || u.inTransport) return;
     if (u.target!=null) return;
     const ot = u.order && u.order.type;
-const queued = !!u.__queue || (u.__queueWait||0)>0 || (u.blockT||0)>0 || (u.finalBlockT||0)>0 || (u.__ra2_wait||0)>0;
-// Allow settling while queued OR when moving to an assigned sub-slot destination (order.ss).
-if (!queued){
-  if (ot!=="idle" && ot!=="guard"){
-    // allow settle near the final tile for move orders that have ss
-    if (!(ot==="move" && u.order && u.order.ss!=null)){
-      return;
-    }
-  }
-}const tx = (u.order && u.order.tx!=null) ? u.order.tx : tileOfX(u.x);
-    const ty = (u.order && u.order.ty!=null) ? u.order.ty : tileOfY(u.y);
+    if (ot!=="idle" && ot!=="guard") return;
+
+    const tx = tileOfX(u.x), ty = tileOfY(u.y);
     if (!inMap(tx,ty)) return;
 
     // Ensure we have a valid subSlot assigned (filled in clearOcc()).
@@ -3309,7 +3387,7 @@ if (!queued){
 
     // Move at a capped rate so we don't introduce new jitter.
     const d = Math.sqrt(d2);
-    const maxStep = (queued ? 280 : 140) * dt; // px/s
+    const maxStep = 120 * dt; // px/s
     const step = Math.min(maxStep, d);
     const nx = dx / (d||1), ny = dy / (d||1);
     u.x += nx * step;
@@ -6146,8 +6224,15 @@ const tx=tileOfX(u.x), ty=tileOfY(u.y);
               const vtx = (v.x / TILE) | 0, vty = (v.y / TILE) | 0;
               if (utx===vtx && uty===vty) continue;
             }
-            const pushK = bothInf ? 0.70 : basePushK;
-            const maxPush = bothInf ? 10.0 : baseMaxPush;
+            // RA2 PATCH V17: same-tile infantry separation handled by slot correction, not pairwise pushes (prevents 강강술래).
+let sameTileInf = false;
+if (bothInf){
+  const utx = (u.x / TILE) | 0, uty = (u.y / TILE) | 0;
+  const vtx = (v.x / TILE) | 0, vty = (v.y / TILE) | 0;
+  sameTileInf = (utx===vtx && uty===vty);
+}
+const pushK = sameTileInf ? 0.0 : (bothInf ? 0.70 : basePushK);
+const maxPush = sameTileInf ? 0.0 : (bothInf ? 10.0 : baseMaxPush);
             const push = Math.min(maxPush, overlap * pushK);
 
             const au = isAnchored(u);
@@ -6835,7 +6920,7 @@ function stampCmd(e, type, x, y, targetId=null){
     // Precompute candidate offsets sized to selection
     const offsets = buildFormationOffsets(Math.max(16, ids.length*6));
     const usedVeh = new Set();
-    const usedInfMask = new Map(); // key: idx(tx,ty) -> 4-bit used mask for THIS command
+    const usedInfMask = new Map(); // key idx -> used 4-bit
 
     let k=0;
     for (const id of ids){
@@ -6852,130 +6937,52 @@ function stampCmd(e, type, x, y, targetId=null){
       e.forceMoveUntil = state.t + 1.25;
       e.repathCd=0.15;
 
-      
-  // pick best nearby destination.
-  // Vehicles: keep unique-tile placement (like before).
-  // Infantry: pack into 2x2 sub-cells (4 per tile) first, then spill to neighboring tiles (radius 2).
-  const cls = (UNIT[e.kind] && UNIT[e.kind].cls) ? UNIT[e.kind].cls : "";
-  let chosen=null;
-  let chosenSS=0;
-
-  if (cls!=="inf"){
-    // --- Vehicle/other: unique tiles only ---
-    let bestScore=1e18;
-    for (let j=0; j<offsets.length; j++){
-      const tx = baseTx + offsets[j].dx;
-      const ty = baseTy + offsets[j].dy;
-      if (!inMap(tx,ty)) continue;
-      const key = tx+"," + ty;
-      if (usedVeh.has(key)) continue;
-      if (!canEnterTile(e, tx, ty)) continue;
-      const wpC = tileToWorldCenter(tx,ty);
-      const dxw = (wpC.x - x), dyw = (wpC.y - y);
-      const ring = (Math.abs(offsets[j].dx)+Math.abs(offsets[j].dy));
-      const dot = (offsets[j].dx*intentVX + offsets[j].dy*intentVY);
-      const score = (dxw*dxw + dyw*dyw) + ring*8 - dot*0.35;
-      if (score < bestScore){
-        bestScore=score;
-        chosen={tx,ty};
+      // pick best nearby free tile among offsets, biased to the actual mouse world point (x,y)
+      // so clicking near a unit lets you place destinations to its side/front more predictably.
+      let chosen=null;
+      let bestScore=1e18;
+      for (let j=0; j<offsets.length; j++){
+        const tx = baseTx + offsets[j].dx;
+        const ty = baseTy + offsets[j].dy;
+        if (!inMap(tx,ty)) continue;
+        const key = tx+"," + ty;
+        if (used.has(key)) continue;
+        if (!canEnterTile(e, tx, ty)) continue;
+        const wpC = tileToWorldCenter(tx,ty);
+        // score: distance to the actual click + tiny ring penalty (prefer closer rings)
+        const dxw = (wpC.x - x), dyw = (wpC.y - y);
+        const ring = (Math.abs(offsets[j].dx)+Math.abs(offsets[j].dy));
+        const dot = (offsets[j].dx*intentVX + offsets[j].dy*intentVY);
+        // Lower score is better; dot>0 means tile is in the direction you clicked within the occupied tile.
+        const score = dxw*dxw + dyw*dyw + ring*9 - dot*1.2;
+        if (score < bestScore){
+          bestScore=score;
+          chosen={tx,ty};
+        }
+        // Early exit for perfect hit
+        if (score < 1) break;
       }
-      if (score < 1) break;
-    }
-    if (chosen){
-      if (!reserveTile(e, chosen.tx, chosen.ty)){
-        chosen=null;
-      } else {
-        usedVeh.add(chosen.tx+","+chosen.ty);
-      }
-    }
-    if (!chosen) chosen={tx:baseTx, ty:baseTy};
-    const wp = tileToWorldCenter(chosen.tx, chosen.ty);
-    e.order={type:"move", x:wp.x, y:wp.y, tx:chosen.tx, ty:chosen.ty};
-    e.holdPos = false;
-    pushOrderFx(e.id,"move",wp.x,wp.y,null,"rgba(90,255,90,0.95)");
-    setPathTo(e, wp.x, wp.y);
-    showUnitPathFx(e, wp.x, wp.y, "rgba(255,255,255,0.85)");
-    stampCmd(e,'move',wp.x,wp.y,null);
-    k++;
-  } else {
-    // --- Infantry: 2x2 sub-cell packing with spill radius 2 (B plan) ---
-    // Candidate tiles: base, then spiral out; within radius 2 strongly preferred.
-    // We will fill free sub-slots (0..3) per tile.
-    const maxPreferR = 2;
-    const maxSearchR = Math.max(6, maxPreferR); // fallback if super crowded
-    let bestScore=1e18;
-
-    for (let r=0; r<=maxSearchR; r++){
-      // Build ring offsets
-      for (let dx=-r; dx<=r; dx++){
-        const dy1 = r - Math.abs(dx);
-        const candidates = (dy1===0) ? [0] : [dy1, -dy1];
-        for (let t=0; t<candidates.length; t++){
-          const dy = candidates[t];
-          const tx = baseTx + dx;
-          const ty = baseTy + dy;
-          if (!inMap(tx,ty)) continue;
-          if (!canEnterTile(e, tx, ty)) continue;
-
-          const ii = idx(tx,ty);
-          const baseMask = (e.team===0) ? (infSlotMask0[ii]|0) : (infSlotMask1[ii]|0);
-          const usedMask = usedInfMask.get(ii) || 0;
-          const mask = (baseMask | usedMask) & 0x0F;
-          if (mask === 0x0F) continue; // full 4/4
-
-          // choose first free subslot
-          let ss = 0;
-          for (ss=0; ss<4; ss++){
-            if (((mask>>ss)&1)===0) break;
-          }
-
-          const wpS = tileToWorldSubslot(tx,ty,ss);
-          const dxw = (wpS.x - x), dyw = (wpS.y - y);
-          const ring = r;
-          const preferPenalty = (ring>maxPreferR) ? (ring-maxPreferR)*2200 : 0;
-          // Direction bias (same idea as vehicle score but lighter)
-          const dot = (dx*intentVX + dy*intentVY);
-          const score = (dxw*dxw + dyw*dyw) + ring*18 + preferPenalty - dot*0.25;
-
-          if (score < bestScore){
-            bestScore=score;
-            chosen={tx,ty}; chosenSS=ss;
-          }
+      // reserve chosen now (so other units won't pick it)
+      if (chosen){
+        if (!reserveTile(e, chosen.tx, chosen.ty)){
+          chosen=null;
+        } else {
+          used.add(chosen.tx+","+chosen.ty);
         }
       }
-      // Early exit: if we found something within preferred radius and it's very good, stop searching
-      if (chosen && r<=maxPreferR && bestScore < 400) break;
-      // If we're within preferred radius and already picked a tile there, don't go too far unless necessary
-      if (chosen && r>=maxPreferR && bestScore < 1600) break;
+      // if nothing free, fall back to base tile center
+      if (!chosen) chosen={tx:baseTx, ty:baseTy};
+
+      const wp = tileToWorldCenter(chosen.tx, chosen.ty);
+      e.order={type:"move", x:wp.x, y:wp.y, tx:chosen.tx, ty:chosen.ty};
+      e.holdPos = false;
+
+      pushOrderFx(e.id,"move",wp.x,wp.y,null,"rgba(90,255,90,0.95)");
+      setPathTo(e, wp.x, wp.y);
+      showUnitPathFx(e, wp.x, wp.y, "rgba(255,255,255,0.85)");
+      stampCmd(e,'move',wp.x,wp.y,null);
+      k++;
     }
-
-    if (!chosen){
-      // fallback to base tile's first slot
-      chosen={tx:baseTx, ty:baseTy}; chosenSS=0;
-    }
-
-    // Mark this sub-slot used for this command so the next infantry takes another slot.
-    const jj = idx(chosen.tx, chosen.ty);
-    const prev = usedInfMask.get(jj) || 0;
-    usedInfMask.set(jj, (prev | (1<<chosenSS)) & 0x0F);
-
-    // Make the unit "want" this slot even before it arrives.
-    e.subSlot = chosenSS;
-    e.subSlotTx = chosen.tx;
-    e.subSlotTy = chosen.ty;
-
-    const wp = tileToWorldSubslot(chosen.tx, chosen.ty, chosenSS);
-    e.order={type:"move", x:wp.x, y:wp.y, tx:chosen.tx, ty:chosen.ty};
-    e.holdPos = false;
-
-    pushOrderFx(e.id,"move",wp.x,wp.y,null,"rgba(90,255,90,0.95)");
-    setPathTo(e, wp.x, wp.y);
-    showUnitPathFx(e, wp.x, wp.y, "rgba(255,255,255,0.85)");
-    stampCmd(e,'move',wp.x,wp.y,null);
-    k++;
-  }
-}
-
   }
 
   function issueMoveCombatOnly(x,y){
