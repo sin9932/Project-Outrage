@@ -491,6 +491,25 @@ function fitMini() {
 
   const tileOfX = (x)=> clamp(Math.floor(x/TILE), 0, MAP_W-1);
   const tileOfY = (y)=> clamp(Math.floor(y/TILE), 0, MAP_H-1);
+  // Tile index hysteresis for infantry: prevents rapid tile flip-flop at diamond borders,
+  // which was causing sub-slot reassignment "jitter" when units overlap or queue near rally points.
+  const INF_TILE_CORE = 0.34; // fraction of TILE radius treated as "still in old tile"
+  const tileOfUnit = (u)=>{
+    let tx = tileOfX(u.x), ty = tileOfY(u.y);
+    if (u && u.kind==="infantry"){
+      if (u._tileTx!=null && u._tileTy!=null){
+        const ocx = (u._tileTx+0.5)*TILE, ocy = (u._tileTy+0.5)*TILE;
+        const dx = u.x-ocx, dy = u.y-ocy;
+        const core = TILE*INF_TILE_CORE;
+        if ((dx*dx + dy*dy) < (core*core)){
+          return [u._tileTx, u._tileTy];
+        }
+      }
+      u._tileTx = tx; u._tileTy = ty;
+    }
+    return [tx, ty];
+  };
+
 
 
   function genMap() {
@@ -3389,11 +3408,11 @@ if (u.cls==="inf"){
 
 
     // HARD HOLD: if infantry is already locked to its sub-slot in this tile, don't keep steering.
-    if (u.cls==="inf" && u.holdPos && tileOfX(u.x)===p.tx && tileOfY(u.y)===p.ty) return false;
+    if (u.cls==="inf" && u.holdPos){ const [htx, hty] = tileOfUnit(u); if (htx===p.tx && hty===p.ty) return false; }
 
     // Reservation + capacity: prevents multiple units trying to occupy the same tile-center,
     // which caused circular "강강수월래" orbiting at diamond corners.
-    const curTx = tileOfX(u.x), curTy = tileOfY(u.y);
+    const [curTx, curTy] = tileOfUnit(u);
     if (!(p.tx===curTx && p.ty===curTy)){
       const _tGoal = (u && u.target!=null) ? getEntityById(u.target) : null;
       const _combatOrder = (u && u.order && (u.order.type==="attack" || u.order.type==="attackmove"));
@@ -3708,7 +3727,7 @@ const nx=u.x+ax*step, ny=u.y+ay*step;
       // and (d) closer to our final goal.
       if (u.path && u.path.length && u.pathI < u.path.length){
         const goal = u.path[u.path.length-1];
-        const curTx = tileOfX(u.x), curTy = tileOfY(u.y);
+        const [curTx, curTy] = tileOfUnit(u);
         let best=null, bestScore=1e18;
         for (let dy=-1; dy<=1; dy++){
           for (let dx=-1; dx<=1; dx++){
@@ -6107,6 +6126,7 @@ const tx=tileOfX(u.x), ty=tileOfY(u.y);
 
   const isImmovableInCombat = (u)=>{
     if (!u || !u.alive) return false;
+    if (u.kind==="infantry" && u.holdPos) return true;
     if (!u.order || u.order.type!=="attack") return false;
 
     // Any unit that has just fired should not be pushed around by de-clumping.
@@ -6128,6 +6148,7 @@ const tx=tileOfX(u.x), ty=tileOfY(u.y);
 
   const isAnchored = (u)=>{
     if (!u || !u.alive) return false;
+    if (u.kind==="infantry" && u.holdPos) return true;
     if (u.path && u.path.length && u.pathI < u.path.length) return false;
     if (u.target!=null){
     const tt = getEntityById(u.target);
@@ -6189,8 +6210,8 @@ const tx=tileOfX(u.x), ty=tileOfY(u.y);
             // If both infantry are inside the same tile, let sub-slots handle separation.
             // Avoids orbiting "강강술래" caused by continuous repulsion fighting the slot anchors.
             if (bothInf) {
-              const utx = (u.x / TILE) | 0, uty = (u.y / TILE) | 0;
-              const vtx = (v.x / TILE) | 0, vty = (v.y / TILE) | 0;
+              const [utx, uty] = tileOfUnit(u);
+              const [vtx, vty] = tileOfUnit(v);
               if (utx===vtx && uty===vty) continue;
             }
             const pushK = bothInf ? 0.70 : basePushK;
