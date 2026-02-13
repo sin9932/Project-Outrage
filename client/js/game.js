@@ -283,7 +283,7 @@ function fitMini() {
 
   const TILE = 110;
   
-  window.__RA2_PATCH_VERSION__="v14";
+  window.__RA2_PATCH_VERSION__="v15";
 const GAME_SPEED = 1.30;
   const BUILD_PROD_MULT = 1.30; // additional +30% for building & unit production speed
   // Enemy AI cheats (difficulty)
@@ -3294,7 +3294,7 @@ if (!queued){
     if (!inMap(tx,ty)) return;
 
     // Ensure we have a valid subSlot assigned (filled in clearOcc()).
-    const ss = (u.order && u.order.ss!=null) ? (u.order.ss & 3) : ((u.subSlot==null) ? 0 : (u.subSlot & 3));
+    const ss = (u.subSlot==null) ? 0 : (u.subSlot & 3);
     const sp = tileToWorldSubslot(tx, ty, ss);
 
     // Critically-damped snap (no overshoot).
@@ -6965,7 +6965,7 @@ function stampCmd(e, type, x, y, targetId=null){
     e.subSlotTy = chosen.ty;
 
     const wp = tileToWorldSubslot(chosen.tx, chosen.ty, chosenSS);
-    e.order={type:"move", x:wp.x, y:wp.y, tx:chosen.tx, ty:chosen.ty, ss:chosenSS};
+    e.order={type:"move", x:wp.x, y:wp.y, tx:chosen.tx, ty:chosen.ty};
     e.holdPos = false;
 
     pushOrderFx(e.id,"move",wp.x,wp.y,null,"rgba(90,255,90,0.95)");
