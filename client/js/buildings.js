@@ -93,12 +93,56 @@
     return (mode==="cons") ? slot.cons : (mode==="dest") ? slot.dest : slot.idle;
   }
 
-  const BARR = {
-    idleLoop: _sorted(Array.from({length:18}, (_,i)=>`barrack_idle${i+1}.png`)),
-    idleDamaged: ["barrack_dist.png"],
-    cons: _sorted(Array.from({length:23}, (_,i)=>`barrack_const${i+1}.png`)),
-    dest: _sorted(Array.from({length:22}, (_,i)=>`barrack_distruction${i+1}.png`)),
-  };
+  
+// Frame name sequences are auto-detected from atlas contents to avoid hard-coded filename/count mismatches.
+let BARR = {
+  idleLoop: _sorted(Array.from({length:18}, (_,i)=>`barrack_idle${i+1}.png`)),
+  idleDamaged: ["barrack_dist.png"],
+  cons: _sorted(Array.from({length:23}, (_,i)=>`barrack_const${i+1}.png`)),
+  dest: _sorted(Array.from({length:22}, (_,i)=>`barrack_distruction${i+1}.png`)),
+};
+
+function _numSuffix(name){
+  const m = String(name).match(/(\d+)(?=\.[a-z]+$)/i) || String(name).match(/(\d+)$/);
+  return m ? parseInt(m[1],10) : 0;
+}
+function _scanSeq(atlas, patterns){
+  if (!atlas || !atlas.frames) return [];
+  const keys = Array.from(atlas.frames.keys());
+  let out = [];
+  for (const k of keys){
+    for (const re of patterns){
+      if (re.test(k)) { out.push(k); break; }
+    }
+  }
+  out.sort((a,b)=>_numSuffix(a)-_numSuffix(b));
+  return out;
+}
+function _rebuildBarrFrames(slot){
+  if (!slot) return;
+  const idleAtlas = slot.idle;
+  const consAtlas = slot.cons;
+  const destAtlas = slot.dest;
+
+  const idleSeq = _scanSeq(idleAtlas, [/^barrack_idle\d+\.png$/i, /^barracks?_idle\d+\.png$/i]);
+  const dmgSeq  = _scanSeq(idleAtlas, [/^barrack_(dist|damaged)\.png$/i, /^barrack_idle_damaged\.png$/i]);
+  const consSeq = _scanSeq(consAtlas, [
+    /^barrack_(const|cons|construction|build)\d+\.png$/i,
+    /^barracks?_(const|cons|construction|build)\d+\.png$/i
+  ]);
+  const destSeq = _scanSeq(destAtlas, [
+    /^barrack_(distruction|destruction|destroy|dest)\d+\.png$/i,
+    /^barracks?_(distruction|destruction|destroy|dest)\d+\.png$/i
+  ]);
+
+  if (idleSeq.length) BARR.idleLoop = idleSeq;
+  if (dmgSeq.length)  BARR.idleDamaged = [dmgSeq[0]];
+  if (consSeq.length) BARR.cons = consSeq;
+  if (destSeq.length) BARR.dest = destSeq;
+
+  // Safety: if dest atlas missing, prevent 0-length maxT instant remove from feeling like "no anim".
+  if (!destAtlas) BARR.dest = [];
+}
 
   const PATH = {
     barracks: {
@@ -138,11 +182,13 @@
           const eRGB = TEAM_ACCENT.ENEMY  || [255,80,90];
           slot.idleT = { 0:_cloneAtlasWithRecoloredTextures(idle, pRGB), 1:_cloneAtlasWithRecoloredTextures(idle, eRGB) };
           slot.consT = { 0:_cloneAtlasWithRecoloredTextures(cons, pRGB), 1:_cloneAtlasWithRecoloredTextures(cons, eRGB) };
-          slot.destT = { 0:_cloneAtlasWithRecoloredTextures(dest, pRGB), 1:_cloneAtlasWithRecoloredTextures(dest, eRGB) };
+          slot.destT = dest ? { 0:_cloneAtlasWithRecoloredTextures(dest, pRGB), 1:_cloneAtlasWithRecoloredTextures(dest, eRGB) } : null;
         }catch(_e){
           // If recolor fails (tainted canvas etc), fall back to base atlases.
           slot.idleT = null; slot.consT = null; slot.destT = null;
         }
+
+        _rebuildBarrFrames(slot);
 
         slot.ready = true;
       }catch(e){

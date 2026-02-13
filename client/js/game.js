@@ -933,6 +933,34 @@ function getBaseBuildTime(kind){
     return el;
   }
 
+function _ensureTuneButton(){
+  let btn = document.getElementById("tuneBtn");
+  if (btn) return btn;
+  btn = document.createElement("button");
+  btn.id = "tuneBtn";
+  btn.textContent = "TUNE";
+  btn.style.position = "fixed";
+  btn.style.left = "12px";
+  btn.style.top = "12px";
+  btn.style.zIndex = "100000";
+  btn.style.padding = "8px 10px";
+  btn.style.borderRadius = "999px";
+  btn.style.border = "1px solid rgba(255,255,255,0.35)";
+  btn.style.background = "rgba(0,0,0,0.55)";
+  btn.style.color = "#fff";
+  btn.style.font = "600 12px system-ui, -apple-system, Segoe UI, Roboto, sans-serif";
+  btn.style.cursor = "pointer";
+  btn.title = "Sprite tuner toggle (F2)";
+  btn.addEventListener("click", ()=>{
+    TUNER.on = !TUNER.on;
+    TUNER.dragging = false;
+    _updateTuneOverlay();
+    try{ toast(TUNER.on ? "TUNER ON" : "TUNER OFF"); }catch(_e){}
+  });
+  document.body.appendChild(btn);
+  return btn;
+}
+
   function _saveTune(){
     try{
       localStorage.setItem("SPRITE_TUNE", JSON.stringify(SPRITE_TUNE));
@@ -12790,6 +12818,7 @@ function sanityCheck(){
   }
 
   setButtonText();
+  try{ _ensureTuneButton(); }catch(_e){}
   requestAnimationFrame(tick);
 
 // Expose a few helpers to window for debugging / sanityCheck
