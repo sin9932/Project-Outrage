@@ -1,66 +1,4 @@
-
-      // Animated barracks (TexturePacker atlases)
-      if (b.kind === "barracks") {
-        const tune = _tuneObj("barracks");
-        const wx = (b.tx + b.tw * 0.5) * tileW;
-        const wy = (b.ty + b.th * 0.5) * tileH;
-        const [anchorX, anchorY] = worldToScreen(wx, wy);
-
-        const idleAtlas = BARRACKS_ATLAS.idle;
-        const conAtlas  = BARRACKS_ATLAS.construct;
-        const desAtlas  = BARRACKS_ATLAS.destruct;
-
-        if (!idleAtlas && !conAtlas && !desAtlas) return false;
-
-        const phase = b._anim?.phase || "idle";
-        const tsec  = b._anim?.t || 0;
-
-        const fps = 12;
-        const frameDur = 1 / fps;
-
-        if (phase === "construct" && conAtlas) {
-          const frames = _sortedFrames(Array.from(conAtlas.frames.keys()), "barrack_const_");
-          const idx = Math.min(frames.length - 1, Math.floor(tsec / frameDur));
-          const fn = frames[Math.max(0, idx)];
-          _drawTPFrameAnchored(ctx, conAtlas, fn, anchorX, anchorY, b.tw, b.th, tune, 1);
-          return true;
-        }
-
-        if (phase === "sell" && conAtlas) {
-          const frames = _sortedFrames(Array.from(conAtlas.frames.keys()), "barrack_const_");
-          const idx = Math.min(frames.length - 1, Math.floor(tsec / frameDur));
-          const rev = frames[Math.max(0, (frames.length - 1) - idx)];
-          _drawTPFrameAnchored(ctx, conAtlas, rev, anchorX, anchorY, b.tw, b.th, tune, 1);
-          return true;
-        }
-
-        if (phase === "destruct" && desAtlas) {
-          const names = Array.from(desAtlas.map.keys());
-          names.sort((a,b)=>_frameNum(a)-_frameNum(b));
-          const idx = Math.min(names.length - 1, Math.floor(tsec / frameDur));
-          const fn = names[Math.max(0, idx)];
-          _drawTPFrameAnchored(ctx, desAtlas, fn, anchorX, anchorY, b.tw, b.th, tune, 1);
-          return true;
-        }
-
-        if (idleAtlas) {
-          const hpR = (b.hpMax>0) ? (b.hp / b.hpMax) : 1;
-          if (hpR <= 0.25 && idleAtlas.frames?.has("barrack_dist.png")) {
-            _drawTPFrameAnchored(ctx, idleAtlas, "barrack_dist.png", anchorX, anchorY, b.tw, b.th, tune, 1);
-            return true;
-          }
-
-          const frames = _sortedFrames(Array.from(idleAtlas.frames.keys()), "barrack_idle");
-          const idx = frames.length ? (Math.floor(tsec / frameDur) % frames.length) : 0;
-          const fn = frames.length ? frames[idx] : null;
-          if (fn) _drawTPFrameAnchored(ctx, idleAtlas, fn, anchorX, anchorY, b.tw, b.th, tune, 1);
-          return true;
-        }
-
-        return false;
-      }
-
-;(function(){
+(function(){
   // Debug/validation mode: add ?debug=1 to URL
   const DEV_VALIDATE = /(?:\?|&)debug=1(?:&|$)/.test(location.search);
   const DEV_VALIDATE_THROW = false; // if true, throws on first invariant failure
@@ -72,7 +10,7 @@
   }
 
 
-;(() => {
+(() => {
   window.addEventListener("error", (e) => {
     document.body.innerHTML =
       `<pre style="white-space:pre-wrap;padding:16px;color:#fff;background:#000;">
@@ -490,6 +428,13 @@ function fitMini() {
     const camIso = worldToIso(cam.x, cam.y);
     return { x: (iso.x - camIso.x)*cam.zoom + base.x + (camShake.active?camShake.ox:0), y: (iso.y - camIso.y)*cam.zoom + base.y + (camShake.active?camShake.oy:0) };
   }
+  // FX modules bind (kept out of game.js when possible)
+  try{
+    if (window.PO && window.PO.fxSmoke && typeof window.PO.fxSmoke.bind === "function") {
+      window.PO.fxSmoke.bind({ TILE, clamp, worldToScreen, getCam: () => cam });
+    }
+  }catch(_e){}
+
   function screenToWorld(px, py) {
     const base = getBaseOffset();
     const camIso = worldToIso(cam.x, cam.y);
@@ -935,61 +880,6 @@ function getBaseBuildTime(kind){
     }
   };
 
-    function _frameNum(filename) {
-      const m = filename.match(/_(\d+)\.png$/i);
-      return m ? parseInt(m[1], 10) : 0;
-    }
-    function _sortedFrames(names, prefix) {
-      const arr = (names || []).slice().filter(fn => fn.toLowerCase().includes(prefix.toLowerCase()));
-      arr.sort((a,b)=>_frameNum(a)-_frameNum(b));
-      return arr;
-    }
-    function _drawTPFrameAnchored(ctx, atlasEntry, filename, anchorX, anchorY, tw, th, tune, z=1) {
-      if (!atlasEntry) return false;
-
-      let img=null, fr=null;
-      if (atlasEntry.map) {
-        const hit = atlasEntry.map.get(filename);
-        if (!hit) return false;
-        img = hit.img; fr = hit.frame;
-      } else {
-        fr = atlasEntry.frames?.get(filename);
-        img = atlasEntry.img;
-      }
-      if (!img || !fr) return false;
-
-      const src = fr.frame;
-      const ss  = fr.sourceSize;
-      const sss = fr.spriteSourceSize;
-
-      const scale = ((tileW * tw) / Math.max(1, ss.w)) * (tune?.scaleMul ?? 1);
-
-      const basePivotX = ss.w * 0.5;
-      const basePivotY = (tune?.anchor === "south") ? ss.h : ss.h * 0.5;
-
-      const pNx = (tune?.pivotNudge?.x ?? 0);
-      const pNy = (tune?.pivotNudge?.y ?? 0);
-      const oNx = (tune?.offsetNudge?.x ?? 0);
-      const oNy = (tune?.offsetNudge?.y ?? 0);
-
-      const px = (basePivotX + pNx) * scale * z;
-      const py = (basePivotY + pNy) * scale * z;
-
-      const dxFull = (anchorX - px) + (oNx * z);
-      const dyFull = (anchorY - py) + (oNy * z);
-
-      ctx.drawImage(
-        img,
-        src.x, src.y, src.w, src.h,
-        dxFull + (sss.x * scale * z),
-        dyFull + (sss.y * scale * z),
-        src.w * scale * z,
-        src.h * scale * z
-      );
-      return true;
-    }
-
-
   // === In-game Sprite Tuner (mouse-adjust pivot/offset/scale) ===
   // Toggle with F2. While enabled and HQ is selected:
   // - Drag (LMB): move offset (screen px)
@@ -1110,7 +1000,7 @@ function getBaseBuildTime(kind){
   _loadTune();
 
   // apply HTML-provided preset (overrides persisted storage)
-  ;(function(){
+  (function(){
     try{
       const preset = (typeof window !== "undefined") ? window.SPRITE_TUNE_PRESET : null;
       if (!preset || typeof preset !== "object") return;
@@ -1523,27 +1413,6 @@ function getBaseBuildTime(kind){
     return { img, frames: parsed.frames, image: imgName };
   }
 
-    // Multi-page TexturePacker JSON (textures[] with multiple images)
-    async function _loadTPAtlasMultiFromUrl(jsonUrl, baseDir) {
-      const res = await fetch(jsonUrl);
-      if (!res.ok) throw new Error("atlas json fetch failed: " + jsonUrl);
-      const data = await res.json();
-
-      const pages = [];
-      const map = new Map(); // filename -> { img, frame, texIndex }
-
-      for (let ti = 0; ti < (data.textures?.length || 0); ti++) {
-        const tex = data.textures[ti];
-        const img = new Image();
-        img.src = baseDir + tex.image;
-        pages.push({ img, tex });
-        for (const fr of (tex.frames || [])) map.set(fr.filename, { img, frame: fr, texIndex: ti });
-      }
-      return { data, pages, map };
-    }
-
-
-
   // === Lite Tank (RA2-style hull turn + independent turret) ===
   const LITE_TANK_BASE = "asset/sprite/unit/tank/lite_tank/";
   const LITE_TANK_BASE_SCALE = 0.13; // base scale for TILE=48, sourceSize=600 (tweak via Units.UNIT.tank.spriteScale)
@@ -1791,7 +1660,7 @@ function getBaseBuildTime(kind){
   }
 
   // Kick off lite tank atlas loads early (non-blocking)
-  ;(async()=>{
+  (async()=>{
     try{
       const [bodyIdle, bodyMov, muzzleIdle, muzzleMov] = await Promise.all([
         _loadTPAtlasFromUrl(LITE_TANK_BASE + "lite_tank.json", LITE_TANK_BASE),
@@ -1809,10 +1678,10 @@ function getBaseBuildTime(kind){
       console.warn("[lite_tank] atlas load failed:", e);
       LITE_TANK.ok = false;
     }
-  })();
+  })()
 
   // Kick off harvester atlas loads early (non-blocking)
-  ;(async()=>{
+  (async()=>{
     try{
       const [idle, mov] = await Promise.all([
         _loadTPAtlasFromUrl(HARVESTER_BASE + "harvester_idle.json", HARVESTER_BASE),
@@ -1826,46 +1695,12 @@ function getBaseBuildTime(kind){
       console.warn("[sprite] harvester atlas load failed", err);
     }
   })();
-
-    // Barracks (2x3) animated building atlases
-    const BARRACKS_ATLAS = { idle:null, construct:null, destruct:null };
-
-    (async () => {
-      try {
-        BARRACKS_ATLAS.idle = await _loadTPAtlasFromUrl(
-          "asset/sprite/const/normal/barrack/Barrack_idle.json",
-          "asset/sprite/const/normal/barrack/"
-        );
-        console.log("[sprite] barracks idle atlas loaded");
-      } catch (e) { console.warn("[sprite] barracks idle atlas load failed", e); }
-    })();
-
-    (async () => {
-      try {
-        BARRACKS_ATLAS.construct = await _loadTPAtlasFromUrl(
-          "asset/sprite/const/const_anim/barrack/barrack_const.json",
-          "asset/sprite/const/const_anim/barrack/"
-        );
-        console.log("[sprite] barracks construct atlas loaded");
-      } catch (e) { console.warn("[sprite] barracks construct atlas load failed", e); }
-    })();
-
-    (async () => {
-      try {
-        BARRACKS_ATLAS.destruct = await _loadTPAtlasMultiFromUrl(
-          "asset/sprite/const/destruct/barrack/barrack_distruction.json",
-          "asset/sprite/const/destruct/barrack/"
-        );
-        console.log("[sprite] barracks destruct atlas loaded");
-      } catch (e) { console.warn("[sprite] barracks destruct atlas load failed", e); }
-    })();
-
 ;
 
 
 
   // Kick off json load early (non-blocking)
-  ;(async()=>{
+  (async()=>{
     try{
       const r = await fetch(EXP1_JSON, {cache:"no-store"});
       if (!r.ok) throw new Error("HTTP "+r.status);
@@ -2545,7 +2380,6 @@ function buildingWorldFromTileOrigin(tx,ty,tw,th){
       oregenT:0
     };
     buildings.push(b);
-      if (b.kind === "barracks") b._anim = { phase: "construct", t: 0 };
     // Auto-assign PRIMARY producer if none.
     if (team===TEAM.PLAYER){
       if (kind==="barracks" && !state.primary.player.barracks) state.primary.player.barracks = b.id;
@@ -4914,21 +4748,8 @@ function spawnTurretMGTracers(shooter, target){
       let s = Math.sqrt(bw*bw + bh*bh) / (TILE*2.0);
       _smkS = clamp(s, 0.8, 2.2);
     }catch(_e){}
-    try{ addSmokeEmitter(b.x, b.y, _smkS); }catch(_e){}
-// 2.3) Restore the old "noisy gradient smoke particle" feel:
-//      - a burst of dusty smoke blobs + lingering smoke puffs.
-//      (kept deterministic-ish and cheap)
-try{
-  // Restored: "noisy gradient" smoke blob burst (no circular shockwave/ring).
-  const puffN = Math.floor(26 * _smkS);
-  for (let i=0;i<puffN;i++){
-    spawnSmokePuff(b.x, b.y, 1.35 * _smkS);
-  }
-  const hazeN = Math.floor(6 * _smkS);
-  for (let i=0;i<hazeN;i++){
-    spawnSmokeHaze(b.x, b.y, 1.10 * _smkS);
-  }
-}catch(_e){}
+    try{ window.PO?.fxSmoke?.addSmokeWave?.(b.x, b.y, _smkS); }catch(_e){}
+    try{ window.PO?.fxSmoke?.addSmokeEmitter?.(b.x, b.y, _smkS); }catch(_e){}
     // 2.5) HQ special: play large exp1 sprite explosion + world camera shake (UI not affected)
     if (b.kind === "hq"){
       // HQ special: exp1 sprite explosion + world camera shake (UI not affected)
@@ -4963,395 +4784,8 @@ try{
 
 
   
-// ===== Smoke ring + smoke particles (building destruction) =====
-// 목표:
-// - 파동 연기: "원형으로 퍼지되", 아이소메트리라서 위아래 납작 + 라인 없이 흐릿한 연무 타입
-// - 파티클/폭발을 가리지 않도록 렌더 순서는 최하위(지형 위, 폭발/파편 아래)
-const smokeWaves = [];
-const smokePuffs = [];
-const smokeEmitters = [];
 
-// Extra ground FX for vehicles
-const dustPuffs = [];
-const dmgSmokePuffs = [];
-
-// Dust puff for moving vehicles (sandy haze). World-positioned (does NOT follow units).
-function spawnDustPuff(wx, wy, vx, vy, strength=1){
-  const size = clamp(strength, 0.6, 2.2);
-  const spread = TILE * 0.30 * size;
-  const ang = Math.random() * Math.PI * 2;
-  const rad = Math.sqrt(Math.random()) * spread;
-  const x = wx + Math.cos(ang) * rad;
-  const y = wy + Math.sin(ang) * rad;
-
-  // drift roughly opposite of movement (normalize vx/vy)
-  const mag = Math.max(0.0001, Math.hypot(vx||0, vy||0));
-  const backx = -(vx||0) / mag;
-  const backy = -(vy||0) / mag;
-
-  dustPuffs.push({
-    x, y,
-    vx: backx*(TILE*0.18*size) + (Math.random()*2-1)*(TILE*0.05*size),
-    vy: backy*(TILE*0.18*size) + (Math.random()*2-1)*(TILE*0.05*size),
-    t: 0,
-    ttl: 1.35 + Math.random()*0.75,
-    r0: (22 + Math.random()*14) * size,
-    grow: (92 + Math.random()*60) * size,
-    a0: 0.48 + Math.random()*0.18
-  });
-}
-
-// Damage smoke from a crippled unit (from turret area). World-positioned.
-function spawnDmgSmokePuff(wx, wy, strength=1){
-  const size = clamp(strength, 0.6, 2.4);
-  const spread = TILE * 0.22 * size;
-  const ang = Math.random() * Math.PI * 2;
-  const rad = Math.sqrt(Math.random()) * spread;
-  const x = wx + Math.cos(ang) * rad;
-  const y = wy + Math.sin(ang) * rad;
-
-  dmgSmokePuffs.push({
-    x, y,
-    vx: (Math.random()*2-1)*(TILE*0.03*size),
-    vy: (Math.random()*2-1)*(TILE*0.03*size) - (TILE*0.02*size),
-    t: 0,
-    ttl: 1.55 + Math.random()*0.75,
-    r0: (10 + Math.random()*10) * size,
-    grow: (48 + Math.random()*40) * size,
-    a0: 0.10 + Math.random()*0.06
-  });
-}
-
-function addSmokeWave(wx, wy, size=1){
-  const sz = clamp(size, 0.6, 2.1);
-  smokeWaves.push({
-    x: wx, y: wy,
-    t: 0,
-    ttl: 1.55,
-    size: sz,
-    seed: (Math.random()*1e9)|0,
-    squash: 0.62 // y flatten
-  });
-}
-
-function addSmokeEmitter(wx, wy, size=1){
-  const sz = clamp(size, 0.6, 2.3);
-  smokeEmitters.push({ x:wx, y:wy, t:0, ttl:3.4, size: sz, acc:0 });
-
-  // 잔류 연무(넓게 퍼지는 옅은 연기) 몇 덩이 깔기
-  for (let i=0;i<7;i++) spawnSmokeHaze(wx, wy, sz * (0.95 + Math.random()*0.28));
-}
-
-function spawnSmokePuff(wx, wy, size=1){
-  const spread = TILE * 0.85 * size;
-  const ang = Math.random() * Math.PI * 2;
-  const rad = Math.sqrt(Math.random()) * spread;
-
-  const x = wx + Math.cos(ang) * rad;
-  const y = wy + Math.sin(ang) * rad;
-
-  smokePuffs.push({
-    x, y,
-    vx: (Math.random()*2-1) * (TILE * 0.22 * size) + Math.cos(ang)*(TILE*0.08*size),
-    vy: (Math.random()*2-1) * (TILE * 0.22 * size) + Math.sin(ang)*(TILE*0.08*size),
-    t: 0,
-    ttl: 2.8 + Math.random()*2.2,
-    r0: (18 + Math.random()*26) * size,
-    grow: (30 + Math.random()*44) * size,
-    a0: 0.12 + Math.random()*0.12
-  });
-}
-
-function spawnTrailPuff(wx, wy, vx, vy, strength=1){
-  // Subtle, "noise-like gradient" trail puff for vehicles.
-  const size = clamp(strength, 0.35, 1.20);
-
-  // Drift opposite of movement (normalize)
-  const mag = Math.max(0.0001, Math.hypot(vx||0, vy||0));
-  const backx = -(vx||0) / mag;
-  const backy = -(vy||0) / mag;
-
-  // Slight jitter to avoid looking like a clean wave.
-  const j = TILE * 0.10 * size;
-  const x = wx + (Math.random()*2-1)*j;
-  const y = wy + (Math.random()*2-1)*j;
-
-  // Push directly into smokePuffs so it uses the same soft radial gradient renderer.
-  smokePuffs.push({
-    x, y,
-    vx: backx*(TILE*0.12*size) + (Math.random()*2-1)*(TILE*0.04*size),
-    vy: backy*(TILE*0.12*size) + (Math.random()*2-1)*(TILE*0.04*size) - (TILE*0.02*size),
-    t: 0,
-    ttl: 0.95 + Math.random()*0.55,
-    r0: (10 + Math.random()*8) * size,
-    grow: (18 + Math.random()*16) * size,
-    a0: 0.07 + Math.random()*0.06
-  });
-
-  // Extra micro-puffs to fake "noisy" edges without being loud.
-  const microN = 2 + ((Math.random()*2)|0);
-  for (let i=0;i<microN;i++){
-    smokePuffs.push({
-      x: x + (Math.random()*2-1)*(TILE*0.16*size),
-      y: y + (Math.random()*2-1)*(TILE*0.12*size),
-      vx: backx*(TILE*0.09*size) + (Math.random()*2-1)*(TILE*0.05*size),
-      vy: backy*(TILE*0.09*size) + (Math.random()*2-1)*(TILE*0.05*size) - (TILE*0.02*size),
-      t: 0,
-      ttl: 0.75 + Math.random()*0.45,
-      r0: (7 + Math.random()*6) * size,
-      grow: (14 + Math.random()*14) * size,
-      a0: 0.05 + Math.random()*0.05
-    });
-  }
-}
-
-function spawnSmokeHaze(wx, wy, size=1){
-  const spread = TILE * 1.15 * size;
-  const ang = Math.random() * Math.PI * 2;
-  const rad = Math.sqrt(Math.random()) * spread;
-
-  const x = wx + Math.cos(ang) * rad;
-  const y = wy + Math.sin(ang) * rad;
-
-  smokePuffs.push({
-    x, y,
-    vx: (Math.random()*2-1) * (TILE * 0.10 * size) + Math.cos(ang)*(TILE*0.06*size),
-    vy: (Math.random()*2-1) * (TILE * 0.10 * size) + Math.sin(ang)*(TILE*0.06*size),
-    t: 0,
-    ttl: 4.2 + Math.random()*2.2,
-    r0: (34 + Math.random()*24) * size,
-    grow: (70 + Math.random()*70) * size,
-    a0: 0.06 + Math.random()*0.05
-  });
-}
-
-function updateSmoke(dt){
-  // Waves
-  for (let i=smokeWaves.length-1;i>=0;i--){
-    const w = smokeWaves[i];
-    w.t += dt;
-    if (w.t >= w.ttl) smokeWaves.splice(i,1);
-  }
-
-  // Emitters
-  for (let i=smokeEmitters.length-1;i>=0;i--){
-    const e = smokeEmitters[i];
-    e.t += dt;
-    e.acc += dt;
-
-    const rate = 18 * e.size;
-    const step = 1 / Math.max(6, rate);
-
-    while (e.acc >= step){
-      e.acc -= step;
-      spawnSmokePuff(e.x, e.y, e.size);
-    }
-    if (e.t >= e.ttl) smokeEmitters.splice(i,1);
-  }
-
-  // Puffs
-  for (let i=smokePuffs.length-1;i>=0;i--){
-    const p = smokePuffs[i];
-    p.t += dt;
-    if (p.t >= p.ttl){ smokePuffs.splice(i,1); continue; }
-
-    p.x += p.vx * dt;
-    p.y += p.vy * dt;
-
-    const damp = Math.pow(0.992, dt*60);
-    p.vx *= damp;
-    p.vy *= damp;
-  }
-
-  // Dust puffs
-  for (let i=dustPuffs.length-1;i>=0;i--){
-    const p = dustPuffs[i];
-    p.t += dt;
-    if (p.t >= p.ttl){ dustPuffs.splice(i,1); continue; }
-    p.x += p.vx * dt;
-    p.y += p.vy * dt;
-    const damp = Math.pow(0.975, dt*60);
-    p.vx *= damp;
-    p.vy *= damp;
-  }
-
-  // Damage smoke puffs
-  for (let i=dmgSmokePuffs.length-1;i>=0;i--){
-    const p = dmgSmokePuffs[i];
-    p.t += dt;
-    if (p.t >= p.ttl){ dmgSmokePuffs.splice(i,1); continue; }
-    p.x += p.vx * dt;
-    p.y += p.vy * dt;
-    const damp = Math.pow(0.988, dt*60);
-    p.vx *= damp;
-    p.vy *= damp;
-  }
-}
-
-    function updateBarracksAnims(dt){
-      const fps = 12;
-      const frameDur = 1 / fps;
-
-      for (const b of buildings) {
-        if (!b.alive) continue;
-        if (b.kind !== "barracks") continue;
-        if (!b._anim) b._anim = { phase: "idle", t: 0 };
-
-        b._anim.t += dt;
-
-        if (b._anim.phase === "construct" && BARRACKS_ATLAS.construct) {
-          const frames = _sortedFrames(Array.from(BARRACKS_ATLAS.construct.frames.keys()), "barrack_const_");
-          const idx = Math.floor(b._anim.t / frameDur);
-          if (frames.length && idx >= frames.length) {
-            b._anim.phase = "idle";
-            b._anim.t = 0;
-          }
-        }
-
-        if (b._anim.phase === "sell" && BARRACKS_ATLAS.construct) {
-          const frames = _sortedFrames(Array.from(BARRACKS_ATLAS.construct.frames.keys()), "barrack_const_");
-          const idx = Math.floor(b._anim.t / frameDur);
-          if (frames.length && idx >= frames.length) b.alive = false;
-        }
-      }
-
-      // remove sold barracks
-      for (let i = buildings.length - 1; i >= 0; i--) {
-        const b = buildings[i];
-        if (b.kind === "barracks" && !b.alive) buildings.splice(i,1);
-      }
-
-      // destruction ghost fx: 37 frames
-      for (let i = barracksDeathFxs.length - 1; i >= 0; i--) {
-        const fx = barracksDeathFxs[i];
-        fx._anim.t += dt;
-        const idx = Math.floor(fx._anim.t / frameDur);
-        if (idx >= 37) barracksDeathFxs.splice(i,1);
-      }
-    }
-
-
-
-function drawSmokeWaves(ctx){
-  if (!smokeWaves.length) return;
-  const z = (typeof cam !== "undefined" && cam && typeof cam.zoom==="number") ? cam.zoom : 1;
-
-  // deterministic-ish per-wave rand
-  const pr = (seed, n)=>{
-    const x = Math.sin((seed + n) * 12.9898) * 43758.5453;
-    return x - Math.floor(x);
-  };
-
-  for (const w of smokeWaves){
-    const p = worldToScreen(w.x, w.y);
-    const t = clamp(w.t / Math.max(0.001, w.ttl), 0, 1);
-    const ease = 1 - Math.pow(1 - t, 4); // fast -> slow
-
-    // 너무 커지지 않게(건물 크기 대비)
-    const R0 = (TILE * 0.10) * z;
-    const R1 = (TILE * 1.05 * w.size) * z;
-    const R  = R0 + (R1 - R0) * ease;
-
-    // "잔류연기처럼" 흐릿: 라인X, 그라데이션 필
-    const aBase = 0.32 * Math.pow(1 - t, 0.60);
-
-    const squash = (w.squash ?? 0.62);
-    const th = (TILE * 0.34 * w.size) * z; // 부드러운 두께
-
-    ctx.save();
-    ctx.globalCompositeOperation = "source-over";
-
-    // ellipse gradient: scale Y so radial gradient becomes flattened in screen space
-    ctx.translate(p.x, p.y);
-    ctx.scale(1, squash);
-
-    // 3겹 연무 레이어(살짝 흔들리는)
-    for (let k=0;k<3;k++){
-      const jx = (pr(w.seed, 10+k)-0.5) * (TILE * 0.09 * w.size) * z;
-      const jy = (pr(w.seed, 20+k)-0.5) * (TILE * 0.09 * w.size) * z;
-      const rr = 1 + (pr(w.seed, 30+k)-0.5) * 0.07;
-
-      const a = aBase * (0.66 - k*0.16);
-
-      // 깨끗한 라인 방지용 블러
-      ctx.shadowColor = "rgba(0,0,0,0.22)";
-      ctx.shadowBlur  = 28 * z;
-
-      const inner = Math.max(0, (R*rr) - th*0.55);
-      const outer = (R*rr) + th*1.45;
-
-      const g = ctx.createRadialGradient(jx, jy, inner, jx, jy, outer);
-      g.addColorStop(0.00, "rgba(0,0,0,0)");
-      g.addColorStop(0.42, `rgba(110,110,110,${a*0.10})`);
-      g.addColorStop(0.60, `rgba(85,85,85,${a*0.22})`);
-      g.addColorStop(0.80, `rgba(70,70,70,${a*0.18})`);
-      g.addColorStop(1.00, "rgba(0,0,0,0)");
-
-      ctx.fillStyle = g;
-      ctx.beginPath();
-      ctx.arc(jx, jy, outer, 0, Math.PI*2);
-      ctx.fill();
-    }
-
-    // 링 가장자리의 옅은 연무 덩이(연기 느낌)
-    ctx.shadowBlur = 18 * z;
-    for (let i=0;i<12;i++){
-      const ang = (i/12) * (Math.PI*2) + pr(w.seed, 100+i)*0.70;
-      const rad = R * (0.86 + pr(w.seed, 130+i)*0.24);
-
-      const x = Math.cos(ang) * rad;
-      const y = Math.sin(ang) * rad;
-
-      const r = (TILE * (0.10 + pr(w.seed, 160+i)*0.12) * w.size) * z;
-      const a = aBase * 0.14 * (0.6 + pr(w.seed, 190+i)*0.9);
-
-      const g = ctx.createRadialGradient(x, y, 0, x, y, r*2.4);
-      g.addColorStop(0.0, `rgba(150,150,150,${a*0.20})`);
-      g.addColorStop(0.5, `rgba(90,90,90,${a*0.18})`);
-      g.addColorStop(1.0, "rgba(0,0,0,0)");
-
-      ctx.fillStyle = g;
-      ctx.beginPath();
-      ctx.arc(x, y, r*2.4, 0, Math.PI*2);
-      ctx.fill();
-    }
-
-    ctx.restore();
-  }
-}
-
-  function drawSmokePuffs(ctx){
-    if (!smokePuffs.length) return;
-    const z = (typeof cam !== "undefined" && cam && typeof cam.zoom==="number") ? cam.zoom : 1;
-
-    for (const s of smokePuffs){
-      const p = worldToScreen(s.x, s.y);
-      const t = clamp(s.t / Math.max(0.001, s.ttl), 0, 1);
-
-      const r = (s.r0 + s.grow * t) * z;
-
-      // fade out slowly
-      const a = s.a0 * Math.pow(1 - t, 0.65);
-
-      ctx.save();
-      ctx.globalCompositeOperation = "source-over";
-      ctx.globalAlpha = a;
-
-      const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, r);
-      g.addColorStop(0.0, "rgba(220,220,220,0.22)");
-      g.addColorStop(0.35, "rgba(130,130,130,0.20)");
-      g.addColorStop(1.0, "rgba(50,50,50,0.0)");
-      ctx.fillStyle = g;
-
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, r, 0, Math.PI*2);
-      ctx.fill();
-
-      ctx.restore();
-    }
-  }
-
-
+/* [moved to fx_smoke.js] */
 
 // ===== Blood particles (infantry death) =====
 // - Uses the same "soft radial particle" style as smoke puffs, but tinted red/brown.
@@ -5402,40 +4836,13 @@ function addBloodBurst(wx, wy, size=1){
 }
 
 
-function drawDustPuffs(ctx){
-  if (!dustPuffs.length) return;
-  const z = (typeof cam !== "undefined" && cam && typeof cam.zoom==="number") ? cam.zoom : 1;
-  ctx.save();
-  for (const p of dustPuffs){
-    const k = p.t / p.ttl;
-    const a = (1-k) * p.a0;
-    const r = (p.r0 + p.grow*k) * z;
-    const s = worldToScreen(p.x, p.y);
-    // sandy haze
-    ctx.fillStyle = `rgba(220, 205, 175, ${a})`;
-    ctx.beginPath();
-    ctx.ellipse(s.x, s.y, r*1.45, r*1.00, 0, 0, Math.PI*2);
-    ctx.fill();
-  }
-  ctx.restore();
-}
 
-function drawDmgSmokePuffs(ctx){
-  if (!dmgSmokePuffs.length) return;
-  const z = (typeof cam !== "undefined" && cam && typeof cam.zoom==="number") ? cam.zoom : 1;
-  ctx.save();
-  for (const p of dmgSmokePuffs){
-    const k = p.t / p.ttl;
-    const a = (1-k) * p.a0;
-    const r = (p.r0 + p.grow*k) * z;
-    const s = worldToScreen(p.x, p.y);
-    ctx.fillStyle = `rgba(160, 160, 160, ${a})`;
-    ctx.beginPath();
-    ctx.ellipse(s.x, s.y, r*1.05, r*0.95, 0, 0, Math.PI*2);
-    ctx.fill();
-  }
-  ctx.restore();
-}
+/* [moved to fx_smoke.js] */
+
+
+
+/* [moved to fx_smoke.js] */
+
 
 function updateBlood(dt){
   // Stains
@@ -6036,9 +5443,9 @@ const tx=tileOfX(u.x), ty=tileOfY(u.y);
             if (hit && (BUILD[hit.kind] || hit.kind==="tank")) dmg *= 1.15;
           }
 
-          if (hit) applyDamage(hit, dmg, bl.ownerId, bl.team);
           }
 
+          if (hit) applyDamage(hit, dmg, bl.ownerId, bl.team);
 
           // impact FX: ellipse dodge + sparks
           flashes.push({x: bl.x, y: bl.y, r: 48 + Math.random()*10, life: 0.10, delay: 0});
@@ -6879,25 +6286,20 @@ if (q.paused && !debugFastProd){
   }
 
 function sellBuilding(b){
-    if (!b || !b.alive) return;
+    if (!b || !b.alive || b.civ) return;
+    const refund = Math.floor((COST[b.kind]||0) * 0.5);
+    if (b.team===TEAM.PLAYER) state.player.money += refund;
+    else state.enemy.money += refund;
 
-    // Barracks: play reverse construction anim before removing
-    if (b.kind === "barracks" && BARRACKS_ATLAS.construct) {
-      if (!b._anim || b._anim.phase !== "sell") {
-        money[b.team] += Math.floor((BUILD[b.kind]?.cost || 0) * 0.5);
-        setOccRect(b.tx, b.ty, b.tw, b.th, 0); // free immediately
-        b._selling = true;
-        b._anim = { phase: "sell", t: 0 };
-      }
-      return;
-    }
+    // Selling evacuates units at full HP (RA2-ish flavor).
+    spawnEvacUnitsFromBuilding(b, false);
 
-    money[b.team] += Math.floor((BUILD[b.kind]?.cost||0)*0.5);
-    setOccRect(b.tx,b.ty,b.tw,b.th,0);
     b.alive=false;
-    const idx = buildings.indexOf(b);
-    if (idx>=0) buildings.splice(idx,1);
-}
+    state.selection.delete(b.id);
+    setBuildingOcc(b,0);
+    recomputePower();
+    checkElimination();
+  }
 
   function captureBuilding(engineer, b){
     if (b.civ) return;
@@ -8519,9 +7921,7 @@ if (needMove){
       if (!u.alive || u.inTransport) continue;
 
       // Dust trail for vehicles (tank/ifv/etc) while moving
-      const _uDef = (typeof UNIT!=="undefined" && UNIT) ? UNIT[u.kind] : null;
-      const _isVeh = (u.cls==="veh") || (_uDef && _uDef.cls==="veh");
-      if (_isVeh){
+      if (u.cls==="veh"){
         // Velocity estimate from actual displacement (movement code may not maintain u.vx/u.vy consistently)
         let vx = 0, vy = 0;
         if (u._fxLastX!=null && u._fxLastY!=null && dt>0){
@@ -8535,36 +7935,21 @@ if (needMove){
         const spd = Math.hypot(vx, vy);
         if (spd > 6){
           u._dustAcc = (u._dustAcc || 0) + dt;
-          const interval = 0.04;
+          const interval = 0.06;
           if (u._dustAcc >= interval){
             u._dustAcc = 0;
-
             const backx = -vx / spd, backy = -vy / spd;
-
-            // Track smoke should come from the *rear* of the hull (visible behind the sprite).
-            const backOff = TILE * 0.42;
-
-            // Alternate left/right to feel like two tracks.
-            u._dustSide = (u._dustSide || 0) ^ 1;
-            const sideSign = u._dustSide ? 1 : -1;
-
-            const px = -backy, py = backx; // perpendicular unit (since backx/backy is unit)
-            const sideOff = TILE * 0.16 * sideSign;
-
-            const wx = u.x + backx * backOff + px * sideOff;
-            const wy = u.y + backy * backOff + py * sideOff;
-
-            // Subtle track haze (uses the same soft gradient style as building smoke)
-            spawnTrailPuff(wx, wy, vx, vy, 0.85);
-            spawnTrailPuff(wx + px*(TILE*0.10), wy + py*(TILE*0.10), vx, vy, 0.65);
-}
+            const wx = u.x + backx * (TILE * 0.10);
+            const wy = u.y + backy * (TILE * 0.10);
+            window.PO?.fxSmoke?.spawnDustPuff?.(wx, wy, vx, vy, 1.0);
+          }
         } else {
           u._dustAcc = 0;
         }
 
         // Damage smoke when HP is in yellow/red (spawned at the time, does NOT follow unit)
         const hpPct = (u.hpMax>0) ? (u.hp / u.hpMax) : 1;
-        if (hpPct < 0.50 && (UNIT[u.kind] && UNIT[u.kind].cls==="veh")){
+        if (hpPct < 0.50 && u.kind !== "harvester"){
           u._dmgSmokeAcc = (u._dmgSmokeAcc || 0) + dt;
           const interval = (hpPct < 0.20) ? 0.08 : 0.14;
           if (u._dmgSmokeAcc >= interval){
@@ -8572,7 +7957,7 @@ if (needMove){
             // Rough turret/top origin (good enough visually, and stays world-fixed)
             const wx = u.x;
             const wy = u.y - (TILE * 0.06);
-            spawnDmgSmokePuff(wx, wy, 1.0);
+            window.PO?.fxSmoke?.spawnDmgSmokePuff?.(wx, wy, 1.0);
           }
         } else {
           u._dmgSmokeAcc = 0;
@@ -11472,7 +10857,6 @@ function draw(){
 
     const drawables=[];
     for (const b of buildings) if (b.alive) drawables.push(b);
-      for (const fx of barracksDeathFxs) drawables.push(fx);
     for (const u of units) if (u.alive) drawables.push(u);
     // Depth-sorted infantry death FX (so buildings can occlude it)
     for (let i=0;i<infDeathFxs.length;i++){
@@ -11898,15 +11282,15 @@ ctx.fill();
     drawExplosions(ctx);
 
     // Smoke ring (ground layer) should render *below* sprite FX like exp1
-    drawSmokeWaves(ctx);
+    window.PO?.fxSmoke?.drawWaves?.(ctx);
 
     // HQ sprite explosion (exp1) above the ground smoke ring
-    drawDustPuffs(ctx);
+    window.PO?.fxSmoke?.drawDust?.(ctx);
     drawExp1Fxs(ctx);
 
     // Smoke plume (puffs) can sit above the explosion a bit
-    drawSmokePuffs(ctx);
-    drawDmgSmokePuffs(ctx);
+    window.PO?.fxSmoke?.drawPuffs?.(ctx);
+    window.PO?.fxSmoke?.drawDmg?.(ctx);
 // Building fire FX (critical HP)
     for (const f of fires){
       const p = worldToScreen(f.x, f.y);
@@ -12967,8 +12351,7 @@ function sanityCheck(){
       state.t += dt;
       updateCamShake(dt);
       updateExp1Fxs(dt);
-      updateSmoke(dt);
-      updateBarracksAnims(dt);
+      window.PO?.fxSmoke?.update?.(dt);
       updateBlood(dt);
 
 
@@ -13117,7 +12500,7 @@ function pushOrderFx(unitId, kind, x, y, targetId=null, color=null){
   });
 }
 
-// window.setPathTo (removed dead statement)
+window.setPathTo
 
 window.setPathTo = setPathTo;
 window.findPath = findPath;
