@@ -1,6 +1,8 @@
 /* FIX: ensure global impacts array exists (ESM/legacy bridge) */
 globalThis.__impacts = globalThis.__impacts || [];
 var __impacts = globalThis.__impacts;
+var fires = (typeof fires !== 'undefined' && fires) ? fires : [];
+try { if (typeof window !== 'undefined') window.fires = fires; } catch(e) {}
 
 /* bullet_system.js
    - Extracted from game.js (tickBullets/applyDamage/applyAreaDamageAt)
