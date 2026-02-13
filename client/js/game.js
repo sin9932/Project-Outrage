@@ -3373,13 +3373,10 @@ if (u.cls==="inf"){
   }
 
   if (slot<0){
-    // Tile is temporarily full: don't oscillate, just queue behind.
+    // Tile is temporarily full: queue behind (no bypass, no jitter).
     u.vx = 0; u.vy = 0;
     u.queueWaitT = (u.queueWaitT||0) + dt;
-
-    // If we have been waiting too long, allow bypass logic below to kick in.
-    // But for short waits, returning here prevents "부들부들".
-    if (u.queueWaitT < 0.35) return false;
+    return false;
   } else {
     u.queueWaitT = 0;
     const sp = tileToWorldSubslot(p.tx, p.ty, slot);
