@@ -1,5 +1,5 @@
 ;(function(){
-  window.__RA2_PATCH_VERSION__="v7";
+  window.__RA2_PATCH_VERSION__="v8";
 
   // Debug/validation mode: add ?debug=1 to URL
   const DEV_VALIDATE = /(?:\?|&)debug=1(?:&|$)/.test(location.search);
@@ -494,6 +494,24 @@ function fitMini() {
   const tileOfX = (x)=> clamp(Math.floor(x/TILE), 0, MAP_W-1);
   const tileOfY = (y)=> clamp(Math.floor(y/TILE), 0, MAP_H-1);
 
+
+
+// RA2 PATCH V8: stable tile for infantry (prevents boundary flip jitter)
+function stableTile(u){
+  const tx = tileOfX(u.x), ty = tileOfY(u.y);
+  const cls = (UNIT[u.kind] && UNIT[u.kind].cls) ? UNIT[u.kind].cls : "";
+  if (cls!=="inf") return {tx,ty};
+  if (u._stTx==null){ u._stTx=tx; u._stTy=ty; return {tx,ty}; }
+  // keep previous tile while still close to its center (hysteresis)
+  const c = tileToWorldCenter(u._stTx, u._stTy);
+  const dx = u.x - c.x, dy = u.y - c.y;
+  const keepR = TILE*0.48;
+  if ((dx*dx + dy*dy) < keepR*keepR){
+    return {tx:u._stTx, ty:u._stTy};
+  }
+  u._stTx = tx; u._stTy = ty;
+  return {tx,ty};
+}
 
   function genMap() {
     terrain.fill(0);
@@ -2927,25 +2945,6 @@ function canEnterTile(u, tx, ty){
     return occAll[i] < 2;
   }
 
-// RA2 PATCH V6: goal-tile check (ignore reservations; allow planning even if current units occupy)
-function canEnterGoalTile(u, tx, ty){
-  if (!inMap(tx,ty)) return false;
-  if (!isWalkableTile(tx,ty)) return false;
-  if (isSqueezedTile(tx,ty)) return false;
-  const c = tileToWorldCenter(tx,ty);
-  if (isBlockedWorldPoint(u, c.x, c.y)) return false; // buildings/footprints
-  const i = idx(tx,ty);
-  const cls = (UNIT[u.kind] && UNIT[u.kind].cls) ? UNIT[u.kind].cls : "";
-  if (cls==="veh") return occAll[i] < 1;
-  if (cls==="inf") {
-    if (occVeh[i] > 0) return false;
-    if (occTeam[i]!==0 && occTeam[i]!==u.team) return false;
-    return occInf[i] < INF_SLOT_MAX;
-  }
-  return occAll[i] < 2;
-}
-
-
   function findNearestFreePoint(wx, wy, u, r=3){
     const cx=tileOfX(wx), cy=tileOfY(wy);
     let bestX=wx, bestY=wy, bestD=1e18, found=false;
@@ -3301,7 +3300,7 @@ const ni=ny*W+nx;
     const ot = u.order && u.order.type;
     if (ot!=="idle" && ot!=="guard") return;
 
-    const tx = tileOfX(u.x), ty = tileOfY(u.y);
+    const __st = stableTile(u); const tx = __st.tx, ty = __st.ty;
     if (!inMap(tx,ty)) return;
 
     // Ensure we have a valid subSlot assigned (filled in clearOcc()).
@@ -3479,35 +3478,38 @@ function followPath(u, dt){
     }
 
 
-    const curTileTx=tileOfX(u.x), curTileTy=tileOfY(u.y);
+    const __stCur = stableTile(u); const curTileTx=__stCur.tx, curTileTy=__stCur.ty;
     if (u.pathI>0){
       const nextTile = u.path[u.pathI];
       if (!(nextTile.tx===curTileTx && nextTile.ty===curTileTy)){
         // Try to reserve the next tile to avoid head-on deadlocks.
-        if (!reserveTile(u, nextTile.tx, nextTile.ty) || isReservedByOther(u, nextTile.tx, nextTile.ty)){
-          // Do NOT pause ("dance") when crowded: try a small bypass step, otherwise keep moving.
-          const bp = findBypassStep(u, curTileTx, curTileTy, nextTile.tx, nextTile.ty);
-          if (bp){
-            u.path.splice(u.pathI, 0, {tx:bp.tx, ty:bp.ty});
+if (!reserveTile(u, nextTile.tx, nextTile.ty) || isReservedByOther(u, nextTile.tx, nextTile.ty)){
+  // Try a small bypass step first.
+  const bp = findBypassStep(u, curTileTx, curTileTy, nextTile.tx, nextTile.ty);
+  if (bp){
+    u.path.splice(u.pathI, 0, {tx:bp.tx, ty:bp.ty});
+    return true;
+  }
+
+  // RA2 PATCH V8: infantry must QUEUE (wait+settle) instead of "compression dancing"
+  const cls = (UNIT[u.kind] && UNIT[u.kind].cls) ? UNIT[u.kind].cls : "";
+  if (cls==="inf"){
+    u.blockT = (u.blockT||0) + dt;
+    u.vx = 0; u.vy = 0;
+    settleInfantryToSubslot(u, dt);
+    return true;
+  }
+  // vehicles can still try to squeeze a bit (keeps tanks from stalling too easily)
+}
+        if (!canEnterTile(u, nextTile.tx, nextTile.ty)){
+          // RA2 PATCH V8: blocked next tile -> infantry queue/settle (no vibration)
+          const cls2 = (UNIT[u.kind] && UNIT[u.kind].cls) ? UNIT[u.kind].cls : "";
+          if (cls2==="inf"){
+            u.blockT = (u.blockT||0) + dt;
+            u.vx = 0; u.vy = 0;
+            settleInfantryToSubslot(u, dt);
             return true;
           }
-          // RA2 PATCH V6: blocked -> WAIT (queue) instead of compression movement
-          u.blockT = (u.blockT||0) + dt; u.vx=0; u.vy=0; return true;
-        }
-        if (!canEnterTile(u, nextTile.tx, nextTile.ty)){
-
-if (u.cls==="inf"){
-  // RA2 PATCH V7: infantry in crowd should QUEUE at its sub-slot (no steering jitter)
-  u.blockT = (u.blockT||0) + dt;
-  settleInfantryToSubslot(u, dt);
-  // light repath in case the front clears into a better lane
-  if ((u.repathCdInf||0) > 0) u.repathCdInf -= dt;
-  if (u.blockT > 0.28 && (u.repathCdInf||0) <= 0 && u.order && u.order.tx!=null && u.order.ty!=null){
-    u.repathCdInf = 0.45;
-    try { setPathTo(u, (u.order.tx+0.5)*TILE, (u.order.ty+0.5)*TILE); } catch(e){}
-  }
-  return true;
-}
 
           // If the final approach is blocked (crowding), accept arrival near the goal to avoid infinite wiggle.
           if (u.order && (u.order.type==="move" || u.order.type==="attackmove") && u.pathI >= (u.path.length-1)){
@@ -3619,19 +3621,6 @@ const nx=u.x+ax*step, ny=u.y+ay*step;
     if (!(ntx===curTx && nty===curTy)){
       const blockedNext = (!canEnterTile(u, ntx, nty) || isReservedByOther(u, ntx, nty));
       if (blockedNext){
-if (u.cls==="inf"){
-  // RA2 PATCH V7: blockedNext infantry queue (prevents boundary flip + shake)
-  u.blockT = (u.blockT||0) + dt;
-  settleInfantryToSubslot(u, dt);
-  if ((u.repathCdInf||0) > 0) u.repathCdInf -= dt;
-  if (u.blockT > 0.22 && (u.repathCdInf||0) <= 0 && u.order && u.order.tx!=null && u.order.ty!=null){
-    u.repathCdInf = 0.45;
-    try { setPathTo(u, (u.order.tx+0.5)*TILE, (u.order.ty+0.5)*TILE); } catch(e){}
-  }
-  u.yieldCd = Math.max(u.yieldCd||0, 0.10);
-  return true;
-}
-
         u.blockT = (u.blockT||0) + dt;
         if ((u.avoidCd||0) <= 0){
           const bypass = findBypassStep(u, curTx, curTy, ntx, nty);
@@ -6120,6 +6109,8 @@ const tx=tileOfX(u.x), ty=tileOfY(u.y);
 
   const isAnchored = (u)=>{
     if (!u || !u.alive) return false;
+    // RA2 PATCH V8: treat blocked/queued units as anchored (prevents repulsion jitter)
+    if ((u.blockT||0)>0 || (u.finalBlockT||0)>0 || (u.__ra2_wait||0)>0) return true;
     if (u.path && u.path.length && u.pathI < u.path.length) return false;
     if (u.target!=null){
     const tt = getEntityById(u.target);
@@ -6899,7 +6890,7 @@ function stampCmd(e, type, x, y, targetId=null){
         if (!inMap(tx,ty)) continue;
         const key = tx+"," + ty;
         if (used.has(key)) continue;
-        if (!canEnterGoalTile(e, tx, ty)) continue;
+        if (!canEnterTile(e, tx, ty)) continue;
         const wpC = tileToWorldCenter(tx,ty);
         // score: distance to the actual click + tiny ring penalty (prefer closer rings)
         const dxw = (wpC.x - x), dyw = (wpC.y - y);
@@ -6914,8 +6905,14 @@ function stampCmd(e, type, x, y, targetId=null){
         // Early exit for perfect hit
         if (score < 1) break;
       }
-      // RA2 PATCH V6: don't reserve destination here (it causes mass fallback + clumping)
-      if (chosen){ used.add(chosen.tx+","+chosen.ty); }
+      // reserve chosen now (so other units won't pick it)
+      if (chosen){
+        if (!reserveTile(e, chosen.tx, chosen.ty)){
+          chosen=null;
+        } else {
+          used.add(chosen.tx+","+chosen.ty);
+        }
+      }
       // if nothing free, fall back to base tile center
       if (!chosen) chosen={tx:baseTx, ty:baseTy};
 
