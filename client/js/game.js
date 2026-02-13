@@ -1764,8 +1764,6 @@ async function _fetchJsonWithFallback(relUrl){
   ;(async()=>{
     try{
       const j = await _fetchJsonWithFallback(EXP1_JSON);
-      if (!r.ok) throw new Error("HTTP "+r.status);
-      const j = await r.json();
       EXP1_FRAMES = _parseAtlasFrames(j);
       if (!EXP1_FRAMES || !EXP1_FRAMES.length){
         console.warn("[EXP1] frames parse failed");
