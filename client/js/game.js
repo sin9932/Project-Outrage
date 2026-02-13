@@ -282,9 +282,7 @@ function fitMini() {
   }
 
   const TILE = 110;
-  
-  window.__RA2_PATCH_VERSION__="v19";
-const GAME_SPEED = 1.30;
+  const GAME_SPEED = 1.30;
   const BUILD_PROD_MULT = 1.30; // additional +30% for building & unit production speed
   // Enemy AI cheats (difficulty)
   const ENEMY_PROD_SPEED = 1.65;
@@ -2735,10 +2733,6 @@ const infSlotNext1 = new Uint8Array(MAP_W*MAP_H);
 const infSlotMask0 = new Uint8Array(MAP_W*MAP_H);
 const infSlotMask1 = new Uint8Array(MAP_W*MAP_H);
 
-
-// RA2 PATCH V19: per-tile 2x2 infantry slot owners (0=free, else unitId+1)
-const infSlotOwner0 = new Int32Array(MAP_W*MAP_H*4);
-const infSlotOwner1 = new Int32Array(MAP_W*MAP_H*4);
 // Sub-slot offsets are defined in ISO space for correct diamond placement.
 const INF_SLOT_ISO = Math.round(TILE * 0.18); // tweakable
 const INF_SLOT_ISO_OFF = [
@@ -2754,92 +2748,6 @@ function tileToWorldSubslot(tx, ty, slot){
   const w = isoToWorld(iso.x + o.ix, iso.y + o.iy);
   return w;
 }
-
-// RA2 PATCH V17: deterministic 2x2 sub-cell ownership (kills overlap -> kills jitter)
-function _slotOwnerArr(team){
-  return (team===0 ? infSlotOwner0 : infSlotOwner1);
-}
-function _slotMaskArr(team){
-  return team===0 ? infSlotMask0 : infSlotMask1;
-}
-function _slotIndex(ii, ss){ return ii*4 + (ss & 3); }
-
-function releaseInfSlot(u){
-  if (!u || u._slotII==null || u.subSlot==null) return;
-  const arr = _slotOwnerArr(u.team|0);
-  const si = _slotIndex(u._slotII, u.subSlot);
-  const tag = (u.id|0) + 1;
-  if (arr[si] === tag) arr[si] = 0;
-  u._slotII = null;
-}
-
-function claimInfSlot(u, tx, ty, preferSS){
-  const ii = idx(tx,ty);
-  const arr = _slotOwnerArr(u.team|0);
-  const tag = (u.id|0) + 1;
-
-  // keep existing if already ours
-  if (u._slotII===ii && u.subSlot!=null){
-    const si0 = _slotIndex(ii, u.subSlot);
-    if (arr[si0] === tag) return u.subSlot;
-  }
-
-  // leaving previous tile
-  if (u._slotII!=null && u._slotII!==ii){
-    releaseInfSlot(u);
-  }
-
-  // try preferred
-  if (preferSS!=null){
-    const si = _slotIndex(ii, preferSS);
-    if (arr[si]===0 || arr[si]===tag){
-      arr[si]=tag;
-      u._slotII = ii;
-      u.subSlot = preferSS & 3;
-      u.subSlotTx = tx; u.subSlotTy = ty;
-      return u.subSlot;
-    }
-  }
-
-  // pick first free (or ours)
-  for (let ss=0; ss<4; ss++){
-    const si = _slotIndex(ii, ss);
-    if (arr[si]===0 || arr[si]===tag){
-      arr[si]=tag;
-      u._slotII = ii;
-      u.subSlot = ss;
-      u.subSlotTx = tx; u.subSlotTy = ty;
-      return ss;
-    }
-  }
-  return null; // full
-}
-
-function applyInfSlotCorrection(u, dt){
-  if (!u || !UNIT[u.kind] || UNIT[u.kind].cls!=="inf") return;
-  const tx = tileOfX(u.x), ty = tileOfY(u.y);
-  if (!inMap(tx,ty)) return;
-
-  // claim a slot in current tile (keeps everyone separated)
-  const ss = claimInfSlot(u, tx, ty, u.subSlot);
-  if (ss==null) return;
-
-  const wp = tileToWorldSubslot(tx,ty,ss);
-  // spring-like correction (strong enough to defeat micro-jitter, weak enough to not teleport)
-  const dx = wp.x - u.x;
-  const dy = wp.y - u.y;
-  const maxStep = 260 * dt;
-  const len = Math.hypot(dx,dy) || 1;
-  const step = Math.min(maxStep, len);
-  u.x += dx/len * step;
-  u.y += dy/len * step;
-
-  // close enough => snap (prevents endless micro oscillation)
-  if (len < 0.75){
-    u.x = wp.x; u.y = wp.y;
-  }
-}
-
   function clearOcc(dt){
     occAll.fill(0);
     occInf.fill(0);
@@ -2851,9 +2759,7 @@ function applyInfSlotCorrection(u, dt){
     infSlotNext1.fill(0);
     infSlotMask0.fill(0);
     infSlotMask1.fill(0);
-        infSlotOwner0.fill(0);
-    infSlotOwner1.fill(0);
-// Rebuild reservations from units (kept in u.resTx/u.resTy)
+    // Rebuild reservations from units (kept in u.resTx/u.resTy)
     for (const u of units){
       if (!u.alive) continue;
       if (u.resTx!=null && u.resTy!=null && inMap(u.resTx,u.resTy)){
@@ -3437,7 +3343,50 @@ function followPath(u, dt){
     if (u.yieldCd && u.yieldCd>0){ u.yieldCd -= dt; if (u.yieldCd>0) return false; u.yieldCd=0; }
 
     const p = u.path[u.pathI];
-    const wx = (p.tx+0.5)*TILE, wy=(p.ty+0.5)*TILE;
+    // Waypoint world target
+let wx = (p.tx+0.5)*TILE, wy=(p.ty+0.5)*TILE;
+
+// RA2-feel queueing for infantry:
+// Instead of having everyone steer to tile center (then push/correct/jitter),
+// pick a temporary sub-slot for the NEXT waypoint tile. If no slot is available, WAIT.
+if (u.cls==="inf"){
+  const ni = idx(p.tx,p.ty);
+  let mask = (u.team===0) ? infSlotMask0[ni] : infSlotMask1[ni];
+
+  // keep a short-lived nav slot lock to avoid per-frame slot thrash
+  if (u.navSlotLockT && u.navSlotLockT>0){
+    u.navSlotLockT -= dt;
+    if (u.navSlotLockT<=0){ u.navSlotLockT=0; }
+  }
+
+  let slot = -1;
+  if (u.navSlot!=null && u.navSlotTx===p.tx && u.navSlotTy===p.ty && u.navSlotLockT>0){
+    slot = (u.navSlot & 3);
+  } else {
+    for (let s=0; s<4; s++){
+      if (((mask>>s)&1)===0){ slot = s; break; }
+    }
+    if (slot>=0){
+      u.navSlot = slot; u.navSlotTx = p.tx; u.navSlotTy = p.ty;
+      u.navSlotLockT = 0.25; // seconds
+    }
+  }
+
+  if (slot<0){
+    // Tile is temporarily full: don't oscillate, just queue behind.
+    u.vx = 0; u.vy = 0;
+    u.queueWaitT = (u.queueWaitT||0) + dt;
+
+    // If we have been waiting too long, allow bypass logic below to kick in.
+    // But for short waits, returning here prevents "부들부들".
+    if (u.queueWaitT < 0.35) return false;
+  } else {
+    u.queueWaitT = 0;
+    const sp = tileToWorldSubslot(p.tx, p.ty, slot);
+    wx = sp.x; wy = sp.y;
+  }
+}
+
 
     // HARD HOLD: if infantry is already locked to its sub-slot in this tile, don't keep steering.
     if (u.cls==="inf" && u.holdPos && tileOfX(u.x)===p.tx && tileOfY(u.y)===p.ty) return false;
@@ -3519,9 +3468,11 @@ function followPath(u, dt){
     if (d < 2 || (u.pathI >= (u.path.length-1) && d < 12)){
       // Reduce "tile-by-tile fidget": only hard-snap on the FINAL node.
       if (u.pathI >= (u.path.length-1)){
-        if (u.cls==="inf" && u.subSlot!=null){
-          const sp = tileToWorldSubslot(p.tx, p.ty, u.subSlot);
-          u.x = sp.x; u.y = sp.y;
+        if (u.cls==="inf"){
+  // Prefer the destination slot assigned at command time (prevents "everyone rushes tile center" jitter).
+  let slot = (u.order && u.order.tx===p.tx && u.order.ty===p.ty && u.order.subSlot!=null) ? (u.order.subSlot|0) : (u.subSlot|0);
+  const sp = tileToWorldSubslot(p.tx, p.ty, slot);
+  u.x = sp.x; u.y = sp.y;
           u.vx = 0; u.vy = 0;
           u.holdPos = true;
         } else {
@@ -6230,15 +6181,8 @@ const tx=tileOfX(u.x), ty=tileOfY(u.y);
               const vtx = (v.x / TILE) | 0, vty = (v.y / TILE) | 0;
               if (utx===vtx && uty===vty) continue;
             }
-            // RA2 PATCH V17: same-tile infantry separation handled by slot correction, not pairwise pushes (prevents 강강술래).
-let sameTileInf = false;
-if (bothInf){
-  const utx = (u.x / TILE) | 0, uty = (u.y / TILE) | 0;
-  const vtx = (v.x / TILE) | 0, vty = (v.y / TILE) | 0;
-  sameTileInf = (utx===vtx && uty===vty);
-}
-const pushK = sameTileInf ? 0.0 : (bothInf ? 0.70 : basePushK);
-const maxPush = sameTileInf ? 0.0 : (bothInf ? 10.0 : baseMaxPush);
+            const pushK = bothInf ? 0.70 : basePushK;
+            const maxPush = bothInf ? 10.0 : baseMaxPush;
             const push = Math.min(maxPush, overlap * pushK);
 
             const au = isAnchored(u);
@@ -6925,9 +6869,9 @@ function stampCmd(e, type, x, y, targetId=null){
 
     // Precompute candidate offsets sized to selection
     const offsets = buildFormationOffsets(Math.max(16, ids.length*6));
-    const usedVeh = new Set();
-    const usedInfMask = new Map(); // key idx -> used 4-bit
-
+    const used = new Set();
+    // RA2-feel: for infantry, assign a stable destination sub-slot per target tile
+    const __tileSubMask = new Map();
     let k=0;
     for (const id of ids){
       const e=getEntityById(id);
@@ -6977,10 +6921,26 @@ function stampCmd(e, type, x, y, targetId=null){
         }
       }
       // if nothing free, fall back to base tile center
-      if (!chosen) chosen={tx:baseTx, ty:baseTy};
+      if (!chosen) chosen={tx:baseTx, ty:baseTy};// RA2-feel: vehicles still go to tile center; infantry go to a reserved sub-slot inside the tile
+const cls = (UNIT[e.kind] && UNIT[e.kind].cls) ? UNIT[e.kind].cls : "";
+let wp;
+let subSlot = null;
+if (cls==="inf"){
+  const tkey = chosen.tx + "," + chosen.ty;
+  let mask = __tileSubMask.get(tkey) || 0;
+  let pick = 0;
+  for (let s=0; s<4; s++){
+    if (((mask>>s)&1)===0){ pick=s; break; }
+  }
+  subSlot = pick;
+  mask = (mask | (1<<pick)) & 0x0F;
+  __tileSubMask.set(tkey, mask);
+  wp = tileToWorldSubslot(chosen.tx, chosen.ty, pick);
+} else {
+  wp = tileToWorldCenter(chosen.tx, chosen.ty);
+}
+e.order={type:"move", x:wp.x, y:wp.y, tx:chosen.tx, ty:chosen.ty, subSlot:subSlot};
 
-      const wp = tileToWorldCenter(chosen.tx, chosen.ty);
-      e.order={type:"move", x:wp.x, y:wp.y, tx:chosen.tx, ty:chosen.ty};
       e.holdPos = false;
 
       pushOrderFx(e.id,"move",wp.x,wp.y,null,"rgba(90,255,90,0.95)");
