@@ -297,7 +297,6 @@ function fitMini() {
 
   // Tile/world helpers (isometric diamond tile center coordinates)
   function tileToWorldCenter(tx, ty){ return { x:(tx+0.5)*TILE, y:(ty+0.5)*TILE }; }
-  function tileToWorldOrigin(tx, ty){ return { x:tx*TILE, y:ty*TILE }; }
   function snapWorldToTileCenter(wx, wy){
     // Snap to the NEAREST tile center (rounding), not the tile corner (floor).
     const tx = clamp(Math.floor(wx / TILE), 0, MAP_W-1);
@@ -369,23 +368,6 @@ function fitMini() {
     const oy = rnd(-TILE*1.6, TILE*1.6);
     return {x: clamp(t.x+ox, 0, WORLD_W), y: clamp(t.y+oy, 0, WORLD_H)};
   }
-
-  function enemyUnstuck(u, dt){
-    // track movement
-    if (u._stuckT==null){ u._stuckT=0; u._lx=u.x; u._ly=u.y; }
-    const moved = dist2(u.x,u.y,u._lx,u._ly);
-    if (moved < 6*6) u._stuckT += dt;
-    else { u._stuckT = 0; u._lx=u.x; u._ly=u.y; }
-    // If stuck for >1.6s, reissue attackmove with a fresh offset
-    if (u._stuckT > 1.6){
-      const p = enemyRallyPoint();
-      u.order = {type:"attackmove", x:p.x, y:p.y, tx:null, ty:null};
-      u.path = null; u.pathI = 0;
-      u.repathCd = 0.01;
-      u._stuckT = 0;
-    }
-  }
-
 
   function worldToIso(wx, wy) { return { x: (wx - wy) * (ISO_X / TILE), y: (wx + wy) * (ISO_Y / TILE) }; }
   function isoToWorld(ix, iy) {
@@ -1068,64 +1050,6 @@ function getBaseBuildTime(kind){
     const rbPresence = (r + b) >= 160;
 
     return magentaBand && gNotDominant && rbPresence;
-  }
-
-  function _applyTeamPaletteToImage(img, teamColor, opts={}){
-    const excludeRects = opts.excludeRects || null; // [{x,y,w,h}] in image pixel coords
-    const w=img.width, h=img.height;
-    const c=document.createElement('canvas'); c.width=w; c.height=h;
-    const ctx=c.getContext('2d', {willReadFrequently:true});
-    ctx.drawImage(img,0,0);
-    const id=ctx.getImageData(0,0,w,h);
-    const d=id.data;
-
-    // Team color (linear-ish blend)
-    const tr=teamColor.r, tg=teamColor.g, tb=teamColor.b;
-
-    // Brighten like unit tint: stronger gain + slight bias, softer gamma
-    const GAIN = (opts.gain ?? 1.65);
-    const BIAS = (opts.bias ?? 0.18);
-    const GAMMA = (opts.gamma ?? 0.78);
-    const MINV = (opts.minV ?? 0.42);
-
-    function inExclude(x,y){
-      if(!excludeRects) return false;
-      for(const r of excludeRects){
-        if(x>=r.x && x<r.x+r.w && y>=r.y && y<r.y+r.h) return true;
-      }
-      return false;
-    }
-
-    for(let y=0;y<h;y++){
-      for(let x=0;x<w;x++){
-        const i=(y*w+x)*4;
-        const a=d[i+3];
-        if(a<8) continue;
-        if(inExclude(x,y)) continue;
-
-        const r=d[i], g=d[i+1], b=d[i+2];
-        if(!_isAccentPixel(r,g,b,a)) continue;
-
-        // Preserve shading using luminance, but keep it bright enough
-        const l=(0.2126*r + 0.7152*g + 0.0722*b)/255;
-        // If pixel is strongly saturated magenta, force a brighter base so key-color doesn't look dirty
-        const max=Math.max(r,g,b), min=Math.min(r,g,b);
-        const sat = max===0 ? 0 : (max-min)/max;
-        let l2 = (Math.pow(l, GAMMA) * GAIN) + BIAS;
-        if(sat > 0.45) l2 = Math.max(l2, 0.65);
-        l2 = Math.max(MINV, Math.min(1, l2));
-
-        // Blend toward team color (keep some original detail)
-        d[i]   = Math.min(255, Math.round(tr * l2));
-        d[i+1] = Math.min(255, Math.round(tg * l2));
-        d[i+2] = Math.min(255, Math.round(tb * l2));
-      }
-    }
-    ctx.putImageData(id,0,0);
-
-    const out=new Image();
-    out.src=c.toDataURL();
-    return out;
   }
 
   function _getTeamCroppedSprite(img, crop, team){
@@ -2624,22 +2548,6 @@ function footprintBlockedMask(tx,ty,tw,th){
     return false;
   }
 // Variant with adjustable padding (used for combat goal tiles near buildings)
-function isBlockedWorldPointEx(u, x, y, padExtra){
-    const tx = tileOfX(x), ty = tileOfY(y);
-    if (inMap(tx,ty) && buildOcc[idx(tx,ty)]===1) return true;
-
-    const ur = (UNIT[u.kind] && UNIT[u.kind].r) ? UNIT[u.kind].r : ( (UNIT[u.kind]&&UNIT[u.kind].cls==="veh") ? 12 : 8 );
-    const pad = (padExtra==null ? 3 : padExtra);
-    for (let i=0;i<buildings.length;i++){
-      const b = buildings[i];
-      if (!b || b.hp<=0) continue;
-      const hw = (b.w||0)/2 + ur + pad;
-      const hh = (b.h||0)/2 + ur + pad;
-      if (x >= b.x-hw && x <= b.x+hw && y >= b.y-hh && y <= b.y+hh) return true;
-    }
-    return false;
-  }
-
 // Enter check for combat/docking goals: relax building padding so infantry can stand close enough to shoot.
 function canEnterTileGoal(u, tx, ty, t){
     if (!inMap(tx,ty)) return false;
@@ -2722,11 +2630,6 @@ const INF_SUBOFFS = [
   {x: -TILE*0.18, y:  TILE*0.12},
   {x:  TILE*0.18, y:  TILE*0.12},
 ];
-function infSubslotWorld(tx, ty, slot){
-  const cx = (tx+0.5)*TILE, cy = (ty+0.5)*TILE;
-  const off = INF_SUBOFFS[(slot|0) & 3];
-  return {x: cx + off.x, y: cy + off.y};
-}
 const infSlotNext0 = new Uint8Array(MAP_W*MAP_H);
 const infSlotNext1 = new Uint8Array(MAP_W*MAP_H);
 // Per-tile, per-team 4-bit mask to keep infantry sub-slots STABLE (prevents slot roulette -> orbiting).
@@ -4005,148 +3908,8 @@ function _occNearTile(tx, ty){
   return n;
 }
 
-function pickAttackTile(u, t, preferDist){
-  // Finds a FREE tile that is already within weapon range (effective distance <= range).
-  // Used to spread units around the target so backliners don't all fight for the same spot.
-  const maxR = Math.max(2, Math.min(12, Math.ceil((u.range || 0) / TILE) + 4));
-  const tTx = (t.x / TILE) | 0, tTy = (t.y / TILE) | 0;
-
-  let best = null, bestScore = 1e18;
-  for (let r = 0; r <= maxR; r++){
-    for (let dy = -r; dy <= r; dy++){
-      for (let dx = -r; dx <= r; dx++){
-        if (Math.abs(dx) !== r && Math.abs(dy) !== r) continue; // ring
-        const tx = tTx + dx, ty = tTy + dy;
-        if (!inMap(tx, ty)) continue;
-        if (!isWalkableTile(tx, ty)) continue;
-
-        const curTx=((u.x/TILE)|0), curTy=((u.y/TILE)|0);
-        // NOTE(v1417): Approach goals may temporarily target tiles occupied/reserved by friendlies.
-        // We still require walkable, but do NOT require canEnterTile here; backliners must keep compressing in.
-
-        const cx = (tx + 0.5) * TILE, cy = (ty + 0.5) * TILE;
-        const dEff = _effDist(u, t, cx, cy);
-        if (dEff > (u.range || 0)) continue;
-
-        const occ = _occNearTile(tx, ty);
-        const distPref = Math.abs(dEff - preferDist);
-        const travel = Math.hypot(cx - u.x, cy - u.y) / TILE;
-
-        // Prefer: in-range, close travel, low local crowding, and near preferred range band.
-        const score = distPref*1.00 + travel*0.65 + occ*0.95 + (Math.random()*0.06);
-        if (score < bestScore){
-          bestScore = score;
-          best = {x: cx, y: cy};
-        }
-      }
-    }
-    // Early break once we found a decent in-range tile.
-    if (best && r >= 2 && bestScore < 7.0) break;
-  }
-  return best;
-}
-
 // If there is NO free in-range tile, we still need a "good approach" goal.
 // Otherwise backliners get stuck dancing forever behind occupied tiles.
-function pickApproachTile(u, t){
-  const maxR = Math.max(3, Math.min(18, Math.ceil(((u.range || 0) + (TILE*3)) / TILE) + 6));
-  const tTx = (t.x / TILE) | 0, tTy = (t.y / TILE) | 0;
-
-  let best = null, bestScore = 1e18;
-  const maxEff = (u.range || 0) + (TILE*3.0); // allow slightly-out-of-range approach goals
-  for (let r = 1; r <= maxR; r++){
-    for (let dy = -r; dy <= r; dy++){
-      for (let dx = -r; dx <= r; dx++){
-        if (Math.abs(dx) !== r && Math.abs(dy) !== r) continue; // ring
-        const tx = tTx + dx, ty = tTy + dy;
-        if (!inMap(tx, ty)) continue;
-        if (!isWalkableTile(tx, ty)) continue;
-
-        const curTx=((u.x/TILE)|0), curTy=((u.y/TILE)|0);
-        // NOTE(v1417): Approach goals may temporarily target tiles occupied/reserved by friendlies.
-        // We still require walkable, but do NOT require canEnterTile here; backliners must keep compressing in.
-
-        const cx = (tx + 0.5) * TILE, cy = (ty + 0.5) * TILE;
-        const dEff = _effDist(u, t, cx, cy);
-        if (dEff > maxEff) continue;
-
-        const occ = _occNearTile(tx, ty);
-        const travel = Math.hypot(cx - u.x, cy - u.y) / TILE;
-
-        // Primary objective: reduce effective distance (get closer).
-        // Secondary: don't walk too far if we can still get closer elsewhere.
-        const score = dEff*0.020 + travel*0.85 + occ*1.00 + (Math.random()*0.08);
-
-        if (score < bestScore){
-          bestScore = score;
-          best = {x: cx, y: cy};
-        }
-      }
-    }
-    // If we found a pretty close approach tile, stop searching bigger rings.
-    if (best && bestScore < 10.0) break;
-  }
-  return best;
-}
-
-function getCombatGoal(u, t){
-  // Hard rule: on attack orders, units should *commit* to closing distance toward the target.
-  // No orbiting, no slot-hunting. Just run in until in-range, then shoot.
-  const isB = !!BUILD[t.kind];
-
-  // Desired "dock" world point near the target (not inside footprint).
-  let gx = t.x, gy = t.y;
-
-  if (isB){
-    // Nearest point to unit on the building's expanded rectangle.
-    const x0 = (t.x - (t.w||0)/2), y0 = (t.y - (t.h||0)/2);
-    const pad = TILE * 0.55; // expanded so we aim just outside the footprint
-    const rx0 = x0 - pad, ry0 = y0 - pad;
-    const rx1 = x0 + (t.w||0) + pad, ry1 = y0 + (t.h||0) + pad;
-    gx = clamp(u.x, rx0, rx1);
-    gy = clamp(u.y, ry0, ry1);
-  } else {
-    // Aim to a point at ~0.88*range from the target, along the line from target to unit.
-    let dx = u.x - t.x, dy = u.y - t.y;
-    let L = Math.hypot(dx,dy);
-    if (L < 1e-3){ dx = 1; dy = 0; L = 1; }
-    const stop = Math.max(10, (u.range||0) * 0.88);
-    gx = t.x + (dx / L) * stop;
-    gy = t.y + (dy / L) * stop;
-  }
-
-  // Convert to goal tile and ensure it is walkable. For combat goals we intentionally do NOT require
-  // capacity/occupancy here (that was the source of backline "dance"). The path/steering will resolve.
-  let gTx = tileOfX(gx), gTy = tileOfY(gy);
-  if (!inMap(gTx,gTy)){ gTx = clamp(gTx,0,MAP_W-1); gTy = clamp(gTy,0,MAP_H-1); }
-
-  if (!isWalkableTile(gTx,gTy)){
-    let best=null, bestD=1e9;
-    for (let r=1;r<=10;r++){
-      for (let dy=-r;dy<=r;dy++){
-        for (let dx=-r;dx<=r;dx++){
-          const tx=gTx+dx, ty=gTy+dy;
-          if (!inMap(tx,ty)) continue;
-          if (!isWalkableTile(tx,ty)) continue;
-          const d = dx*dx+dy*dy;
-          if (d<bestD){ bestD=d; best={tx,ty}; }
-        }
-      }
-      if (best) break;
-    }
-    if (best){ gTx=best.tx; gTy=best.ty; }
-  }
-
-  // Small smoothing: keep goal stable for a short time to avoid flicker.
-  u.combatGX = (gTx+0.5)*TILE;
-  u.combatGY = (gTy+0.5)*TILE;
-  u.combatGoalMode = "commit";
-  u.combatGoalT = 0.40;
-
-  return {x:u.combatGX, y:u.combatGY};
-}
-
-
 function revealCircle(team, wx, wy, radius){
     const t0x=clamp(((wx-radius)/TILE)|0,0,MAP_W-1);
     const t1x=clamp(((wx+radius)/TILE)|0,0,MAP_W-1);
@@ -4803,31 +4566,6 @@ const dustPuffs = [];
 const dmgSmokePuffs = [];
 
 // Dust puff for moving vehicles (sandy haze). World-positioned (does NOT follow units).
-function spawnDustPuff(wx, wy, vx, vy, strength=1){
-  const size = clamp(strength, 0.6, 2.2);
-  const spread = TILE * 0.30 * size;
-  const ang = Math.random() * Math.PI * 2;
-  const rad = Math.sqrt(Math.random()) * spread;
-  const x = wx + Math.cos(ang) * rad;
-  const y = wy + Math.sin(ang) * rad;
-
-  // drift roughly opposite of movement (normalize vx/vy)
-  const mag = Math.max(0.0001, Math.hypot(vx||0, vy||0));
-  const backx = -(vx||0) / mag;
-  const backy = -(vy||0) / mag;
-
-  dustPuffs.push({
-    x, y,
-    vx: backx*(TILE*0.18*size) + (Math.random()*2-1)*(TILE*0.05*size),
-    vy: backy*(TILE*0.18*size) + (Math.random()*2-1)*(TILE*0.05*size),
-    t: 0,
-    ttl: 1.35 + Math.random()*0.75,
-    r0: (22 + Math.random()*14) * size,
-    grow: (92 + Math.random()*60) * size,
-    a0: 0.48 + Math.random()*0.18
-  });
-}
-
 // Damage smoke from a crippled unit (from turret area). World-positioned.
 function spawnDmgSmokePuff(wx, wy, strength=1){
   const size = clamp(strength, 0.6, 2.4);
@@ -4846,18 +4584,6 @@ function spawnDmgSmokePuff(wx, wy, strength=1){
     r0: (10 + Math.random()*10) * size,
     grow: (48 + Math.random()*40) * size,
     a0: 0.10 + Math.random()*0.06
-  });
-}
-
-function addSmokeWave(wx, wy, size=1){
-  const sz = clamp(size, 0.6, 2.1);
-  smokeWaves.push({
-    x: wx, y: wy,
-    t: 0,
-    ttl: 1.55,
-    size: sz,
-    seed: (Math.random()*1e9)|0,
-    squash: 0.62 // y flatten
   });
 }
 
@@ -9535,12 +9261,6 @@ if (state.selection.size>0 && inMap(tx,ty) && ore[idx(tx,ty)]>0){
     // IMPORTANT: exclude units inside transports (inTransport != null)
     return units.filter(u=>u.alive && u.team===TEAM.PLAYER && u.kind===kind && u.inTransport==null).map(u=>u.id);
   }
-  function isSelectionExactly(ids){
-    if (state.selection.size!==ids.length) return false;
-    for (const id of ids) if (!state.selection.has(id)) return false;
-    return true;
-  }
-
   function selectSameType(){
     // A key: select all player units of the same kind as the currently selected unit.
     // If nothing is selected, show a message.
