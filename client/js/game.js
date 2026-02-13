@@ -3399,61 +3399,42 @@ if (u.cls==="inf"){
       const _combatOrder = (u && u.order && (u.order.type==="attack" || u.order.type==="attackmove"));
       const _canEnter = (_combatOrder && _tGoal && BUILD[_tGoal.kind]) ? canEnterTileGoal(u, p.tx, p.ty, _tGoal) : canEnterTile(u, p.tx, p.ty);
       if (!_canEnter || !reserveTile(u, p.tx, p.ty)) {
-        // FINAL-TILE RETARGET: if our destination tile is occupied/reserved, pick a nearby free tile once.
-        // This prevents late arrivals from 'dancing' in place trying to steal an already-occupied tile.
-        if (u.pathI >= (u.path.length-1)) {
-          u.finalBlockT = (u.finalBlockT||0) + dt;
-          if (u.finalBlockT > 0.22 && (u.lastRetargetT==null || (state.t - u.lastRetargetT) > 0.85)) {
-            const goalWx = (p.tx+0.5)*TILE, goalWy = (p.ty+0.5)*TILE;
-            const spot = findNearestFreePoint(goalWx, goalWy, u, 2);
-            const nTx = tileOfX(spot.x), nTy = tileOfY(spot.y);
-            if ((nTx!==p.tx || nTy!==p.ty) && canEnterTile(u, nTx, nTy) && reserveTile(u, nTx, nTy)) {
-              const wp2 = tileToWorldCenter(nTx, nTy);
-              u.order = {type:(u.order && u.order.type) ? u.order.type : "move", x:wp2.x, y:wp2.y, tx:nTx, ty:nTy};
-              setPathTo(u, wp2.x, wp2.y);
-              u.lastRetargetT = state.t;
-              u.finalBlockT = 0;
-              return true;
+        // If blocked, infantry should WAIT/SETTLE instead of vibrating.
+        const isInf = (u.cls==="inf");
+        if (isInf){
+          const curTx = Math.floor(u.x / TILE), curTy = Math.floor(u.y / TILE);
+          u.blockedT = (u.blockedT||0) + dt;
+
+          // Freeze so avoid/steer doesn't keep nudging.
+          u.vx = 0; u.vy = 0;
+          u.holdPos = true;
+
+          // After a short time, give up trying to squeeze in: "settle" where we are.
+          if (u.blockedT > 0.35){
+            if (curTx>=0 && curTy>=0 && curTx<MAP_W && curTy<MAP_H){
+              const ps = tileToWorldSubslot(curTx, curTy, u);
+              u.x = ps.x; u.y = ps.y;
             }
+            u.order = {type:"guard", x:u.x, y:u.y, tx:null, ty:null};
+            u.path = null; u.pathI = 0;
+            u.blockedT = 0;
           }
-        }
-
-        const step = findBypassStep(u, curTx, curTy, p.tx, p.ty);
-        if (step && reserveTile(u, step.tx, step.ty)){
-          // Inject a temporary one-step path.
-          u.path = [{tx:step.tx, ty:step.ty}, ...u.path.slice(u.pathI)];
-          u.pathI = 0;
-          return true;
-        }
-        // Wait a bit and try again next tick. If we keep failing, settle instead of vibrating.
-        u.blockT = (u.blockT||0) + dt;
-        if (u.blockT > 0.85){
-          const cwx=(curTx+0.5)*TILE, cwy=(curTy+0.5)*TILE;
-          u.x=cwx; u.y=cwy;
-
-          // IMPORTANT: never drop into idle while we still have a combat target/order.
-          // Doing so caused backliners to "dance" forever when attacking buildings (path nodes rejected as blocked).
-          const _combatLocked = (u.target!=null && u.order && (u.order.type==="attack" || u.order.type==="attackmove"));
-          if (_combatLocked){
-            u.path=null; u.pathI=0;
-            clearReservation(u);
-            u.yieldCd=0;
-            u.blockT=0;
-            u.repathCd = 0; // force immediate replanning in combat logic
-            u.combatGoalT = 0;
-            return false;
-          }
-
-          u.order = {type:"idle", x:u.x, y:u.y, tx:null, ty:null};
-          u.path=null; u.pathI=0;
-          clearReservation(u);
-          u.yieldCd=0;
-          u.blockT=0;
           return false;
         }
-        u.yieldCd = 0.10;
+
+        // vehicles: bypass step to reduce snagging
+        const step = findBypassStep(u, p.tx, p.ty);
+        if (step){
+          u.path = [step].concat(u.path.slice(u.pathI));
+          u.pathI = 0;
+          u.stuckT = 0;
+          u.yieldCd = 0.18;
+          return true;
+        }
         return false;
       }
+      u.blockedT = 0;
+
     }
 
     const dx=wx-u.x, dy=wy-u.y;
