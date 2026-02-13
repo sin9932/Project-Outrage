@@ -1,5 +1,5 @@
 ;(function(){
-  window.__RA2_PATCH_VERSION__="v11";
+  window.__RA2_PATCH_VERSION__="v12";
 
   // Debug/validation mode: add ?debug=1 to URL
   const DEV_VALIDATE = /(?:\?|&)debug=1(?:&|$)/.test(location.search);
@@ -3523,7 +3523,28 @@ function followPath(u, dt){
       }
     }
 
-    const step=Math.min(getMoveSpeed(u)*dt, d);
+    
+// RA2 PATCH V12: if infantry is queued/blocked, freeze steering & walk anim.
+// We only allow "settleInfantryToSubslot" micro-snaps; no path steering, no avoidance, no facing updates from movement.
+const __cls = (UNIT[u.kind] && UNIT[u.kind].cls) ? UNIT[u.kind].cls : "";
+const __queued = (__cls==="inf") && (
+  (u.__queue||0) ||
+  ((u.__queueWait||0) > 0) ||
+  ((u.blockT||0) > 0) ||
+  ((u.finalBlockT||0) > 0) ||
+  ((u.__ra2_wait||0) > 0)
+);
+if (__queued){
+  u.vx = 0; u.vy = 0;
+  // prevent any residual steering from affecting facing/anim in later code paths
+  u._freezeMove = 1;
+  settleInfantryToSubslot(u, dt);
+  return true;
+} else {
+  u._freezeMove = 0;
+}
+
+const step=Math.min(getMoveSpeed(u)*dt, d);
     let ax=dx/(d||1), ay=dy/(d||1);
     // v12: local steering to avoid overlapping with nearby units.
     // This makes units slide around each other instead of stacking.
@@ -3557,7 +3578,10 @@ function followPath(u, dt){
 
     // Update facing direction for sprite rendering.
     // IMPORTANT: don't overwrite attack-facing while firing, and don't snap to default when stationary.
-    const movingDir = (Math.abs(ax) + Math.abs(ay)) > 1e-4;
+    if (u._freezeMove){
+  ax = 0; ay = 0;
+}
+const movingDir = (Math.abs(ax) + Math.abs(ay)) > 1e-4;
     if ((u.fireHoldT||0) > 0 && u.fireDir!=null){
       // Firing facing: turret/aim direction
       u.faceDir = u.fireDir;
