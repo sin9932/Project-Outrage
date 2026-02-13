@@ -3368,7 +3368,7 @@ if (u.cls==="inf"){
     }
     if (slot>=0){
       u.navSlot = slot; u.navSlotTx = p.tx; u.navSlotTy = p.ty;
-      u.navSlotLockT = 0.25; // seconds
+      u.navSlotLockT = 1.0; // seconds (longer lock prevents slot thrash in crowds)
     }
   }
 
@@ -3379,7 +3379,7 @@ if (u.cls==="inf"){
 
     // If we have been waiting too long, allow bypass logic below to kick in.
     // But for short waits, returning here prevents "부들부들".
-    if (u.queueWaitT < 0.35) return false;
+    return false; // hard-wait: prevents jitter infection in dense infantry clumps
   } else {
     u.queueWaitT = 0;
     const sp = tileToWorldSubslot(p.tx, p.ty, slot);
@@ -3399,42 +3399,61 @@ if (u.cls==="inf"){
       const _combatOrder = (u && u.order && (u.order.type==="attack" || u.order.type==="attackmove"));
       const _canEnter = (_combatOrder && _tGoal && BUILD[_tGoal.kind]) ? canEnterTileGoal(u, p.tx, p.ty, _tGoal) : canEnterTile(u, p.tx, p.ty);
       if (!_canEnter || !reserveTile(u, p.tx, p.ty)) {
-        // If blocked, infantry should WAIT/SETTLE instead of vibrating.
-        const isInf = (u.cls==="inf");
-        if (isInf){
-          const curTx = Math.floor(u.x / TILE), curTy = Math.floor(u.y / TILE);
-          u.blockedT = (u.blockedT||0) + dt;
-
-          // Freeze so avoid/steer doesn't keep nudging.
-          u.vx = 0; u.vy = 0;
-          u.holdPos = true;
-
-          // After a short time, give up trying to squeeze in: "settle" where we are.
-          if (u.blockedT > 0.35){
-            if (curTx>=0 && curTy>=0 && curTx<MAP_W && curTy<MAP_H){
-              const ps = tileToWorldSubslot(curTx, curTy, u);
-              u.x = ps.x; u.y = ps.y;
+        // FINAL-TILE RETARGET: if our destination tile is occupied/reserved, pick a nearby free tile once.
+        // This prevents late arrivals from 'dancing' in place trying to steal an already-occupied tile.
+        if (u.pathI >= (u.path.length-1)) {
+          u.finalBlockT = (u.finalBlockT||0) + dt;
+          if (u.finalBlockT > 0.22 && (u.lastRetargetT==null || (state.t - u.lastRetargetT) > 0.85)) {
+            const goalWx = (p.tx+0.5)*TILE, goalWy = (p.ty+0.5)*TILE;
+            const spot = findNearestFreePoint(goalWx, goalWy, u, 2);
+            const nTx = tileOfX(spot.x), nTy = tileOfY(spot.y);
+            if ((nTx!==p.tx || nTy!==p.ty) && canEnterTile(u, nTx, nTy) && reserveTile(u, nTx, nTy)) {
+              const wp2 = tileToWorldCenter(nTx, nTy);
+              u.order = {type:(u.order && u.order.type) ? u.order.type : "move", x:wp2.x, y:wp2.y, tx:nTx, ty:nTy};
+              setPathTo(u, wp2.x, wp2.y);
+              u.lastRetargetT = state.t;
+              u.finalBlockT = 0;
+              return true;
             }
-            u.order = {type:"guard", x:u.x, y:u.y, tx:null, ty:null};
-            u.path = null; u.pathI = 0;
-            u.blockedT = 0;
           }
-          return false;
         }
 
-        // vehicles: bypass step to reduce snagging
-        const step = findBypassStep(u, p.tx, p.ty);
-        if (step){
-          u.path = [step].concat(u.path.slice(u.pathI));
+        const step = findBypassStep(u, curTx, curTy, p.tx, p.ty);
+        if (step && reserveTile(u, step.tx, step.ty)){
+          // Inject a temporary one-step path.
+          u.path = [{tx:step.tx, ty:step.ty}, ...u.path.slice(u.pathI)];
           u.pathI = 0;
-          u.stuckT = 0;
-          u.yieldCd = 0.18;
           return true;
         }
+        // Wait a bit and try again next tick. If we keep failing, settle instead of vibrating.
+        u.blockT = (u.blockT||0) + dt;
+        if (u.blockT > 0.85){
+          const cwx=(curTx+0.5)*TILE, cwy=(curTy+0.5)*TILE;
+          u.x=cwx; u.y=cwy;
+
+          // IMPORTANT: never drop into idle while we still have a combat target/order.
+          // Doing so caused backliners to "dance" forever when attacking buildings (path nodes rejected as blocked).
+          const _combatLocked = (u.target!=null && u.order && (u.order.type==="attack" || u.order.type==="attackmove"));
+          if (_combatLocked){
+            u.path=null; u.pathI=0;
+            clearReservation(u);
+            u.yieldCd=0;
+            u.blockT=0;
+            u.repathCd = 0; // force immediate replanning in combat logic
+            u.combatGoalT = 0;
+            return false;
+          }
+
+          u.order = {type:"idle", x:u.x, y:u.y, tx:null, ty:null};
+          u.path=null; u.pathI=0;
+          clearReservation(u);
+          u.yieldCd=0;
+          u.blockT=0;
+          return false;
+        }
+        u.yieldCd = 0.10;
         return false;
       }
-      u.blockedT = 0;
-
     }
 
     const dx=wx-u.x, dy=wy-u.y;
@@ -6850,8 +6869,8 @@ function stampCmd(e, type, x, y, targetId=null){
 
     // Precompute candidate offsets sized to selection
     const offsets = buildFormationOffsets(Math.max(16, ids.length*6));
-    const usedInf = new Map();
-    const usedHard = new Set();
+    const usedVeh = new Set();
+    const usedInf = new Map(); // key -> count (allow up to INF_SLOT_MAX per tile for infantry)
     // RA2-feel: for infantry, assign a stable destination sub-slot per target tile
     const __tileSubMask = new Map();
     let k=0;
@@ -6860,8 +6879,7 @@ function stampCmd(e, type, x, y, targetId=null){
       if (!e || e.team!==TEAM.PLAYER) continue;
       if (BUILD[e.kind]) continue;
       if (shouldIgnoreCmd(e,'move',x,y,null)) continue;
-      const cls = (UNIT[e.kind] && UNIT[e.kind].cls) ? UNIT[e.kind].cls : "";
-      
+
       e.guard=null; e.guardFrom=false;
       e.restX=null; e.restY=null;
       e.target=null;
@@ -6869,6 +6887,8 @@ function stampCmd(e, type, x, y, targetId=null){
       e.fireHoldT=0; e.fireDir=null;
       e.forceMoveUntil = state.t + 1.25;
       e.repathCd=0.15;
+
+      const cls = e.cls || ((UNIT[e.kind] && UNIT[e.kind].cls) ? UNIT[e.kind].cls : \"\");
 
       // pick best nearby free tile among offsets, biased to the actual mouse world point (x,y)
       // so clicking near a unit lets you place destinations to its side/front more predictably.
@@ -6879,10 +6899,11 @@ function stampCmd(e, type, x, y, targetId=null){
         const ty = baseTy + offsets[j].dy;
         if (!inMap(tx,ty)) continue;
         const key = tx+"," + ty;
-        if (usedHard.has(key)) continue;
-        if (cls==="inf") {
-          const c = usedInf.get(key) || 0;
+        if (cls==="inf"){
+          const c = usedInf.get(key)||0;
           if (c >= INF_SLOT_MAX) continue;
+        } else {
+          if (usedVeh.has(key)) continue;
         }
         if (!canEnterTile(e, tx, ty)) continue;
         const wpC = tileToWorldCenter(tx,ty);
@@ -6904,16 +6925,17 @@ function stampCmd(e, type, x, y, targetId=null){
         if (!reserveTile(e, chosen.tx, chosen.ty)){
           chosen=null;
         } else {
-          const ckey = chosen.tx+","+chosen.ty;
-          if (cls==="inf") {
-            usedInf.set(ckey, (usedInf.get(ckey)||0)+1);
+          if (cls==="inf"){
+            const k2 = chosen.tx+","+chosen.ty;
+            usedInf.set(k2, (usedInf.get(k2)||0)+1);
           } else {
-            usedHard.add(ckey);
+            usedVeh.add(chosen.tx+","+chosen.ty);
           }
         }
       }
       // if nothing free, fall back to base tile center
       if (!chosen) chosen={tx:baseTx, ty:baseTy};// RA2-feel: vehicles still go to tile center; infantry go to a reserved sub-slot inside the tile
+const cls = (UNIT[e.kind] && UNIT[e.kind].cls) ? UNIT[e.kind].cls : "";
 let wp;
 let subSlot = null;
 if (cls==="inf"){
