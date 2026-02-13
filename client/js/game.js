@@ -3292,8 +3292,11 @@ const ni=ny*W+nx;
     const d2 = dx*dx + dy*dy;
     if (d2 < 0.25){
       u.x = sp.x; u.y = sp.y;
-      u.vx = 0; u.vy = 0;
-      u.holdPos = true;
+          u.vx = 0; u.vy = 0;
+          u.holdPos = true;
+          u.holdTx = p.tx; u.holdTy = p.ty;
+          u.holdSlot = slot;
+          u.subSlot = slot;
       return;
     }
 
@@ -3477,7 +3480,7 @@ if (u.cls==="inf"){
           u.x = sx; u.y = sy;
         }
       }
-      if (!(u.cls==="inf" && u.pathI >= (u.path.length-1))) u.holdPos = false;
+      if (!(u.cls==="inf" && u.pathI >= (u.path.length-1))){ u.holdPos = false; u.holdTx=null; u.holdTy=null; u.holdSlot=null; }
       u.pathI++;
       clearReservation(u);
       // If we consumed the last waypoint, finalize the order right here.
@@ -3506,6 +3509,12 @@ if (u.cls==="inf"){
       if (!(nextTile.tx===curTileTx && nextTile.ty===curTileTy)){
         // Try to reserve the next tile to avoid head-on deadlocks.
         if (!reserveTile(u, nextTile.tx, nextTile.ty) || isReservedByOther(u, nextTile.tx, nextTile.ty)){
+          if (u.cls==="inf"){
+            u.vx = 0; u.vy = 0;
+            u.blockT = (u.blockT||0) + dt;
+            u.yieldCd = 0.10;
+            return false;
+          }
           // Do NOT pause ("dance") when crowded: try a small bypass step, otherwise keep moving.
           const bp = findBypassStep(u, curTileTx, curTileTy, nextTile.tx, nextTile.ty);
           if (bp){
@@ -3525,6 +3534,12 @@ if (u.cls==="inf"){
               u.stuckTime = 0;
               return false;
             }
+          }
+          if (u.cls==="inf"){
+            u.vx = 0; u.vy = 0;
+            u.blockT = (u.blockT||0) + dt;
+            u.yieldCd = 0.10;
+            return false;
           }
           // If blocked, try a short bypass step instead of vibrating in place.
           if ((u.avoidCd||0) <= 0){
@@ -6197,6 +6212,13 @@ const tx=tileOfX(u.x), ty=tileOfY(u.y);
             //  2) anchored idle/guard units prefer to stay put
             let wu = 0.5, wv = 0.5;
 
+            const lu = (u.cls==="inf" && u.holdPos);
+            const lv = (v.cls==="inf" && v.holdPos);
+            if (lu && !lv){ wu = 0.0; wv = 1.0; }
+            else if (!lu && lv){ wu = 1.0; wv = 0.0; }
+            else if (lu && lv){ wu = 0.5; wv = 0.5; }
+
+
             // Anchored preference
             if (au && !av){ wu = 0.0; wv = 1.0; }
             else if (!au && av){ wu = 1.0; wv = 0.0; }
@@ -6277,6 +6299,29 @@ const tx=tileOfX(u.x), ty=tileOfY(u.y);
     }
 
 }
+
+  // Snap locked infantry back onto their reserved sub-slot after crowd interactions.
+  // This prevents "tile center 못 들어간 상태 + 스쳐 지나감"에서 발생하는 미세 떨림.
+  function enforceHoldPositions(){
+    for (const u of units){
+      if (!u || !u.alive || u.inTransport) continue;
+      if (u.cls!=="inf") continue;
+      if (!u.holdPos) continue;
+
+      const tx = (u.holdTx!=null) ? u.holdTx : tileOfX(u.x);
+      const ty = (u.holdTy!=null) ? u.holdTy : tileOfY(u.y);
+      let slot = (u.holdSlot!=null) ? (u.holdSlot|0) : (u.subSlot!=null ? (u.subSlot|0) : 0);
+      slot &= 3;
+
+      const sp = tileToWorldSubslot(tx, ty, slot);
+      const dx = sp.x - u.x, dy = sp.y - u.y;
+      if ((dx*dx + dy*dy) > 0.25){
+        u.x = sp.x; u.y = sp.y;
+      }
+      u.vx = 0; u.vy = 0;
+    }
+  }
+
 
 // Player production request queues (FIFO per factory type).
 // Infantry + Engineer share the Barracks queue (RA2-style).
@@ -8446,6 +8491,7 @@ if (needMove){
 
     // Resolve overlaps after movement so units don't clump forever.
     resolveUnitOverlaps();
+    enforceHoldPositions();
   }
 
 
