@@ -1,3 +1,30 @@
+
+
+// === RA2 PATCH V4: anti-jitter for "can't reach" units (stuck -> wait/repath) ===
+function __ra2_initStuck(u){
+  if(!u) return;
+  if(u.__ra2_lastX==null){ u.__ra2_lastX=u.x; u.__ra2_lastY=u.y; u.__ra2_stuck=0; u.__ra2_wait=0; u.__ra2_repathCD=0; u.__ra2_forceRepath=0; }
+}
+function __ra2_stuckTick(u){
+  __ra2_initStuck(u);
+  if(u.__ra2_wait>0){ u.__ra2_wait--; return true; }
+  if(u.__ra2_repathCD>0) u.__ra2_repathCD--;
+  const dx=u.x-u.__ra2_lastX, dy=u.y-u.__ra2_lastY;
+  const moved=Math.hypot(dx,dy);
+  u.__ra2_lastX=u.x; u.__ra2_lastY=u.y;
+  const moving = (u.order && (u.order.type==="move" || u.order.type==="attackMove")) || (u.path && u.path.length>0);
+  if(!moving){ u.__ra2_stuck=0; return false; }
+  if(moved < 0.35) u.__ra2_stuck++; else u.__ra2_stuck = Math.max(0, u.__ra2_stuck-2);
+  if(u.__ra2_stuck >= 18){
+    u.__ra2_stuck = 0;
+    u.__ra2_wait = 10;
+    u.__ra2_forceRepath = 1;
+    u.__ra2_repathCD = 25;
+    return true;
+  }
+  return false;
+}
+
 ;(function(){
   // Debug/validation mode: add ?debug=1 to URL
   const DEV_VALIDATE = /(?:\?|&)debug=1(?:&|$)/.test(location.search);
@@ -3310,6 +3337,13 @@ const ni=ny*W+nx;
     u.holdPos = true;
   }
 function followPath(u, dt){
+
+// RA2 PATCH V4: if unit is stuck/jittering, pause a few ticks (queueing) and request repath
+if (__ra2_stuckTick(u)) {
+  u.vx = 0; u.vy = 0;
+  return;
+}
+
     // HARD STOP: if unit is effectively idle/guard with no target, it must not drift.
     if (u && u.order && (u.order.type==="idle" || u.order.type==="guard") && u.target==null){
       if (u.path){ u.path = null; u.pathI = 0; }
