@@ -3372,17 +3372,48 @@ if (u.cls==="inf"){
     }
   }
 
-  // Commit this slot immediately so later units in the same tick won't pick it too.
-  if (slot>=0){
-    mask |= (1<<slot);
-    if (u.team===0) infSlotMask0[ni] = mask;
-    else           infSlotMask1[ni] = mask;
-  }
-
   if (slot<0){
-    // Tile is temporarily full: infantry must WAIT (no bypass, no oscillation).
+    // Tile is full: infantry must NOT try to "muscle in".
+    // Waiting here prevents the push-snap fight that causes 100% jitter when units overlap.
     u.vx = 0; u.vy = 0;
     u.queueWaitT = (u.queueWaitT||0) + dt;
+
+    // If this is the FINAL waypoint and we've been blocked a bit, retarget to a nearby free inf sub-slot.
+    // This turns "blob + jitter" into "spread + wait".
+    if (u.pathI >= (u.path.length-1) && u.queueWaitT > 0.22 && (!u.lastInfRetargetT || (state.t - u.lastInfRetargetT) > 0.6)){
+      const maxR = 3;
+      let best = null;
+      for (let r=0; r<=maxR && !best; r++){
+        for (let dy=-r; dy<=r && !best; dy++){
+          for (let dx=-r; dx<=r && !best; dx++){
+            const tx = p.tx + dx, ty = p.ty + dy;
+            if (!inBounds(tx,ty)) continue;
+            // cheap filter: skip same tile (it's full) unless r==0
+            if (r===0) continue;
+            if (!canEnterTile(u, tx, ty)) continue;
+            const ni2 = idx(tx,ty);
+            const mask2 = (u.team===0) ? infSlotMask0[ni2] : infSlotMask1[ni2];
+            if (mask2===15) continue; // 4/4 full
+            // pick first free slot
+            let s2 = -1;
+            for (let s=0; s<4; s++){ if (((mask2>>s)&1)===0){ s2=s; break; } }
+            if (s2<0) continue;
+            best = {tx,ty,slot:s2};
+          }
+        }
+      }
+      if (best){
+        u.queueWaitT = 0;
+        u.lastInfRetargetT = state.t;
+        u.navSlot = (best.slot|0);
+        u.navSlotLockT = 0.9;
+        const sp2 = tileToWorldSubslot(best.tx, best.ty, best.slot);
+        u.order = {type:(u.order && u.order.type) ? u.order.type : "move", x:sp2.x, y:sp2.y, tx:best.tx, ty:best.ty};
+        setPathTo(u, sp2.x, sp2.y);
+        return true;
+      }
+    }
+
     return false;
   } else {
     u.queueWaitT = 0;
@@ -3398,7 +3429,7 @@ if (u.cls==="inf"){
     // Reservation + capacity: prevents multiple units trying to occupy the same tile-center,
     // which caused circular "강강수월래" orbiting at diamond corners.
     const curTx = tileOfX(u.x), curTy = tileOfY(u.y);
-    if (!(p.tx===curTx && p.ty===curTy)){
+    if (u.cls!=="inf" && !(p.tx===curTx && p.ty===curTy)){
       const _tGoal = (u && u.target!=null) ? getEntityById(u.target) : null;
       const _combatOrder = (u && u.order && (u.order.type==="attack" || u.order.type==="attackmove"));
       const _canEnter = (_combatOrder && _tGoal && BUILD[_tGoal.kind]) ? canEnterTileGoal(u, p.tx, p.ty, _tGoal) : canEnterTile(u, p.tx, p.ty);
@@ -6121,6 +6152,9 @@ const tx=tileOfX(u.x), ty=tileOfY(u.y);
   const isAnchored = (u)=>{
     if (!u || !u.alive) return false;
     if (u.path && u.path.length && u.pathI < u.path.length) return false;
+    // Infantry that has snapped into a sub-slot should behave like an anchor,
+    // otherwise late arrivals will "fight" the overlap solver and jitter forever.
+    if (u.cls==="inf" && u.holdPos && Math.hypot((u.vx||0),(u.vy||0)) < 0.15) return true;
     if (u.target!=null){
     const tt = getEntityById(u.target);
     if (!tt || !tt.alive || tt.attackable===false){ u.target=null; }
@@ -7380,63 +7414,6 @@ function isEnemyInf(e){
   return (UNIT[e.kind]?.cls==="inf");
 }
 
-
-  // --- Infantry anti-blob combat positioning ---
-  function allocInfSubSlot(u, tx, ty, purpose){
-    if (!inMap(tx,ty)) return (u.id & 3);
-    const ni = idx(tx,ty);
-    let mask = (u.team===0) ? infSlotMask0[ni] : infSlotMask1[ni];
-    const key = (tx<<16) ^ (ty & 0xFFFF);
-
-    let slot = -1;
-    if (purpose==="atk" && u.atkSlot!=null && u.atkSlotKey===key){
-      const s0 = (u.atkSlot & 3);
-      if (((mask>>s0)&1)===0) slot = s0;
-    }
-    if (slot<0){
-      for (let s=0; s<4; s++){
-        if (((mask>>s)&1)===0){ slot=s; break; }
-      }
-    }
-    if (slot>=0){
-      mask |= (1<<slot);
-      if (u.team===0) infSlotMask0[ni] = mask;
-      else           infSlotMask1[ni] = mask;
-      if (purpose==="atk"){ u.atkSlot = slot; u.atkSlotKey = key; }
-      return slot;
-    }
-    return (u.id & 3);
-  }
-
-  function pickInfantryAttackSpot(u, t){
-    const baseTx = tileOfX(t.x), baseTy = tileOfY(t.y);
-    const desiredR = Math.max(1, Math.floor((u.range*0.85)/TILE));
-    const maxR = desiredR + 5;
-    const seed = (((u.id * 0.61803398875) % 1) + 0.271828) % 1;
-
-    for (let r=desiredR; r<=maxR; r++){
-      const steps = Math.max(16, r*10);
-      for (let k=0; k<steps; k++){
-        const ang = (seed + (k/steps)) * Math.PI * 2;
-        const tx = baseTx + Math.round(Math.cos(ang) * r);
-        const ty = baseTy + Math.round(Math.sin(ang) * r);
-        if (!inMap(tx,ty)) continue;
-        if (canEnterTileGoal(u, tx, ty, t)) return {tx,ty};
-      }
-    }
-    // fallback: nearest walkable tile
-    for (let r=0; r<=2; r++){
-      for (let dy=-r; dy<=r; dy++){
-        for (let dx=-r; dx<=r; dx++){
-          const tx = baseTx + dx, ty = baseTy + dy;
-          if (!inMap(tx,ty)) continue;
-          if (canEnterTileGoal(u, tx, ty, t)) return {tx,ty};
-        }
-      }
-    }
-    return {tx: baseTx, ty: baseTy};
-  }
-
 function tickUnits(dt){
     clearOcc(dt);
     for (const u of units){
@@ -8335,35 +8312,7 @@ u.path = null; u.pathI = 0;
 u.vx = 0; u.vy = 0;
 u.repathCd = Math.max(u.repathCd||0, 0.20);
 // Record an attack anchor when we enter in-range hold.
-if (u.atkX==null || u.atkY==null){
-  const ucls = (UNIT[u.kind] && UNIT[u.kind].cls) ? UNIT[u.kind].cls : "";
-  if (ucls==="inf" && !u.inTransport){
-    let ax = tileOfX(u.x), ay = tileOfY(u.y);
-
-    // When attacking a building, pick a per-unit attack spot around it to avoid blobs.
-    if (isB){
-      if (u.atkSpotId!==t.id || u.atkSpotTx==null || u.atkSpotTy==null){
-        const sp = pickInfantryAttackSpot(u, t);
-        u.atkSpotId = t.id; u.atkSpotTx = sp.tx; u.atkSpotTy = sp.ty;
-      }
-      ax = u.atkSpotTx; ay = u.atkSpotTy;
-    }
-
-    const slot = allocInfSubSlot(u, ax, ay, "atk");
-    const wp = tileToWorldSubslot(ax, ay, slot);
-    u.atkX = wp.x; u.atkY = wp.y;
-
-    // Snap into slot if close, otherwise we will drift there without oscillation.
-    const dd = (u.x-u.atkX)*(u.x-u.atkX) + (u.y-u.atkY)*(u.y-u.atkY);
-    if (dd < (INF_HOLD_EPS*INF_HOLD_EPS)){
-      u.x = u.atkX; u.y = u.atkY;
-      u.vx = 0; u.vy = 0;
-      u.holdPos = true;
-    }
-  } else {
-    u.atkX = u.x; u.atkY = u.y;
-  }
-}
+if (u.atkX==null || u.atkY==null){ u.atkX = u.x; u.atkY = u.y; }
 // Keep a small hold timer so other systems won't micro-adjust this frame.
 u.holdPosT = Math.max(u.holdPosT||0, 0.25);
     u.combatGoalT = Math.max(0, (u.combatGoalT||0) - dt);
@@ -8377,26 +8326,10 @@ u.atkX = null; u.atkY = null;
 
 let goalX, goalY;
 if (isB){
-  const ucls = (UNIT[u.kind] && UNIT[u.kind].cls) ? UNIT[u.kind].cls : "";
-  if (ucls==="inf" && !u.inTransport){
-    // Spread infantry around buildings using stable per-unit "attack spot" tiles.
-    if (u.atkSpotId!==t.id || u.atkSpotTx==null || u.atkSpotTy==null || (u.atkSpotT||0)<=0){
-      const sp = pickInfantryAttackSpot(u, t);
-      u.atkSpotId = t.id; u.atkSpotTx = sp.tx; u.atkSpotTy = sp.ty;
-      u.atkSpotT = 0.6; // refresh cadence
-      u.atkSlot = null; u.atkSlotKey = null;
-    } else {
-      u.atkSpotT -= dt;
-    }
-    const slot = allocInfSubSlot(u, u.atkSpotTx, u.atkSpotTy, "atk");
-    const wp = tileToWorldSubslot(u.atkSpotTx, u.atkSpotTy, slot);
-    goalX = wp.x; goalY = wp.y;
-  } else {
-    const targetRad = Math.max(t.w||0, t.h||0) * 0.5;
-    const wantDist = u.range * 0.88;
-    const g = getStandoffPoint(u, t, wantDist, true, targetRad, u.atkSeedAng);
-    goalX = g.x; goalY = g.y;
-  }
+  const targetRad = Math.max(t.w||0, t.h||0) * 0.5;
+  const wantDist = u.range * 0.88;
+  const g = getStandoffPoint(u, t, wantDist, true, targetRad, u.atkSeedAng);
+  goalX = g.x; goalY = g.y;
 } else {
   // Use target TILE center as chase goal to avoid constant repath "움찔" on moving targets.
   const ttX = tileOfX(t.x), ttY = tileOfY(t.y);
