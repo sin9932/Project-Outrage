@@ -2770,7 +2770,13 @@ function tileToWorldSubslot(tx, ty, slot){
     for (const u of units){
       if (!u.alive) continue;
       if (u.sepCd && u.sepCd>0){ u.sepCd -= dt; if (u.sepCd<=0){ u.sepCd=0; u.sepOx=0; u.sepOy=0; } }
-      const tx=tileOfX(u.x), ty=tileOfY(u.y);
+      let tx=tileOfX(u.x), ty=tileOfY(u.y);
+      // Hysteresis: if infantry was already assigned a sub-slot tile, keep it unless it truly left the tile.
+      if (cls==="inf" && u.subSlotTx!=null && u.subSlotTy!=null){
+        const cx=(u.subSlotTx+0.5)*TILE, cy=(u.subSlotTy+0.5)*TILE;
+        const thr=(TILE*0.62); // ~RA2 subcell boundary tolerance
+        if (dist2(u.x,u.y,cx,cy) < thr*thr){ tx=u.subSlotTx; ty=u.subSlotTy; }
+      }
       if (!inMap(tx,ty)) continue;
       const i=idx(tx,ty);
       if (occAnyId[i]===0){ occAnyId[i]=u.id; occTeam[i]=u.team; }
@@ -3157,8 +3163,9 @@ const ni=ny*W+nx;
   }
 
   function setPathTo(u, goalX, goalY){
-    // Temporary separation offset to reduce clump jitter
-    if (u.sepCd && u.sepCd>0){ goalX += (u.sepOx||0); goalY += (u.sepOy||0); }
+    // Temporary separation offset to reduce clump jitter (vehicles only)
+    const cls0 = (UNIT[u.kind] && UNIT[u.kind].cls) ? UNIT[u.kind].cls : "";
+    if (cls0==="veh" && u.sepCd && u.sepCd>0){ goalX += (u.sepOx||0); goalY += (u.sepOy||0); }
     const sTx=tileOfX(u.x), sTy=tileOfY(u.y);
     let gTx=tileOfX(goalX), gTy=tileOfY(goalY);
 
@@ -3180,7 +3187,7 @@ const ni=ny*W+nx;
     // If the goal tile is crowded, we only "snap" to a nearby free tile for non-combat move orders.
     // For combat orders we intentionally keep the goal stable and allow compression; otherwise backliners can "dance".
     const _combatOrder = (u && u.order && (u.order.type==="attack" || u.order.type==="attackmove"));
-    if (!_combatOrder){
+    if (!_combatOrder && cls0!=="inf"){
       if (!canEnterTile(u, gTx, gTy)){
         let best=null, bestD=1e9;
         for (let r=1;r<=6;r++){
@@ -3409,7 +3416,7 @@ if (u.cls==="inf"){
     // Reservation + capacity: prevents multiple units trying to occupy the same tile-center,
     // which caused circular "강강수월래" orbiting at diamond corners.
     const curTx = tileOfX(u.x), curTy = tileOfY(u.y);
-    if (!(p.tx===curTx && p.ty===curTy)){
+    if (u.cls!=="inf" && !(p.tx===curTx && p.ty===curTy)){
       const _tGoal = (u && u.target!=null) ? getEntityById(u.target) : null;
       const _combatOrder = (u && u.order && (u.order.type==="attack" || u.order.type==="attackmove"));
       const _canEnter = (_combatOrder && _tGoal && BUILD[_tGoal.kind]) ? canEnterTileGoal(u, p.tx, p.ty, _tGoal) : canEnterTile(u, p.tx, p.ty);
@@ -3530,15 +3537,21 @@ if (u.cls==="inf"){
     if (u.pathI>0){
       const nextTile = u.path[u.pathI];
       if (!(nextTile.tx===curTileTx && nextTile.ty===curTileTy)){
-        // Try to reserve the next tile to avoid head-on deadlocks.
-        if (!reserveTile(u, nextTile.tx, nextTile.ty) || isReservedByOther(u, nextTile.tx, nextTile.ty)){
-          // Do NOT pause ("dance") when crowded: try a small bypass step, otherwise keep moving.
-          const bp = findBypassStep(u, curTileTx, curTileTy, nextTile.tx, nextTile.ty);
-          if (bp){
-            u.path.splice(u.pathI, 0, {tx:bp.tx, ty:bp.ty});
-            return true;
+        // Try to reserve the next tile to avoid head-on deadlocks (vehicles only).
+        if (u.cls==="inf"){
+          // Infantry: NEVER bypass/juke when the lane is blocked by friendly crowding.
+          if (!canEnterTile(u, nextTile.tx, nextTile.ty)){
+            u.yieldCd = 0.10; // small wait
+            return false;
           }
-          // fall through: allow compression movement instead of yielding
+        } else {
+          if (!reserveTile(u, nextTile.tx, nextTile.ty) || isReservedByOther(u, nextTile.tx, nextTile.ty)){
+            const bp = findBypassStep(u, curTileTx, curTileTy, nextTile.tx, nextTile.ty);
+            if (bp){
+              u.path.splice(u.pathI, 0, {tx:bp.tx, ty:bp.ty});
+              return true;
+            }
+          }
         }
         if (!canEnterTile(u, nextTile.tx, nextTile.ty)){
           // If the final approach is blocked (crowding), accept arrival near the goal to avoid infinite wiggle.
@@ -3651,6 +3664,13 @@ const nx=u.x+ax*step, ny=u.y+ay*step;
     if (!(ntx===curTx && nty===curTy)){
       const blockedNext = (!canEnterTile(u, ntx, nty) || isReservedByOther(u, ntx, nty));
       if (blockedNext){
+        // Infantry crowding behavior: don't juke, don't repath, just WAIT (RA2-style).
+        if (u.cls==="inf"){
+          u.vx=0; u.vy=0;
+          u.yieldCd = Math.max(u.yieldCd||0, 0.14);
+          // keep current sub-slot target if any; we'll retry when front row moves.
+          return false;
+        }
         u.blockT = (u.blockT||0) + dt;
         if ((u.avoidCd||0) <= 0){
           const bypass = findBypassStep(u, curTx, curTy, ntx, nty);
@@ -9978,10 +9998,15 @@ if (btnSelAllKind) btnSelAllKind.onclick = ()=>selectAllUnitsScreenThenMap();
       e.target=null;
       setPathTo(e,p.x,p.y);
       e.repathCd=0.18;
-      // Add a short separation burst to kick units out of overlaps.
-      e.sepCd=0.35;
-      e.sepOx=(Math.cos(ang)*18);
-      e.sepOy=(Math.sin(ang)*18);
+      // Add a short separation burst to kick units out of overlaps (vehicles only).
+      const _cls = (UNIT[e.kind] && UNIT[e.kind].cls) ? UNIT[e.kind].cls : "";
+      if (_cls==="veh"){
+        e.sepCd=0.35;
+        e.sepOx=(Math.cos(ang)*18);
+        e.sepOy=(Math.sin(ang)*18);
+      } else {
+        e.sepCd=0; e.sepOx=0; e.sepOy=0;
+      }
     }
   }
 
