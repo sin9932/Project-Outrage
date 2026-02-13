@@ -283,7 +283,7 @@ function fitMini() {
 
   const TILE = 110;
   
-  window.__RA2_PATCH_VERSION__="v15";
+  window.__RA2_PATCH_VERSION__="v16";
 const GAME_SPEED = 1.30;
   const BUILD_PROD_MULT = 1.30; // additional +30% for building & unit production speed
   // Enemy AI cheats (difficulty)
