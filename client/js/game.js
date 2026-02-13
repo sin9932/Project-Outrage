@@ -1,6 +1,4 @@
 ;(function(){
-  window.__RA2_PATCH_VERSION__="v13";
-
   // Debug/validation mode: add ?debug=1 to URL
   const DEV_VALIDATE = /(?:\?|&)debug=1(?:&|$)/.test(location.search);
   const DEV_VALIDATE_THROW = false; // if true, throws on first invariant failure
@@ -283,8 +281,9 @@ function fitMini() {
     return { x: (e.clientX - rect.left) * sx, y: (e.clientY - rect.top) * sy };
   }
 
-  const TILE = 180;
-  const TILE_RATIO = TILE / 110; // 180/110
+  const TILE = 110;
+  
+  window.__RA2_PATCH_VERSION__="v14";
 const GAME_SPEED = 1.30;
   const BUILD_PROD_MULT = 1.30; // additional +30% for building & unit production speed
   // Enemy AI cheats (difficulty)
@@ -756,12 +755,12 @@ function getBaseBuildTime(kind){
   // === Unit specs (split to ./js/units.js) ===
   // If ./js/units.js is loaded, it provides window.G.Units.UNIT.
   const DEFAULT_UNIT = {
-    infantry: { r:17, hp:125, speed:376, range:540, dmg:15, rof:0.55, vision:687, hitscan:true,  cls:"inf" },
-    engineer: { r:17, hp:100, speed:445, range:0,   dmg:0,  rof:0,    vision:687, cls:"inf" },
-    sniper:   { r:17, hp:125, speed:335, range:1964, dmg:125, rof:2.20, vision:1964, hitscan:true,  cls:"inf", cloak:false },
-    tank:     { r:25, hp:400, speed:524, range:589, dmg:34, rof:0.90, vision:1113, hitscan:false, cls:"veh" },
-    ifv:      { r:24, hp:200, speed:785, range:589, dmg:25, rof:0.85, vision:851, hitscan:false, cls:"veh", transport:1 },
-    harvester:{ r:28, hp:1000, speed:409, range:0,   dmg:0,  rof:0,    vision:851, carryMax:1000, cls:"veh" }
+    infantry: { r:17, hp:125, speed:230, range:330, dmg:15, rof:0.55, vision:420, hitscan:true,  cls:"inf" },
+    engineer: { r:17, hp:100, speed:272, range:0,   dmg:0,  rof:0,    vision:420, cls:"inf" },
+    sniper:   { r:17, hp:125, speed:205, range:1200, dmg:125, rof:2.20, vision:1200, hitscan:true,  cls:"inf", cloak:false },
+    tank:     { r:25, hp:400, speed:320, range:360, dmg:34, rof:0.90, vision:  680, hitscan:false, cls:"veh" },
+    ifv:      { r:24, hp:200, speed:480, range:360, dmg:25, rof:0.85, vision: 520, hitscan:false, cls:"veh", transport:1 },
+    harvester:{ r:28, hp:1000, speed:250, range:0,   dmg:0,  rof:0,    vision: 520, carryMax:1000, cls:"veh" }
   };
 
   const UNIT = (window.G && window.G.Units && window.G.Units.UNIT) ? window.G.Units.UNIT : DEFAULT_UNIT;
@@ -3275,40 +3274,27 @@ const ni=ny*W+nx;
 
   // Infantry settle: when multiple infantry share a tile and a unit has "arrived",
   // keep it glued to its sub-slot to prevent post-arrival vibration.
-  
-
-// RA2 PATCH V11: stable tile hysteresis for infantry (prevents boundary-flip jitter while queued)
-function stableTile(u){
-  const tx = tileOfX(u.x), ty = tileOfY(u.y);
-  const cls = (UNIT[u.kind] && UNIT[u.kind].cls) ? UNIT[u.kind].cls : "";
-  if (cls!=="inf") return {tx,ty};
-  if (u._stTx==null){ u._stTx=tx; u._stTy=ty; return {tx,ty}; }
-  const c = tileToWorldCenter(u._stTx, u._stTy);
-  const dx = u.x - c.x, dy = u.y - c.y;
-  const leaveR = TILE*0.62;
-  if ((dx*dx + dy*dy) < leaveR*leaveR){
-    return {tx:u._stTx, ty:u._stTy};
-  }
-  u._stTx = tx; u._stTy = ty;
-  return {tx,ty};
-}
-
-function settleInfantryToSubslot(u, dt){
+  function settleInfantryToSubslot(u, dt){
     const cls = (UNIT[u.kind] && UNIT[u.kind].cls) ? UNIT[u.kind].cls : "";
     if (cls!=="inf") return;
     if (!u.alive || u.inTransport) return;
     if (u.target!=null) return;
-    const queued = !!u.__queue || (u.__queueWait||0)>0 || (u.blockT||0)>0 || (u.finalBlockT||0)>0 || (u.__ra2_wait||0)>0;
-    // Allow settling while queued/blocked even during move orders.
-    if (!queued){
-      const ot = u.order && u.order.type;
-      if (ot!=="idle" && ot!=="guard") return;
+    const ot = u.order && u.order.type;
+const queued = !!u.__queue || (u.__queueWait||0)>0 || (u.blockT||0)>0 || (u.finalBlockT||0)>0 || (u.__ra2_wait||0)>0;
+// Allow settling while queued OR when moving to an assigned sub-slot destination (order.ss).
+if (!queued){
+  if (ot!=="idle" && ot!=="guard"){
+    // allow settle near the final tile for move orders that have ss
+    if (!(ot==="move" && u.order && u.order.ss!=null)){
+      return;
     }
-    const __st = (typeof stableTile==="function") ? stableTile(u) : {tx:tileOfX(u.x), ty:tileOfY(u.y)}; const tx = __st.tx, ty = __st.ty;
+  }
+}const tx = (u.order && u.order.tx!=null) ? u.order.tx : tileOfX(u.x);
+    const ty = (u.order && u.order.ty!=null) ? u.order.ty : tileOfY(u.y);
     if (!inMap(tx,ty)) return;
 
     // Ensure we have a valid subSlot assigned (filled in clearOcc()).
-    const ss = (u.subSlot==null) ? 0 : (u.subSlot % INF_SLOT_MAX);
+    const ss = (u.order && u.order.ss!=null) ? (u.order.ss & 3) : ((u.subSlot==null) ? 0 : (u.subSlot & 3));
     const sp = tileToWorldSubslot(tx, ty, ss);
 
     // Critically-damped snap (no overshoot).
@@ -3323,7 +3309,7 @@ function settleInfantryToSubslot(u, dt){
 
     // Move at a capped rate so we don't introduce new jitter.
     const d = Math.sqrt(d2);
-    const maxStep = 120 * dt; // px/s
+    const maxStep = (queued ? 280 : 140) * dt; // px/s
     const step = Math.min(maxStep, d);
     const nx = dx / (d||1), ny = dy / (d||1);
     u.x += nx * step;
@@ -3524,28 +3510,7 @@ function followPath(u, dt){
       }
     }
 
-    
-// RA2 PATCH V12: if infantry is queued/blocked, freeze steering & walk anim.
-// We only allow "settleInfantryToSubslot" micro-snaps; no path steering, no avoidance, no facing updates from movement.
-const __cls = (UNIT[u.kind] && UNIT[u.kind].cls) ? UNIT[u.kind].cls : "";
-const __queued = (__cls==="inf") && (
-  (u.__queue||0) ||
-  ((u.__queueWait||0) > 0) ||
-  ((u.blockT||0) > 0) ||
-  ((u.finalBlockT||0) > 0) ||
-  ((u.__ra2_wait||0) > 0)
-);
-if (__queued){
-  u.vx = 0; u.vy = 0;
-  // prevent any residual steering from affecting facing/anim in later code paths
-  u._freezeMove = 1;
-  settleInfantryToSubslot(u, dt);
-  return true;
-} else {
-  u._freezeMove = 0;
-}
-
-const step=Math.min(getMoveSpeed(u)*dt, d);
+    const step=Math.min(getMoveSpeed(u)*dt, d);
     let ax=dx/(d||1), ay=dy/(d||1);
     // v12: local steering to avoid overlapping with nearby units.
     // This makes units slide around each other instead of stacking.
@@ -3579,10 +3544,7 @@ const step=Math.min(getMoveSpeed(u)*dt, d);
 
     // Update facing direction for sprite rendering.
     // IMPORTANT: don't overwrite attack-facing while firing, and don't snap to default when stationary.
-    if (u._freezeMove){
-  ax = 0; ay = 0;
-}
-const movingDir = (Math.abs(ax) + Math.abs(ay)) > 1e-4;
+    const movingDir = (Math.abs(ax) + Math.abs(ay)) > 1e-4;
     if ((u.fireHoldT||0) > 0 && u.fireDir!=null){
       // Firing facing: turret/aim direction
       u.faceDir = u.fireDir;
@@ -6872,7 +6834,9 @@ function stampCmd(e, type, x, y, targetId=null){
 
     // Precompute candidate offsets sized to selection
     const offsets = buildFormationOffsets(Math.max(16, ids.length*6));
-    const used = new Set();
+    const usedVeh = new Set();
+    const usedInfMask = new Map(); // key: idx(tx,ty) -> 4-bit used mask for THIS command
+
     let k=0;
     for (const id of ids){
       const e=getEntityById(id);
@@ -6888,52 +6852,130 @@ function stampCmd(e, type, x, y, targetId=null){
       e.forceMoveUntil = state.t + 1.25;
       e.repathCd=0.15;
 
-      // pick best nearby free tile among offsets, biased to the actual mouse world point (x,y)
-      // so clicking near a unit lets you place destinations to its side/front more predictably.
-      let chosen=null;
-      let bestScore=1e18;
-      for (let j=0; j<offsets.length; j++){
-        const tx = baseTx + offsets[j].dx;
-        const ty = baseTy + offsets[j].dy;
-        if (!inMap(tx,ty)) continue;
-        const key = tx+"," + ty;
-        if (used.has(key)) continue;
-        if (!canEnterTile(e, tx, ty)) continue;
-        const wpC = tileToWorldCenter(tx,ty);
-        // score: distance to the actual click + tiny ring penalty (prefer closer rings)
-        const dxw = (wpC.x - x), dyw = (wpC.y - y);
-        const ring = (Math.abs(offsets[j].dx)+Math.abs(offsets[j].dy));
-        const dot = (offsets[j].dx*intentVX + offsets[j].dy*intentVY);
-        // Lower score is better; dot>0 means tile is in the direction you clicked within the occupied tile.
-        const score = dxw*dxw + dyw*dyw + ring*9 - dot*1.2;
-        if (score < bestScore){
-          bestScore=score;
-          chosen={tx,ty};
-        }
-        // Early exit for perfect hit
-        if (score < 1) break;
-      }
-      // reserve chosen now (so other units won't pick it)
-      if (chosen){
-        if (!reserveTile(e, chosen.tx, chosen.ty)){
-          chosen=null;
-        } else {
-          used.add(chosen.tx+","+chosen.ty);
-        }
-      }
-      // if nothing free, fall back to base tile center
-      if (!chosen) chosen={tx:baseTx, ty:baseTy};
+      
+  // pick best nearby destination.
+  // Vehicles: keep unique-tile placement (like before).
+  // Infantry: pack into 2x2 sub-cells (4 per tile) first, then spill to neighboring tiles (radius 2).
+  const cls = (UNIT[e.kind] && UNIT[e.kind].cls) ? UNIT[e.kind].cls : "";
+  let chosen=null;
+  let chosenSS=0;
 
-      const wp = tileToWorldCenter(chosen.tx, chosen.ty);
-      e.order={type:"move", x:wp.x, y:wp.y, tx:chosen.tx, ty:chosen.ty};
-      e.holdPos = false;
-
-      pushOrderFx(e.id,"move",wp.x,wp.y,null,"rgba(90,255,90,0.95)");
-      setPathTo(e, wp.x, wp.y);
-      showUnitPathFx(e, wp.x, wp.y, "rgba(255,255,255,0.85)");
-      stampCmd(e,'move',wp.x,wp.y,null);
-      k++;
+  if (cls!=="inf"){
+    // --- Vehicle/other: unique tiles only ---
+    let bestScore=1e18;
+    for (let j=0; j<offsets.length; j++){
+      const tx = baseTx + offsets[j].dx;
+      const ty = baseTy + offsets[j].dy;
+      if (!inMap(tx,ty)) continue;
+      const key = tx+"," + ty;
+      if (usedVeh.has(key)) continue;
+      if (!canEnterTile(e, tx, ty)) continue;
+      const wpC = tileToWorldCenter(tx,ty);
+      const dxw = (wpC.x - x), dyw = (wpC.y - y);
+      const ring = (Math.abs(offsets[j].dx)+Math.abs(offsets[j].dy));
+      const dot = (offsets[j].dx*intentVX + offsets[j].dy*intentVY);
+      const score = (dxw*dxw + dyw*dyw) + ring*8 - dot*0.35;
+      if (score < bestScore){
+        bestScore=score;
+        chosen={tx,ty};
+      }
+      if (score < 1) break;
     }
+    if (chosen){
+      if (!reserveTile(e, chosen.tx, chosen.ty)){
+        chosen=null;
+      } else {
+        usedVeh.add(chosen.tx+","+chosen.ty);
+      }
+    }
+    if (!chosen) chosen={tx:baseTx, ty:baseTy};
+    const wp = tileToWorldCenter(chosen.tx, chosen.ty);
+    e.order={type:"move", x:wp.x, y:wp.y, tx:chosen.tx, ty:chosen.ty};
+    e.holdPos = false;
+    pushOrderFx(e.id,"move",wp.x,wp.y,null,"rgba(90,255,90,0.95)");
+    setPathTo(e, wp.x, wp.y);
+    showUnitPathFx(e, wp.x, wp.y, "rgba(255,255,255,0.85)");
+    stampCmd(e,'move',wp.x,wp.y,null);
+    k++;
+  } else {
+    // --- Infantry: 2x2 sub-cell packing with spill radius 2 (B plan) ---
+    // Candidate tiles: base, then spiral out; within radius 2 strongly preferred.
+    // We will fill free sub-slots (0..3) per tile.
+    const maxPreferR = 2;
+    const maxSearchR = Math.max(6, maxPreferR); // fallback if super crowded
+    let bestScore=1e18;
+
+    for (let r=0; r<=maxSearchR; r++){
+      // Build ring offsets
+      for (let dx=-r; dx<=r; dx++){
+        const dy1 = r - Math.abs(dx);
+        const candidates = (dy1===0) ? [0] : [dy1, -dy1];
+        for (let t=0; t<candidates.length; t++){
+          const dy = candidates[t];
+          const tx = baseTx + dx;
+          const ty = baseTy + dy;
+          if (!inMap(tx,ty)) continue;
+          if (!canEnterTile(e, tx, ty)) continue;
+
+          const ii = idx(tx,ty);
+          const baseMask = (e.team===0) ? (infSlotMask0[ii]|0) : (infSlotMask1[ii]|0);
+          const usedMask = usedInfMask.get(ii) || 0;
+          const mask = (baseMask | usedMask) & 0x0F;
+          if (mask === 0x0F) continue; // full 4/4
+
+          // choose first free subslot
+          let ss = 0;
+          for (ss=0; ss<4; ss++){
+            if (((mask>>ss)&1)===0) break;
+          }
+
+          const wpS = tileToWorldSubslot(tx,ty,ss);
+          const dxw = (wpS.x - x), dyw = (wpS.y - y);
+          const ring = r;
+          const preferPenalty = (ring>maxPreferR) ? (ring-maxPreferR)*2200 : 0;
+          // Direction bias (same idea as vehicle score but lighter)
+          const dot = (dx*intentVX + dy*intentVY);
+          const score = (dxw*dxw + dyw*dyw) + ring*18 + preferPenalty - dot*0.25;
+
+          if (score < bestScore){
+            bestScore=score;
+            chosen={tx,ty}; chosenSS=ss;
+          }
+        }
+      }
+      // Early exit: if we found something within preferred radius and it's very good, stop searching
+      if (chosen && r<=maxPreferR && bestScore < 400) break;
+      // If we're within preferred radius and already picked a tile there, don't go too far unless necessary
+      if (chosen && r>=maxPreferR && bestScore < 1600) break;
+    }
+
+    if (!chosen){
+      // fallback to base tile's first slot
+      chosen={tx:baseTx, ty:baseTy}; chosenSS=0;
+    }
+
+    // Mark this sub-slot used for this command so the next infantry takes another slot.
+    const jj = idx(chosen.tx, chosen.ty);
+    const prev = usedInfMask.get(jj) || 0;
+    usedInfMask.set(jj, (prev | (1<<chosenSS)) & 0x0F);
+
+    // Make the unit "want" this slot even before it arrives.
+    e.subSlot = chosenSS;
+    e.subSlotTx = chosen.tx;
+    e.subSlotTy = chosen.ty;
+
+    const wp = tileToWorldSubslot(chosen.tx, chosen.ty, chosenSS);
+    e.order={type:"move", x:wp.x, y:wp.y, tx:chosen.tx, ty:chosen.ty, ss:chosenSS};
+    e.holdPos = false;
+
+    pushOrderFx(e.id,"move",wp.x,wp.y,null,"rgba(90,255,90,0.95)");
+    setPathTo(e, wp.x, wp.y);
+    showUnitPathFx(e, wp.x, wp.y, "rgba(255,255,255,0.85)");
+    stampCmd(e,'move',wp.x,wp.y,null);
+    k++;
+  }
+}
+
   }
 
   function issueMoveCombatOnly(x,y){
@@ -7505,7 +7547,7 @@ if (u.kind==="sniper"){
           // - Heal rate is moderate (no instant full heal).
           u.dmg = 0; u.range = 0; u.hitscan = true;
 
-          const REPAIR_RANGE = 425;         // v54: looser repair range (in-range repairs feel responsive)
+          const REPAIR_RANGE = 260;         // v54: looser repair range (in-range repairs feel responsive)
           const REPAIR_INTERVAL = 1.25;     // seconds per tick (slower ticks, bigger heals)
           const REPAIR_AMOUNT = 24;         // hp per tick
 
@@ -8357,7 +8399,6 @@ if (needMove){
         u._fxLastX = u.x; u._fxLastY = u.y;
         // Keep legacy fields updated for other systems
         u.vx = vx; u.vy = vy;
-      u.__queue = 0;
 
         const spd = Math.hypot(vx, vy);
         if (spd > 6){
