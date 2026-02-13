@@ -283,7 +283,7 @@ function fitMini() {
 
   const TILE = 110;
   
-  window.__RA2_PATCH_VERSION__="v18";
+  window.__RA2_PATCH_VERSION__="v19";
 const GAME_SPEED = 1.30;
   const BUILD_PROD_MULT = 1.30; // additional +30% for building & unit production speed
   // Enemy AI cheats (difficulty)
@@ -2735,6 +2735,10 @@ const infSlotNext1 = new Uint8Array(MAP_W*MAP_H);
 const infSlotMask0 = new Uint8Array(MAP_W*MAP_H);
 const infSlotMask1 = new Uint8Array(MAP_W*MAP_H);
 
+
+// RA2 PATCH V19: per-tile 2x2 infantry slot owners (0=free, else unitId+1)
+const infSlotOwner0 = new Int32Array(MAP_W*MAP_H*4);
+const infSlotOwner1 = new Int32Array(MAP_W*MAP_H*4);
 // Sub-slot offsets are defined in ISO space for correct diamond placement.
 const INF_SLOT_ISO = Math.round(TILE * 0.18); // tweakable
 const INF_SLOT_ISO_OFF = [
