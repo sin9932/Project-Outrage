@@ -1,31 +1,6 @@
-
-
-// === RA2 PATCH V4: anti-jitter for "can't reach" units (stuck -> wait/repath) ===
-function __ra2_initStuck(u){
-  if(!u) return;
-  if(u.__ra2_lastX==null){ u.__ra2_lastX=u.x; u.__ra2_lastY=u.y; u.__ra2_stuck=0; u.__ra2_wait=0; u.__ra2_repathCD=0; u.__ra2_forceRepath=0; }
-}
-function __ra2_stuckTick(u){
-  __ra2_initStuck(u);
-  if(u.__ra2_wait>0){ u.__ra2_wait--; return true; }
-  if(u.__ra2_repathCD>0) u.__ra2_repathCD--;
-  const dx=u.x-u.__ra2_lastX, dy=u.y-u.__ra2_lastY;
-  const moved=Math.hypot(dx,dy);
-  u.__ra2_lastX=u.x; u.__ra2_lastY=u.y;
-  const moving = (u.order && (u.order.type==="move" || u.order.type==="attackMove")) || (u.path && u.path.length>0);
-  if(!moving){ u.__ra2_stuck=0; return false; }
-  if(moved < 0.35) u.__ra2_stuck++; else u.__ra2_stuck = Math.max(0, u.__ra2_stuck-2);
-  if(u.__ra2_stuck >= 18){
-    u.__ra2_stuck = 0;
-    u.__ra2_wait = 10;
-    u.__ra2_forceRepath = 1;
-    u.__ra2_repathCD = 25;
-    return true;
-  }
-  return false;
-}
-
 ;(function(){
+  window.__RA2_PATCH_VERSION__="v5";
+
   // Debug/validation mode: add ?debug=1 to URL
   const DEV_VALIDATE = /(?:\?|&)debug=1(?:&|$)/.test(location.search);
   const DEV_VALIDATE_THROW = false; // if true, throws on first invariant failure
@@ -3337,13 +3312,6 @@ const ni=ny*W+nx;
     u.holdPos = true;
   }
 function followPath(u, dt){
-
-// RA2 PATCH V4: if unit is stuck/jittering, pause a few ticks (queueing) and request repath
-if (__ra2_stuckTick(u)) {
-  u.vx = 0; u.vy = 0;
-  return;
-}
-
     // HARD STOP: if unit is effectively idle/guard with no target, it must not drift.
     if (u && u.order && (u.order.type==="idle" || u.order.type==="guard") && u.target==null){
       if (u.path){ u.path = null; u.pathI = 0; }
@@ -3377,50 +3345,7 @@ if (__ra2_stuckTick(u)) {
     if (u.yieldCd && u.yieldCd>0){ u.yieldCd -= dt; if (u.yieldCd>0) return false; u.yieldCd=0; }
 
     const p = u.path[u.pathI];
-    // Waypoint world target
-let wx = (p.tx+0.5)*TILE, wy=(p.ty+0.5)*TILE;
-
-// RA2-feel queueing for infantry:
-// Instead of having everyone steer to tile center (then push/correct/jitter),
-// pick a temporary sub-slot for the NEXT waypoint tile. If no slot is available, WAIT.
-if (u.cls==="inf"){
-  const ni = idx(p.tx,p.ty);
-  let mask = (u.team===0) ? infSlotMask0[ni] : infSlotMask1[ni];
-
-  // keep a short-lived nav slot lock to avoid per-frame slot thrash
-  if (u.navSlotLockT && u.navSlotLockT>0){
-    u.navSlotLockT -= dt;
-    if (u.navSlotLockT<=0){ u.navSlotLockT=0; }
-  }
-
-  let slot = -1;
-  if (u.navSlot!=null && u.navSlotTx===p.tx && u.navSlotTy===p.ty && u.navSlotLockT>0){
-    slot = (u.navSlot & 3);
-  } else {
-    for (let s=0; s<4; s++){
-      if (((mask>>s)&1)===0){ slot = s; break; }
-    }
-    if (slot>=0){
-      u.navSlot = slot; u.navSlotTx = p.tx; u.navSlotTy = p.ty;
-      u.navSlotLockT = 0.25; // seconds
-    }
-  }
-
-  if (slot<0){
-    // Tile is temporarily full: don't oscillate, just queue behind.
-    u.vx = 0; u.vy = 0;
-    u.queueWaitT = (u.queueWaitT||0) + dt;
-
-    // If we have been waiting too long, allow bypass logic below to kick in.
-    // But for short waits, returning here prevents "부들부들".
-    if (u.queueWaitT < 0.35) return false;
-  } else {
-    u.queueWaitT = 0;
-    const sp = tileToWorldSubslot(p.tx, p.ty, slot);
-    wx = sp.x; wy = sp.y;
-  }
-}
-
+    const wx = (p.tx+0.5)*TILE, wy=(p.ty+0.5)*TILE;
 
     // HARD HOLD: if infantry is already locked to its sub-slot in this tile, don't keep steering.
     if (u.cls==="inf" && u.holdPos && tileOfX(u.x)===p.tx && tileOfY(u.y)===p.ty) return false;
@@ -3433,7 +3358,11 @@ if (u.cls==="inf"){
       const _combatOrder = (u && u.order && (u.order.type==="attack" || u.order.type==="attackmove"));
       const _canEnter = (_combatOrder && _tGoal && BUILD[_tGoal.kind]) ? canEnterTileGoal(u, p.tx, p.ty, _tGoal) : canEnterTile(u, p.tx, p.ty);
       if (!_canEnter || !reserveTile(u, p.tx, p.ty)) {
-        // FINAL-TILE RETARGET: if our destination tile is occupied/reserved, pick a nearby free tile once.
+  // RA2 PATCH V5: final tile blocked -> stop and wait briefly (prevents jitter spam).
+  u.finalBlockT = (u.finalBlockT||0) + dt;
+  u.vx = 0; u.vy = 0;
+  if (u.finalBlockT < 0.18) return true;
+  // FINAL-TILE RETARGET: if our destination tile is occupied/reserved, pick a nearby free tile once.
         // This prevents late arrivals from 'dancing' in place trying to steal an already-occupied tile.
         if (u.pathI >= (u.path.length-1)) {
           u.finalBlockT = (u.finalBlockT||0) + dt;
@@ -3502,11 +3431,9 @@ if (u.cls==="inf"){
     if (d < 2 || (u.pathI >= (u.path.length-1) && d < 12)){
       // Reduce "tile-by-tile fidget": only hard-snap on the FINAL node.
       if (u.pathI >= (u.path.length-1)){
-        if (u.cls==="inf"){
-  // Prefer the destination slot assigned at command time (prevents "everyone rushes tile center" jitter).
-  let slot = (u.order && u.order.tx===p.tx && u.order.ty===p.ty && u.order.subSlot!=null) ? (u.order.subSlot|0) : (u.subSlot|0);
-  const sp = tileToWorldSubslot(p.tx, p.ty, slot);
-  u.x = sp.x; u.y = sp.y;
+        if (u.cls==="inf" && u.subSlot!=null){
+          const sp = tileToWorldSubslot(p.tx, p.ty, u.subSlot);
+          u.x = sp.x; u.y = sp.y;
           u.vx = 0; u.vy = 0;
           u.holdPos = true;
         } else {
@@ -3542,15 +3469,32 @@ if (u.cls==="inf"){
       const nextTile = u.path[u.pathI];
       if (!(nextTile.tx===curTileTx && nextTile.ty===curTileTy)){
         // Try to reserve the next tile to avoid head-on deadlocks.
-        if (!reserveTile(u, nextTile.tx, nextTile.ty) || isReservedByOther(u, nextTile.tx, nextTile.ty)){
-          // Do NOT pause ("dance") when crowded: try a small bypass step, otherwise keep moving.
-          const bp = findBypassStep(u, curTileTx, curTileTy, nextTile.tx, nextTile.ty);
-          if (bp){
-            u.path.splice(u.pathI, 0, {tx:bp.tx, ty:bp.ty});
-            return true;
-          }
-          // fall through: allow compression movement instead of yielding
-        }
+if (!reserveTile(u, nextTile.tx, nextTile.ty) || isReservedByOther(u, nextTile.tx, nextTile.ty)){
+  // RA2 PATCH V5: NO compression-dance. Try a small bypass step; if none, WAIT (queue) and re-path later.
+  const bp = findBypassStep(u, curTileTx, curTileTy, nextTile.tx, nextTile.ty);
+  if (bp){
+    u.path.splice(u.pathI, 0, {tx:bp.tx, ty:bp.ty});
+    return true;
+  }
+
+  // Queue behavior: stop completely instead of vibrating.
+  u.blockT = (u.blockT||0) + dt;
+  u.vx = 0; u.vy = 0;
+
+  // Occasionally re-path to goal to escape deadlocks (rate-limited).
+  if ((u.repathCd||0) > 0) u.repathCd -= dt;
+  if (u.blockT > 0.25 && (u.repathCd||0) <= 0 && u.path && u.path.length){
+    u.repathCd = 0.35;
+    try{
+      const gx = u.path[u.path.length-1].tx, gy = u.path[u.path.length-1].ty;
+      const sx = curTileTx, sy = curTileTy;
+      const np = findPath(sx, sy, gx, gy);
+      if (np && np.length) { u.path = np; u.pathI = 0; }
+    }catch(e){}
+  }
+
+  return true;
+}
         if (!canEnterTile(u, nextTile.tx, nextTile.ty)){
           // If the final approach is blocked (crowding), accept arrival near the goal to avoid infinite wiggle.
           if (u.order && (u.order.type==="move" || u.order.type==="attackmove") && u.pathI >= (u.path.length-1)){
@@ -6904,8 +6848,6 @@ function stampCmd(e, type, x, y, targetId=null){
     // Precompute candidate offsets sized to selection
     const offsets = buildFormationOffsets(Math.max(16, ids.length*6));
     const used = new Set();
-    // RA2-feel: for infantry, assign a stable destination sub-slot per target tile
-    const __tileSubMask = new Map();
     let k=0;
     for (const id of ids){
       const e=getEntityById(id);
@@ -6955,26 +6897,10 @@ function stampCmd(e, type, x, y, targetId=null){
         }
       }
       // if nothing free, fall back to base tile center
-      if (!chosen) chosen={tx:baseTx, ty:baseTy};// RA2-feel: vehicles still go to tile center; infantry go to a reserved sub-slot inside the tile
-const cls = (UNIT[e.kind] && UNIT[e.kind].cls) ? UNIT[e.kind].cls : "";
-let wp;
-let subSlot = null;
-if (cls==="inf"){
-  const tkey = chosen.tx + "," + chosen.ty;
-  let mask = __tileSubMask.get(tkey) || 0;
-  let pick = 0;
-  for (let s=0; s<4; s++){
-    if (((mask>>s)&1)===0){ pick=s; break; }
-  }
-  subSlot = pick;
-  mask = (mask | (1<<pick)) & 0x0F;
-  __tileSubMask.set(tkey, mask);
-  wp = tileToWorldSubslot(chosen.tx, chosen.ty, pick);
-} else {
-  wp = tileToWorldCenter(chosen.tx, chosen.ty);
-}
-e.order={type:"move", x:wp.x, y:wp.y, tx:chosen.tx, ty:chosen.ty, subSlot:subSlot};
+      if (!chosen) chosen={tx:baseTx, ty:baseTy};
 
+      const wp = tileToWorldCenter(chosen.tx, chosen.ty);
+      e.order={type:"move", x:wp.x, y:wp.y, tx:chosen.tx, ty:chosen.ty};
       e.holdPos = false;
 
       pushOrderFx(e.id,"move",wp.x,wp.y,null,"rgba(90,255,90,0.95)");
