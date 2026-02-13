@@ -3521,8 +3521,11 @@ u.pathI++;
     if (u.pathI>0){
       const nextTile = u.path[u.pathI];
       if (!(nextTile.tx===curTileTx && nextTile.ty===curTileTy)){
-        // Try to reserve the next tile to avoid head-on deadlocks.
-        if (!reserveTile(u, nextTile.tx, nextTile.ty) || isReservedByOther(u, nextTile.tx, nextTile.ty)){
+        // Vehicles use reservation to avoid head-on deadlocks. Infantry uses sub-slots and must NOT reserve,
+        // otherwise it starts 'dancing' when crowded.
+        if (u.cls!=="inf"){
+          // Try to reserve the next tile to avoid head-on deadlocks.
+          if (!reserveTile(u, nextTile.tx, nextTile.ty) || isReservedByOther(u, nextTile.tx, nextTile.ty)){
           // Do NOT pause ("dance") when crowded: try a small bypass step, otherwise keep moving.
           const bp = findBypassStep(u, curTileTx, curTileTy, nextTile.tx, nextTile.ty);
           if (bp){
@@ -3530,8 +3533,17 @@ u.pathI++;
             return true;
           }
           // fall through: allow compression movement instead of yielding
+          }
         }
         if (!canEnterTile(u, nextTile.tx, nextTile.ty)){
+          // Infantry: if the next tile is full, do NOT bypass. Just wait.
+          // This prevents the classic 'wedged between aligned infantry' vibration.
+          if (u.cls==="inf"){
+            u.vx = 0; u.vy = 0;
+            u.queueWaitT = (u.queueWaitT||0) + dt;
+            u.holdPos = false;
+            return false;
+          }
           // If the final approach is blocked (crowding), accept arrival near the goal to avoid infinite wiggle.
           if (u.order && (u.order.type==="move" || u.order.type==="attackmove") && u.pathI >= (u.path.length-1)){
             const dd = dist2(u.x,u.y,u.order.x,u.order.y);
