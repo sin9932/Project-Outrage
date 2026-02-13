@@ -1,5 +1,5 @@
 ;(function(){
-  window.__RA2_PATCH_VERSION__="v5";
+  window.__RA2_PATCH_VERSION__="v6";
 
   // Debug/validation mode: add ?debug=1 to URL
   const DEV_VALIDATE = /(?:\?|&)debug=1(?:&|$)/.test(location.search);
@@ -2927,6 +2927,25 @@ function canEnterTile(u, tx, ty){
     return occAll[i] < 2;
   }
 
+// RA2 PATCH V6: goal-tile check (ignore reservations; allow planning even if current units occupy)
+function canEnterGoalTile(u, tx, ty){
+  if (!inMap(tx,ty)) return false;
+  if (!isWalkableTile(tx,ty)) return false;
+  if (isSqueezedTile(tx,ty)) return false;
+  const c = tileToWorldCenter(tx,ty);
+  if (isBlockedWorldPoint(u, c.x, c.y)) return false; // buildings/footprints
+  const i = idx(tx,ty);
+  const cls = (UNIT[u.kind] && UNIT[u.kind].cls) ? UNIT[u.kind].cls : "";
+  if (cls==="veh") return occAll[i] < 1;
+  if (cls==="inf") {
+    if (occVeh[i] > 0) return false;
+    if (occTeam[i]!==0 && occTeam[i]!==u.team) return false;
+    return occInf[i] < INF_SLOT_MAX;
+  }
+  return occAll[i] < 2;
+}
+
+
   function findNearestFreePoint(wx, wy, u, r=3){
     const cx=tileOfX(wx), cy=tileOfY(wy);
     let bestX=wx, bestY=wy, bestD=1e18, found=false;
@@ -3358,11 +3377,7 @@ function followPath(u, dt){
       const _combatOrder = (u && u.order && (u.order.type==="attack" || u.order.type==="attackmove"));
       const _canEnter = (_combatOrder && _tGoal && BUILD[_tGoal.kind]) ? canEnterTileGoal(u, p.tx, p.ty, _tGoal) : canEnterTile(u, p.tx, p.ty);
       if (!_canEnter || !reserveTile(u, p.tx, p.ty)) {
-  // RA2 PATCH V5: final tile blocked -> stop and wait briefly (prevents jitter spam).
-  u.finalBlockT = (u.finalBlockT||0) + dt;
-  u.vx = 0; u.vy = 0;
-  if (u.finalBlockT < 0.18) return true;
-  // FINAL-TILE RETARGET: if our destination tile is occupied/reserved, pick a nearby free tile once.
+        // FINAL-TILE RETARGET: if our destination tile is occupied/reserved, pick a nearby free tile once.
         // This prevents late arrivals from 'dancing' in place trying to steal an already-occupied tile.
         if (u.pathI >= (u.path.length-1)) {
           u.finalBlockT = (u.finalBlockT||0) + dt;
@@ -3469,32 +3484,16 @@ function followPath(u, dt){
       const nextTile = u.path[u.pathI];
       if (!(nextTile.tx===curTileTx && nextTile.ty===curTileTy)){
         // Try to reserve the next tile to avoid head-on deadlocks.
-if (!reserveTile(u, nextTile.tx, nextTile.ty) || isReservedByOther(u, nextTile.tx, nextTile.ty)){
-  // RA2 PATCH V5: NO compression-dance. Try a small bypass step; if none, WAIT (queue) and re-path later.
-  const bp = findBypassStep(u, curTileTx, curTileTy, nextTile.tx, nextTile.ty);
-  if (bp){
-    u.path.splice(u.pathI, 0, {tx:bp.tx, ty:bp.ty});
-    return true;
-  }
-
-  // Queue behavior: stop completely instead of vibrating.
-  u.blockT = (u.blockT||0) + dt;
-  u.vx = 0; u.vy = 0;
-
-  // Occasionally re-path to goal to escape deadlocks (rate-limited).
-  if ((u.repathCd||0) > 0) u.repathCd -= dt;
-  if (u.blockT > 0.25 && (u.repathCd||0) <= 0 && u.path && u.path.length){
-    u.repathCd = 0.35;
-    try{
-      const gx = u.path[u.path.length-1].tx, gy = u.path[u.path.length-1].ty;
-      const sx = curTileTx, sy = curTileTy;
-      const np = findPath(sx, sy, gx, gy);
-      if (np && np.length) { u.path = np; u.pathI = 0; }
-    }catch(e){}
-  }
-
-  return true;
-}
+        if (!reserveTile(u, nextTile.tx, nextTile.ty) || isReservedByOther(u, nextTile.tx, nextTile.ty)){
+          // Do NOT pause ("dance") when crowded: try a small bypass step, otherwise keep moving.
+          const bp = findBypassStep(u, curTileTx, curTileTy, nextTile.tx, nextTile.ty);
+          if (bp){
+            u.path.splice(u.pathI, 0, {tx:bp.tx, ty:bp.ty});
+            return true;
+          }
+          // RA2 PATCH V6: blocked -> WAIT (queue) instead of compression movement
+          u.blockT = (u.blockT||0) + dt; u.vx=0; u.vy=0; return true;
+        }
         if (!canEnterTile(u, nextTile.tx, nextTile.ty)){
           // If the final approach is blocked (crowding), accept arrival near the goal to avoid infinite wiggle.
           if (u.order && (u.order.type==="move" || u.order.type==="attackmove") && u.pathI >= (u.path.length-1)){
@@ -6873,7 +6872,7 @@ function stampCmd(e, type, x, y, targetId=null){
         if (!inMap(tx,ty)) continue;
         const key = tx+"," + ty;
         if (used.has(key)) continue;
-        if (!canEnterTile(e, tx, ty)) continue;
+        if (!canEnterGoalTile(e, tx, ty)) continue;
         const wpC = tileToWorldCenter(tx,ty);
         // score: distance to the actual click + tiny ring penalty (prefer closer rings)
         const dxw = (wpC.x - x), dyw = (wpC.y - y);
@@ -6888,14 +6887,8 @@ function stampCmd(e, type, x, y, targetId=null){
         // Early exit for perfect hit
         if (score < 1) break;
       }
-      // reserve chosen now (so other units won't pick it)
-      if (chosen){
-        if (!reserveTile(e, chosen.tx, chosen.ty)){
-          chosen=null;
-        } else {
-          used.add(chosen.tx+","+chosen.ty);
-        }
-      }
+      // RA2 PATCH V6: don't reserve destination here (it causes mass fallback + clumping)
+      if (chosen){ used.add(chosen.tx+","+chosen.ty); }
       // if nothing free, fall back to base tile center
       if (!chosen) chosen={tx:baseTx, ty:baseTy};
 
