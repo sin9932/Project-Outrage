@@ -155,10 +155,14 @@ if (idleSeq.length) BARR.idleLoop = idleSeq;
 }
 
   const PATH = {
+    // Your described folder layout:
+    // idle(평시): asset/sprite/const/destruct/barrack/Barrack_idle.json
+    // (건축완료): asset/sprite/const/normal/barrack/barrack_const.json
+    // (건물파괴): asset/sprite/const/const_anim/barrack/barrack_distruction.json
     barracks: {
-      idle: { json:"asset/sprite/const/normal/barrack/Barrack_idle.json", base:"asset/sprite/const/normal/barrack/" },
-      cons: { json:"asset/sprite/const/const_anim/barrack_const.json", base:"asset/sprite/const/const_anim/barrack/" },
-      dest: { json:"asset/sprite/const/destruct/barrack_distruction.json", base:"asset/sprite/const/destruct/barrack/" },
+      idle: { json:"asset/sprite/const/destruct/barrack/Barrack_idle.json", base:"asset/sprite/const/destruct/barrack/" },
+      cons: { json:"asset/sprite/const/normal/barrack/barrack_const.json", base:"asset/sprite/const/normal/barrack/" },
+      dest: { json:"asset/sprite/const/const_anim/barrack/barrack_distruction.json", base:"asset/sprite/const/const_anim/barrack/" },
     }
   };
 
@@ -194,6 +198,8 @@ async function _tryLoadTPMulti(cands){
       return await atlasTP.loadTPAtlasMulti(c.json, c.base);
     }catch(e){
       lastErr = e;
+      // Helpful debug: show which URL is returning HTML / failing
+      console.warn("[buildings] atlas candidate failed:", c.json, "base:", c.base, "err:", (e && e.message) ? e.message : e);
     }
   }
   throw lastErr || new Error("Atlas load failed (no candidates)");

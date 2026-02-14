@@ -52,9 +52,18 @@
   }
 
   async function loadTPAtlasMulti(jsonUrl, baseDir){
-    const res = await fetch(jsonUrl);
-    if (!res.ok) throw new Error("Atlas JSON fetch failed: " + jsonUrl);
-    const json = await res.json();
+    // Avoid "cached HTML pretending to be JSON" (304 can keep a bad cached body).
+    const res = await fetch(jsonUrl, { cache: "no-store" });
+    if (!res.ok) throw new Error("Atlas JSON fetch failed: " + jsonUrl + " (" + res.status + ")");
+    let json;
+    try{
+      json = await res.json();
+    }catch(e){
+      // If server returned HTML (SPA fallback / 404 page), res.json() throws.
+      const txt = await res.text().catch(()=> "");
+      const head = (txt || "").slice(0, 120).replace(/\s+/g, " ").trim();
+      throw new Error("Atlas JSON parse failed: " + jsonUrl + " | startsWith: " + head);
+    }
     const atlas = _parseTPMulti(json);
 
     for (let i=0;i<atlas.textures.length;i++){
