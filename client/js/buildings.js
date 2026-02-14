@@ -27,7 +27,7 @@
   // ---- Small helpers ----
   function _suffixNumber(name) {
     // "..._12.png" -> 12, otherwise NaN
-    const m = /(\d+)\.png$/i.exec(name);
+    const m = /_(\d+)\.png$/i.exec(name);
     return m ? parseInt(m[1], 10) : Number.NaN;
   }
 

@@ -421,19 +421,6 @@ function downloadPatched(){
   setStatus('Downloaded patched JSON: ' + filename + '\n(이 파일을 프로젝트의 atlas json에 덮어쓰면 "피벗 박기" 완료)');
 }
 
-
-function applyToClientLocalStorage(){
-  const x = clamp01($('pivotX').value);
-  const y = clamp01($('pivotY').value);
-  const prefix = $('prefix').value.trim();
-  if(!prefix){ setStatus('ERR: prefix is empty'); return; }
-  let obj = {};
-  try { obj = JSON.parse(localStorage.getItem('PO_PIVOT_OVERRIDES')||'{}') || {}; } catch(e){ obj = {}; }
-  obj[prefix] = { x, y };
-  localStorage.setItem('PO_PIVOT_OVERRIDES', JSON.stringify(obj));
-  setStatus(`Saved override: ${prefix} -> (${x.toFixed(3)},${y.toFixed(3)}) . Reload your game page.`);
-}
-
 function copyJSOverride(){
   const x = clamp01($('pivotX').value);
   const y = clamp01($('pivotY').value);
@@ -482,7 +469,6 @@ $('btnNext').addEventListener('click', ()=>{
 $('btnApplyCur').addEventListener('click', applyCurrent);
 $('btnApplyAll').addEventListener('click', applyAll);
 $('btnDownload').addEventListener('click', downloadPatched);
-$('btnApplyToClient').addEventListener('click', applyToClientLocalStorage);
 $('btnCopyJS').addEventListener('click', copyJSOverride);
 
 $('prefix').addEventListener('change', ()=>{
