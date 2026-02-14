@@ -3156,7 +3156,22 @@ const ni=ny*W+nx;
     return aStarPath(sx,sy,gx,gy);
   }
 
-  function setPathTo(u, goalX, goalY){
+  
+  // ---- movement core override hook (optional) ----
+  // If ./js/movement.js defines window.MovementInstall, we can swap only the path/formation core
+  // without touching the rest of game.js.
+  try{
+    if (window.MovementInstall && typeof window.MovementInstall === "function"){
+      const mv = window.MovementInstall({ MAP_W, MAP_H, inMap, isWalkableTile });
+      if (mv && typeof mv.buildFormationOffsets === "function") buildFormationOffsets = mv.buildFormationOffsets;
+      if (mv && typeof mv.aStarPath === "function") aStarPath = mv.aStarPath;
+      if (mv && typeof mv.findPath === "function") findPath = mv.findPath;
+      console.log("[movement] core installed");
+    }
+  }catch(err){
+    console.error("[movement] core install failed", err);
+  }
+function setPathTo(u, goalX, goalY){
     // Temporary separation offset to reduce clump jitter
     if (u.sepCd && u.sepCd>0){ goalX += (u.sepOx||0); goalY += (u.sepOy||0); }
     const sTx=tileOfX(u.x), sTy=tileOfY(u.y);
