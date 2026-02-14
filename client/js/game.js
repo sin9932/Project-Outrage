@@ -3218,7 +3218,7 @@ function findPath(...args){ return Movement.findPath(...args); }
 
 // [moved] followPath -> movement.js
 function followPath(...args){ return Movement.followPath(...args); }
-RClick(btnPow, "main", "power");
+attachLaneRClick(btnPow, "main", "power");
   attachLaneRClick(btnRef, "main", "refinery");
   attachLaneRClick(btnBar, "main", "barracks");
   attachLaneRClick(btnFac, "main", "factory");
