@@ -9,7 +9,7 @@
   PO.buildings = PO.buildings || {};
   PO.atlasTP = PO.atlasTP || {};
 
-  const TAG = "[barrack:v12]";
+  const TAG = "[barrack:v13]";
 
   // Resolve deployment base path (handles /, /client/, /Project-Outrage/, etc.)
   const BASE_PATH = (() => {
@@ -138,30 +138,68 @@
   }
 
   const BarracksAtlas = {
-    ready:false,
-    failed:false,
-    loading:false,
-    promise:null,
-    normal:null,
-    construct:null,
-    destruct:null,
+    ready: false,
+    failed: false,
+    loading: false,
+    promise: null,
+
+    normal: null,
+    construct: null,
+    destruct: null,
 
     kickLoad(){
       if (this.ready || this.failed || this.loading) return;
+
+      // NOTE: We consider "normal" (idle) REQUIRED.
+      // "construct" / "destruct" are OPTIONAL. If missing on the deployed site,
+      // we will fall back to normal so you still see the sprite instead of the debug box.
       this.loading = true;
+
+      const loadOptional = (urls, label) => {
+        return tryLoadAny(_expandUrls(urls), label)
+          .then(atlas => ({ ok: true, atlas, label }))
+          .catch(err => {
+            console.warn(TAG, `[barrack] optional atlas missing: ${label}`, err);
+            return { ok: false, atlas: null, label, err };
+          });
+      };
+
+      const loadRequired = (urls, label) => {
+        return tryLoadAny(_expandUrls(urls), label)
+          .then(atlas => ({ ok: true, atlas, label }))
+          .catch(err => {
+            console.error(TAG, `[barrack] REQUIRED atlas missing: ${label}`, err);
+            return { ok: false, atlas: null, label, err };
+          });
+      };
+
       this.promise = Promise.all([
-        tryLoadAny(_expandUrls(NORMAL_URLS), "normal"),
-        tryLoadAny(CONST_URLS,  "construct"),
-        tryLoadAny(DESTR_URLS,  "destruct"),
-      ]).then(([n,c,d])=>{
-        this.normal=n; this.construct=c; this.destruct=d;
-        this.ready=true;
-        this.loading=false;
-        logOnce("ready", TAG, "atlases ready");
-      }).catch((e)=>{
-        this.failed=true;
-        this.loading=false;
-        console.error(TAG, "atlas load failed", e);
+        loadRequired(NORMAL_URLS, "normal"),
+        loadOptional(CONST_URLS, "construct"),
+        loadOptional(DESTR_URLS, "destruct"),
+      ]).then((results)=>{
+        const map = Object.create(null);
+        for (const r of results) map[r.label] = r;
+
+        this.normal   = map.normal?.atlas || null;
+        this.construct= map.construct?.atlas || null;
+        this.destruct = map.destruct?.atlas || null;
+
+        this.loading = false;
+
+        if (!this.normal){
+          this.failed = true;
+          this.ready = false;
+          console.error(TAG, "[barrack] normal atlas NOT loaded => will render fallback box.");
+          return;
+        }
+
+        this.failed = false;
+        this.ready = true;
+
+        logOnce("ready", TAG,
+          `[barrack] atlases ready. normal:${!!this.normal} construct:${!!this.construct} destruct:${!!this.destruct}`
+        );
       });
     }
   };
@@ -218,8 +256,8 @@
   function resolveAtlas(which){
     if (!BarracksAtlas.ready) return null;
     if (which==="normal") return BarracksAtlas.normal;
-    if (which==="construct") return BarracksAtlas.construct;
-    if (which==="destruct") return BarracksAtlas.destruct;
+    if (which==="construct") return (BarracksAtlas.construct || BarracksAtlas.normal);
+    if (which==="destruct") return (BarracksAtlas.destruct || BarracksAtlas.normal);
     return BarracksAtlas.normal;
   }
 
