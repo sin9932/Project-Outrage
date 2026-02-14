@@ -21,8 +21,16 @@ ${e.filename}:${e.lineno}:${e.colno}
   });
 
   const canvas = document.getElementById("c");
-  // While pregame UI is visible, let clicks pass through the canvas.
-  canvas.style.pointerEvents = "none";
+  // Force the main canvas to fill the viewport (prevents CSS/layout from shrinking it).
+  // UI panels can sit above it via z-index.
+  canvas.style.position = "fixed";
+  canvas.style.left = "0";
+  canvas.style.top = "0";
+  canvas.style.width = "100vw";
+  canvas.style.height = "100vh";
+  canvas.style.zIndex = "1";
+  canvas.style.display = "block";
+
   const ctx = canvas.getContext("2d");
   const mmCanvas = document.getElementById("mmc");
   const mmCtx = mmCanvas.getContext("2d");
@@ -6899,7 +6907,7 @@ function stampCmd(e, type, x, y, targetId=null){
         const ty = baseTy + offsets[j].dy;
         if (!inMap(tx,ty)) continue;
         const key = tx+"," + ty;
-        if(UNIT[e.kind]?.cls!=="inf") { if(used.has(key)) continue; }
+        if(UNIT[u.kind]?.cls!=="inf") { if(used.has(key)) continue; }
         else { const c = infCount.get(key)||0; if(c>=INF_SLOT_MAX) continue; infCount.set(key,c+1); }
         if (!canEnterTile(e, tx, ty)) continue;
         const wpC = tileToWorldCenter(tx,ty);
@@ -12277,8 +12285,6 @@ startBtn.addEventListener("click", () => {
     placeStart(spawnChoice);
     spawnStartingUnits();
     pregame.style.display = "none";
-    // Enable canvas interactions after game starts.
-    canvas.style.pointerEvents = "auto";
     // Start BGM on user gesture (autoplay-safe)
     BGM.userStart();
     running = true;
