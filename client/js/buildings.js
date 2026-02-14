@@ -119,111 +119,48 @@ function _scanSeq(atlas, patterns){
   return out;
 }
 function _rebuildBarrFrames(slot){
-  if (!slot) return;
-  const idleAtlas = slot.idle;
-  const consAtlas = slot.cons;
-  const destAtlas = slot.dest;
+    // TexturePacker names drift a lot (idle1 vs idle_1 vs con_complete_1, etc)
+    const frames = atlasTP.listFrames(slot.idle).concat(atlasTP.listFrames(slot.cons), slot.dest ? atlasTP.listFrames(slot.dest) : []);
+    const uniq = Array.from(new Set(frames));
 
-  const idleSeq = _scanSeq(idleAtlas, [/^barrack_idle\d+\.png$/i, /^barracks?_idle\d+\.png$/i]);
-  const dmgSeq  = _scanSeq(idleAtlas, [/^barrack_(dist|damaged)\.png$/i, /^barrack_idle_damaged\.png$/i]);
-  const consSeq = _scanSeq(consAtlas, [
-    /^barrack_(const|cons|construction|build)\d+\.png$/i,
-    /^barracks?_(const|cons|construction|build)\d+\.png$/i
-  ]);
-  const destSeq = _scanSeq(destAtlas, [
-    /^barrack_(distruction|destruction|destroy|dest)\d+\.png$/i,
-    /^barracks?_(distruction|destruction|destroy|dest)\d+\.png$/i
-  ]);
+    const scanSeq = (rgx) => {
+      const items = uniq.filter(n => rgx.test(n));
+      items.sort((a,b)=>{
+        const na = parseInt((a.match(/(\d+)(?=\D*\.png$)/i)||[])[1]||"0",10);
+        const nb = parseInt((b.match(/(\d+)(?=\D*\.png$)/i)||[])[1]||"0",10);
+        return na-nb;
+      });
+      return items;
+    };
+    const scanOne = (rgx) => uniq.find(n => rgx.test(n)) || null;
 
-  if (idleSeq.length) BARR.idleLoop = idleSeq;
-  if (dmgSeq.length)  BARR.idleDamaged = [dmgSeq[0]];
-  if (consSeq.length) BARR.cons = consSeq;
-  if (destSeq.length) BARR.dest = destSeq;
+    // idle loop: barrack_idle1.png or barrack_idle_1.png
+    const idleLoop = scanSeq(/^barrack_idle_?\d+\.png$/i);
+    if (idleLoop.length) BARR.idleLoop = idleLoop;
 
-  // Safety: if dest atlas missing, prevent 0-length maxT instant remove from feeling like "no anim".
-  if (!destAtlas) BARR.dest = [];
-}
+    // damaged idle: barrack_dist.png (single)
+    const dist = scanOne(/^barrack_dist\.png$/i) || scanOne(/^barrack_dist_?\d+\.png$/i);
+    if (dist) BARR.idleDamaged = [dist];
 
-  const PATH = {
-    barracks: {
-      idle: {
-        variants: [
-          { json:"asset/sprite/const/normal/barrack/barrack_idle.json", base:"asset/sprite/const/normal/barrack/" },
-          { json:"asset/sprite/const/normal/barrack/Barrack_idle.json", base:"asset/sprite/const/normal/barrack/" },
-        ]
-      },
-      cons: {
-        variants: [
-          { json:"asset/sprite/const/const_anim/barrack/barrack_const.json", base:"asset/sprite/const/const_anim/barrack/" },
-          { json:"asset/sprite/const/normal/barrack/barrack_const.json", base:"asset/sprite/const/normal/barrack/" },
-          { json:"asset/sprite/const/normal/barrack/barrack_cons.json",  base:"asset/sprite/const/normal/barrack/" },
-        ]
-      },
-      dest: {
-        variants: [
-          { json:"asset/sprite/const/destruct/barrack/barrack_distruction.json", base:"asset/sprite/const/destruct/barrack/" },
-          { json:"asset/sprite/const/destruct/barrack/barrack_destruction.json", base:"asset/sprite/const/destruct/barrack/" },
-        ]
-      },
-    }
-  };
+    // construction:
+    // - barrack_const1.png / barrack_const_1.png
+    // - barrack_con_complete_1.png
+    // - barrack_complete_1.png
+    const consSeq =
+      scanSeq(/^barrack_(?:const|cons|construction|build)_?\d+\.png$/i)
+        .concat(scanSeq(/^barrack_(?:con_complete|concomplete|complete)_?\d+\.png$/i))
+        .filter((v,i,a)=>a.indexOf(v)===i);
+    if (consSeq.length) BARR.cons = consSeq;
 
-
-  async function _loadFirst(variants){
-    let lastErr = null;
-    for (const v of (variants||[])){
-      try{
-        return await atlasTP.loadTPAtlasMulti(v.json, v.base);
-      }catch(e){
-        lastErr = e;
-      }
-    }
-    throw lastErr || new Error("No variants provided");
-  }
-
-  function _kickLoadBarracks(){
-    const slot = _loaded.barracks;
-    if (slot.ready || slot.loading) return;
-    slot.loading = true;
-    (async ()=>{
-      try{
-        if (!atlasTP || !atlasTP.loadTPAtlasMulti) throw new Error("atlas_tp.js not loaded");
-        console.log("[buildings] loading barracks atlases...");
-        const idle = await _loadFirst(PATH.barracks.idle.variants);
-        const cons = await _loadFirst(PATH.barracks.cons.variants);
-        let dest = null;
-        try{
-          dest = await _loadFirst(PATH.barracks.dest.variants);
-        }catch(eDest){
-          console.warn("[buildings] barracks destr atlas missing", eDest);
-          dest = null;
-        }
-
-        slot.idle = idle; slot.cons = cons; slot.dest = dest;
-
-        // Build per-team recolored atlases (PLAYER=0, ENEMY=1).
-        try{
-          const pRGB = TEAM_ACCENT.PLAYER || [80,180,255];
-          let eRGB = TEAM_ACCENT.ENEMY  || [255,80,90];
-          if (typeof window !== "undefined" && window.LINK_ENEMY_TO_PLAYER_COLOR) eRGB = pRGB;
-          slot.idleT = { 0:_cloneAtlasWithRecoloredTextures(idle, pRGB), 1:_cloneAtlasWithRecoloredTextures(idle, eRGB) };
-          slot.consT = { 0:_cloneAtlasWithRecoloredTextures(cons, pRGB), 1:_cloneAtlasWithRecoloredTextures(cons, eRGB) };
-          slot.destT = dest ? { 0:_cloneAtlasWithRecoloredTextures(dest, pRGB), 1:_cloneAtlasWithRecoloredTextures(dest, eRGB) } : null;
-        }catch(_e){
-          // If recolor fails (tainted canvas etc), fall back to base atlases.
-          slot.idleT = null; slot.consT = null; slot.destT = null;
-        }
-
-        _rebuildBarrFrames(slot);
-
-        slot.ready = true;
-      }catch(e){
-        slot.err = e;
-        console.error("[buildings] barracks atlas load failed", e);
-      }finally{
-        slot.loading = false;
-      }
-    })();
+    // destruction:
+    // - barrack_destruction_1.png / barrack_destruction1.png
+    // - barrack_distruction_1.png (typo common)
+    // - barrack_distruct_1.png (your folder/label)
+    // - barrack_destruct_1.png
+    const destSeq =
+      scanSeq(/^barrack_(?:destruction|destroy|dest|destruct|distruction|distruct)_?\d+\.png$/i)
+        .filter((v,i,a)=>a.indexOf(v)===i);
+    if (destSeq.length) BARR.dest = destSeq;
   }
 
   function init(){

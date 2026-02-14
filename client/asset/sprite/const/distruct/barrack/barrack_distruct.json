@@ -1,7 +1,7 @@
 {
 	"textures": [
 		{
-			"image": "barrack_distruction-0.png",
+			"image": "barrack_distruct02.png",
 			"format": "RGBA8888",
 			"size": {
 				"w": 3994,
@@ -812,7 +812,7 @@
 			]
 		},
 		{
-			"image": "barrack_distruction-1.png",
+			"image": "barrack_distruct01.png",
 			"format": "RGBA8888",
 			"size": {
 				"w": 852,

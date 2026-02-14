@@ -1,0 +1,302 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Barrack Pivot Tuner</title>
+  <style>
+    body{margin:0;background:#101018;color:#e8e8f0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;}
+    #wrap{display:flex;gap:12px;align-items:stretch;height:100vh}
+    #ui{width:360px;padding:12px;background:#151525;border-right:1px solid #2a2a45;box-sizing:border-box;overflow:auto}
+    #ui h1{font-size:16px;margin:0 0 10px 0}
+    label{display:block;margin:10px 0 6px 0;font-size:12px;opacity:.9}
+    select,input{width:100%;box-sizing:border-box;padding:8px;border-radius:8px;border:1px solid #33334d;background:#0f0f1b;color:#e8e8f0}
+    .row{display:flex;gap:8px}
+    .row > div{flex:1}
+    button{width:100%;padding:10px;border-radius:10px;border:1px solid #3a3a60;background:#1b1b2e;color:#fff;cursor:pointer}
+    button:hover{filter:brightness(1.1)}
+    small{opacity:.8}
+    #cv{flex:1;display:block}
+    code{display:block;white-space:pre-wrap;background:#0b0b14;border:1px solid #2a2a45;border-radius:10px;padding:10px}
+  </style>
+</head>
+<body>
+<div id="wrap">
+  <div id="ui">
+    <h1>🏗️ Barrack Pivot Tuner</h1>
+    <small>목표: 3×2 타일 풋프린트에 스프라이트가 딱 맞게 오프셋/피벗을 잡고 값 뽑기.</small>
+
+    <label>Atlas</label>
+    <select id="atlasSel">
+      <option value="idle">idle</option>
+      <option value="cons">construction</option>
+      <option value="dest">destruction</option>
+    </select>
+
+    <label>Frame</label>
+    <select id="frameSel"></select>
+
+    <label>Footprint (tiles)</label>
+    <div class="row">
+      <div><input id="tw" type="number" min="1" step="1" value="3"/></div>
+      <div><input id="th" type="number" min="1" step="1" value="2"/></div>
+    </div>
+
+    <label>ISO tile size (px)</label>
+    <div class="row">
+      <div><input id="isoX" type="number" min="8" step="1" value="32"/></div>
+      <div><input id="isoY" type="number" min="4" step="1" value="16"/></div>
+    </div>
+
+    <label>Offset (px)</label>
+    <div class="row">
+      <div><input id="offX" type="number" step="1" value="0"/></div>
+      <div><input id="offY" type="number" step="1" value="0"/></div>
+    </div>
+
+    <label>Pivot Nudge (px)</label>
+    <div class="row">
+      <div><input id="pivX" type="number" step="1" value="0"/></div>
+      <div><input id="pivY" type="number" step="1" value="0"/></div>
+    </div>
+
+    <label>Team palette (optional)</label>
+    <div class="row">
+      <div><input id="teamR" type="number" min="0" max="255" step="1" value="80"/></div>
+      <div><input id="teamG" type="number" min="0" max="255" step="1" value="180"/></div>
+      <div><input id="teamB" type="number" min="0" max="255" step="1" value="255"/></div>
+    </div>
+    <small>※ 마젠타/보라 계열을 이 색으로 변환. 안 되면 PNG 쪽 색이 너무 안티에일리어싱 된 거.</small>
+
+    <label>Output</label>
+    <code id="out">loading…</code>
+
+    <button id="copyBtn">값 복사(콘솔 출력)</button>
+    <small>
+      단축키: 화살표키 offX/offY, Shift=10px, Alt=1px, R=reset<br/>
+      로딩 경로는 게임이랑 동일하게 asset/... 기준.
+    </small>
+  </div>
+
+  <canvas id="cv"></canvas>
+</div>
+
+<script src="js/atlas_tp.js"></script>
+<script>
+(async function(){
+  const $ = (id)=>document.getElementById(id);
+  const cv = $("cv");
+  const ctx = cv.getContext("2d");
+  const dpr = window.devicePixelRatio || 1;
+
+  function resize(){
+    const w = cv.clientWidth || (window.innerWidth-360);
+    const h = window.innerHeight;
+    cv.width = Math.floor(w*dpr);
+    cv.height = Math.floor(h*dpr);
+    cv.style.width = w+"px";
+    cv.style.height = h+"px";
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+  }
+  window.addEventListener("resize", resize);
+  resize();
+
+  const PO = window.PO;
+  if(!PO || !PO.atlasTP){ $("out").textContent = "atlas_tp.js 로드 실패"; return; }
+
+  const PATH = {
+    idle: "asset/sprite/const/normal/barrack/barrack_idle.json",
+    cons: "asset/sprite/const/const_anim/barrack/barrack_const.json",
+    dest: "asset/sprite/const/distruct/barrack/barrack_distruct.json"
+  };
+
+  const slot = { idle:null, cons:null, dest:null };
+  async function loadAll(){
+    const dir = (url)=>url.split("/").slice(0,-1).join("/");
+    slot.idle = await PO.atlasTP.loadTPAtlasMulti(PATH.idle, dir(PATH.idle));
+    slot.cons = await PO.atlasTP.loadTPAtlasMulti(PATH.cons, dir(PATH.cons));
+    slot.dest = await PO.atlasTP.loadTPAtlasMulti(PATH.dest, dir(PATH.dest));
+  }
+
+  function listFrames(atlas){
+    return PO.atlasTP.listFrames(atlas).slice().sort((a,b)=>a.localeCompare(b));
+  }
+
+  function getTeamRGB(){
+    return {
+      r: parseInt($("teamR").value||"80",10),
+      g: parseInt($("teamG").value||"180",10),
+      b: parseInt($("teamB").value||"255",10)
+    };
+  }
+
+  function applyTeamPalette(atlas){
+    // Simple recolor cache: key by rgb
+    const rgb = getTeamRGB();
+    const key = `${rgb.r},${rgb.g},${rgb.b}`;
+    applyTeamPalette._cache = applyTeamPalette._cache || new WeakMap();
+    const wm = applyTeamPalette._cache;
+    if(!wm.has(atlas)) wm.set(atlas, new Map());
+    const m = wm.get(atlas);
+    if(m.has(key)) return m.get(key);
+
+    const out = { images:{} };
+    for(const [name, img] of Object.entries(atlas.images)){
+      const c = document.createElement("canvas");
+      c.width = img.width; c.height = img.height;
+      const cctx = c.getContext("2d");
+      cctx.drawImage(img,0,0);
+      const id = cctx.getImageData(0,0,c.width,c.height);
+      const d = id.data;
+      for(let i=0;i<d.length;i+=4){
+        const r=d[i], g=d[i+1], b=d[i+2], a=d[i+3];
+        if(a===0) continue;
+        // magenta/purple-ish
+        const isAccent = (r>150 && b>150 && g<130) || (Math.abs(r-255)<=60 && g<=70 && Math.abs(b-255)<=60);
+        if(isAccent){
+          d[i]=rgb.r; d[i+1]=rgb.g; d[i+2]=rgb.b;
+        }
+      }
+      cctx.putImageData(id,0,0);
+      const img2 = new Image();
+      img2.src = c.toDataURL("image/png");
+      out.images[name]=img2;
+    }
+    out.frames = atlas.frames;
+    m.set(key,out);
+    return out;
+  }
+
+  function drawIsoFootprint(cx, cy, tw, th, isoX, isoY){
+    // Draw diamond footprint outline around center (cx,cy) representing tw×th
+    // We'll draw the 4 corners for rectangle in iso: using half extents
+    const halfW = (tw+th) * isoX * 0.5;
+    const halfH = (tw+th) * isoY * 0.5;
+    ctx.strokeStyle = "rgba(120,200,255,0.7)";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy - halfH);
+    ctx.lineTo(cx + halfW, cy);
+    ctx.lineTo(cx, cy + halfH);
+    ctx.lineTo(cx - halfW, cy);
+    ctx.closePath();
+    ctx.stroke();
+
+    // center cross
+    ctx.strokeStyle = "rgba(255,255,255,0.5)";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(cx-10,cy); ctx.lineTo(cx+10,cy);
+    ctx.moveTo(cx,cy-10); ctx.lineTo(cx,cy+10);
+    ctx.stroke();
+  }
+
+  function refreshFrameList(){
+    const atlasKey = $("atlasSel").value;
+    const atlas = slot[atlasKey];
+    const frames = listFrames(atlas);
+    const sel = $("frameSel");
+    sel.innerHTML = "";
+    frames.forEach(n=>{
+      const opt=document.createElement("option");
+      opt.value=n; opt.textContent=n;
+      sel.appendChild(opt);
+    });
+  }
+
+  function readNums(){
+    const tw = parseInt($("tw").value||"3",10);
+    const th = parseInt($("th").value||"2",10);
+    const isoX = parseInt($("isoX").value||"32",10);
+    const isoY = parseInt($("isoY").value||"16",10);
+    const offX = parseInt($("offX").value||"0",10);
+    const offY = parseInt($("offY").value||"0",10);
+    const pivX = parseInt($("pivX").value||"0",10);
+    const pivY = parseInt($("pivY").value||"0",10);
+    return {tw,th,isoX,isoY,offX,offY,pivX,pivY};
+  }
+
+  function updateOut(){
+    const atlas = $("atlasSel").value;
+    const frame = $("frameSel").value;
+    const n = readNums();
+    $("out").textContent =
+`kind: "barracks"
+atlas: "${atlas}"
+frame: "${frame}"
+
+추천 튜닝값(게임쪽에 넣을 거):
+{ offX: ${n.offX}, offY: ${n.offY}, pivX: ${n.pivX}, pivY: ${n.pivY} }`;
+  }
+
+  function render(){
+    requestAnimationFrame(render);
+    ctx.clearRect(0,0,cv.width/dpr,cv.height/dpr);
+
+    const atlasKey = $("atlasSel").value;
+    const baseAtlas = slot[atlasKey];
+    const atlas = applyTeamPalette(baseAtlas);
+
+    const frameName = $("frameSel").value;
+    const n = readNums();
+
+    const W = cv.width/dpr, H = cv.height/dpr;
+    const cx = Math.floor(W*0.5), cy = Math.floor(H*0.55);
+
+    drawIsoFootprint(cx, cy, n.tw, n.th, n.isoX, n.isoY);
+
+    const ok = PO.atlasTP.drawFrame(ctx, atlas, frameName, cx + n.offX + n.pivX, cy + n.offY + n.pivY);
+    if(!ok){
+      ctx.fillStyle="rgba(255,120,120,0.9)";
+      ctx.fillText("frame draw failed: "+frameName, 20, 20);
+    }
+
+    // info
+    ctx.fillStyle="rgba(255,255,255,0.7)";
+    ctx.font="12px monospace";
+    ctx.fillText(`offX/offY=${n.offX}/${n.offY}  pivX/pivY=${n.pivX}/${n.pivY}`, 20, H-20);
+  }
+
+  function nudge(dx,dy){
+    $("offX").value = String(parseInt($("offX").value||"0",10)+dx);
+    $("offY").value = String(parseInt($("offY").value||"0",10)+dy);
+    updateOut();
+  }
+
+  window.addEventListener("keydown",(e)=>{
+    const step = e.shiftKey ? 10 : (e.altKey ? 1 : 3);
+    if(e.key==="ArrowLeft")  { nudge(-step,0); e.preventDefault(); }
+    if(e.key==="ArrowRight") { nudge(step,0); e.preventDefault(); }
+    if(e.key==="ArrowUp")    { nudge(0,-step); e.preventDefault(); }
+    if(e.key==="ArrowDown")  { nudge(0,step); e.preventDefault(); }
+    if(e.key.toLowerCase()==="r"){
+      $("offX").value="0"; $("offY").value="0"; $("pivX").value="0"; $("pivY").value="0";
+      updateOut();
+    }
+  });
+
+  $("atlasSel").addEventListener("change",()=>{ refreshFrameList(); updateOut(); });
+  ["frameSel","tw","th","isoX","isoY","offX","offY","pivX","pivY","teamR","teamG","teamB"].forEach(id=>{
+    $(id).addEventListener("input", updateOut);
+    $(id).addEventListener("change", updateOut);
+  });
+
+  $("copyBtn").addEventListener("click",()=>{
+    const n=readNums();
+    console.log("[barracks tuning]", { offX:n.offX, offY:n.offY, pivX:n.pivX, pivY:n.pivY });
+    alert("콘솔에 출력했음. (F12 콘솔 확인)");
+  });
+
+  try{
+    await loadAll();
+    refreshFrameList();
+    updateOut();
+    render();
+  }catch(e){
+    $("out").textContent = "로딩 실패: " + (e && e.message ? e.message : String(e));
+    console.error(e);
+  }
+})();
+</script>
+</body>
+</html>
