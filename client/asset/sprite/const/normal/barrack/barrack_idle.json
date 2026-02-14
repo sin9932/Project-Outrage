@@ -1,7 +1,7 @@
 {
 	"textures": [
 		{
-			"image": "Barrack_idle-0.png",
+			"image": "barrack_idle-0.png",
 			"format": "RGBA8888",
 			"size": {
 				"w": 3452,
