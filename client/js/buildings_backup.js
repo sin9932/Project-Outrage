@@ -127,22 +127,12 @@ function _rebuildBarrFrames(slot){
   const idleSeq = _scanSeq(idleAtlas, [/^barrack_idle\d+\.png$/i, /^barracks?_idle\d+\.png$/i]);
   const dmgSeq  = _scanSeq(idleAtlas, [/^barrack_(dist|damaged)\.png$/i, /^barrack_idle_damaged\.png$/i]);
   const consSeq = _scanSeq(consAtlas, [
-    // legacy naming: barrack_const1.png, barrack_build12.png ...
     /^barrack_(const|cons|construction|build)\d+\.png$/i,
-    /^barracks?_(const|cons|construction|build)\d+\.png$/i,
-
-    // your current naming: barrack_con_complete_1.png ...
-    /^barrack_con_complete_?\d+\.png$/i,
-    /^barracks?_con_complete_?\d+\.png$/i
+    /^barracks?_(const|cons|construction|build)\d+\.png$/i
   ]);
   const destSeq = _scanSeq(destAtlas, [
-    // legacy naming: barrack_distruction1.png ...
     /^barrack_(distruction|destruction|destroy|dest)\d+\.png$/i,
-    /^barracks?_(distruction|destruction|destroy|dest)\d+\.png$/i,
-
-    // your current naming: barrack_distruction_35.png ...
-    /^barrack_(distruction|destruction|destroy|dest)_?\d+\.png$/i,
-    /^barracks?_(distruction|destruction|destroy|dest)_?\d+\.png$/i
+    /^barracks?_(distruction|destruction|destroy|dest)\d+\.png$/i
   ]);
 
   if (idleSeq.length) BARR.idleLoop = idleSeq;
