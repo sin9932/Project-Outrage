@@ -3218,6 +3218,31 @@ function findPath(...args){ return Movement.findPath(...args); }
 
 // [moved] followPath -> movement.js
 function followPath(...args){ return Movement.followPath(...args); }
+
+  // Right-click on the currently building item: 1st = pause(대기, no spending), 2nd = cancel + refund spent cost.
+  function attachLaneRClick(btn, laneKey, kind){
+    if (!btn) return;
+    btn.addEventListener("contextmenu", (ev)=>{
+      ev.preventDefault();
+      const lane = state.buildLane ? state.buildLane[laneKey] : null;
+      if (!lane || !lane.queue || lane.queue.kind !== kind) return;
+      if (!lane.queue.paused){
+        lane.queue.paused = true;
+        toast("대기");
+      } else {
+        // cancel + refund paid so far
+        const paid = lane.queue.paid || 0;
+        state.player.money += paid;
+        lane.queue = null;
+        // Also drop any pending reservations of the same kind to avoid "ghost" rebuild.
+        if (lane.fifo && lane.fifo.length){
+          lane.fifo = lane.fifo.filter(k=>k!==kind);
+        }
+        toast("취소 + 환불");
+      }
+    });
+  }
+
 attachLaneRClick(btnPow, "main", "power");
   attachLaneRClick(btnRef, "main", "refinery");
   attachLaneRClick(btnBar, "main", "barracks");
