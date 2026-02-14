@@ -127,25 +127,15 @@ function _rebuildBarrFrames(slot){
   const idleSeq = _scanSeq(idleAtlas, [/^barrack_idle\d+\.png$/i, /^barracks?_idle\d+\.png$/i]);
   const dmgSeq  = _scanSeq(idleAtlas, [/^barrack_(dist|damaged)\.png$/i, /^barrack_idle_damaged\.png$/i]);
   const consSeq = _scanSeq(consAtlas, [
-  // legacy naming: barrack_const1.png, barrack_build12.png ...
-  /^barrack_(const|cons|construction|build)\d+\.png$/i,
-  /^barracks?_(const|cons|construction|build)\d+\.png$/i,
+    /^barrack_(const|cons|construction|build)\d+\.png$/i,
+    /^barracks?_(const|cons|construction|build)\d+\.png$/i
+  ]);
+  const destSeq = _scanSeq(destAtlas, [
+    /^barrack_(distruction|destruction|destroy|dest)\d+\.png$/i,
+    /^barracks?_(distruction|destruction|destroy|dest)\d+\.png$/i
+  ]);
 
-  // your current naming: barrack_con_complete_1.png ...
-  /^barrack_con_complete_?\d+\.png$/i,
-  /^barracks?_con_complete_?\d+\.png$/i,
-]);
-const destSeq = _scanSeq(destAtlas, [
-  // legacy naming: barrack_distruction1.png ...
-  /^barrack_(distruction|destruction|destroy|dest)\d+\.png$/i,
-  /^barracks?_(distruction|destruction|destroy|dest)\d+\.png$/i,
-
-  // your current naming: barrack_distruction_35.png ...
-  /^barrack_(distruction|destruction|destroy|dest)_?\d+\.png$/i,
-  /^barracks?_(distruction|destruction|destroy|dest)_?\d+\.png$/i,
-]);
-
-if (idleSeq.length) BARR.idleLoop = idleSeq;
+  if (idleSeq.length) BARR.idleLoop = idleSeq;
   if (dmgSeq.length)  BARR.idleDamaged = [dmgSeq[0]];
   if (consSeq.length) BARR.cons = consSeq;
   if (destSeq.length) BARR.dest = destSeq;
@@ -154,74 +144,72 @@ if (idleSeq.length) BARR.idleLoop = idleSeq;
   if (!destAtlas) BARR.dest = [];
 }
 
-  const PATH = {
-    // Your described folder layout:
-    // idle(평시): asset/sprite/const/destruct/barrack/Barrack_idle.json
-    // (건축완료): asset/sprite/const/normal/barrack/barrack_const.json
-    // (건물파괴): asset/sprite/const/const_anim/barrack/barrack_distruction.json
+  
+  // Atlas candidate paths (Cloudflare/GitHub Pages are case-sensitive).
+  // We try multiple likely folders because your pipeline moved these around over time.
+  const ATLAS_CANDIDATES = {
     barracks: {
-      idle: { json:"asset/sprite/const/destruct/barrack/Barrack_idle.json", base:"asset/sprite/const/destruct/barrack/" },
-      cons: { json:"asset/sprite/const/normal/barrack/barrack_const.json", base:"asset/sprite/const/normal/barrack/" },
-      dest: { json:"asset/sprite/const/const_anim/barrack/barrack_distruction.json", base:"asset/sprite/const/const_anim/barrack/" },
+      // Normal idle loop (idle1..idle18) + damaged idle (dist) frames live in the same atlas JSON.
+      idle: [
+        "asset/sprite/const/normal/barrack/barrack_idle.json",
+        "asset/sprite/const/normal/barrack/Barrack_idle.json",
+        "asset/sprite/const/destruct/barrack/barrack_idle.json",
+        "asset/sprite/const/destruct/barrack/Barrack_idle.json",
+      ],
+      // Construction animation (plays once, then switch to idle).
+      cons: [
+        "asset/sprite/const/normal/barrack/barrack_const.json",
+        "asset/sprite/const/normal/barrack/barrack_construction.json",
+        "asset/sprite/const/const_anim/barrack/barrack_const.json",
+        "asset/sprite/const/const_anim/barrack/barrack_construction.json",
+      ],
+      // Destruction animation (HP==0, draw under particles).
+      dest: [
+        "asset/sprite/const/const_anim/barrack/barrack_distruction.json",
+        "asset/sprite/const/const_anim/barrack/barrack_destruction.json",
+        "asset/sprite/const/destruct/barrack/barrack_distruction.json",
+        "asset/sprite/const/destruct/barrack/barrack_destruction.json",
+      ],
     }
   };
 
-  
-// Barracks atlas path fallbacks (your folder layout can vary)
-const BARRACK_CAND = {
-  idle: [
-    { json: PATH.barracks.idle.json, base: PATH.barracks.idle.base },
-    { json: "asset/sprite/const/destruct/barrack/Barrack_idle.json",   base: "asset/sprite/const/destruct/barrack/" },
-    { json: "asset/sprite/const/const_anim/barrack/Barrack_idle.json", base: "asset/sprite/const/const_anim/barrack/" },
-  ],
-  cons: [
-    { json: PATH.barracks.cons.json, base: PATH.barracks.cons.base },
-    { json: "asset/sprite/const/normal/barrack/barrack_const.json",    base: "asset/sprite/const/normal/barrack/" },
-    { json: "asset/sprite/const/destruct/barrack/barrack_const.json",  base: "asset/sprite/const/destruct/barrack/" },
-  ],
-  dest: [
-    { json: "asset/sprite/const/destruct/barrack/barrack_distruction.json",  base: "asset/sprite/const/destruct/barrack/" },
-    { json: "asset/sprite/const/const_anim/barrack/barrack_distruction.json",base: "asset/sprite/const/const_anim/barrack/" },
-    { json: "asset/sprite/const/normal/barrack/barrack_distruction.json",    base: "asset/sprite/const/normal/barrack/" },
-
-    // common spelling variant
-    { json: "asset/sprite/const/destruct/barrack/barrack_destruction.json",   base: "asset/sprite/const/destruct/barrack/" },
-    { json: "asset/sprite/const/const_anim/barrack/barrack_destruction.json",base: "asset/sprite/const/const_anim/barrack/" },
-    { json: "asset/sprite/const/normal/barrack/barrack_destruction.json",    base: "asset/sprite/const/normal/barrack/" },
-  ]
-};
-
-async function _tryLoadTPMulti(cands){
-  let lastErr = null;
-  for (const c of cands){
-    try{
-      return await atlasTP.loadTPAtlasMulti(c.json, c.base);
-    }catch(e){
-      lastErr = e;
-      // Helpful debug: show which URL is returning HTML / failing
-      console.warn("[buildings] atlas candidate failed:", c.json, "base:", c.base, "err:", (e && e.message) ? e.message : e);
-    }
+  function _dirOf(url){
+    const i = url.lastIndexOf("/");
+    return (i >= 0) ? url.slice(0, i + 1) : "";
   }
-  throw lastErr || new Error("Atlas load failed (no candidates)");
-}
-function _kickLoadBarracks(){
+
+  async function _loadFirstAtlas(urlList, label){
+    let lastErr = null;
+    for (const url of urlList){
+      try{
+        const atlas = await atlasTP.loadTPAtlasMulti(url, _dirOf(url));
+        return atlas;
+      }catch(e){
+        lastErr = e;
+        console.warn("[buildings] atlas load failed:", label, url, String(e && e.message || e));
+      }
+    }
+    throw (lastErr || new Error("Atlas load failed: " + label));
+  }
+
+
+  function _kickLoadBarracks(){
     const slot = _loaded.barracks;
     if (slot.ready || slot.loading) return;
     slot.loading = true;
     (async ()=>{
       try{
         if (!atlasTP || !atlasTP.loadTPAtlasMulti) throw new Error("atlas_tp.js not loaded");
-        const idle = await _tryLoadTPMulti(BARRACK_CAND.idle);
-const cons = await _tryLoadTPMulti(BARRACK_CAND.cons);
-let dest = null;
-try{
-  dest = await _tryLoadTPMulti(BARRACK_CAND.dest);
-}catch(_e){
-  // If still missing, degrade gracefully (no destruction frames)
-  dest = null;
-}
+        const idle = await _loadFirstAtlas(ATLAS_CANDIDATES.barracks.idle, "barracks idle");
+        const cons = await _loadFirstAtlas(ATLAS_CANDIDATES.barracks.cons, "barracks cons");
+        let dest = null;
+        try{
+          dest = await _loadFirstAtlas(ATLAS_CANDIDATES.barracks.dest, "barracks dest");
+        }catch(_e){
+          dest = null; // allow game to run even if destruction atlas is missing
+        }
 
-slot.idle = idle; slot.cons = cons; slot.dest = dest;
+        slot.idle = idle; slot.cons = cons; slot.dest = dest;
 
         // Build per-team recolored atlases (PLAYER=0, ENEMY=1).
         try{
