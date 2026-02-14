@@ -6897,7 +6897,7 @@ function stampCmd(e, type, x, y, targetId=null){
         const ty = baseTy + offsets[j].dy;
         if (!inMap(tx,ty)) continue;
         const key = tx+"," + ty;
-        if(UNIT[u.kind]?.cls!=="inf") { if(used.has(key)) continue; }
+        if(UNIT[e.kind]?.cls!=="inf") { if(used.has(key)) continue; }
         else { const c = infCount.get(key)||0; if(c>=INF_SLOT_MAX) continue; infCount.set(key,c+1); }
         if (!canEnterTile(e, tx, ty)) continue;
         const wpC = tileToWorldCenter(tx,ty);
