@@ -138,6 +138,39 @@ function setInfo(){
   }
 }
 
+// ---- Pivot overrides persistence (for game runtime) ----
+// Saved under localStorage key: "PO_PIVOT_OVERRIDES"
+// Format: { "<prefix>": { "x": 0.5, "y": 0.5 }, ... }
+const LS_PIVOT_KEY = "PO_PIVOT_OVERRIDES";
+
+function loadPivotOverridesLS(){
+  try{
+    return JSON.parse(localStorage.getItem(LS_PIVOT_KEY) || "{}") || {};
+  }catch(_e){
+    return {};
+  }
+}
+
+function savePivotOverridesLS(obj){
+  try{
+    localStorage.setItem(LS_PIVOT_KEY, JSON.stringify(obj));
+    return true;
+  }catch(_e){
+    return false;
+  }
+}
+
+function persistPrefixPivot(prefix, x, y){
+  const p = (prefix || "").trim();
+  if(!p) return { ok:false, reason:"prefix empty" };
+  const obj = loadPivotOverridesLS();
+  obj[p] = { x, y };
+  const ok = savePivotOverridesLS(obj);
+  return { ok, reason: ok ? "saved" : "localStorage blocked" };
+}
+
+
+
 function resizeCanvas(){
   const r = $('right').getBoundingClientRect();
   const dpr = window.devicePixelRatio || 1;
@@ -395,7 +428,10 @@ function applyPivotTo(names){
     }
   });
 
-  setStatus(`Applied pivot (${x.toFixed(3)},${y.toFixed(3)}) to ${names.length} frame(s).`);
+  const prefix = $('prefix').value;
+  const persist = persistPrefixPivot(prefix, x, y);
+  const note = persist.ok ? ` + saved to localStorage (${LS_PIVOT_KEY}) for prefix: "${prefix.trim()}"` : ` (not saved: ${persist.reason})`;
+  setStatus(`Applied pivot (${x.toFixed(3)},${y.toFixed(3)}) to ${names.length} frame(s).` + note);
 }
 
 function applyCurrent(){

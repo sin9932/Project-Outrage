@@ -1970,6 +1970,15 @@ function getBaseBuildTime(kind){
   return c;
 }
 
+// expose team palette helpers for other modules (e.g. buildings.js)
+try{
+  window.applyTeamPaletteToImage = window.applyTeamPaletteToImage || _applyTeamPaletteToImage;
+  window.replaceMagentaWithTeamColor = window.replaceMagentaWithTeamColor || _applyTeamPaletteToImage;
+  window.PO = window.PO || {};
+  window.PO.applyTeamPaletteToImage = window.PO.applyTeamPaletteToImage || _applyTeamPaletteToImage;
+}catch(_e){}
+
+
 
 
   // The PNG contains 8 poses (idle), arranged in a 3x3 grid with the bottom-right cell empty.
