@@ -9,7 +9,42 @@
   PO.buildings = PO.buildings || {};
   PO.atlasTP = PO.atlasTP || {};
 
-  const TAG = "[barracks:v10]";
+  const TAG = "[barrack:v12]";
+
+  // Resolve deployment base path (handles /, /client/, /Project-Outrage/, etc.)
+  const BASE_PATH = (() => {
+    const p = (location && location.pathname) ? location.pathname : "/";
+    if (p.endsWith("/")) return p;
+    const i = p.lastIndexOf("/");
+    return (i >= 0) ? p.slice(0, i + 1) : "/";
+  })();
+
+  function _withBasePath(url) {
+    if (!url) return url;
+    // Keep absolute URLs as-is
+    if (url.startsWith("http://") || url.startsWith("https://") || url.startsWith("/")) return url;
+    // Prefix relative URLs with the current directory (e.g. /Project-Outrage/)
+    const bp = BASE_PATH.startsWith("/") ? BASE_PATH : ("/" + BASE_PATH);
+    return (bp.endsWith("/") ? bp : (bp + "/")) + url;
+  }
+
+  function _expandUrls(urls) {
+    const out = [];
+    const seen = new Set();
+    for (const u of (urls || [])) {
+      if (!u) continue;
+      const a = u;
+      const b = _withBasePath(u);
+      for (const x of [a, b]) {
+        if (!x) continue;
+        if (seen.has(x)) continue;
+        seen.add(x);
+        out.push(x);
+      }
+    }
+    return out;
+  }
+
   let _loggedLoaded=false, _loggedDraw=false, _loggedReady=false;
 
   function logOnce(which, ...args){
@@ -115,7 +150,7 @@
       if (this.ready || this.failed || this.loading) return;
       this.loading = true;
       this.promise = Promise.all([
-        tryLoadAny(NORMAL_URLS, "normal"),
+        tryLoadAny(_expandUrls(NORMAL_URLS), "normal"),
         tryLoadAny(CONST_URLS,  "construct"),
         tryLoadAny(DESTR_URLS,  "destruct"),
       ]).then(([n,c,d])=>{
