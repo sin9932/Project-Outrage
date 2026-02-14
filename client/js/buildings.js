@@ -146,11 +146,40 @@ function _rebuildBarrFrames(slot){
 
   const PATH = {
     barracks: {
-      idle: { json:"asset/sprite/const/normal/barrack/Barrack_idle.json", base:"asset/sprite/const/normal/barrack/" },
-      cons: { json:"asset/sprite/const/const_anim/barrack/barrack_const.json", base:"asset/sprite/const/const_anim/barrack/" },
-      dest: { json:"asset/sprite/const/destruct/barrack/barrack_distruction.json", base:"asset/sprite/const/destruct/barrack/" },
+      idle: {
+        variants: [
+          { json:"asset/sprite/const/normal/barrack/barrack_idle.json", base:"asset/sprite/const/normal/barrack/" },
+          { json:"asset/sprite/const/normal/barrack/Barrack_idle.json", base:"asset/sprite/const/normal/barrack/" },
+        ]
+      },
+      cons: {
+        variants: [
+          { json:"asset/sprite/const/const_anim/barrack/barrack_const.json", base:"asset/sprite/const/const_anim/barrack/" },
+          { json:"asset/sprite/const/normal/barrack/barrack_const.json", base:"asset/sprite/const/normal/barrack/" },
+          { json:"asset/sprite/const/normal/barrack/barrack_cons.json",  base:"asset/sprite/const/normal/barrack/" },
+        ]
+      },
+      dest: {
+        variants: [
+          { json:"asset/sprite/const/destruct/barrack/barrack_distruction.json", base:"asset/sprite/const/destruct/barrack/" },
+          { json:"asset/sprite/const/destruct/barrack/barrack_destruction.json", base:"asset/sprite/const/destruct/barrack/" },
+        ]
+      },
     }
   };
+
+
+  async function _loadFirst(variants){
+    let lastErr = null;
+    for (const v of (variants||[])){
+      try{
+        return await atlasTP.loadTPAtlasMulti(v.json, v.base);
+      }catch(e){
+        lastErr = e;
+      }
+    }
+    throw lastErr || new Error("No variants provided");
+  }
 
   function _kickLoadBarracks(){
     const slot = _loaded.barracks;
@@ -159,19 +188,15 @@ function _rebuildBarrFrames(slot){
     (async ()=>{
       try{
         if (!atlasTP || !atlasTP.loadTPAtlasMulti) throw new Error("atlas_tp.js not loaded");
-        const idle = await atlasTP.loadTPAtlasMulti(PATH.barracks.idle.json, PATH.barracks.idle.base);
-        const cons = await atlasTP.loadTPAtlasMulti(PATH.barracks.cons.json, PATH.barracks.cons.base);
+        console.log("[buildings] loading barracks atlases...");
+        const idle = await _loadFirst(PATH.barracks.idle.variants);
+        const cons = await _loadFirst(PATH.barracks.cons.variants);
         let dest = null;
         try{
-          dest = await atlasTP.loadTPAtlasMulti(PATH.barracks.dest.json, PATH.barracks.dest.base);
-        }catch(_e1){
-          // Fallback for common filename variants
-          try{
-            dest = await atlasTP.loadTPAtlasMulti("asset/sprite/const/destruct/barrack/barrack_destruction.json", PATH.barracks.dest.base);
-          }catch(_e2){
-            // If still missing, degrade gracefully (no destruction frames)
-            dest = null;
-          }
+          dest = await _loadFirst(PATH.barracks.dest.variants);
+        }catch(eDest){
+          console.warn("[buildings] barracks destr atlas missing", eDest);
+          dest = null;
         }
 
         slot.idle = idle; slot.cons = cons; slot.dest = dest;
