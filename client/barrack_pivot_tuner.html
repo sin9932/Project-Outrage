@@ -2,456 +2,244 @@
 <html lang="ko">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Barrack Pivot Tuner (v2)</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Barrack Pivot/Atlas Quick Viewer (v3)</title>
   <style>
-    html, body { height:100%; margin:0; background:#0b0b10; color:#e8e8f0; font:14px/1.35 system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; }
-    .wrap { display:grid; grid-template-columns: 420px 1fr; height:100%; }
-    .panel { border-right:1px solid #22223a; padding:14px; overflow:auto; }
-    .panel h1 { font-size:16px; margin:0 0 8px; }
-    .panel small { color:#a9a9c2; display:block; margin-bottom:10px; }
-    .row { display:grid; grid-template-columns: 90px 1fr; gap:10px; align-items:center; margin:8px 0; }
-    input, select, button { width:100%; padding:8px 10px; background:#12121c; border:1px solid #2a2a45; color:#e8e8f0; border-radius:8px; }
-    button { cursor:pointer; }
-    .hint { color:#a9a9c2; margin-top:10px; }
-    .kbd { display:inline-block; padding:2px 6px; border:1px solid #2a2a45; border-radius:6px; background:#12121c; margin:0 2px; }
-    .err { color:#ff9090; white-space:pre-wrap; }
-    .ok { color:#9dffb0; }
-    .canvasWrap { position:relative; overflow:hidden; }
-    canvas { display:block; width:100%; height:100%; }
-    .overlay {
-      position:absolute; left:12px; bottom:12px; background:rgba(0,0,0,.55);
-      border:1px solid rgba(255,255,255,.12); border-radius:10px; padding:10px 12px;
-      max-width:min(640px, calc(100% - 24px));
-      backdrop-filter: blur(6px);
-    }
-    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; }
-    .pill { display:inline-block; padding:2px 8px; border-radius:999px; border:1px solid rgba(255,255,255,.18); margin-right:6px; }
+    body{margin:0;font-family:system-ui,Segoe UI,Apple SD Gothic Neo,Malgun Gothic,sans-serif;background:#0b0e14;color:#e7e7e7}
+    .bar{position:sticky;top:0;display:flex;gap:8px;align-items:center;padding:10px 12px;background:#0f1420;border-bottom:1px solid #1d263a;z-index:5}
+    input{background:#0b0e14;color:#e7e7e7;border:1px solid #2a3550;border-radius:8px;padding:8px 10px;min-width:280px}
+    button{background:#1a5cff;color:#fff;border:0;border-radius:8px;padding:8px 12px;cursor:pointer}
+    button:disabled{opacity:.55;cursor:not-allowed}
+    .grid{display:grid;grid-template-columns: 360px 1fr;gap:12px;padding:12px}
+    .panel{background:#0f1420;border:1px solid #1d263a;border-radius:12px;padding:10px}
+    .log{white-space:pre-wrap;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px;line-height:1.35}
+    canvas{background:#0b0e14;border:1px solid #1d263a;border-radius:12px;width:100%;height:calc(100vh - 92px)}
+    .small{font-size:12px;opacity:.85}
+    .row{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+    select{background:#0b0e14;color:#e7e7e7;border:1px solid #2a3550;border-radius:8px;padding:8px 10px}
   </style>
 </head>
 <body>
-<div class="wrap">
-  <div class="panel">
-    <h1>🧰 Barrack Pivot Tuner v2</h1>
-    <small>막사(3×2) 기준으로 오프셋/피벗 잡고 값 뽑는 툴. <b>파일://로 열면 fetch가 막힐 수 있으니 로컬 서버로 열어.</b></small>
-
-    <div class="row">
-      <div>Atlas JS</div>
-      <select id="atlasJsPick"></select>
-    </div>
-
-    <div class="row">
-      <div>Idle JSON</div>
-      <input id="idlePath" value="asset/sprite/const/normal/barrack/barrack_idle.json"/>
-    </div>
-    <div class="row">
-      <div>Const JSON</div>
-      <input id="constPath" value="asset/sprite/const/const_anim/barrack/barrack_const.json"/>
-    </div>
-    <div class="row">
-      <div>Destr JSON</div>
-      <input id="destPath" value="asset/sprite/const/distruct/barrack/barrack_distruct.json"/>
-    </div>
-
-    <div class="row">
-      <div>Mode</div>
-      <select id="mode">
-        <option value="idle">idle</option>
-        <option value="const">const</option>
-        <option value="dest">dest</option>
-      </select>
-    </div>
-
-    <div class="row">
-      <div>Frame</div>
-      <select id="frameSel"></select>
-    </div>
-
-    <div class="row">
-      <div>Scale</div>
-      <input id="scale" type="number" step="0.05" value="1.0"/>
-    </div>
-
-    <div class="row">
-      <div>Offset X</div>
-      <input id="offX" type="number" step="1" value="0"/>
-    </div>
-    <div class="row">
-      <div>Offset Y</div>
-      <input id="offY" type="number" step="1" value="0"/>
-    </div>
-
-    <div class="row">
-      <div>Pivot X</div>
-      <input id="pivX" type="number" step="0.01" value="0.50"/>
-    </div>
-    <div class="row">
-      <div>Pivot Y</div>
-      <input id="pivY" type="number" step="0.01" value="0.52"/>
-    </div>
-
-    <div class="row">
-      <div></div>
-      <button id="copyBtn">값 복사 (콘솔/클립보드)</button>
-    </div>
-
-    <div class="hint">
-      조작: <span class="kbd">←↑→↓</span> 오프셋 1px, <span class="kbd">Shift</span>+방향키 10px, <span class="kbd">Alt</span>+방향키 0.25px(피벗 조절 모드일 때)<br/>
-      <span class="kbd">P</span> 피벗 조절 모드 토글, <span class="kbd">R</span> 리셋
-      <div id="status" class="mono" style="margin-top:10px;"></div>
-      <div id="errors" class="err" style="margin-top:10px;"></div>
-    </div>
-
-    <div class="hint mono">
-      로컬 서버 빠른 방법:
-      <div class="pill">Python</div> <span class="mono">cd client</span> 후 <span class="mono">python -m http.server 8000</span><br/>
-      그리고 <span class="mono">http://localhost:8000/barrack_pivot_tuner_v2.html</span> 열기
-    </div>
+  <div class="bar">
+    <div style="font-weight:700">Barrack Atlas Viewer</div>
+    <span class="small">base</span>
+    <input id="base" value="" />
+    <button id="probe">PROBE</button>
+    <button id="load" disabled>LOAD</button>
+    <span id="status" class="small"></span>
   </div>
 
-  <div class="canvasWrap">
-    <canvas id="cv"></canvas>
-    <div class="overlay mono" id="overlay"></div>
+  <div class="grid">
+    <div class="panel">
+      <div class="small">JSON (상대/절대 URL)</div>
+      <div class="row">
+        <input id="u_idle" value="/asset/sprite/const/normal/barrack/barrack_idle.json" />
+      </div>
+      <div class="row">
+        <input id="u_const" value="/asset/sprite/const/const_anim/barrack/barrack_const.json" />
+      </div>
+      <div class="row">
+        <input id="u_dist" value="/asset/sprite/const/distruct/barrack/barrack_distruct.json" />
+      </div>
+
+      <div class="row">
+        <select id="anim">
+          <option value="idle">idle</option>
+          <option value="const">const</option>
+          <option value="dist">distruct</option>
+        </select>
+        <button id="play" disabled>PLAY</button>
+        <button id="pause" disabled>PAUSE</button>
+      </div>
+
+      <div class="row small">
+        ⚠️ 이 파일을 <b>file:///</b> 로 열면 /asset 경로는 로컬 디스크로 가서 404가 난다.<br/>
+        반드시 <b>클라이언트 서버(http://localhost:PORT)</b>로 열어.
+      </div>
+
+      <hr style="border:0;border-top:1px solid #1d263a;margin:10px 0" />
+      <div class="log" id="log"></div>
+    </div>
+
+    <div class="panel">
+      <canvas id="cv" width="1024" height="768"></canvas>
+    </div>
   </div>
-</div>
 
 <script>
-(() => {
-  const $ = (id) => document.getElementById(id);
-  const status = $("status");
-  const errors = $("errors");
-  const overlay = $("overlay");
-  const cv = $("cv");
-  const ctx = cv.getContext("2d");
+const $ = (id)=>document.getElementById(id);
+const logEl = $("log");
+const statusEl = $("status");
+function log(...a){ logEl.textContent += a.join(" ") + "\n"; logEl.scrollTop = logEl.scrollHeight; }
+function setStatus(s){ statusEl.textContent = s; }
 
-  const atlasCandidates = [
-    "js/atlas_tp.js",        // if tuner is placed inside client/
-    "client/js/atlas_tp.js", // if tuner is placed at repo root
-    "./js/atlas_tp.js",
-    "./client/js/atlas_tp.js"
-  ];
+function resolve(base, url){
+  if (!url) return "";
+  if (/^https?:\/\//i.test(url)) return url;
+  if (!base) return url; // relative to current origin
+  if (url.startsWith("/")) return base.replace(/\/+$/,"") + url;
+  return base.replace(/\/+$/,"") + "/" + url.replace(/^\/+/,"");
+}
 
-  let pivotMode = false;
-  let atlasLoaded = false;
+async function probeUrl(u){
+  const r = await fetch(u, {cache:"no-store"});
+  const ct = (r.headers.get("content-type")||"").toLowerCase();
+  return { ok:r.ok, status:r.status, ct };
+}
 
-  function setError(msg) {
-    errors.textContent = msg || "";
+let atlases = null;
+let playing = false;
+let t0 = 0;
+
+function parseTP(json){
+  // TexturePacker "multi atlas" single texture case
+  const tex = json.textures?.[0];
+  if (!tex) throw new Error("textures[0] missing");
+  const imgName = tex.image;
+  const frames = tex.frames || [];
+  const map = {};
+  for (const fr of frames){
+    map[fr.filename] = fr;
   }
-  function setStatus(msg, ok=false) {
-    status.innerHTML = ok ? `<span class="ok">${msg}</span>` : msg;
-  }
+  return { image: imgName, frames, map };
+}
 
-  function loadScriptSequential(list, i=0) {
-    $("atlasJsPick").innerHTML = "";
-    list.forEach((p, idx) => {
-      const opt = document.createElement("option");
-      opt.value = p; opt.textContent = p;
-      if (idx === i) opt.selected = true;
-      $("atlasJsPick").appendChild(opt);
-    });
+async function loadAtlas(jsonUrl){
+  const r = await fetch(jsonUrl, {cache:"no-store"});
+  if(!r.ok) throw new Error(`fetch failed ${r.status} ${jsonUrl}`);
+  const j = await r.json();
+  const parsed = parseTP(j);
 
-    return new Promise((resolve, reject) => {
-      if (i >= list.length) return reject(new Error("atlas_tp.js 로드 실패: 경로 후보 전부 실패"));
-      const src = list[i];
-      const s = document.createElement("script");
-      s.src = src;
-      s.defer = true;
-      s.onload = () => resolve(src);
-      s.onerror = () => loadScriptSequential(list, i+1).then(resolve).catch(reject);
-      document.head.appendChild(s);
-    });
-  }
-
-  function resize() {
-    const dpr = window.devicePixelRatio || 1;
-    const rect = cv.getBoundingClientRect();
-    cv.width = Math.max(2, Math.floor(rect.width * dpr));
-    cv.height = Math.max(2, Math.floor(rect.height * dpr));
-    ctx.setTransform(dpr,0,0,dpr,0,0);
-  }
-  window.addEventListener("resize", resize);
-  resize();
-
-  // --- Minimal TP atlas loader (expects atlas_tp.js to define window.TPAtlas or similar)
-  // We don't know your exact API, so we implement a tiny fallback:
-  // - If atlas_tp.js defines window.tpAtlasLoad(jsonPath) we use it.
-  // - Else we parse the TexturePacker JSON ourselves and draw via Image+frames.
-  async function fetchJson(path) {
-    const res = await fetch(path, { cache: "no-store" });
-    if (!res.ok) throw new Error(`fetch 실패 ${path} (${res.status})`);
-    return await res.json();
-  }
-
-  function guessBaseDir(jsonPath) {
-    const i = jsonPath.lastIndexOf("/");
-    return i >= 0 ? jsonPath.slice(0, i+1) : "";
-  }
-
-  async function loadTP(jsonPath) {
-    // Try project-provided loader first
-    if (typeof window.tpAtlasLoad === "function") {
-      const atlas = await window.tpAtlasLoad(jsonPath);
-      return { kind: "native", atlas };
-    }
-    // Fallback parse
-    const data = await fetchJson(jsonPath);
-    // TexturePacker can be {frames:{}} or {textures:[{frames:[]}]}
-    let frames = [];
-    let imageFile = null;
-
-    if (data.textures && data.textures[0] && data.textures[0].frames) {
-      frames = data.textures[0].frames;
-      imageFile = data.textures[0].image;
-    } else if (data.frames) {
-      frames = Object.entries(data.frames).map(([filename, v]) => ({ filename, ...v }));
-      imageFile = data.meta?.image || data.meta?.textureFileName || null;
-    } else {
-      throw new Error("TP json 포맷 인식 실패 (textures/frames 없음)");
-    }
-
-    const base = guessBaseDir(jsonPath);
-    const img = new Image();
-    img.src = base + imageFile;
-    await new Promise((res, rej) => { img.onload=res; img.onerror=() => rej(new Error(`이미지 로드 실패: ${img.src}`)); });
-
-    // normalize frame records
-    const norm = frames.map(f => {
-      const fr = f.frame || f.spriteSourceSize || f; // depends on format
-      const frame = f.frame || f; // {x,y,w,h}
-      const anchor = f.anchor || f.pivot || { x: 0.5, y: 0.5 };
-      return {
-        filename: f.filename,
-        frame: { x: frame.x|0, y: frame.y|0, w: frame.w|0, h: frame.h|0 },
-        anchor: { x: +anchor.x || 0.5, y: +anchor.y || 0.5 }
-      };
-    });
-
-    return { kind: "fallback", img, frames: norm };
-  }
-
-  function getPaths() {
-    return {
-      idle: $("idlePath").value.trim(),
-      const: $("constPath").value.trim(),
-      dest: $("destPath").value.trim(),
-    };
-  }
-
-  let atlases = { idle: null, const: null, dest: null };
-  let current = null;
-
-  function listFrames(atlasObj) {
-    if (!atlasObj) return [];
-    if (atlasObj.kind === "native") {
-      // unknown API: try common patterns
-      const a = atlasObj.atlas;
-      if (Array.isArray(a.frames)) return a.frames.map(f => f.filename || f.name).filter(Boolean);
-      if (a.textures?.[0]?.frames) return a.textures[0].frames.map(f => f.filename);
-      if (a.frames && typeof a.frames === "object") return Object.keys(a.frames);
-      return [];
-    } else {
-      return atlasObj.frames.map(f => f.filename);
-    }
-  }
-
-  function pickFrame(atlasObj, name) {
-    if (!atlasObj) return null;
-    if (atlasObj.kind === "native") {
-      const a = atlasObj.atlas;
-      // we can't safely render without knowing API; fallback will handle drawing anyway.
-      return { native: true, name };
-    } else {
-      return atlasObj.frames.find(f => f.filename === name) || null;
-    }
-  }
-
-  function draw() {
-    ctx.clearRect(0,0,cv.width,cv.height);
-    const w = cv.getBoundingClientRect().width;
-    const h = cv.getBoundingClientRect().height;
-
-    // Draw reference 3x2 tile box (isometric-ish helper)
-    const tileW = 120, tileH = 60;
-    const tw = 3, th = 2;
-    const cx = w * 0.55, cy = h * 0.58;
-
-    ctx.save();
-    ctx.translate(cx, cy);
-
-    // footprint rhombus
-    ctx.strokeStyle = "rgba(120,200,255,.7)";
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    const p0 = {x:0, y:0};
-    const p1 = {x: tw*tileW/2, y: -tw*tileH/2};
-    const p2 = {x: (tw-th)*tileW/2, y: -(tw+th)*tileH/2};
-    const p3 = {x: -th*tileW/2, y: -(-th*tileH/2) - th*tileH/2}; // we'll compute simpler below
-    // Simpler: corners from vectors
-    const vx = {x: tileW/2, y: -tileH/2};
-    const vy = {x: -tileW/2, y: -tileH/2};
-    const A = {x:0,y:0};
-    const B = {x: vx.x*tw, y: vx.y*tw};
-    const D = {x: vy.x*th, y: vy.y*th};
-    const C = {x: B.x + D.x, y: B.y + D.y};
-    ctx.moveTo(A.x,A.y); ctx.lineTo(B.x,B.y); ctx.lineTo(C.x,C.y); ctx.lineTo(D.x,D.y); ctx.closePath();
-    ctx.stroke();
-
-    // center mark
-    ctx.fillStyle = "rgba(255,255,255,.75)";
-    ctx.beginPath(); ctx.arc((B.x+D.x)/2, (B.y+D.y)/2, 4, 0, Math.PI*2); ctx.fill();
-
-    // Draw sprite frame if possible
-    const s = $("scale").valueAsNumber || 1.0;
-    const offX = $("offX").valueAsNumber || 0;
-    const offY = $("offY").valueAsNumber || 0;
-    const pivX = +$("pivX").value || 0.5;
-    const pivY = +$("pivY").value || 0.52;
-
-    if (current && current.kind === "fallback") {
-      const fname = $("frameSel").value;
-      const fr = pickFrame(current, fname);
-      if (fr) {
-        const img = current.img;
-        const fx = fr.frame.x, fy = fr.frame.y, fw = fr.frame.w, fh = fr.frame.h;
-        const drawX = (B.x+D.x)/2 + offX - fw * pivX * s;
-        const drawY = (B.y+D.y)/2 + offY - fh * pivY * s;
-        ctx.imageSmoothingEnabled = false;
-        ctx.drawImage(img, fx, fy, fw, fh, drawX, drawY, fw*s, fh*s);
-
-        // pivot marker
-        ctx.fillStyle = "rgba(255,120,120,.95)";
-        ctx.beginPath(); ctx.arc(drawX + fw*s*pivX, drawY + fh*s*pivY, 4, 0, Math.PI*2); ctx.fill();
-      }
-    } else {
-      // native mode: can't draw without knowing your atlas runtime; show hint
-      ctx.fillStyle = "rgba(255,255,255,.75)";
-      ctx.fillText("atlas_tp.js 로드됨. 하지만 TP 런타임 API를 못 찾아서 fallback 렌더만 지원함.", -320, 40);
-    }
-
-    ctx.restore();
-
-    overlay.textContent =
-`mode=${$("mode").value}  frame=${$("frameSel").value}
-pivotMode=${pivotMode ? "ON" : "OFF (offset)"}
-offX=${$("offX").value} offY=${$("offY").value}  scale=${$("scale").value}
-pivX=${$("pivX").value} pivY=${$("pivY").value}`;
-  }
-
-  function refreshFrameList() {
-    const mode = $("mode").value;
-    const a = atlases[mode];
-    const list = listFrames(a);
-    $("frameSel").innerHTML = "";
-    list.slice(0, 500).forEach(n => {
-      const opt = document.createElement("option");
-      opt.value = n; opt.textContent = n;
-      $("frameSel").appendChild(opt);
-    });
-  }
-
-  async function loadAll() {
-    setError("");
-    setStatus("atlas_tp.js 로드 시도중...");
-    const picked = $("atlasJsPick").value || atlasCandidates[0];
-
-    // Load JS first (best effort)
-    try {
-      await loadScriptSequential(atlasCandidates, atlasCandidates.indexOf(picked) >= 0 ? atlasCandidates.indexOf(picked) : 0);
-      atlasLoaded = true;
-      setStatus("atlas_tp.js 로드 성공 ✅", true);
-    } catch (e) {
-      atlasLoaded = false;
-      setStatus("atlas_tp.js 로드 실패 (fallback 렌더만 시도) ⚠️");
-    }
-
-    // Load TP jsons via fetch (needs local server)
-    const paths = getPaths();
-    try {
-      atlases.idle = await loadTP(paths.idle);
-      atlases.const = await loadTP(paths.const);
-      atlases.dest = await loadTP(paths.dest);
-      setStatus("TP JSON/PNG 로드 성공 ✅ (fetch OK)", true);
-      refreshFrameList();
-      draw();
-    } catch (e) {
-      setError(String(e && e.message ? e.message : e));
-      setStatus("TP JSON/PNG 로드 실패. 파일://로 열면 실패하는 게 정상임. 로컬 서버로 열어.", false);
-      draw();
-    }
-  }
-
-  // UI hooks
-  ["idlePath","constPath","destPath","mode"].forEach(id => $(id).addEventListener("change", async () => {
-    await loadAll();
-  }));
-  ["frameSel","offX","offY","pivX","pivY","scale"].forEach(id => $(id).addEventListener("input", draw));
-  $("copyBtn").addEventListener("click", async () => {
-    const payload = {
-      mode: $("mode").value,
-      frame: $("frameSel").value,
-      offX: +$("offX").value || 0,
-      offY: +$("offY").value || 0,
-      pivX: +$("pivX").value || 0.5,
-      pivY: +$("pivY").value || 0.52,
-      scale: +$("scale").value || 1.0
-    };
-    console.log("[pivot-tuner] copy:", payload);
-    try {
-      await navigator.clipboard.writeText(JSON.stringify(payload, null, 2));
-      setStatus("클립보드에 복사됨 ✅", true);
-    } catch {
-      setStatus("콘솔에만 출력됨 (클립보드 권한 없음)", false);
-    }
+  // Load image (relative to jsonUrl directory)
+  const baseDir = jsonUrl.replace(/\/[^\/]*$/,"/");
+  const imgUrl = resolve("", baseDir + parsed.image);
+  const img = new Image();
+  img.decoding = "async";
+  await new Promise((res, rej)=>{
+    img.onload = ()=>res();
+    img.onerror = ()=>rej(new Error("image load failed: " + imgUrl));
+    img.src = imgUrl;
   });
 
-  window.addEventListener("keydown", (e) => {
-    const step = e.shiftKey ? 10 : 1;
-    if (["ArrowLeft","ArrowRight","ArrowUp","ArrowDown","p","P","r","R"].includes(e.key)) e.preventDefault();
+  return { jsonUrl, imgUrl, img, map: parsed.map, list: Object.keys(parsed.map).sort() };
+}
 
-    if (e.key === "p" || e.key === "P") {
-      pivotMode = !pivotMode;
-      draw();
-      return;
-    }
-    if (e.key === "r" || e.key === "R") {
-      $("offX").value = 0; $("offY").value = 0;
-      $("pivX").value = 0.50; $("pivY").value = 0.52;
-      $("scale").value = 1.0;
-      draw();
-      return;
-    }
+function pickList(a, prefix){
+  return a.list.filter(k=>k.startsWith(prefix));
+}
 
-    if (!["ArrowLeft","ArrowRight","ArrowUp","ArrowDown"].includes(e.key)) return;
+function numSuffix(s){
+  const m = /_(\d+)\.png$/i.exec(s);
+  return m?parseInt(m[1],10):NaN;
+}
+function sortFrames(list){
+  return list.slice().sort((a,b)=>{
+    const an=numSuffix(a), bn=numSuffix(b);
+    if(Number.isFinite(an)&&Number.isFinite(bn)) return an-bn;
+    return a.localeCompare(b);
+  });
+}
 
-    if (!pivotMode) {
-      let x = +$("offX").value || 0;
-      let y = +$("offY").value || 0;
-      if (e.key === "ArrowLeft") x -= step;
-      if (e.key === "ArrowRight") x += step;
-      if (e.key === "ArrowUp") y -= step;
-      if (e.key === "ArrowDown") y += step;
-      $("offX").value = x;
-      $("offY").value = y;
-    } else {
-      const pStep = e.altKey ? 0.0025 : 0.01;
-      let x = +$("pivX").value || 0.5;
-      let y = +$("pivY").value || 0.52;
-      if (e.key === "ArrowLeft") x -= pStep;
-      if (e.key === "ArrowRight") x += pStep;
-      if (e.key === "ArrowUp") y -= pStep;
-      if (e.key === "ArrowDown") y += pStep;
-      x = Math.max(0, Math.min(1, x));
-      y = Math.max(0, Math.min(1, y));
-      $("pivX").value = x.toFixed(4);
-      $("pivY").value = y.toFixed(4);
-    }
-    draw();
-  }, { passive:false });
+function drawFrame(atlas, frameName, cx, cy){
+  const fr = atlas.map[frameName];
+  if(!fr) return false;
+  const r = fr.frame;
+  const w = r.w, h = r.h;
+  const ax = (fr.anchor?.x ?? 0.5), ay = (fr.anchor?.y ?? 0.5);
+  const dx = Math.round(cx - w*ax), dy = Math.round(cy - h*ay);
+  const ctx = $("cv").getContext("2d");
+  ctx.imageSmoothingEnabled = false;
+  ctx.clearRect(0,0,ctx.canvas.width,ctx.canvas.height);
+  ctx.drawImage(atlas.img, r.x, r.y, w, h, dx, dy, w, h);
 
-  // kick
-  loadAll();
-  setInterval(draw, 1000/30);
-})();
+  // crosshair & bbox
+  ctx.strokeStyle = "rgba(255,255,255,.6)";
+  ctx.beginPath(); ctx.moveTo(cx-12, cy); ctx.lineTo(cx+12, cy); ctx.moveTo(cx, cy-12); ctx.lineTo(cx, cy+12); ctx.stroke();
+  ctx.strokeStyle = "rgba(0,255,255,.4)";
+  ctx.strokeRect(dx, dy, w, h);
+
+  ctx.fillStyle = "rgba(255,255,255,.8)";
+  ctx.fillText(frameName + `  anchor(${ax.toFixed(3)},${ay.toFixed(3)})`, 12, 18);
+  return true;
+}
+
+function loop(now){
+  if(!playing || !atlases) return;
+  const sec = (now - t0) / 1000;
+  const mode = $("anim").value;
+  let atlas = atlases.idle;
+  let list = atlases.idleFrames;
+  let fps = 6;
+  if(mode==="const"){ atlas=atlases.cons; list=atlases.constFrames; fps=12; }
+  if(mode==="dist"){ atlas=atlases.dist; list=atlases.distFrames; fps=12; }
+  if(!list.length){ requestAnimationFrame(loop); return; }
+  const idx = Math.floor(sec*fps) % list.length;
+  drawFrame(atlas, list[idx], 512, 480);
+  requestAnimationFrame(loop);
+}
+
+$("probe").onclick = async ()=>{
+  logEl.textContent="";
+  const base = $("base").value.trim();
+  const uIdle = resolve(base, $("u_idle").value.trim());
+  const uConst = resolve(base, $("u_const").value.trim());
+  const uDist = resolve(base, $("u_dist").value.trim());
+  log("[probe] idle", uIdle);
+  log("[probe] const", uConst);
+  log("[probe] dist", uDist);
+
+  try{
+    setStatus("probing...");
+    const [a,b,c] = await Promise.all([probeUrl(uIdle), probeUrl(uConst), probeUrl(uDist)]);
+    log("idle:", a.ok, a.status, a.ct);
+    log("const:", b.ok, b.status, b.ct);
+    log("dist:", c.ok, c.status, c.ct);
+    const ok = a.ok && b.ok && c.ok;
+    $("load").disabled = !ok;
+    setStatus(ok ? "OK. load 눌러." : "FAIL. base/URL 다시.");
+  }catch(e){
+    log("probe error:", e.message);
+    $("load").disabled = true;
+    setStatus("FAIL");
+  }
+};
+
+$("load").onclick = async ()=>{
+  const base = $("base").value.trim();
+  const uIdle = resolve(base, $("u_idle").value.trim());
+  const uConst = resolve(base, $("u_const").value.trim());
+  const uDist = resolve(base, $("u_dist").value.trim());
+  try{
+    setStatus("loading...");
+    const [idle, cons, dist] = await Promise.all([loadAtlas(uIdle), loadAtlas(uConst), loadAtlas(uDist)]);
+    const idleFrames = sortFrames(pickList(idle, "barrack_idle"));
+    const constFrames = sortFrames(pickList(cons, "barrack_con_complete_"));
+    const distFrames = sortFrames(pickList(dist, "barrack_distruction_"));
+    atlases = { idle, cons, dist, idleFrames, constFrames, distFrames };
+
+    log("[loaded] idle frames", idleFrames.length, "img", idle.imgUrl);
+    log("[loaded] const frames", constFrames.length, "img", cons.imgUrl);
+    log("[loaded] dist frames", distFrames.length, "img", dist.imgUrl);
+
+    // draw first frame
+    drawFrame(idle, idleFrames[0] || idle.list[0], 512, 480);
+
+    $("play").disabled = false;
+    $("pause").disabled = false;
+    setStatus("loaded");
+  }catch(e){
+    log("load error:", e.message);
+    setStatus("FAIL");
+  }
+};
+
+$("play").onclick = ()=>{
+  if(!atlases) return;
+  playing = true;
+  t0 = performance.now();
+  requestAnimationFrame(loop);
+};
+$("pause").onclick = ()=>{ playing=false; };
 </script>
 </body>
 </html>

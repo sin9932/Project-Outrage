@@ -119,126 +119,48 @@ function _scanSeq(atlas, patterns){
   return out;
 }
 function _rebuildBarrFrames(slot){
-  if (!slot) return;
-  const idleAtlas = slot.idle;
-  const consAtlas = slot.cons;
-  const destAtlas = slot.dest;
+    // TexturePacker names drift a lot (idle1 vs idle_1 vs con_complete_1, etc)
+    const frames = atlasTP.listFrames(slot.idle).concat(atlasTP.listFrames(slot.cons), slot.dest ? atlasTP.listFrames(slot.dest) : []);
+    const uniq = Array.from(new Set(frames));
 
-  const idleSeq = _scanSeq(idleAtlas, [/^barrack_idle\d+\.png$/i, /^barracks?_idle\d+\.png$/i]);
-  const dmgSeq  = _scanSeq(idleAtlas, [/^barrack_(dist|damaged)\.png$/i, /^barrack_idle_damaged\.png$/i]);
-  const consSeq = _scanSeq(consAtlas, [
-  // legacy naming: barrack_const1.png, barrack_build12.png ...
-  /^barrack_(const|cons|construction|build)\d+\.png$/i,
-  /^barracks?_(const|cons|construction|build)\d+\.png$/i,
+    const scanSeq = (rgx) => {
+      const items = uniq.filter(n => rgx.test(n));
+      items.sort((a,b)=>{
+        const na = parseInt((a.match(/(\d+)(?=\D*\.png$)/i)||[])[1]||"0",10);
+        const nb = parseInt((b.match(/(\d+)(?=\D*\.png$)/i)||[])[1]||"0",10);
+        return na-nb;
+      });
+      return items;
+    };
+    const scanOne = (rgx) => uniq.find(n => rgx.test(n)) || null;
 
-  // your current naming: barrack_con_complete_1.png ...
-  /^barrack_con_complete_?\d+\.png$/i,
-  /^barracks?_con_complete_?\d+\.png$/i,
-]);
-const destSeq = _scanSeq(destAtlas, [
-  // legacy naming: barrack_distruction1.png ...
-  /^barrack_(distruction|destruction|destroy|dest)\d+\.png$/i,
-  /^barracks?_(distruction|destruction|destroy|dest)\d+\.png$/i,
+    // idle loop: barrack_idle1.png or barrack_idle_1.png
+    const idleLoop = scanSeq(/^barrack_idle_?\d+\.png$/i);
+    if (idleLoop.length) BARR.idleLoop = idleLoop;
 
-  // your current naming: barrack_distruction_35.png ...
-  /^barrack_(distruction|destruction|destroy|dest)_?\d+\.png$/i,
-  /^barracks?_(distruction|destruction|destroy|dest)_?\d+\.png$/i,
-]);
+    // damaged idle: barrack_dist.png (single)
+    const dist = scanOne(/^barrack_dist\.png$/i) || scanOne(/^barrack_dist_?\d+\.png$/i);
+    if (dist) BARR.idleDamaged = [dist];
 
-if (idleSeq.length) BARR.idleLoop = idleSeq;
-  if (dmgSeq.length)  BARR.idleDamaged = [dmgSeq[0]];
-  if (consSeq.length) BARR.cons = consSeq;
-  if (destSeq.length) BARR.dest = destSeq;
+    // construction:
+    // - barrack_const1.png / barrack_const_1.png
+    // - barrack_con_complete_1.png
+    // - barrack_complete_1.png
+    const consSeq =
+      scanSeq(/^barrack_(?:const|cons|construction|build)_?\d+\.png$/i)
+        .concat(scanSeq(/^barrack_(?:con_complete|concomplete|complete)_?\d+\.png$/i))
+        .filter((v,i,a)=>a.indexOf(v)===i);
+    if (consSeq.length) BARR.cons = consSeq;
 
-  // Safety: if dest atlas missing, prevent 0-length maxT instant remove from feeling like "no anim".
-  if (!destAtlas) BARR.dest = [];
-}
-
-  const PATH = {
-    barracks: {
-      idle: { json:"asset/sprite/const/normal/barrack/Barrack_idle.json", base:"asset/sprite/const/normal/barrack/" },
-      cons: { json:"asset/sprite/const/const_anim/barrack_const.json", base:"asset/sprite/const/const_anim/barrack/" },
-      dest: { json:"asset/sprite/const/destruct/barrack_distruction.json", base:"asset/sprite/const/destruct/barrack/" },
-    }
-  };
-
-  
-// Barracks atlas path fallbacks (your folder layout can vary)
-const BARRACK_CAND = {
-  idle: [
-    { json: PATH.barracks.idle.json, base: PATH.barracks.idle.base },
-    { json: "asset/sprite/const/destruct/barrack/Barrack_idle.json",   base: "asset/sprite/const/destruct/barrack/" },
-    { json: "asset/sprite/const/const_anim/barrack/Barrack_idle.json", base: "asset/sprite/const/const_anim/barrack/" },
-  ],
-  cons: [
-    { json: PATH.barracks.cons.json, base: PATH.barracks.cons.base },
-    { json: "asset/sprite/const/normal/barrack/barrack_const.json",    base: "asset/sprite/const/normal/barrack/" },
-    { json: "asset/sprite/const/destruct/barrack/barrack_const.json",  base: "asset/sprite/const/destruct/barrack/" },
-  ],
-  dest: [
-    { json: "asset/sprite/const/destruct/barrack/barrack_distruction.json",  base: "asset/sprite/const/destruct/barrack/" },
-    { json: "asset/sprite/const/const_anim/barrack/barrack_distruction.json",base: "asset/sprite/const/const_anim/barrack/" },
-    { json: "asset/sprite/const/normal/barrack/barrack_distruction.json",    base: "asset/sprite/const/normal/barrack/" },
-
-    // common spelling variant
-    { json: "asset/sprite/const/destruct/barrack/barrack_destruction.json",   base: "asset/sprite/const/destruct/barrack/" },
-    { json: "asset/sprite/const/const_anim/barrack/barrack_destruction.json",base: "asset/sprite/const/const_anim/barrack/" },
-    { json: "asset/sprite/const/normal/barrack/barrack_destruction.json",    base: "asset/sprite/const/normal/barrack/" },
-  ]
-};
-
-async function _tryLoadTPMulti(cands){
-  let lastErr = null;
-  for (const c of cands){
-    try{
-      return await atlasTP.loadTPAtlasMulti(c.json, c.base);
-    }catch(e){
-      lastErr = e;
-    }
-  }
-  throw lastErr || new Error("Atlas load failed (no candidates)");
-}
-function _kickLoadBarracks(){
-    const slot = _loaded.barracks;
-    if (slot.ready || slot.loading) return;
-    slot.loading = true;
-    (async ()=>{
-      try{
-        if (!atlasTP || !atlasTP.loadTPAtlasMulti) throw new Error("atlas_tp.js not loaded");
-        const idle = await _tryLoadTPMulti(BARRACK_CAND.idle);
-const cons = await _tryLoadTPMulti(BARRACK_CAND.cons);
-let dest = null;
-try{
-  dest = await _tryLoadTPMulti(BARRACK_CAND.dest);
-}catch(_e){
-  // If still missing, degrade gracefully (no destruction frames)
-  dest = null;
-}
-
-slot.idle = idle; slot.cons = cons; slot.dest = dest;
-
-        // Build per-team recolored atlases (PLAYER=0, ENEMY=1).
-        try{
-          const pRGB = TEAM_ACCENT.PLAYER || [80,180,255];
-          const eRGB = TEAM_ACCENT.ENEMY  || [255,80,90];
-          slot.idleT = { 0:_cloneAtlasWithRecoloredTextures(idle, pRGB), 1:_cloneAtlasWithRecoloredTextures(idle, eRGB) };
-          slot.consT = { 0:_cloneAtlasWithRecoloredTextures(cons, pRGB), 1:_cloneAtlasWithRecoloredTextures(cons, eRGB) };
-          slot.destT = dest ? { 0:_cloneAtlasWithRecoloredTextures(dest, pRGB), 1:_cloneAtlasWithRecoloredTextures(dest, eRGB) } : null;
-        }catch(_e){
-          // If recolor fails (tainted canvas etc), fall back to base atlases.
-          slot.idleT = null; slot.consT = null; slot.destT = null;
-        }
-
-        _rebuildBarrFrames(slot);
-
-        slot.ready = true;
-      }catch(e){
-        slot.err = e;
-        console.error("[buildings] barracks atlas load failed", e);
-      }finally{
-        slot.loading = false;
-      }
-    })();
+    // destruction:
+    // - barrack_destruction_1.png / barrack_destruction1.png
+    // - barrack_distruction_1.png (typo common)
+    // - barrack_distruct_1.png (your folder/label)
+    // - barrack_destruct_1.png
+    const destSeq =
+      scanSeq(/^barrack_(?:destruction|destroy|dest|destruct|distruction|distruct)_?\d+\.png$/i)
+        .filter((v,i,a)=>a.indexOf(v)===i);
+    if (destSeq.length) BARR.dest = destSeq;
   }
 
   function init(){
@@ -426,7 +348,7 @@ slot.idle = idle; slot.cons = cons; slot.dest = dest;
     }
 
     const pick = _pickBarracksFrame(ent, st);
-    const atlas = (pick.atlas==="cons") ? slot.cons : slot.idle;
+    const atlas = _pickTeamAtlas(slot, pick.atlas, ent.team);
     const name = pick.name;
 
     const x = p.x + dx - (px * scale);
