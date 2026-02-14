@@ -1,7 +1,7 @@
 {
 	"textures": [
 		{
-			"image": "barrack_idle.png",
+			"image": "barrack_idle.jpg",
 			"format": "RGBA8888",
 			"size": {
 				"w": 3452,
@@ -433,56 +433,6 @@
 						"x": 0.5,
 						"y": 0.52
 					}
-				},
-				{
-					"filename": "barrack_idle17.png",
-					"rotated": false,
-					"trimmed": true,
-					"sourceSize": {
-						"w": 1652,
-						"h": 1252
-					},
-					"spriteSourceSize": {
-						"x": 392,
-						"y": 303,
-						"w": 863,
-						"h": 570
-					},
-					"frame": {
-						"x": 0,
-						"y": 2280,
-						"w": 863,
-						"h": 570
-					},
-					"anchor": {
-						"x": 0.5,
-						"y": 0.52
-					}
-				},
-				{
-					"filename": "barrack_idle18.png",
-					"rotated": false,
-					"trimmed": true,
-					"sourceSize": {
-						"w": 1652,
-						"h": 1252
-					},
-					"spriteSourceSize": {
-						"x": 392,
-						"y": 303,
-						"w": 863,
-						"h": 570
-					},
-					"frame": {
-						"x": 0,
-						"y": 2280,
-						"w": 863,
-						"h": 570
-					},
-					"anchor": {
-						"x": 0.5,
-						"y": 0.52
-					}
 				}
 			]
 		}
@@ -490,6 +440,6 @@
 	"meta": {
 		"app": "https://www.codeandweb.com/texturepacker",
 		"version": "3.0",
-		"smartupdate": "$TexturePacker:SmartUpdate:e8199072175d501346abc71fbfecd044:fcecf3fc30c79939a43b1aedd2a2dc6c:d24c9670d2ffc4736f7ea76501efa2c8$"
+		"smartupdate": "$TexturePacker:SmartUpdate:170e6966b9992f85aff01e70ce86846e:888410a3775474e3efc5677407116bd6:d24c9670d2ffc4736f7ea76501efa2c8$"
 	}
 }
