@@ -52,18 +52,9 @@
   }
 
   async function loadTPAtlasMulti(jsonUrl, baseDir){
-    // Avoid "cached HTML pretending to be JSON" (304 can keep a bad cached body).
-    const res = await fetch(jsonUrl, { cache: "no-store" });
-    if (!res.ok) throw new Error("Atlas JSON fetch failed: " + jsonUrl + " (" + res.status + ")");
-    let json;
-    try{
-      json = await res.json();
-    }catch(e){
-      // If server returned HTML (SPA fallback / 404 page), res.json() throws.
-      const txt = await res.text().catch(()=> "");
-      const head = (txt || "").slice(0, 120).replace(/\s+/g, " ").trim();
-      throw new Error("Atlas JSON parse failed: " + jsonUrl + " | startsWith: " + head);
-    }
+    const res = await fetch(jsonUrl);
+    if (!res.ok) throw new Error("Atlas JSON fetch failed: " + jsonUrl);
+    const json = await res.json();
     const atlas = _parseTPMulti(json);
 
     for (let i=0;i<atlas.textures.length;i++){
@@ -106,7 +97,91 @@
     return true;
   }
 
-  function getFrameSourceSize(atlas, frameName){
+  
+// --- helpers: numeric-suffix ordering for animations (e.g. foo_1.png .. foo_20.png) ---
+function trailingNumber(name) {
+  if (!name) return null;
+  const m = String(name).match(/(\d+)(?=\.[a-zA-Z0-9]+$)/);
+  return m ? parseInt(m[1], 10) : null;
+}
+
+function listFramesByPrefix(atlas, prefix, opts) {
+  opts = opts || {};
+  const want = String(prefix || '');
+  const keys = (atlas && atlas.frames)
+    ? Array.from(atlas.frames.keys ? atlas.frames.keys() : Object.keys(atlas.frames))
+    : [];
+  let frames = keys.filter(k => String(k).startsWith(want));
+  if (opts.sortNumeric !== false) {
+    frames.sort((a,b) => {
+      const na = trailingNumber(a);
+      const nb = trailingNumber(b);
+      if (na == null && nb == null) return String(a).localeCompare(String(b));
+      if (na == null) return 1;
+      if (nb == null) return -1;
+      if (na !== nb) return na - nb;
+      return String(a).localeCompare(String(b));
+    });
+  }
+  return frames;
+}
+
+function getFrame(atlas, frameName) {
+  if (!atlas || !atlas.frames) return null;
+  if (atlas.frames.get) return atlas.frames.get(frameName) || null;
+  return atlas.frames[frameName] || null;
+}
+
+
+// Apply a normalized pivot (TexturePacker "anchor") to frames.
+// Pivot is normalized to the SOURCE size (not the trimmed frame).
+function applyPivot(atlas, frameName, pivot){
+  const fr = getFrame(atlas, frameName);
+  if (!fr) return false;
+  fr.anchor = { x: Number(pivot.x), y: Number(pivot.y) };
+  return true;
+}
+
+function applyPivotToFrames(atlas, frameNames, pivot){
+  if (!frameNames) return 0;
+  let n = 0;
+  for (const name of frameNames){
+    if (applyPivot(atlas, name, pivot)) n++;
+  }
+  return n;
+}
+
+function applyPivotByPrefix(atlas, prefix, pivot, opts){
+  const frames = listFramesByPrefix(atlas, prefix, opts);
+  return applyPivotToFrames(atlas, frames, pivot);
+}
+
+// localStorage schema (same origin):
+//   key "PO_PIVOT_OVERRIDES" => { "<prefix>": { "x": 0.5, "y": 0.52 }, ... }
+function loadPivotOverridesFromLocalStorage(key){
+  try{
+    const raw = localStorage.getItem(key || 'PO_PIVOT_OVERRIDES');
+    if (!raw) return null;
+    const obj = JSON.parse(raw);
+    if (!obj || typeof obj !== 'object') return null;
+    return obj;
+  }catch(e){
+    return null;
+  }
+}
+
+function applyPivotOverrides(atlas, overrides, opts){
+  if (!overrides) return 0;
+  let n = 0;
+  for (const prefix of Object.keys(overrides)){
+    const p = overrides[prefix];
+    if (!p) continue;
+    n += applyPivotByPrefix(atlas, prefix, { x: p.x, y: p.y }, opts);
+  }
+  return n;
+}
+
+function getFrameSourceSize(atlas, frameName){
     const fr = atlas.frames.get(frameName);
     if (!fr) return null;
     return { w: fr.sourceSize.w, h: fr.sourceSize.h };
@@ -115,4 +190,12 @@
   PO.atlasTP.loadTPAtlasMulti = loadTPAtlasMulti;
   PO.atlasTP.drawFrame = drawFrame;
   PO.atlasTP.getFrameSourceSize = getFrameSourceSize;
+  PO.atlasTP.listFramesByPrefix = listFramesByPrefix;
+  PO.atlasTP.trailingNumber = trailingNumber;
+  PO.atlasTP.applyPivot = applyPivot;
+  PO.atlasTP.applyPivotToFrames = applyPivotToFrames;
+  PO.atlasTP.applyPivotByPrefix = applyPivotByPrefix;
+  PO.atlasTP.loadPivotOverridesFromLocalStorage = loadPivotOverridesFromLocalStorage;
+  PO.atlasTP.applyPivotOverrides = applyPivotOverrides;
+  PO.atlasTP.getFrame = getFrame;
 })();

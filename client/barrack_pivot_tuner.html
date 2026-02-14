@@ -1,592 +1,530 @@
-<!doctype html>
+<!DOCTYPE html>
+
 <html lang="ko">
 <head>
-  <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>Barrack Pivot Tuner v4</title>
-  <style>
-    :root { color-scheme: dark; }
-    html, body { margin:0; height:100%; background:#0b0f16; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Noto Sans KR", Arial; }
-    #wrap { display:flex; height:100%; }
-    #panel {
-      width: 360px; min-width: 360px; max-width: 360px;
-      padding: 12px; box-sizing:border-box;
-      border-right: 1px solid rgba(255,255,255,0.08);
-      background: linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.01));
-      overflow:auto;
-    }
-    h1 { font-size: 16px; margin: 0 0 10px; }
-    .row { display:flex; gap:8px; align-items:center; margin:8px 0; }
-    .row > * { flex:1; }
-    label { font-size: 12px; opacity: 0.9; }
-    input, select, button {
-      width:100%;
-      background: rgba(255,255,255,0.06);
-      border: 1px solid rgba(255,255,255,0.10);
-      color:#e8eefc;
-      padding: 8px 10px;
-      border-radius: 10px;
-      outline: none;
-    }
-    button { cursor:pointer; }
-    button.primary { background: rgba(99, 165, 255, 0.22); border-color: rgba(99,165,255,0.35); }
-    button.warn { background: rgba(255, 121, 121, 0.18); border-color: rgba(255,121,121,0.28); }
-    .small { font-size: 12px; opacity:0.85; line-height:1.35; }
-    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; font-size: 12px; }
-    hr { border:none; border-top:1px solid rgba(255,255,255,0.08); margin: 12px 0; }
-    #canvas { flex:1; display:block; width:100%; height:100%; }
-    .pill {
-      display:inline-block; padding: 3px 8px; border-radius:999px;
-      border:1px solid rgba(255,255,255,0.12);
-      background: rgba(255,255,255,0.06);
-      font-size: 11px; margin-right:6px;
-    }
-    .grid2 { display:grid; grid-template-columns: 1fr 1fr; gap:8px; }
-    .grid3 { display:grid; grid-template-columns: 1fr 1fr 1fr; gap:8px; }
-    .hint { opacity: 0.75; }
-    .kbd { padding:2px 6px; border-radius:6px; border:1px solid rgba(255,255,255,0.12); background:rgba(255,255,255,0.05); font-size:11px; }
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1" name="viewport"/>
+<title>Pivot Tuner (Multi-Texture)</title>
+<style>
+    :root{color-scheme:dark;}
+    body{margin:0;font-family:system-ui,Segoe UI,Apple SD Gothic Neo,Malgun Gothic,sans-serif;background:#0b0f16;color:#e6edf6;}
+    .wrap{display:grid;grid-template-columns:360px 1fr;height:100vh;}
+    .panel{padding:14px 12px;border-right:1px solid rgba(255,255,255,.08);overflow:auto;background:linear-gradient(180deg,rgba(255,255,255,.03),rgba(255,255,255,0));}
+    h1{font-size:18px;margin:0 0 10px 0;}
+    label{display:block;font-size:12px;opacity:.85;margin:10px 0 6px;}
+    input[type=text], input[type=number]{width:100%;box-sizing:border-box;padding:10px;border-radius:10px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.04);color:#e6edf6;outline:none;}
+    .row{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+    .btns{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;}
+    button{padding:10px 12px;border-radius:12px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);color:#e6edf6;cursor:pointer;}
+    button:hover{background:rgba(255,255,255,.10);}
+    .hint{font-size:12px;opacity:.75;line-height:1.4;margin-top:8px;}
+    .err{font-size:12px;color:#ff6b6b;white-space:pre-wrap;margin-top:10px;}
+    .ok{font-size:12px;color:#7ee787;white-space:pre-wrap;margin-top:10px;}
+    textarea{width:100%;min-height:140px;box-sizing:border-box;padding:10px;border-radius:10px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.04);color:#e6edf6;outline:none;resize:vertical;}
+    canvas{width:100%;height:100%;display:block;}
+    .stage{position:relative;}
+    .badge{position:absolute;left:14px;top:12px;padding:6px 10px;border-radius:999px;font-size:12px;background:rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.1);backdrop-filter:blur(6px);}
+    .badge span{opacity:.85}
   </style>
 </head>
 <body>
-<div id="wrap">
-  <div id="panel">
-    <h1>🏗️ Barrack Pivot Tuner v4</h1>
-    <div class="small">
-      이건 “png만 재생”이 아니라 <b>타일(3×2) 오버레이</b> 위에 스프라이트를 얹고,
-      <b>pivot(앵커)</b>를 실시간으로 조절해서 <b>수치</b>를 뽑는 툴이야.
-      <br><span class="hint">중요: <span class="kbd">file:///</span>로 열면 fetch가 꼬임. 반드시 로컬서버(예: localhost)로 열어.</span>
+<div class="wrap">
+<div class="panel">
+<h1>Pivot Tuner 🔧</h1>
+<div class="hint">
+      TexturePacker <b>multipack(textures 배열)</b> 지원.<br/>
+      프레임은 <b>끝자리 숫자</b> 기준으로 정렬해서 재생해.<br/>
+      캔버스에서 <b>클릭</b>하면 현재 프레임의 Pivot(anchor)을 찍고, <b>Shift+클릭</b>하면 전체 프레임에 적용.
     </div>
-
-    <hr/>
-
-    <div class="small">
-      <span class="pill">로드</span> 아래 URL은 네가 준 최종 경로 기준으로 기본값 넣어놨다.
-    </div>
-
-    <label>Base URL (선택, 비우면 현재 origin)</label>
-    <input id="baseUrl" placeholder="예: http://localhost:5173" />
-
-    <label style="margin-top:10px;">Idle JSON</label>
-    <input id="idleUrl" value="/asset/sprite/const/normal/barrack/barrack_idle.json"/>
-
-    <label style="margin-top:10px;">Const JSON</label>
-    <input id="constUrl" value="/asset/sprite/const/const_anim/barrack/barrack_const.json"/>
-
-    <label style="margin-top:10px;">Distruct JSON</label>
-    <input id="distUrl" value="/asset/sprite/const/distruct/barrack/barrack_distruct.json"/>
-
-    <div class="row">
-      <button id="btnLoad" class="primary">JSON 로드</button>
-      <button id="btnReset" class="warn">리셋</button>
-    </div>
-
-    <div id="status" class="small mono"></div>
-
-    <hr/>
-
-    <div class="grid2">
-      <div>
-        <label>세트</label>
-        <select id="setSel">
-          <option value="idle">idle</option>
-          <option value="const">const</option>
-          <option value="dist">distruct</option>
-        </select>
-      </div>
-      <div>
-        <label>프레임</label>
-        <select id="frameSel"></select>
-      </div>
-    </div>
-
-    <div class="grid3" style="margin-top:8px;">
-      <button id="btnPlay">재생</button>
-      <button id="btnPause">정지</button>
-      <button id="btnStep">1프레임</button>
-    </div>
-
-    <div class="grid2" style="margin-top:8px;">
-      <div>
-        <label>FPS</label>
-        <input id="fps" type="number" value="12" min="1" max="60"/>
-      </div>
-      <div>
-        <label>스케일</label>
-        <input id="scale" type="number" value="0.55" step="0.01" min="0.05" max="3"/>
-      </div>
-    </div>
-
-    <hr/>
-
-    <div class="small">
-      <span class="pill">타일 오버레이</span>
-      3×2 footprint를 보면서 pivot 맞추는 용도.
-    </div>
-
-    <div class="grid2">
-      <div>
-        <label>tileW</label>
-        <input id="tileW" type="number" value="64" min="8" max="512"/>
-      </div>
-      <div>
-        <label>tileH</label>
-        <input id="tileH" type="number" value="32" min="4" max="512"/>
-      </div>
-    </div>
-
-    <div class="grid2" style="margin-top:8px;">
-      <div>
-        <label>footprint W</label>
-        <input id="footW" type="number" value="3" min="1" max="10"/>
-      </div>
-      <div>
-        <label>footH</label>
-        <input id="footH" type="number" value="2" min="1" max="10"/>
-      </div>
-    </div>
-
-    <div class="row">
-      <button id="btnCenterToFoot" class="primary">pivot을 footprint 중심으로</button>
-    </div>
-
-    <hr/>
-
-    <div class="small">
-      <span class="pill">Pivot 조절</span>
-      <span class="hint">단축키: <span class="kbd">←↑↓→</span> nudge, <span class="kbd">Shift</span> = 10배</span>
-    </div>
-
-    <label>pivot X (normalized 0..1)</label>
-    <input id="pivotX" type="range" min="0" max="1" step="0.0005" value="0.5"/>
-    <div class="row">
-      <button id="nx">X -</button><button id="px">X +</button>
-    </div>
-
-    <label>pivot Y (normalized 0..1)</label>
-    <input id="pivotY" type="range" min="0" max="1" step="0.0005" value="0.52"/>
-    <div class="row">
-      <button id="ny">Y -</button><button id="py">Y +</button>
-    </div>
-
-    <div class="small mono" id="readout"></div>
-
-    <hr/>
-
-    <div class="small hint">
-      <b>결론만</b>: 여기서 원하는 프레임을 골라서 pivot 맞추고, 나온 값을
-      네 json의 <span class="mono">anchor: {x,y}</span>로 옮기면 끝.
-    </div>
-  </div>
-
-  <canvas id="canvas"></canvas>
+<label>Atlas JSON URL (서버 경로)</label>
+<input id="atlasUrl" type="text" value="/asset/sprite/const/distruct/barrack/barrack_distruct.json"/>
+<label>Base path (비우면 JSON 경로에서 자동 추출)</label>
+<input id="basePath" placeholder="예: /asset/sprite/const/distruct/barrack/" type="text"/>
+<label>Frame prefix (예: barrack_distruction_)</label>
+<input id="prefix" type="text" value="barrack_distruction_"/>
+<div class="btns">
+<button id="btnLoad">Load</button>
+<button id="btnPlay">Play</button>
+<button id="btnPrev">◀</button>
+<button id="btnNext">▶</button>
 </div>
-
+<div class="row">
+<div>
+<label>FPS</label>
+<input id="fps" max="60" min="1" type="number" value="10"/>
+</div>
+<div>
+<label>Zoom</label>
+<input id="zoom" max="6" min="0.1" step="0.05" type="number" value="1"/>
+</div>
+</div>
+<div class="row">
+<div>
+<label>Pivot X (normalized)</label>
+<input id="pivotX" max="1" min="0" step="0.001" type="number" value="0.5"/>
+</div>
+<div>
+<label>Pivot Y (normalized)</label>
+<input id="pivotY" max="1" min="0" step="0.001" type="number" value="0.52"/>
+</div>
+</div>
+<div class="btns">
+<button id="btnApplyCur">Apply to current</button>
+<button id="btnApplyAll">Apply to all</button>
+<button id="btnCopy">Copy output</button>
+<button id="btnSavePrefix">Save prefix pivot</button><button id="btnCopyOverrides">Copy overrides JSON</button><button id="btnSaveLS">Save to localStorage</button><button id="btnLoadLS">Load from localStorage</button></div>
+<label>Footprint overlay (3x2)</label>
+<div class="row">
+<div><label style="margin-top:0">TileW</label><input id="tileW" type="number" value="128"/></div>
+<div><label style="margin-top:0">TileH</label><input id="tileH" type="number" value="64"/></div>
+</div>
+<div class="row">
+<div><label>TilesX</label><input id="tilesX" type="number" value="3"/></div>
+<div><label>TilesY</label><input id="tilesY" type="number" value="2"/></div>
+</div>
+<label>Copy/paste output (frameName -&gt; pivot)</label>
+<textarea id="out" spellcheck="false"></textarea>
+<div class="err" id="status"></div>
+</div>
+<div class="stage">
+<div class="badge"><span id="badgeText">Not loaded</span></div>
+<canvas id="cv"></canvas>
+</div>
+</div>
 <script>
-(() => {
-  const $ = (id) => document.getElementById(id);
-
-  const canvas = $("canvas");
-  const ctx = canvas.getContext("2d", { alpha: true });
-
-  const state = {
-    ready: false,
-    playing: true,
-    t: 0,
-    frameIdx: 0,
-    sets: {
-      idle: null,
-      const: null,
-      dist: null,
-    },
-    images: new Map(), // url -> HTMLImageElement
-    framesBySet: {
-      idle: [],
-      const: [],
-      dist: [],
-    },
-    selectedSet: "idle",
-    selectedFrameKey: null,
-    // pivot normalized
-    pivotX: 0.5,
-    pivotY: 0.52,
-  };
-
-  function resize() {
-    const dpr = Math.max(1, window.devicePixelRatio || 1);
-    canvas.width = Math.floor(canvas.clientWidth * dpr);
-    canvas.height = Math.floor(canvas.clientHeight * dpr);
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+/** Minimal TexturePacker JSON helper (multipack supported)
+ * Expects TP "Unity" style JSON:
+ * { textures:[{image,size,frames:[{filename,frame,spriteSourceSize,sourceSize,rotated,trimmed,anchor?}]}] }
+ */
+const TP = (() => {
+  const reTailNum = /(\d+)(?=\.[a-z0-9]+$)/i;
+  function numericSuffix(name){
+    const m = name.match(reTailNum);
+    return m ? parseInt(m[1],10) : null;
   }
-  window.addEventListener("resize", resize);
-  resize();
-
-  function absUrl(path) {
-    const base = $("baseUrl").value.trim();
-    if (!path) return path;
-    if (path.startsWith("http://") || path.startsWith("https://")) return path;
-    const origin = base || window.location.origin;
-    if (path.startsWith("/")) return origin + path;
-    return origin + "/" + path;
+  function normalizeBasePath(atlasUrl, basePathInput){
+    if (basePathInput && basePathInput.trim()) return basePathInput.trim().replace(/\\/g,'/');
+    const u = atlasUrl.trim().replace(/\\/g,'/');
+    const idx = u.lastIndexOf('/');
+    return idx>=0 ? u.slice(0, idx+1) : '';
   }
-
-  async function fetchJson(url) {
-    const res = await fetch(url, { cache: "no-store" });
-    if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText} :: ${url}`);
-    return await res.json();
-  }
-
-  function inferImageUrl(json, jsonUrl) {
-    // TexturePacker style: json.textures[0].image
-    // Use same folder as jsonUrl
-    const imgName = json?.textures?.[0]?.image;
-    if (!imgName) return null;
-    const base = jsonUrl.split("/").slice(0, -1).join("/");
-    return absUrl(base + "/" + imgName);
-  }
-
-  function listFrameKeys(json) {
-    // json.textures[0].frames is array of objects with filename
-    const frames = json?.textures?.[0]?.frames || [];
-    const keys = frames.map(f => f.filename).filter(Boolean);
-    return keys;
-  }
-
-  function getFrame(json, key) {
-    const frames = json?.textures?.[0]?.frames || [];
-    return frames.find(f => f.filename === key) || null;
-  }
-
-  function getSourceSize(frameObj) {
-    // prefer sourceSize; fall back to json.textures[0].size
-    if (frameObj && frameObj.sourceSize) return frameObj.sourceSize;
-    return null;
-  }
-
-  async function loadImage(url) {
-    if (state.images.has(url)) return state.images.get(url);
-    const img = new Image();
-    img.crossOrigin = "anonymous";
-    const p = new Promise((resolve, reject) => {
-      img.onload = () => resolve(img);
-      img.onerror = (e) => reject(new Error("이미지 로드 실패: " + url));
+  function flattenFrames(atlas){
+    const out = [];
+    const textures = atlas.textures || [];
+    textures.forEach((tex, texIdx) => {
+      (tex.frames||[]).forEach(fr => {
+        out.push({ name: fr.filename, texIdx, fr });
+      });
     });
-    img.src = url;
-    const loaded = await p;
-    state.images.set(url, loaded);
-    return loaded;
+    return out;
   }
-
-  function rebuildFrameDropdown() {
-    const set = state.selectedSet;
-    const sel = $("frameSel");
-    sel.innerHTML = "";
-    const keys = state.framesBySet[set] || [];
-    for (const k of keys) {
-      const opt = document.createElement("option");
-      opt.value = k;
-      opt.textContent = k;
-      sel.appendChild(opt);
-    }
-    state.selectedFrameKey = keys[0] || null;
-    sel.value = state.selectedFrameKey || "";
+  function listFramesByPrefix(atlas, prefix){
+    const all = flattenFrames(atlas);
+    const wanted = all.filter(x => x.name.startsWith(prefix));
+    wanted.sort((a,b)=>{
+      const na = numericSuffix(a.name); const nb = numericSuffix(b.name);
+      if (na==null && nb==null) return a.name.localeCompare(b.name);
+      if (na==null) return 1;
+      if (nb==null) return -1;
+      return na-nb;
+    });
+    return wanted;
   }
-
-  function status(msg) { $("status").textContent = msg; }
-
-  async function onLoad() {
-    try {
-      status("로딩 중...");
-      state.ready = false;
-
-      const idleUrl = absUrl($("idleUrl").value.trim());
-      const constUrl = absUrl($("constUrl").value.trim());
-      const distUrl = absUrl($("distUrl").value.trim());
-
-      const [idleJ, constJ, distJ] = await Promise.all([
-        fetchJson(idleUrl),
-        fetchJson(constUrl),
-        fetchJson(distUrl),
-      ]);
-
-      state.sets.idle = { json: idleJ, jsonUrl: idleUrl, imgUrl: inferImageUrl(idleJ, idleUrl), img: null };
-      state.sets.const = { json: constJ, jsonUrl: constUrl, imgUrl: inferImageUrl(constJ, constUrl), img: null };
-      state.sets.dist = { json: distJ, jsonUrl: distUrl, imgUrl: inferImageUrl(distJ, distUrl), img: null };
-
-      // images
-      for (const k of ["idle","const","dist"]) {
-        const s = state.sets[k];
-        if (!s.imgUrl) throw new Error(`${k} json에 textures[0].image 없음`);
-        s.img = await loadImage(s.imgUrl);
-        state.framesBySet[k] = listFrameKeys(s.json);
-      }
-
-      state.selectedSet = $("setSel").value;
-      rebuildFrameDropdown();
-
-      state.ready = true;
-      status("✅ 로드 완료. 프레임 선택하고 pivot 맞춰라.");
-    } catch (e) {
-      console.error(e);
-      status("❌ " + (e?.message || e));
-    }
-  }
-
-  function reset() {
-    state.t = 0; state.frameIdx = 0;
-    state.pivotX = 0.5; state.pivotY = 0.52;
-    $("pivotX").value = String(state.pivotX);
-    $("pivotY").value = String(state.pivotY);
-    status("리셋 완료");
-  }
-
-  function nudge(dx, dy, mult=1) {
-    const step = 0.0005 * mult;
-    state.pivotX = Math.min(1, Math.max(0, state.pivotX + dx*step));
-    state.pivotY = Math.min(1, Math.max(0, state.pivotY + dy*step));
-    $("pivotX").value = String(state.pivotX);
-    $("pivotY").value = String(state.pivotY);
-  }
-
-  function drawIsoFootprint(cx, cy, tileW, tileH, w, h) {
-    // draw outline + internal tile grid for (w x h) footprint in isometric
-    // iso tile corners relative to tileW/tileH.
-    // Convert grid (i,j) to screen: x = (i-j)*tileW/2, y = (i+j)*tileH/2
-    ctx.save();
-    ctx.translate(cx, cy);
-
-    // draw tiles
-    ctx.lineWidth = 1;
-    ctx.strokeStyle = "rgba(120,200,255,0.35)";
-    ctx.fillStyle = "rgba(120,200,255,0.06)";
-    for (let i=0;i<w;i++){
-      for (let j=0;j<h;j++){
-        const x = (i-j) * (tileW/2);
-        const y = (i+j) * (tileH/2);
-        ctx.beginPath();
-        ctx.moveTo(x, y - tileH/2);
-        ctx.lineTo(x + tileW/2, y);
-        ctx.lineTo(x, y + tileH/2);
-        ctx.lineTo(x - tileW/2, y);
-        ctx.closePath();
-        ctx.fill();
-        ctx.stroke();
-      }
-    }
-
-    // outline footprint perimeter (a bigger diamond-ish shape)
-    // perimeter corners in grid:
-    // top: (0,0) top vertex
-    // right: (w-1,0) rightmost tile right vertex, etc
-    const top = {x: 0, y: -tileH/2};
-    const right = {x: (w-1)*(tileW/2) + tileW/2, y: (w-1)*(tileH/2)};
-    const bottom = {x: (w-1 - (h-1))*(tileW/2), y: (w-1 + (h-1))*(tileH/2) + tileH/2};
-    const left = {x: -(h-1)*(tileW/2) - tileW/2, y: (h-1)*(tileH/2)};
-
-    ctx.strokeStyle = "rgba(255,255,255,0.55)";
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(top.x, top.y);
-    ctx.lineTo(right.x, right.y);
-    ctx.lineTo(bottom.x, bottom.y);
-    ctx.lineTo(left.x, left.y);
-    ctx.closePath();
-    ctx.stroke();
-
-    // center cross
-    ctx.strokeStyle = "rgba(255,255,255,0.55)";
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(-10,0); ctx.lineTo(10,0);
-    ctx.moveTo(0,-10); ctx.lineTo(0,10);
-    ctx.stroke();
-
-    ctx.restore();
-  }
-
-  function drawSpriteAtPivot(setKey, frameKey, cx, cy, scale) {
-    const s = state.sets[setKey];
-    if (!s) return;
-
-    const frameObj = getFrame(s.json, frameKey);
-    if (!frameObj) return;
-
-    const img = s.img;
-    const fr = frameObj.frame; // {x,y,w,h}
-    const src = frameObj.sourceSize || { w: fr.w, h: fr.h };
-    const sss = frameObj.spriteSourceSize || { x:0, y:0, w:fr.w, h:fr.h };
-
-    // pivot normalized is relative to sourceSize (same as TexturePacker anchor)
-    const px = state.pivotX * src.w;
-    const py = state.pivotY * src.h;
-
-    // We want pivot point on screen at (cx, cy)
-    // The drawn sprite rect (source canvas) has top-left at (-px, -py)
-    // But atlas provides trimmed sprite placed at spriteSourceSize inside source.
-    // So trimmed top-left relative to source top-left is (sss.x, sss.y).
-    // Therefore, trimmed top-left relative to pivot is (sss.x - px, sss.y - py).
-    const drawX = cx + (sss.x - px) * scale;
-    const drawY = cy + (sss.y - py) * scale;
-    const drawW = fr.w * scale;
-    const drawH = fr.h * scale;
-
-    ctx.imageSmoothingEnabled = true;
-    ctx.drawImage(img, fr.x, fr.y, fr.w, fr.h, drawX, drawY, drawW, drawH);
-
-    // pivot marker
-    ctx.save();
-    ctx.strokeStyle = "rgba(255,120,120,0.95)";
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.arc(cx, cy, 6, 0, Math.PI*2);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(cx-12, cy); ctx.lineTo(cx+12, cy);
-    ctx.moveTo(cx, cy-12); ctx.lineTo(cx, cy+12);
-    ctx.stroke();
-    ctx.restore();
-
-    // readout
-    $("readout").textContent =
-      `set=${setKey}\nframe=${frameKey}\n` +
-      `sourceSize=${src.w}x${src.h}\n` +
-      `pivot(normalized) x=${state.pivotX.toFixed(4)} y=${state.pivotY.toFixed(4)}\n` +
-      `pivot(px) x=${px.toFixed(1)} y=${py.toFixed(1)}\n` +
-      `trim(frame) ${fr.w}x${fr.h} @ (${fr.x},${fr.y})\n` +
-      `spriteSourceSize x=${sss.x} y=${sss.y} w=${sss.w} h=${sss.h}\n` +
-      `💡 이 값 그대로 json anchor에 넣어: { "x": ${state.pivotX.toFixed(4)}, "y": ${state.pivotY.toFixed(4)} }`;
-  }
-
-  function centerPivotToFootprint() {
-    // put pivot marker at footprint center in screen space:
-    // We don't know the "correct" pivot automatically; this button just sets the marker (pivot) to typical baseline:
-    // x = 0.5; y = 0.52 (common for these assets) but also let user tweak tileW/H
-    // We'll keep x=0.5 and y=0.52 as default; users still tweak.
-    state.pivotX = 0.5;
-    state.pivotY = 0.52;
-    $("pivotX").value = String(state.pivotX);
-    $("pivotY").value = String(state.pivotY);
-  }
-
-  function tick(dt) {
-    if (!state.ready) return;
-    if (!state.playing) return;
-
-    const fps = Math.max(1, Math.min(60, parseFloat($("fps").value || "12")));
-    state.t += dt;
-    const frameTime = 1 / fps;
-    while (state.t >= frameTime) {
-      state.t -= frameTime;
-      state.frameIdx++;
-    }
-  }
-
-  function render() {
-    const w = canvas.clientWidth;
-    const h = canvas.clientHeight;
-
-    // background
-    ctx.clearRect(0,0,w,h);
-    ctx.fillStyle = "#0b0f16";
-    ctx.fillRect(0,0,w,h);
-
-    // horizon-ish vignette
-    const g = ctx.createRadialGradient(w*0.5,h*0.55, 10, w*0.5,h*0.55, Math.max(w,h)*0.9);
-    g.addColorStop(0, "rgba(255,255,255,0.06)");
-    g.addColorStop(1, "rgba(0,0,0,0)");
-    ctx.fillStyle = g;
-    ctx.fillRect(0,0,w,h);
-
-    if (!state.ready) {
-      ctx.fillStyle = "rgba(255,255,255,0.75)";
-      ctx.font = "16px system-ui";
-      ctx.fillText("왼쪽에서 JSON 로드 눌러라.", 24, 40);
-      return;
-    }
-
-    const tileW = parseFloat($("tileW").value || "64");
-    const tileH = parseFloat($("tileH").value || "32");
-    const footW = parseInt($("footW").value || "3", 10);
-    const footH = parseInt($("footH").value || "2", 10);
-    const scale = parseFloat($("scale").value || "0.55");
-
-    const cx = w * 0.52;
-    const cy = h * 0.62;
-
-    // footprint
-    drawIsoFootprint(cx, cy, tileW, tileH, footW, footH);
-
-    // choose current frame
-    const setKey = state.selectedSet;
-    const keys = state.framesBySet[setKey] || [];
-    if (!keys.length) return;
-
-    const selected = state.selectedFrameKey || keys[0];
-
-    // if playing, advance frame index within list
-    let frameKey = selected;
-    if (state.playing) {
-      frameKey = keys[state.frameIdx % keys.length];
-      $("frameSel").value = frameKey;
-      state.selectedFrameKey = frameKey;
-    }
-
-    drawSpriteAtPivot(setKey, frameKey, cx, cy, scale);
-
-    // caption
-    ctx.fillStyle = "rgba(255,255,255,0.72)";
-    ctx.font = "12px ui-monospace, monospace";
-    ctx.fillText("footprint center (white) / pivot marker (red)", 18, h-18);
-  }
-
-  let last = performance.now();
-  function loop(now) {
-    const dt = (now - last) / 1000;
-    last = now;
-    tick(dt);
-    render();
-    requestAnimationFrame(loop);
-  }
-  requestAnimationFrame(loop);
-
-  // UI wiring
-  $("btnLoad").addEventListener("click", onLoad);
-  $("btnReset").addEventListener("click", reset);
-
-  $("setSel").addEventListener("change", (e) => {
-    state.selectedSet = e.target.value;
-    state.frameIdx = 0; state.t = 0;
-    state.playing = false; $("btnPlay").textContent = "재생";
-    rebuildFrameDropdown();
-  });
-
-  $("frameSel").addEventListener("change", (e) => {
-    state.selectedFrameKey = e.target.value;
-    state.playing = false;
-  });
-
-  $("btnPlay").addEventListener("click", () => { state.playing = true; });
-  $("btnPause").addEventListener("click", () => { state.playing = false; });
-  $("btnStep").addEventListener("click", () => { state.playing = false; state.frameIdx++; });
-
-  $("pivotX").addEventListener("input", (e) => { state.pivotX = parseFloat(e.target.value); });
-  $("pivotY").addEventListener("input", (e) => { state.pivotY = parseFloat(e.target.value); });
-
-  $("nx").addEventListener("click", () => nudge(-1, 0, 1));
-  $("px").addEventListener("click", () => nudge(+1, 0, 1));
-  $("ny").addEventListener("click", () => nudge(0, -1, 1));
-  $("py").addEventListener("click", () => nudge(0, +1, 1));
-
-  $("btnCenterToFoot").addEventListener("click", centerPivotToFootprint);
-
-  window.addEventListener("keydown", (e) => {
-    const mult = e.shiftKey ? 10 : 1;
-    if (e.key === "ArrowLeft") { nudge(-1,0,mult); e.preventDefault(); }
-    if (e.key === "ArrowRight") { nudge(+1,0,mult); e.preventDefault(); }
-    if (e.key === "ArrowUp") { nudge(0,-1,mult); e.preventDefault(); }
-    if (e.key === "ArrowDown") { nudge(0,+1,mult); e.preventDefault(); }
-  });
-
+  return { normalizeBasePath, listFramesByPrefix };
 })();
+
+const $ = (id)=>document.getElementById(id);
+const cv = $('cv');
+const ctx = cv.getContext('2d');
+
+let state = {
+  atlasUrl: '',
+  basePath: '',
+  prefix: '',
+  atlas: null,
+  textures: [], // {imageName, img}
+  frameList: [], // [{name,texIdx,fr}]
+  frameIdx: 0,
+  playing: false,
+  lastT: 0,
+  acc: 0,
+  anchors: new Map(),
+};
+
+function setStatus(msg, ok=false){
+  const el = $('status');
+  el.className = ok ? 'ok' : 'err';
+  el.textContent = msg || '';
+}
+
+function resize(){
+  const rect = cv.getBoundingClientRect();
+  const dpr = Math.max(1, window.devicePixelRatio || 1);
+  cv.width = Math.floor(rect.width * dpr);
+  cv.height = Math.floor(rect.height * dpr);
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  draw();
+}
+window.addEventListener('resize', resize);
+
+async function fetchJson(url){
+  const res = await fetch(url, {cache:'no-store'});
+  if (!res.ok) throw new Error(`JSON fetch failed: ${res.status} ${res.statusText}\n${url}`);
+  return await res.json();
+}
+
+async function loadImage(url){
+  return await new Promise((resolve,reject)=>{
+    const img = new Image();
+    img.onload=()=>resolve(img);
+    img.onerror=()=>reject(new Error(`Image load failed: ${url}`));
+    img.src=url;
+  });
+}
+
+function currentFrame(){
+  if (!state.frameList.length) return null;
+  return state.frameList[state.frameIdx];
+}
+
+function effectiveAnchor(frameName, fr){
+  if (state.anchors.has(frameName)) return state.anchors.get(frameName);
+  if (fr.anchor && typeof fr.anchor.x==='number' && typeof fr.anchor.y==='number') return {x:fr.anchor.x,y:fr.anchor.y};
+  return {x:0.5,y:0.5};
+}
+
+function setBadge(text){ $('badgeText').textContent = text; }
+function fmt(n){ return (Math.round(n*1000)/1000).toFixed(3); }
+function parseNum(v, d){ const n = Number(v); return Number.isFinite(n)?n:d; }
+
+function outputText(){
+  const lines = state.frameList.map(x=>{
+    const a = effectiveAnchor(x.name, x.fr);
+    return `${x.name}: { x: ${fmt(a.x)}, y: ${fmt(a.y)} }`;
+  });
+  $('out').value = lines.join('\n');
+}
+
+function drawIsoFootprint(cx, cy, tileW, tileH, tilesX, tilesY){
+  ctx.save();
+  ctx.globalAlpha = 0.8;
+  ctx.lineWidth = 1;
+  ctx.strokeStyle = 'rgba(120,180,255,.45)';
+  ctx.fillStyle = 'rgba(80,140,220,.08)';
+
+  const totalW = (tilesX + tilesY) * (tileW/2);
+  const totalH = (tilesX + tilesY) * (tileH/2);
+  const originX = cx - totalW/2;
+  const originY = cy - totalH/2;
+
+  for (let ty=0; ty<tilesY; ty++){
+    for (let tx=0; tx<tilesX; tx++){
+      const px = originX + (tx - ty) * (tileW/2) + totalW/2;
+      const py = originY + (tx + ty) * (tileH/2) + totalH/4;
+      ctx.beginPath();
+      ctx.moveTo(px, py - tileH/2);
+      ctx.lineTo(px + tileW/2, py);
+      ctx.lineTo(px, py + tileH/2);
+      ctx.lineTo(px - tileW/2, py);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+    }
+  }
+  ctx.restore();
+}
+
+function draw(){
+  const frWrap = currentFrame();
+  ctx.clearRect(0,0,cv.width,cv.height);
+  if (!frWrap || !state.atlas) return;
+
+  const zoom = parseNum($('zoom').value, 1);
+  const tileW = parseNum($('tileW').value, 128);
+  const tileH = parseNum($('tileH').value, 64);
+  const tilesX = parseNum($('tilesX').value, 3);
+  const tilesY = parseNum($('tilesY').value, 2);
+
+  const {name, texIdx, fr} = frWrap;
+  const img = state.textures[texIdx]?.img;
+  if (!img) return;
+
+  const srcW = fr.sourceSize?.w ?? fr.frame.w;
+  const srcH = fr.sourceSize?.h ?? fr.frame.h;
+  const ss = fr.spriteSourceSize || {x:0,y:0,w:fr.frame.w,h:fr.frame.h};
+
+  const a = effectiveAnchor(name, fr);
+  const pivotSrcX = a.x * srcW;
+  const pivotSrcY = a.y * srcH;
+  const pivotTrimX = pivotSrcX - ss.x;
+  const pivotTrimY = pivotSrcY - ss.y;
+
+  const rect = cv.getBoundingClientRect();
+  const cx = rect.width/2;
+  const cy = rect.height/2;
+  const drawX = cx - pivotTrimX * zoom;
+  const drawY = cy - pivotTrimY * zoom;
+
+  drawIsoFootprint(cx, cy, tileW, tileH, tilesX, tilesY);
+
+  ctx.save();
+  ctx.imageSmoothingEnabled = true;
+  if (fr.rotated){
+    const fw = fr.frame.w, fh = fr.frame.h;
+    ctx.translate(drawX + fw*zoom/2, drawY + fh*zoom/2);
+    ctx.rotate(-Math.PI/2);
+    ctx.drawImage(img, fr.frame.x, fr.frame.y, fw, fh, (-fh/2)*zoom, (-fw/2)*zoom, fh*zoom, fw*zoom);
+    ctx.setTransform(1,0,0,1,0,0);
+  } else {
+    ctx.drawImage(img, fr.frame.x, fr.frame.y, fr.frame.w, fr.frame.h, drawX, drawY, fr.frame.w*zoom, fr.frame.h*zoom);
+  }
+
+  // pivot crosshair
+  ctx.save();
+  ctx.strokeStyle = 'rgba(255,255,255,.85)';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(cx-10, cy); ctx.lineTo(cx+10, cy);
+  ctx.moveTo(cx, cy-10); ctx.lineTo(cx, cy+10);
+  ctx.stroke();
+  ctx.restore();
+
+  // bbox
+  ctx.save();
+  ctx.strokeStyle = 'rgba(255,200,0,.35)';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(drawX, drawY, fr.frame.w*zoom, fr.frame.h*zoom);
+  ctx.restore();
+
+  ctx.restore();
+
+  setBadge(`${name}  [tex ${texIdx}]  pivot=(${fmt(a.x)},${fmt(a.y)})  frame=${state.frameIdx+1}/${state.frameList.length}`);
+}
+
+function stepFrame(dir){
+  if (!state.frameList.length) return;
+  state.frameIdx = (state.frameIdx + dir + state.frameList.length) % state.frameList.length;
+  const frWrap = currentFrame();
+  const a = effectiveAnchor(frWrap.name, frWrap.fr);
+  $('pivotX').value = a.x;
+  $('pivotY').value = a.y;
+  draw();
+}
+
+function tick(t){
+  if (!state.playing){ requestAnimationFrame(tick); return; }
+  if (!state.lastT) state.lastT = t;
+  const dt = (t - state.lastT) / 1000;
+  state.lastT = t;
+
+  const fps = Math.max(1, Math.min(60, parseNum($('fps').value, 10)));
+  const spf = 1 / fps;
+  state.acc += dt;
+  while (state.acc >= spf){
+    state.acc -= spf;
+    stepFrame(1);
+  }
+  requestAnimationFrame(tick);
+}
+
+function applyTo(names){
+  const x = Math.max(0, Math.min(1, parseNum($('pivotX').value, 0.5)));
+  const y = Math.max(0, Math.min(1, parseNum($('pivotY').value, 0.5)));
+  names.forEach(n=>state.anchors.set(n,{x,y}));
+  outputText();
+  draw();
+}
+
+async function load(){
+  try{
+    setStatus('Loading...', true);
+    state.atlasUrl = $('atlasUrl').value.trim();
+    state.prefix = $('prefix').value.trim();
+    if (!state.atlasUrl) throw new Error('Atlas URL 비었음');
+
+    const atlas = await fetchJson(state.atlasUrl);
+    state.atlas = atlas;
+
+    state.basePath = TP.normalizeBasePath(state.atlasUrl, $('basePath').value);
+    $('basePath').value = state.basePath;
+
+    const textures = atlas.textures || [];
+    if (!textures.length) throw new Error('atlas.textures 없음 (TexturePacker JSON 맞는지 확인)');
+
+    state.textures = [];
+    for (let i=0;i<textures.length;i++){
+      const imgName = textures[i].image;
+      const imgUrl = state.basePath + imgName;
+      const img = await loadImage(imgUrl);
+      state.textures.push({imageName: imgName, img});
+    }
+
+    const list = TP.listFramesByPrefix(atlas, state.prefix);
+    if (!list.length) throw new Error(`prefix로 프레임 0개: ${state.prefix}`);
+
+    state.frameList = list;
+    state.frameIdx = 0;
+
+    const first = currentFrame();
+    const a = effectiveAnchor(first.name, first.fr);
+    $('pivotX').value = a.x;
+    $('pivotY').value = a.y;
+
+    state.playing = false;
+    state.lastT = 0;
+    state.acc = 0;
+
+    outputText();
+    setStatus(`Loaded OK\ntextures=${state.textures.length}\nframes=${state.frameList.length}`, true);
+    resize();
+  }catch(e){
+    console.error(e);
+    setStatus(String(e), false);
+  }
+}
+
+$('btnLoad').addEventListener('click', load);
+$('btnPlay').addEventListener('click', ()=>{
+  state.playing = !state.playing;
+  $('btnPlay').textContent = state.playing ? 'Pause' : 'Play';
+});
+$('btnPrev').addEventListener('click', ()=>stepFrame(-1));
+$('btnNext').addEventListener('click', ()=>stepFrame(1));
+$('btnApplyCur').addEventListener('click', ()=>{ const fr = currentFrame(); if (fr) applyTo([fr.name]); });
+$('btnApplyAll').addEventListener('click', ()=>applyTo(state.frameList.map(x=>x.name)));
+$('btnCopy').addEventListener('click', async ()=>{
+  try{ await navigator.clipboard.writeText($('out').value); setStatus('Copied ✅', true); }
+  catch{ setStatus('Copy 실패. 텍스트 영역에서 수동 복사해.', false); }
+});
+
+['pivotX','pivotY','zoom','tileW','tileH','tilesX','tilesY'].forEach(id=>$(id).addEventListener('input', draw));
+
+cv.addEventListener('click', (ev)=>{
+  const frWrap = currentFrame();
+  if (!frWrap) return;
+  const {name, fr} = frWrap;
+
+  const rect = cv.getBoundingClientRect();
+  const zoom = parseNum($('zoom').value, 1);
+  const srcW = fr.sourceSize?.w ?? fr.frame.w;
+  const srcH = fr.sourceSize?.h ?? fr.frame.h;
+  const ss = fr.spriteSourceSize || {x:0,y:0,w:fr.frame.w,h:fr.frame.h};
+
+  const a = effectiveAnchor(name, fr);
+  const pivotSrcX = a.x * srcW;
+  const pivotSrcY = a.y * srcH;
+  const pivotTrimX = pivotSrcX - ss.x;
+  const pivotTrimY = pivotSrcY - ss.y;
+
+  const cx = rect.width/2;
+  const cy = rect.height/2;
+  const drawX = cx - pivotTrimX * zoom;
+  const drawY = cy - pivotTrimY * zoom;
+
+  const mx = ev.clientX - rect.left;
+  const my = ev.clientY - rect.top;
+  const trimX = (mx - drawX) / zoom;
+  const trimY = (my - drawY) / zoom;
+  const srcX = trimX + ss.x;
+  const srcY = trimY + ss.y;
+
+  const newAx = Math.max(0, Math.min(1, srcX / srcW));
+  const newAy = Math.max(0, Math.min(1, srcY / srcH));
+
+  $('pivotX').value = newAx;
+  $('pivotY').value = newAy;
+
+  if (ev.shiftKey) applyTo(state.frameList.map(x=>x.name));
+  else applyTo([name]);
+});
+
+requestAnimationFrame(tick);
+resize();
+
+
+  // ---- Pivot overrides (prefix -> pivot) helpers ----
+  let pivotOverrides = {};
+  function readOverridesFromLS(){
+    try{
+      const raw = localStorage.getItem('PO_PIVOT_OVERRIDES');
+      if (!raw) return {};
+      const obj = JSON.parse(raw);
+      return (obj && typeof obj === 'object') ? obj : {};
+    }catch(e){
+      return {};
+    }
+  }
+  function writeOverridesToLS(obj){
+    try{
+      localStorage.setItem('PO_PIVOT_OVERRIDES', JSON.stringify(obj, null, 2));
+      return true;
+    }catch(e){
+      return false;
+    }
+  }
+  pivotOverrides = readOverridesFromLS();
+
+  const btnSavePrefix = document.getElementById('btnSavePrefix');
+  const btnCopyOverrides = document.getElementById('btnCopyOverrides');
+  const btnSaveLS = document.getElementById('btnSaveLS');
+  const btnLoadLS = document.getElementById('btnLoadLS');
+
+  function currentPrefix(){
+    return (elPrefix.value || '').trim();
+  }
+  function currentPivot(){
+    return { x: Number(elPivotX.value), y: Number(elPivotY.value) };
+  }
+
+  if (btnSavePrefix){
+    btnSavePrefix.addEventListener('click', ()=>{
+      const p = currentPrefix();
+      if (!p){
+        setStatus('ERR: prefix is empty');
+        return;
+      }
+      pivotOverrides[p] = currentPivot();
+      setStatus(`Saved prefix pivot: ${p} => (${pivotOverrides[p].x.toFixed(3)}, ${pivotOverrides[p].y.toFixed(3)})`);
+    });
+  }
+
+  if (btnCopyOverrides){
+    btnCopyOverrides.addEventListener('click', async ()=>{
+      const txt = JSON.stringify(pivotOverrides, null, 2);
+      elOutput.value = txt;
+      try{
+        await navigator.clipboard.writeText(txt);
+        setStatus('Copied overrides JSON');
+      }catch(e){
+        setStatus('Overrides JSON prepared (clipboard blocked)');
+      }
+    });
+  }
+
+  if (btnSaveLS){
+    btnSaveLS.addEventListener('click', ()=>{
+      // also store current prefix value right now
+      const p = currentPrefix();
+      if (p) pivotOverrides[p] = currentPivot();
+      const ok = writeOverridesToLS(pivotOverrides);
+      setStatus(ok ? 'Saved to localStorage: PO_PIVOT_OVERRIDES' : 'ERR: failed to write localStorage');
+    });
+  }
+
+  if (btnLoadLS){
+    btnLoadLS.addEventListener('click', ()=>{
+      pivotOverrides = readOverridesFromLS();
+      const p = currentPrefix();
+      if (p && pivotOverrides[p]){
+        elPivotX.value = pivotOverrides[p].x;
+        elPivotY.value = pivotOverrides[p].y;
+        setStatus(`Loaded pivot for prefix: ${p}`);
+      }else{
+        setStatus('Loaded localStorage (no pivot for current prefix)');
+      }
+      draw();
+    });
+  }
 </script>
 </body>
 </html>
