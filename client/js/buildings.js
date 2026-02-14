@@ -1,238 +1,173 @@
-
-/*
-  Barracks atlas hookup (v5)
-  - Uses TexturePacker Multi Atlas JSON (textures[0].frames)
-  - Builds frame lists from the atlas contents (no hard-coded numbering)
-  - Fixes filename mismatches: barrack_con_complete_*.png / barrack_distruction_*.png
-  - Works even if some numbers are missing (it sorts by the trailing _N.png when present)
-  - Keeps file count low: single patch file. Include AFTER atlas_tp.js and AFTER game.js.
+/* buildings.js (barracks sprite hook) v7
+   - Sync draw API: PO.buildings.drawBuilding(...) returns boolean
+   - Kicks off async atlas load once, then draws when ready
+   - Compatible with game.js that checks PO.buildings.drawBuilding
 */
-(() => {
-  const G = (typeof window !== "undefined") ? window : globalThis;
+(function(){
+  const PO = (window.PO = window.PO || {});
+  PO.buildings = PO.buildings || {};
+  PO.atlasTP = PO.atlasTP || {};
 
-  // Try common globals your project used in earlier patches.
-  const PO = G.PO2 || G.PO || (G.PO2 = {});
-  const atlasTP = (PO && PO.atlasTP) || (G.PO && G.PO.atlasTP) || null;
+  const TAG = "[barracks:v7]";
+  let _loggedLoaded = false;
+  let _loggedDrawCall = false;
+  let _loggedReady = false;
 
-  if (!atlasTP || typeof atlasTP.loadTPAtlasMulti !== "function" || typeof atlasTP.drawFrame !== "function") {
-    console.warn("[barracks:v5] atlasTP not found. Make sure atlas_tp.js is loaded before this file.");
-    return;
+  // Atlas URLs (keep identical to your folder layout)
+  const URL_NORMAL = "/asset/sprite/const/normal/barrack/atlas_tp.json";
+  const URL_CONST  = "/asset/sprite/const/const_anim/barrack/atlas_tp.json";
+  const URL_DESTR  = "/asset/sprite/const/destruct/barrack/atlas_tp.json";
+
+  function logOnce(flagName, ...args){
+    try{
+      if (!flagName) return;
+      if (flagName==="loaded" && _loggedLoaded) return;
+      if (flagName==="draw"   && _loggedDrawCall) return;
+      if (flagName==="ready"  && _loggedReady) return;
+      console.log(...args);
+      if (flagName==="loaded") _loggedLoaded = true;
+      if (flagName==="draw")   _loggedDrawCall = true;
+      if (flagName==="ready")  _loggedReady = true;
+    }catch(_e){}
   }
 
-  // ---- Paths (YOU already confirmed these 200 OK on your local host) ----
-  const URL_IDLE     = "/asset/sprite/const/normal/barrack/barrack_idle.json";
-  const URL_CONST    = "/asset/sprite/const/const_anim/barrack/barrack_const.json";
-  const URL_DISTRUCT = "/asset/sprite/const/distruct/barrack/barrack_distruct.json";
-
-  // ---- Small helpers ----
-  function _suffixNumber(name) {
-    // "..._12.png" -> 12, otherwise NaN
-    const m = /_(\d+)\.png$/i.exec(name);
-    return m ? parseInt(m[1], 10) : Number.NaN;
-  }
-
-  function _sortFrames(a, b) {
-    const an = _suffixNumber(a);
-    const bn = _suffixNumber(b);
-    if (Number.isFinite(an) && Number.isFinite(bn)) return an - bn;
-    // fallback stable-ish
-    return a.localeCompare(b);
-  }
-
-  function _collectFrames(atlas, prefix) {
-    // Prefer atlas_tp helper (handles Map + numeric-suffix order)
-    if (window.PO && PO.atlasTP && typeof PO.atlasTP.listFramesByPrefix === "function") {
-      return PO.atlasTP.listFramesByPrefix(atlas, prefix, { sortNumeric: true });
-    }
-
-    // Fallback: object keys + local sorter
-    const framesObj = atlas && atlas.frames;
-    const keys = framesObj
-      ? (framesObj.keys ? Array.from(framesObj.keys()) : Object.keys(framesObj))
-      : [];
-    const list = keys.filter(k => String(k).startsWith(prefix));
-    list.sort(_sortFrames);
-    return list;
-  }
-
-  // ---- Lazy-loaded atlas bundle ----
   const BarracksAtlas = {
     ready: false,
     failed: false,
-    error: null,
-    loading: null,
-    idleAtlas: null,
-    constAtlas: null,
-    distructAtlas: null,
-    idleFrames: [],
-    constFrames: [],
-    distructFrames: [],
-    distStillFrame: "barrack_dist.png", // fallback
+    loading: false,
+    promise: null,
+    normal: null,
+    construct: null,
+    destruct: null,
 
-    // team tinted atlases cache: { [teamId]: {idle, cons, dist} }
-    teamAtlases: Object.create(null),
+    kickLoad(){
+      if (this.ready || this.failed || this.loading) return;
+      if (!PO.atlasTP || typeof PO.atlasTP.loadTPAtlasMulti !== "function"){
+        console.warn(TAG, "atlas_tp.js not loaded or missing loadTPAtlasMulti");
+        this.failed = true;
+        return;
+      }
 
-    async ensureLoaded() {
-      if (this.ready) return this;
-      if (this.loading) return this.loading;
-
-      this.loading = (async () => {
-        console.log("[barracks:v5] loading atlases...");
-        try {
-          const [idleA, consA, distA] = await Promise.all([
-          atlasTP.loadTPAtlasMulti(URL_IDLE),
-          atlasTP.loadTPAtlasMulti(URL_CONST),
-          atlasTP.loadTPAtlasMulti(URL_DISTRUCT),
-        ]);
-
-        this.idleAtlas = idleA;
-        this.constAtlas = consA;
-        this.distructAtlas = distA;
-
-        this.idleFrames = _collectFrames(idleA, "barrack_idle");               // barrack_idle1.png ...
-        this.constFrames = _collectFrames(consA, "barrack_con_complete_");     // barrack_con_complete_1.png ...
-        this.distructFrames = _collectFrames(distA, "barrack_distruction_");   // barrack_distruction_5.png ...
-
-        // "ruin still" usually sits in idle atlas (barrack_dist.png)
-        if (idleA.frames && idleA.frames["barrack_dist.png"]) {
-          this.distStillFrame = "barrack_dist.png";
-        } else {
-          // fallback: first frame that looks like dist
-          const k = Object.keys(idleA.frames || {}).find(x => x.toLowerCase().includes("dist"));
-          if (k) this.distStillFrame = k;
-        }
-
+      this.loading = true;
+      this.promise = Promise.all([
+        PO.atlasTP.loadTPAtlasMulti(URL_NORMAL),
+        PO.atlasTP.loadTPAtlasMulti(URL_CONST),
+        PO.atlasTP.loadTPAtlasMulti(URL_DESTR),
+      ]).then(([n,c,d])=>{
+        this.normal = n; this.construct = c; this.destruct = d;
         this.ready = true;
-        console.log("[barracks:v5] atlases ready:",
-          "idle", this.idleFrames.length,
-          "const", this.constFrames.length,
-          "distruct", this.distructFrames.length,
-          "still", this.distStillFrame
-        );
-          return this;
-        } catch (err) {
-          this.failed = true;
-          this.error = err;
-          console.error("[barracks:v5] atlas load FAILED:", err);
-          // Do not throw: prevent per-frame unhandled promise spam.
-          return this;
-        }
-      })();
-
-      return this.loading;
+        this.loading = false;
+        logOnce("ready", TAG, "atlases ready");
+      }).catch((e)=>{
+        this.failed = true;
+        this.loading = false;
+        console.error(TAG, "atlas load failed", e);
+      });
     }
   };
 
-  // ---- Optional: team tinting (uses your game's existing helper if present) ----
-  // We try these function names because your project has used a few variants.
-  const tintFn =
-    G._applyTeamPaletteToImage ||
-    G.applyTeamPaletteToImage ||
-    G.replaceMagentaWithTeamColor ||
-    null;
+  // Pick frame names
+  function pickFrame(ent){
+    // If you later add real construction timing, branch here.
+    // For now: normal unless dead.
+    const dead = (!ent || ent.hp <= 0 || ent.alive === false);
+    if (dead) return { atlas: "destruct", frame: "barrack_distruction-0" };
 
-  async function _ensureTeamAtlas(teamId, teamColor) {
-    // If no tint function, just reuse base atlases.
-    if (!tintFn) return {
-      idle: BarracksAtlas.idleAtlas,
-      cons: BarracksAtlas.constAtlas,
-      dist: BarracksAtlas.distructAtlas,
-    };
-
-    if (BarracksAtlas.teamAtlases[teamId]) return BarracksAtlas.teamAtlases[teamId];
-
-    // Create shallow copies with tinted spritesheet images.
-    // tintFn is expected to return an Image (or Promise<Image>).
-    const makeTinted = async (baseAtlas) => {
-      const tintedImg = await tintFn(baseAtlas.img, teamColor);
-      return { ...baseAtlas, img: tintedImg };
-    };
-
-    const tinted = {
-      idle: await makeTinted(BarracksAtlas.idleAtlas),
-      cons: await makeTinted(BarracksAtlas.constAtlas),
-      dist: await makeTinted(BarracksAtlas.distructAtlas),
-    };
-    BarracksAtlas.teamAtlases[teamId] = tinted;
-    return tinted;
-  }
-
-  // ---- Frame picker (no build-progress in your building object, so we fake a "spawn anim") ----
-  function _pickFrame(list, tSec, fps, loop) {
-    if (!list || list.length === 0) return null;
-    const idx = Math.floor(tSec * fps);
-    if (loop) return list[idx % list.length];
-    return list[Math.min(idx, list.length - 1)];
-  }
-
-  function _getPhase(ent, nowMs) {
-    // Fields we add non-destructively on the building object
-    if (ent.__barracksBornAt == null) ent.__barracksBornAt = nowMs;
-    const dead = (ent.alive === false) || (ent.hp != null && ent.hp <= 0);
-
-    if (dead) {
-      if (ent.__barracksDeadAt == null) ent.__barracksDeadAt = nowMs;
-      return { phase: "dead", t: (nowMs - ent.__barracksDeadAt) / 1000 };
+    // Optionally: show "const" while being placed if you add a flag
+    if (ent && (ent.placing === true || ent.construction === true || ent.constAnim === true)){
+      return { atlas: "construct", frame: "barrack_const-0" };
     }
-    return { phase: "alive", t: (nowMs - ent.__barracksBornAt) / 1000 };
+    return { atlas: "normal", frame: "barrack-0" };
   }
 
-  // ---- Public draw hook ----
-  // You call this from your building renderer:
-  //   PO.drawBarracks(ctx, ent, anchorX, anchorY, teamColor)
-  PO.drawBarracks = async function drawBarracks(ctx, ent, x, y, teamColor) {
-    await BarracksAtlas.ensureLoaded();
-    if (!BarracksAtlas.ready) return false;
+  function resolveAtlas(which){
+    if (!BarracksAtlas.ready) return null;
+    if (which==="normal") return BarracksAtlas.normal;
+    if (which==="construct") return BarracksAtlas.construct;
+    if (which==="destruct") return BarracksAtlas.destruct;
+    return BarracksAtlas.normal;
+  }
 
-    const now = (typeof performance !== "undefined" && performance.now) ? performance.now() : Date.now();
-    const { phase, t } = _getPhase(ent, now);
+  // Compute a sane anchor point for building sprites:
+  // bottom-center of footprint south edge (works well with pivot tuning)
+  function footprintAnchor(ent, helpers){
+    const TILE = (helpers && helpers.TILE) || 300;
+    const tx0 = ent.tx|0, ty0 = ent.ty|0;
+    const tx1 = (ent.tx + ent.tw)|0;
+    const ty1 = (ent.ty + ent.th)|0;
 
-    // Decide which animation to show
-    let atlas = BarracksAtlas.idleAtlas;
-    let frameName = null;
+    const wx = ((tx0 + tx1) * 0.5) * TILE;
+    const wy = (ty1) * TILE;
 
-    if (phase === "dead") {
-      // play distruct once, then show ruin still
-      const fps = 12;
-      frameName = _pickFrame(BarracksAtlas.distructFrames, t, fps, false);
-      atlas = BarracksAtlas.distructAtlas;
-      const done = (BarracksAtlas.distructFrames.length > 0) && (t * fps >= BarracksAtlas.distructFrames.length);
-      if (!frameName || done) {
-        atlas = BarracksAtlas.idleAtlas;
-        frameName = BarracksAtlas.distStillFrame;
+    if (helpers && typeof helpers.worldToScreen === "function"){
+      return helpers.worldToScreen(wx, wy);
+    }
+    // fallback: use ent.x/y if helpers missing
+    return { x: ent.x||0, y: ent.y||0 };
+  }
+
+  function teamColorFor(ent, state){
+    try{
+      if (state && state.colors && state.colors.team){
+        return state.colors.team[ent.team] || "#55aaff";
       }
-    } else {
-      // Spawn: show "const complete" for the first ~1.2s, then idle loop
-      const spawnSec = 1.2;
-      if (BarracksAtlas.constFrames.length > 0 && t < spawnSec) {
-        const fps = Math.max(10, Math.round(BarracksAtlas.constFrames.length / spawnSec));
-        frameName = _pickFrame(BarracksAtlas.constFrames, t, fps, false);
-        atlas = BarracksAtlas.constAtlas;
-      } else {
-        frameName = _pickFrame(BarracksAtlas.idleFrames, t, 6, true);
-        atlas = BarracksAtlas.idleAtlas;
+      if (state && state.colors && state.colors.player && ent.team===0) return state.colors.player;
+      if (state && state.colors && state.colors.enemy  && ent.team===1) return state.colors.enemy;
+    }catch(_e){}
+    return "#55aaff";
+  }
+
+  function drawBarracksSync(ctx, ent, x, y, teamColor){
+    if (!BarracksAtlas.ready){
+      BarracksAtlas.kickLoad();
+      return false;
+    }
+    if (BarracksAtlas.failed) return false;
+
+    const pick = pickFrame(ent);
+    const atlas = resolveAtlas(pick.atlas);
+    if (!atlas) return false;
+
+    // apply per-frame pivot overrides if stored (pivot tuner writes these)
+    try{
+      if (PO.atlasTP && typeof PO.atlasTP.applyPivotOverrides==="function"){
+        PO.atlasTP.applyPivotOverrides(atlas);
       }
+    }catch(_e){}
+
+    try{
+      // Optional: tint handling can be added later; currently just draw
+      PO.atlasTP.drawFrame(ctx, atlas, pick.frame, x, y, 1.0);
+      return true;
+    }catch(e){
+      console.error(TAG, "draw failed", e);
+      return false;
     }
+  }
 
-    if (!frameName) return false;
+  // The entry point that game.js calls.
+  // Must be SYNC and return boolean.
+  PO.buildings.drawBuilding = function drawBuilding(ent, ctx, cam, helpers, state){
+    try{
+      if (!ent || !ent.kind) return false;
+      const k = String(ent.kind).toLowerCase();
+      if (!(k==="barracks" || k==="barrack" || k.indexOf("barrack")>=0)) return false;
 
-    // Team tint (optional)
-    let useAtlas = atlas;
-    if (teamColor) {
-      const teamId = (ent.team != null) ? ent.team : 0;
-      const tinted = await _ensureTeamAtlas(teamId, teamColor);
-      if (useAtlas === BarracksAtlas.idleAtlas) useAtlas = tinted.idle;
-      if (useAtlas === BarracksAtlas.constAtlas) useAtlas = tinted.cons;
-      if (useAtlas === BarracksAtlas.distructAtlas) useAtlas = tinted.dist;
+      logOnce("draw", TAG, "drawBuilding called", k);
+
+      const p = footprintAnchor(ent, helpers);
+      const col = teamColorFor(ent, state);
+      return drawBarracksSync(ctx, ent, p.x, p.y, col);
+    }catch(e){
+      console.error(TAG, "drawBuilding error", e);
+      return false;
     }
-
-    // Draw
-    const ok = atlasTP.drawFrame(ctx, useAtlas, frameName, x, y);
-    return ok;
   };
 
-  // Handy debug exposure
-  PO.__BarracksAtlas = BarracksAtlas;
+  // Optional: also expose direct draw, but keep it sync now
+  PO.drawBarracks = function(ctx, ent, x, y, teamColor){
+    return drawBarracksSync(ctx, ent, x, y, teamColor);
+  };
 
-  console.log("[barracks:v5] patch loaded. Next: call PO.drawBarracks(...) from your building renderer.");
+  logOnce("loaded", TAG, "patch loaded. Expect: game.js calls PO.buildings.drawBuilding(...)");
 })();
