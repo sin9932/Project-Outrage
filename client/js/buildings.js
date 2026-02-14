@@ -1,4 +1,4 @@
-/* buildings.js (barracks sprite hook) v10
+/* buildings.js (barracks sprite hook) v9
    - Atlas URL auto-detect: tries multiple likely paths until one returns valid JSON
    - Avoids "Unexpected token '<'" when your deploy rewrites missing JSON to index.html
    - Sync draw entry: PO.buildings.drawBuilding(...) returns boolean
@@ -9,7 +9,7 @@
   PO.buildings = PO.buildings || {};
   PO.atlasTP = PO.atlasTP || {};
 
-  const TAG = "[barracks:v11]";
+  const TAG = "[barracks:v10]";
   let _loggedLoaded=false, _loggedDraw=false, _loggedReady=false;
 
   function logOnce(which, ...args){
@@ -79,8 +79,8 @@
   }
 
   async function tryLoadAny(urls, label){
-    const loader = (PO.atlasTP && (PO.atlasTP.loadTPAtlasAny || PO.atlasTP.loadTPAtlasMulti));
-    if (typeof loader !== "function") throw new Error("atlas_tp.js missing loader (loadTPAtlasAny/loadTPAtlasMulti)");
+    const loader = PO.atlasTP && PO.atlasTP.loadTPAtlasMulti;
+    if (typeof loader !== "function") throw new Error("atlas_tp.js missing loadTPAtlasMulti");
 
     let lastErr = null;
     for (const u of urls){
@@ -88,11 +88,7 @@
         // NOTE: if u doesn't exist and your deploy rewrites to HTML with 200,
         // res.json() throws SyntaxError; we treat that as failure and keep trying.
         const atlas = await loader(u, baseDirFromUrl(u));
-        const fc = (atlas && atlas.frames && typeof atlas.frames.size==="number") ? atlas.frames.size : 0;
-        const tc = (atlas && atlas.textures && typeof atlas.textures.length==="number") ? atlas.textures.length : 0;
-        const sample = (atlas && atlas.frames && atlas.frames.keys) ? atlas.frames.keys().next().value : null;
-        console.log(TAG, label, "using", u, `(frames=${fc}, textures=${tc})`);
-        if (!fc) throw new Error("Atlas has 0 frames: " + u);
+        console.log(TAG, label, "using", u);
         return atlas;
       }catch(e){
         lastErr = e;
@@ -193,17 +189,22 @@
   }
 
   function footprintAnchor(ent, helpers){
-    const TILE = (helpers && helpers.TILE) || 300;
-    const tx0 = ent.tx|0, ty0 = ent.ty|0;
-    const tx1 = (ent.tx + ent.tw)|0;
-    const ty1 = (ent.ty + ent.th)|0;
+    // Prefer engine-provided world center (ent.x/ent.y). Fall back to tile coords.
+    const ISO_X = helpers && typeof helpers.ISO_X === 'number' ? helpers.ISO_X : null;
+    const TILE = (helpers && typeof helpers.TILE === 'number') ? helpers.TILE
+               : (ISO_X ? (ISO_X * 2) : 110);
 
-    const wx = ((tx0 + tx1) * 0.5) * TILE;
-    const wy = (ty1) * TILE;
+    const wx = (typeof ent.x === 'number')
+      ? ent.x
+      : ((ent.tx + (ent.tw * 0.5)) * TILE);
 
-    if (helpers && typeof helpers.worldToScreen === "function") return helpers.worldToScreen(wx, wy);
-    return { x: ent.x||0, y: ent.y||0 };
-  }
+    // ent.y is center of building AABB in world space. We want the south edge.
+    const wy = (typeof ent.y === 'number')
+      ? (ent.y + (ent.th * TILE * 0.5))
+      : ((ent.ty + ent.th) * TILE);
+
+    return { wx, wy, TILE };
+}
 
   function teamColorFor(ent, state){
     try{
@@ -236,7 +237,22 @@
     if (!frame) return false;
 
     try{
-      PO.atlasTP.drawFrame(ctx, atlas, frame, x, y, 1.0);
+      // Make sure canvas state isn't accidentally transparent from previous draws.
+      ctx.save();
+      ctx.globalAlpha = 1;
+      ctx.globalCompositeOperation = 'source-over';
+      const sc = (cam && typeof cam.zoom === 'number') ? cam.zoom : 1.0;
+      const ok = PO.atlasTP.drawFrame(ctx, atlas, frame, x, y, sc);
+      ctx.restore();
+
+      if (!ok) {
+        if (!state._barracksOnceLogged) {
+          state._barracksOnceLogged = true;
+          const keys = (atlas && atlas.frames && atlas.frames.keys) ? Array.from(atlas.frames.keys()) : [];
+          console.warn(TAG, 'drawFrame failed. frame=', frame, 'keys(sample)=', keys.slice(0, 10));
+        }
+        return false; // let engine fall back to footprint prism
+      }
       return true;
     }catch(e){
       console.error(TAG, "draw failed", e);
