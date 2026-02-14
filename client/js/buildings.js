@@ -11,11 +11,11 @@
   const G = (typeof window !== "undefined") ? window : globalThis;
 
   // Try common globals your project used in earlier patches.
-  const PO = (G.PO = G.PO || {});
+  const PO = G.PO2 || G.PO || (G.PO2 = {});
   const atlasTP = (PO && PO.atlasTP) || (G.PO && G.PO.atlasTP) || null;
 
   if (!atlasTP || typeof atlasTP.loadTPAtlasMulti !== "function" || typeof atlasTP.drawFrame !== "function") {
-    console.warn("[barracks:v6] atlasTP not found. Make sure atlas_tp.js is loaded before this file.");
+    console.warn("[barracks:v5] atlasTP not found. Make sure atlas_tp.js is loaded before this file.");
     return;
   }
 
@@ -58,6 +58,8 @@
   // ---- Lazy-loaded atlas bundle ----
   const BarracksAtlas = {
     ready: false,
+    failed: false,
+    error: null,
     loading: null,
     idleAtlas: null,
     constAtlas: null,
@@ -75,8 +77,9 @@
       if (this.loading) return this.loading;
 
       this.loading = (async () => {
-        console.log("[barracks:v6] loading atlases...");
-        const [idleA, consA, distA] = await Promise.all([
+        console.log("[barracks:v5] loading atlases...");
+        try {
+          const [idleA, consA, distA] = await Promise.all([
           atlasTP.loadTPAtlasMulti(URL_IDLE),
           atlasTP.loadTPAtlasMulti(URL_CONST),
           atlasTP.loadTPAtlasMulti(URL_DISTRUCT),
@@ -100,46 +103,23 @@
         }
 
         this.ready = true;
-        console.log("[barracks:v6] atlases ready:",
+        console.log("[barracks:v5] atlases ready:",
           "idle", this.idleFrames.length,
           "const", this.constFrames.length,
           "distruct", this.distructFrames.length,
           "still", this.distStillFrame
         );
-        return this;
+          return this;
+        } catch (err) {
+          this.failed = true;
+          this.error = err;
+          console.error("[barracks:v5] atlas load FAILED:", err);
+          // Do not throw: prevent per-frame unhandled promise spam.
+          return this;
+        }
       })();
 
       return this.loading;
-    }
-  };
-
-
-  // ---- Pivot overrides from localStorage (hot reload) ----
-  BarracksAtlas.pivotKey = "PO_PIVOT_OVERRIDES";
-  BarracksAtlas._pivotRaw = null;
-
-  BarracksAtlas._applyPivotOverridesIfChanged = function _applyPivotOverridesIfChanged() {
-    // note: safe no-op if localStorage not available
-    let raw = null;
-    try { raw = localStorage.getItem(BarracksAtlas.pivotKey); } catch (_e) {}
-    if (raw === BarracksAtlas._pivotRaw) return;
-
-    BarracksAtlas._pivotRaw = raw;
-
-    let obj = {};
-    if (raw) {
-      try { obj = JSON.parse(raw) || {}; } catch (_e) { obj = {}; }
-    }
-
-    try {
-      atlasTP.applyPivotOverrides(BarracksAtlas.idle, obj);
-      atlasTP.applyPivotOverrides(BarracksAtlas.cons, obj);
-      atlasTP.applyPivotOverrides(BarracksAtlas.dist, obj);
-      // pivot changes invalidate team-tinted atlases (anchors live in frames)
-      for (const k in teamAtlases) delete teamAtlases[k];
-      // console.log("[barracks:v6] applied pivot overrides:", Object.keys(obj));
-    } catch (e) {
-      console.warn("[barracks:v6] applyPivotOverrides failed:", e);
     }
   };
 
@@ -151,49 +131,30 @@
     G.replaceMagentaWithTeamColor ||
     null;
 
-  
-  function _ensureTeamAtlas(teamId, teamColor) {
-    const baseKey = teamId == null ? "na" : String(teamId);
-    const key = baseKey + ":" + (teamColor ? (teamColor.r + "," + teamColor.g + "," + teamColor.b) : "null");
-    if (teamAtlases[key]) return teamAtlases[key];
-
-    // tint fn may be defined later (game.js may load after this file)
-    const tintFn = G.applyTeamPaletteToImage || G.replaceMagentaWithTeamColor || (G.PO && G.PO.applyTeamPaletteToImage) || null;
-    if (!tintFn || !teamColor) {
-      teamAtlases[key] = { idle: BarracksAtlas.idle, cons: BarracksAtlas.cons, dist: BarracksAtlas.dist };
-      return teamAtlases[key];
-    }
-
-    const makeTinted = (baseAtlas) => {
-      try {
-        // multi-texture: tint each texture image
-        const textures = (baseAtlas.textures || []).map((t) => {
-          const tintedImg = tintFn(t.img, teamColor);
-          return { ...t, img: tintedImg };
-        });
-
-        // copy frames map to avoid shared mutation surprises
-        const frames = new Map();
-        if (baseAtlas.frames && typeof baseAtlas.frames.forEach === "function") {
-          baseAtlas.frames.forEach((fr, name) => {
-            const anchor = fr.anchor ? { ...fr.anchor } : undefined;
-            frames.set(name, { ...fr, anchor });
-          });
-        }
-
-        return { ...baseAtlas, textures, frames };
-      } catch (e) {
-        console.warn("[barracks:v6] tint failed, using base atlas:", e);
-        return baseAtlas;
-      }
+  async function _ensureTeamAtlas(teamId, teamColor) {
+    // If no tint function, just reuse base atlases.
+    if (!tintFn) return {
+      idle: BarracksAtlas.idleAtlas,
+      cons: BarracksAtlas.constAtlas,
+      dist: BarracksAtlas.distructAtlas,
     };
 
-    teamAtlases[key] = {
-      idle: makeTinted(BarracksAtlas.idle),
-      cons: makeTinted(BarracksAtlas.cons),
-      dist: makeTinted(BarracksAtlas.dist),
+    if (BarracksAtlas.teamAtlases[teamId]) return BarracksAtlas.teamAtlases[teamId];
+
+    // Create shallow copies with tinted spritesheet images.
+    // tintFn is expected to return an Image (or Promise<Image>).
+    const makeTinted = async (baseAtlas) => {
+      const tintedImg = await tintFn(baseAtlas.img, teamColor);
+      return { ...baseAtlas, img: tintedImg };
     };
-    return teamAtlases[key];
+
+    const tinted = {
+      idle: await makeTinted(BarracksAtlas.idleAtlas),
+      cons: await makeTinted(BarracksAtlas.constAtlas),
+      dist: await makeTinted(BarracksAtlas.distructAtlas),
+    };
+    BarracksAtlas.teamAtlases[teamId] = tinted;
+    return tinted;
   }
 
   // ---- Frame picker (no build-progress in your building object, so we fake a "spawn anim") ----
@@ -219,90 +180,59 @@
   // ---- Public draw hook ----
   // You call this from your building renderer:
   //   PO.drawBarracks(ctx, ent, anchorX, anchorY, teamColor)
-  /**
-   * Draw barracks sprite on the main game canvas.
-   * IMPORTANT: this is sync. If atlases aren't loaded yet, it will kick off loading and return false this frame.
-   *
-   * @param {CanvasRenderingContext2D} ctx
-   * @param {object} ent - building entity (expects ent.team, ent.bornAt, ent.deadAt, ent.alive, ent.tx/ty/tw/th etc)
-   * @param {number} anchorX - screen-space anchor X (typically south corner of footprint)
-   * @param {number} anchorY - screen-space anchor Y (typically south corner of footprint)
-   * @param {{r:number,g:number,b:number}|null} teamColor - optional tint color
-   * @param {number} scale - usually cam.zoom
-   * @returns {boolean} drew?
-   */
-  PO.drawBarracks = function drawBarracks(ctx, ent, anchorX, anchorY, teamColor, scale = 1) {
-    if (!BarracksAtlas.ready) {
-      // start loading in background; draw fallback prism for now
-      BarracksAtlas.ensureLoaded();
-      return false;
-    }
+  PO.drawBarracks = async function drawBarracks(ctx, ent, x, y, teamColor) {
+    await BarracksAtlas.ensureLoaded();
+    if (!BarracksAtlas.ready) return false;
 
-    // hot-reload pivot overrides (from tuner)
-    if (BarracksAtlas._applyPivotOverridesIfChanged) BarracksAtlas._applyPivotOverridesIfChanged();
+    const now = (typeof performance !== "undefined" && performance.now) ? performance.now() : Date.now();
+    const { phase, t } = _getPhase(ent, now);
 
-    const now = performance.now();
-    const phase = _getPhase(ent, now);
-
-    const teamId = ent.team;
-    const tinted = _ensureTeamAtlas(teamId, teamColor);
-
-    let useAtlas = tinted.idle;
+    // Decide which animation to show
+    let atlas = BarracksAtlas.idleAtlas;
     let frameName = null;
 
     if (phase === "dead") {
-      useAtlas = tinted.dist;
-      frameName = _pickFrame(BarracksAtlas.distFrames, now - (ent.deadAt || now), 30, "barrack_distruction_", BarracksAtlas.distStillFrame);
-    } else if (phase === "spawn") {
-      useAtlas = tinted.cons;
-      frameName = _pickFrame(BarracksAtlas.consFrames, now - (ent.bornAt || now), 45, "barrack_const_complete_", null);
+      // play distruct once, then show ruin still
+      const fps = 12;
+      frameName = _pickFrame(BarracksAtlas.distructFrames, t, fps, false);
+      atlas = BarracksAtlas.distructAtlas;
+      const done = (BarracksAtlas.distructFrames.length > 0) && (t * fps >= BarracksAtlas.distructFrames.length);
+      if (!frameName || done) {
+        atlas = BarracksAtlas.idleAtlas;
+        frameName = BarracksAtlas.distStillFrame;
+      }
     } else {
-      useAtlas = tinted.idle;
-      frameName = _pickFrame(BarracksAtlas.idleFrames, now, 20, "barrack_idle_", null);
+      // Spawn: show "const complete" for the first ~1.2s, then idle loop
+      const spawnSec = 1.2;
+      if (BarracksAtlas.constFrames.length > 0 && t < spawnSec) {
+        const fps = Math.max(10, Math.round(BarracksAtlas.constFrames.length / spawnSec));
+        frameName = _pickFrame(BarracksAtlas.constFrames, t, fps, false);
+        atlas = BarracksAtlas.constAtlas;
+      } else {
+        frameName = _pickFrame(BarracksAtlas.idleFrames, t, 6, true);
+        atlas = BarracksAtlas.idleAtlas;
+      }
     }
 
     if (!frameName) return false;
 
-    atlasTP.drawFrame(ctx, useAtlas, frameName, anchorX, anchorY, scale);
-    return true;
+    // Team tint (optional)
+    let useAtlas = atlas;
+    if (teamColor) {
+      const teamId = (ent.team != null) ? ent.team : 0;
+      const tinted = await _ensureTeamAtlas(teamId, teamColor);
+      if (useAtlas === BarracksAtlas.idleAtlas) useAtlas = tinted.idle;
+      if (useAtlas === BarracksAtlas.constAtlas) useAtlas = tinted.cons;
+      if (useAtlas === BarracksAtlas.distructAtlas) useAtlas = tinted.dist;
+    }
+
+    // Draw
+    const ok = atlasTP.drawFrame(ctx, useAtlas, frameName, x, y);
+    return ok;
   };
 
-
-  
-  // ---- Hook into game.js building renderer (sync) ----
-  PO.buildings = PO.buildings || {};
-  PO.buildings.drawBuilding = function drawBuilding(ent, ctx, cam, helpers, state) {
-    if (!ent || !ctx) return false;
-
-    // only barracks for now
-    if (ent.kind !== "barracks") return false;
-
-    // ground shadow (matches HQ shadow style)
-    try { helpers.drawFootprintDiamond(ent, "rgba(0,0,0,0.22)", "rgba(0,0,0,0)"); } catch (_e) {}
-
-    // anchor at south corner of footprint (same as drawBuildingSprite anchorMode: "south")
-    const sx = ent.x + (ent.w * 0.5);
-    const sy = ent.y + (ent.h * 0.5);
-    const p = helpers.worldToScreen(sx, sy);
-
-    // teamColor: derive from state.colors if available (hex -> {r,g,b})
-    let teamColor = null;
-    try {
-      const hex = (state && state.colors) ? (ent.team === 0 ? state.colors.player : state.colors.enemy) : null;
-      if (hex && typeof hex === "string" && hex[0] === "#" && hex.length >= 7) {
-        const r = parseInt(hex.slice(1, 3), 16);
-        const g = parseInt(hex.slice(3, 5), 16);
-        const b = parseInt(hex.slice(5, 7), 16);
-        teamColor = { r, g, b };
-      }
-    } catch (_e) {}
-
-    return PO.drawBarracks(ctx, ent, p.x, p.y, teamColor, cam && cam.zoom ? cam.zoom : 1);
-  };
-
-
-// Handy debug exposure
+  // Handy debug exposure
   PO.__BarracksAtlas = BarracksAtlas;
 
-  console.log("[barracks:v6] patch loaded. Auto-hooked: PO.buildings.drawBuilding (barracks)(...) from your building renderer.");
+  console.log("[barracks:v5] patch loaded. Next: call PO.drawBarracks(...) from your building renderer.");
 })();

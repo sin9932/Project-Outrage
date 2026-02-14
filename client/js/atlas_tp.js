@@ -52,6 +52,16 @@
   }
 
   async function loadTPAtlasMulti(jsonUrl, baseDir){
+  // Auto-derive baseDir from jsonUrl when not provided.
+  // TexturePacker multipack JSON usually stores only file names in `textures[].image`.
+  // Without a baseDir, the browser tries to load from the current page URL (often site root).
+  if (!baseDir) {
+    const _clean = (jsonUrl || "").split("#")[0].split("?")[0];
+    const _slash = _clean.lastIndexOf("/");
+    if (_slash >= 0) baseDir = _clean.slice(0, _slash);
+  }
+  if (baseDir && baseDir.endsWith("/")) baseDir = baseDir.slice(0, -1);
+
     const res = await fetch(jsonUrl);
     if (!res.ok) throw new Error("Atlas JSON fetch failed: " + jsonUrl);
     const json = await res.json();
