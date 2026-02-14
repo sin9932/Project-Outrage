@@ -1,4 +1,4 @@
-/* atlas_tp.js
+/* atlas_tp.js v2
    Minimal TexturePacker JSON (multi-texture) loader + draw helper.
    - Supports format: { textures:[{image,size,frames:[{filename,frame,rotated,trimmed,spriteSourceSize,sourceSize,anchor}]}] }
 */
@@ -52,25 +52,37 @@
   }
 
   async function loadTPAtlasMulti(jsonUrl, baseDir){
-  // Auto-derive baseDir from jsonUrl when not provided.
-  // TexturePacker multipack JSON usually stores only file names in `textures[].image`.
-  // Without a baseDir, the browser tries to load from the current page URL (often site root).
-  if (!baseDir) {
-    const _clean = (jsonUrl || "").split("#")[0].split("?")[0];
-    const _slash = _clean.lastIndexOf("/");
-    if (_slash >= 0) baseDir = _clean.slice(0, _slash);
-  }
-  if (baseDir && baseDir.endsWith("/")) baseDir = baseDir.slice(0, -1);
+    // baseDir default: directory of jsonUrl
+    if (!baseDir){
+      try{
+        const noHash = String(jsonUrl).split("#")[0];
+        const noQ = noHash.split("?")[0];
+        const i = noQ.lastIndexOf("/");
+        baseDir = (i>=0) ? noQ.slice(0,i+1) : "";
+      }catch(_e){
+        baseDir = "";
+      }
+    }
 
-    const res = await fetch(jsonUrl);
-    if (!res.ok) throw new Error("Atlas JSON fetch failed: " + jsonUrl);
-    const json = await res.json();
+    const res = await fetch(jsonUrl, {cache:"no-store"});
+    if (!res.ok) throw new Error("Atlas JSON fetch failed: " + jsonUrl + " (HTTP " + res.status + ")");
+    const text = await res.text();
+    const t = text.trim();
+    if (!t || t[0] === "<"){
+      // Cloudflare Pages / SPA fallbacks often return HTML for missing JSON
+      throw new Error("Atlas JSON is not JSON (got HTML). URL: " + jsonUrl);
+    }
+
+    let json;
+    try{ json = JSON.parse(text); }
+    catch(e){ throw new Error("Atlas JSON parse failed: " + jsonUrl + " (" + e.message + ")"); }
+
     const atlas = _parseTPMulti(json);
 
     for (let i=0;i<atlas.textures.length;i++){
-      const t = atlas.textures[i];
-      const imgPath = _join(baseDir || "", t.image);
-      t.img = await _loadImage(imgPath);
+      const tx = atlas.textures[i];
+      const imgPath = _join(baseDir || "", tx.image);
+      tx.img = await _loadImage(imgPath);
     }
     return atlas;
   }

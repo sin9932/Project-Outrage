@@ -1,4 +1,4 @@
-/* buildings.js (barracks sprite hook) v8
+/* buildings.js (barracks sprite hook) v9
    - Atlas URL auto-detect: tries multiple likely paths until one returns valid JSON
    - Avoids "Unexpected token '<'" when your deploy rewrites missing JSON to index.html
    - Sync draw entry: PO.buildings.drawBuilding(...) returns boolean
@@ -9,7 +9,7 @@
   PO.buildings = PO.buildings || {};
   PO.atlasTP = PO.atlasTP || {};
 
-  const TAG = "[barracks:v8]";
+  const TAG = "[barracks:v9]";
   let _loggedLoaded=false, _loggedDraw=false, _loggedReady=false;
 
   function logOnce(which, ...args){
@@ -30,37 +30,53 @@
   // We'll try a short list and stop at the first one that loads valid JSON.
 
   const NORMAL_URLS = [
-    "/asset/sprite/const/normal/barrack/atlas_tp.json",
-    "asset/sprite/const/normal/barrack/atlas_tp.json",
-    "/asset/sprite/const/normal/barracks/atlas_tp.json",
-    "asset/sprite/const/normal/barracks/atlas_tp.json",
-    "/asset/sprite/const/normal/barrack_const/atlas_tp.json",
-    "asset/sprite/const/normal/barrack_const/atlas_tp.json",
-    "/asset/sprite/const/normal/barrack%20const/atlas_tp.json",
-    "asset/sprite/const/normal/barrack%20const/atlas_tp.json",
+    // Your repo screenshots show: asset/sprite/const/normal/barrack/barrack_idle.json
+    "asset/sprite/const/normal/barrack/barrack_idle.json",
+    "/asset/sprite/const/normal/barrack/barrack_idle.json",
+    "asset/sprite/const/normal/barracks/barrack_idle.json",
+    "/asset/sprite/const/normal/barracks/barrack_idle.json",
+
+    // In case your deploy root is /client (rare, but happens)
+    "client/asset/sprite/const/normal/barrack/barrack_idle.json",
+    "/client/asset/sprite/const/normal/barrack/barrack_idle.json",
   ];
 
   const CONST_URLS = [
-    "/asset/sprite/const/const_anim/barrack/atlas_tp.json",
-    "asset/sprite/const/const_anim/barrack/atlas_tp.json",
-    "/asset/sprite/const/const_anim/barracks/atlas_tp.json",
-    "asset/sprite/const/const_anim/barracks/atlas_tp.json",
-    "/asset/sprite/const/const_anim/barrack_const/atlas_tp.json",
-    "asset/sprite/const/const_anim/barrack_const/atlas_tp.json",
-    "/asset/sprite/const/const_anim/barrack%20const/atlas_tp.json",
-    "asset/sprite/const/const_anim/barrack%20const/atlas_tp.json",
+    // Your repo screenshots show: asset/sprite/const/const_anim/barrack/barrack_const.json
+    "asset/sprite/const/const_anim/barrack/barrack_const.json",
+    "/asset/sprite/const/const_anim/barrack/barrack_const.json",
+    "asset/sprite/const/const_anim/barracks/barrack_const.json",
+    "/asset/sprite/const/const_anim/barracks/barrack_const.json",
+
+    "client/asset/sprite/const/const_anim/barrack/barrack_const.json",
+    "/client/asset/sprite/const/const_anim/barrack/barrack_const.json",
   ];
 
   const DESTR_URLS = [
-    "/asset/sprite/const/destruct/barrack/atlas_tp.json",
-    "asset/sprite/const/destruct/barrack/atlas_tp.json",
-    "/asset/sprite/const/destruct/barracks/atlas_tp.json",
-    "asset/sprite/const/destruct/barracks/atlas_tp.json",
-    "/asset/sprite/const/destruct/barrack_const/atlas_tp.json",
-    "asset/sprite/const/destruct/barrack_const/atlas_tp.json",
-    "/asset/sprite/const/destruct/barrack%20const/atlas_tp.json",
-    "asset/sprite/const/destruct/barrack%20const/atlas_tp.json",
+    // Your repo screenshots show folder name is "distruct" (typo) and file is barrack_distruct.json
+    "asset/sprite/const/distruct/barrack/barrack_distruct.json",
+    "/asset/sprite/const/distruct/barrack/barrack_distruct.json",
+    "asset/sprite/const/distruct/barracks/barrack_distruct.json",
+    "/asset/sprite/const/distruct/barracks/barrack_distruct.json",
+
+    // If you later rename to destruct, keep these too
+    "asset/sprite/const/destruct/barrack/barrack_distruct.json",
+    "/asset/sprite/const/destruct/barrack/barrack_distruct.json",
+
+    "client/asset/sprite/const/distruct/barrack/barrack_distruct.json",
+    "/client/asset/sprite/const/distruct/barrack/barrack_distruct.json",
   ];
+
+  function baseDirFromUrl(u){
+    try{
+      const noHash = String(u).split("#")[0];
+      const noQ = noHash.split("?")[0];
+      const i = noQ.lastIndexOf("/");
+      return (i>=0) ? noQ.slice(0,i+1) : "";
+    }catch(_e){
+      return "";
+    }
+  }
 
   async function tryLoadAny(urls, label){
     const loader = PO.atlasTP && PO.atlasTP.loadTPAtlasMulti;
@@ -71,7 +87,7 @@
       try{
         // NOTE: if u doesn't exist and your deploy rewrites to HTML with 200,
         // res.json() throws SyntaxError; we treat that as failure and keep trying.
-        const atlas = await loader(u);
+        const atlas = await loader(u, baseDirFromUrl(u));
         console.log(TAG, label, "using", u);
         return atlas;
       }catch(e){
@@ -80,7 +96,7 @@
     }
 
     // If nothing worked, throw with the final error.
-    const msg = `${label} atlas_tp.json not found. Tried: ${urls.join(" | ")}`;
+    const msg = `${label} atlas JSON not found. Tried: ${urls.join(" | ")}`;
     const err = new Error(msg);
     err.cause = lastErr;
     throw err;
