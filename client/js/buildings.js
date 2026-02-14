@@ -1,444 +1,446 @@
-/* buildings.js
-   Building sprite/animation module (TexturePacker atlases).
-   Current scope: Barracks.
-*/
+
+/* Barracks atlas building module (standalone)
+ * - Handles: barracks idle / construction complete / destruction atlases (TexturePacker JSON)
+ * - Adds: team palette recolor (magenta -> team accent)
+ * - Adds: simple in-game tune helper (F8) to tweak pivot/offset nudges and print numbers
+ *
+ * Expected globals:
+ *   window.PO.atlasTP  (from atlas_tp.js) with: loadTPAtlasMulti(jsonUrl, baseUrl), drawFrame(), getFrameSourceSize()
+ * Game integration:
+ *   PO.buildings.onPlaced(ent)
+ *   PO.buildings.onDestroyed(ent)
+ *   PO.buildings.onSold(ent)   (optional)
+ *   PO.buildings.tick(dt)
+ *   PO.buildings.drawBuilding(ctx, cam, helpers, ent)
+ *   PO.buildings.drawGhosts(ctx, cam, helpers)
+ */
+
 (function(){
   "use strict";
-  const PO = (window.PO = window.PO || {});
+  const PO = (typeof window!=="undefined" ? (window.PO = window.PO || {}) : {});
   const atlasTP = PO.atlasTP;
 
-  const MOD = {};
-  PO.buildings = MOD;
-
-  const _loaded = {
-    barracks: { ready:false, loading:false, idle:null, cons:null, dest:null, idleT:null, consT:null, destT:null, err:null }
+  const PATHS = {
+    idle: [
+      { json: "asset/sprite/const/normal/barrack/barrack_idle.json", base: "asset/sprite/const/normal/barrack/" },
+      { json: "asset/sprite/const/normal/barrack/Barrack_idle.json", base: "asset/sprite/const/normal/barrack/" }
+    ],
+    cons: [
+      { json: "asset/sprite/const/normal/barrack/barrack_const.json", base: "asset/sprite/const/normal/barrack/" }
+    ],
+    dest: [
+      { json: "asset/sprite/const/const_anim/barrack/barrack_distruction.json", base: "asset/sprite/const/const_anim/barrack/" }
+    ]
   };
 
-  const _live = new Map();
-  const _ghosts = [];
-
-
-  // Team accent recolor for TexturePacker atlases (magenta -> team accent).
-  // Uses the same heuristic as game.js: detect "magenta band" pixels and recolor by luminance.
-  const TEAM_ACCENT = (typeof window !== "undefined" && window.TEAM_ACCENT) ? window.TEAM_ACCENT : {
-    PLAYER: [80,  180, 255],  // blue-ish
-    ENEMY:  [255, 80,  90],   // red-ish
-    NEUTRAL:[140, 140, 140]
+  const CFG = {
+    fps: 12,
+    anchor: { x: 0.5, y: 0.52 }, // from your TP JSON frames
+    magentaKey: { r:255, g:0, b:255 },
+    magentaTol: 48
   };
-  const TEAM_ACCENT_LUMA_GAMMA = (typeof window !== "undefined" && window.TEAM_ACCENT_LUMA_GAMMA!=null) ? window.TEAM_ACCENT_LUMA_GAMMA : 0.70;
-  const TEAM_ACCENT_LUMA_GAIN  = (typeof window !== "undefined" && window.TEAM_ACCENT_LUMA_GAIN!=null) ? window.TEAM_ACCENT_LUMA_GAIN : 1.35;
-  const TEAM_ACCENT_LUMA_BIAS  = (typeof window !== "undefined" && window.TEAM_ACCENT_LUMA_BIAS!=null) ? window.TEAM_ACCENT_LUMA_BIAS : 0.06;
 
-  function _isAccentPixel(r,g,b,a){
-    if (a < 8) return false;
-    const magentaBand = (r >= 150 && b >= 150 && g <= 140);
-    const gNotDominant = (g <= Math.min(r,b) + 35);
-    const rbPresence = (r + b) >= 160;
-    return magentaBand && gNotDominant && rbPresence;
-  }
+  const stById = new Map();
+  const ghosts = [];
+  const cache = {
+    loaded: false,
+    loading: null,
+    idleAtlas: null,
+    consAtlas: null,
+    destAtlas: null,
+    idleSeq: [],
+    consSeq: [],
+    destSeq: [],
+    distFrame: null,
+    teamAtlases: new Map() // key: `${teamKey}|idle|cons|dest`
+  };
 
-  function _applyTeamPaletteToImage(img, teamRGB){
-    const w = img.width, h = img.height;
-    const c = document.createElement("canvas"); c.width = w; c.height = h;
-    const ctx = c.getContext("2d", { willReadFrequently:true });
-    ctx.drawImage(img, 0, 0);
-    const im = ctx.getImageData(0,0,w,h);
-    const d = im.data;
-    const tr = teamRGB[0]||0, tg = teamRGB[1]||0, tb = teamRGB[2]||0;
-
-    for (let i=0;i<d.length;i+=4){
-      const r=d[i], g=d[i+1], b=d[i+2], a=d[i+3];
-      if (!_isAccentPixel(r,g,b,a)) continue;
-      const l = (0.2126*r + 0.7152*g + 0.0722*b)/255; // perceived luma
-      const l2 = Math.min(1, Math.pow(l, TEAM_ACCENT_LUMA_GAMMA) * TEAM_ACCENT_LUMA_GAIN + TEAM_ACCENT_LUMA_BIAS);
-      d[i]   = Math.max(0, Math.min(255, tr * l2));
-      d[i+1] = Math.max(0, Math.min(255, tg * l2));
-      d[i+2] = Math.max(0, Math.min(255, tb * l2));
-      // alpha preserved
+  function _teamKey(team){
+    // Accept: 0/1, "PLAYER"/"ENEMY", or objects.
+    if (team==null) return "NEUTRAL";
+    if (typeof team==="string"){
+      const t = team.toUpperCase();
+      if (t.includes("PLAY")) return "PLAYER";
+      if (t.includes("ENEM")) return "ENEMY";
+      return t;
     }
-    ctx.putImageData(im,0,0);
-    // Return as an Image-like object usable in drawImage
-    return c;
+    if (typeof team==="number"){
+      if (team===0) return "PLAYER";
+      if (team===1) return "ENEMY";
+      return "NEUTRAL";
+    }
+    // game might store {id:0}
+    if (typeof team==="object" && typeof team.id==="number"){
+      return _teamKey(team.id);
+    }
+    return "NEUTRAL";
   }
 
-  function _cloneAtlasWithRecoloredTextures(atlas, teamRGB){
-    if (!atlas || !atlas.textures) return atlas;
-    // Shallow clone object and textures array; keep frames Map (frame rects identical)
-    const out = { textures: [], frames: atlas.frames };
-    for (const t of atlas.textures){
-      const nt = Object.assign({}, t);
-      if (t && t.img){
-        nt.img = _applyTeamPaletteToImage(t.img, teamRGB);
+  function _teamRGB(team){
+    const key = _teamKey(team);
+    const t = (typeof window!=="undefined" && window.TEAM_ACCENT) ? window.TEAM_ACCENT : {
+      PLAYER:[80,180,255],
+      ENEMY:[255,60,60],
+      NEUTRAL:[170,170,170]
+    };
+    return (t && t[key]) ? t[key] : (t.NEUTRAL || [170,170,170]);
+  }
+
+  function _scanSeq(atlas, ...patterns){
+    if (!atlas || !atlas.frames) return [];
+    const names = Object.keys(atlas.frames);
+    const hits = [];
+    for (const n of names){
+      for (const p of patterns){
+        if (p && p.test(n)){ hits.push(n); break; }
       }
-      out.textures.push(nt);
+    }
+    hits.sort((a,b)=>_numSuffix(a)-_numSuffix(b));
+    return hits;
+  }
+  function _numSuffix(name){
+    const m = name.match(/(\d+)(?=\.png$)/i);
+    return m ? parseInt(m[1],10) : 0;
+  }
+  function _first(atlas, name){
+    if (!atlas || !atlas.frames) return null;
+    if (atlas.frames[name]) return name;
+    const key = Object.keys(atlas.frames).find(k=>k.toLowerCase()===name.toLowerCase());
+    return key || null;
+  }
+
+  async function _loadFirst(paths){
+    let lastErr = null;
+    for (const p of paths){
+      try{
+        return await atlasTP.loadTPAtlasMulti(p.json, p.base);
+      }catch(e){
+        lastErr = e;
+      }
+    }
+    throw lastErr || new Error("atlas load failed");
+  }
+
+  function _cloneRecolorAtlas(atlas, rgb){
+    // Recolor the *sheet image* once, reuse frames metadata.
+    // atlasTP returns { frames, images:[Image], meta? } depending implementation.
+    // We will clone shallow and replace images[] with recolored canvases-as-Images.
+    if (!atlas) return null;
+    if (!atlas.images || !atlas.images.length) return atlas;
+
+    const keyRgb = `${rgb[0]},${rgb[1]},${rgb[2]}`;
+    const out = { ...atlas, images: atlas.images.slice(), __recolor: keyRgb };
+
+    for (let i=0;i<atlas.images.length;i++){
+      const img = atlas.images[i];
+      const c = document.createElement("canvas");
+      c.width = img.width; c.height = img.height;
+      const cctx = c.getContext("2d");
+      cctx.drawImage(img, 0, 0);
+      const id = cctx.getImageData(0,0,c.width,c.height);
+      const data = id.data;
+
+      const kr=CFG.magentaKey.r, kg=CFG.magentaKey.g, kb=CFG.magentaKey.b, tol=CFG.magentaTol;
+      for (let p=0; p<data.length; p+=4){
+        const r=data[p], g=data[p+1], b=data[p+2], a=data[p+3];
+        if (a===0) continue;
+        // magenta-ish key
+        if (Math.abs(r-kr)<=tol && Math.abs(g-kg)<=tol && Math.abs(b-kb)<=tol){
+          data[p]   = rgb[0];
+          data[p+1] = rgb[1];
+          data[p+2] = rgb[2];
+        }
+      }
+      cctx.putImageData(id,0,0);
+
+      // Convert canvas to Image for drawImage fast path
+      const newImg = new Image();
+      newImg.src = c.toDataURL("image/png");
+      out.images[i] = newImg;
     }
     return out;
   }
 
+  function _teamAtlas(which, team){
+    const key = _teamKey(team);
+    const rgb = _teamRGB(team);
+    const cacheKey = `${key}|${which}|${rgb[0]},${rgb[1]},${rgb[2]}`;
+    if (cache.teamAtlases.has(cacheKey)) return cache.teamAtlases.get(cacheKey);
 
-  function _numSuffix(name){
-    const m = /(\d+)(?=\.png$)/i.exec(name);
-    return m ? parseInt(m[1],10) : 0;
-  }
-  function _sorted(list){
-    return list.slice().sort((a,b)=>_numSuffix(a)-_numSuffix(b));
-  }
-
-
-  function _pickTeamAtlas(slot, mode, team){
-    const t = (team==null) ? 0 : team;
-    if (mode==="idle" && slot.idleT) return slot.idleT[t] || slot.idle;
-    if (mode==="cons" && slot.consT) return slot.consT[t] || slot.cons;
-    if (mode==="dest" && slot.destT) return slot.destT[t] || slot.dest;
-    return (mode==="cons") ? slot.cons : (mode==="dest") ? slot.dest : slot.idle;
+    const base = (which==="idle") ? cache.idleAtlas : (which==="cons") ? cache.consAtlas : cache.destAtlas;
+    const cloned = _cloneRecolorAtlas(base, rgb);
+    cache.teamAtlases.set(cacheKey, cloned);
+    return cloned;
   }
 
-  
-// Frame name sequences are auto-detected from atlas contents to avoid hard-coded filename/count mismatches.
-let BARR = {
-  idleLoop: _sorted(Array.from({length:18}, (_,i)=>`barrack_idle${i+1}.png`)),
-  idleDamaged: ["barrack_dist.png"],
-  cons: _sorted(Array.from({length:23}, (_,i)=>`barrack_const${i+1}.png`)),
-  dest: _sorted(Array.from({length:22}, (_,i)=>`barrack_distruction${i+1}.png`)),
-};
+  async function ensureLoaded(){
+    if (cache.loaded) return true;
+    if (cache.loading) return cache.loading;
+    if (!atlasTP) throw new Error("PO.atlasTP missing. Load atlas_tp.js first.");
+    cache.loading = (async()=>{
+      cache.idleAtlas = await _loadFirst(PATHS.idle);
+      cache.consAtlas = await _loadFirst(PATHS.cons);
+      cache.destAtlas = await _loadFirst(PATHS.dest);
 
-function _numSuffix(name){
-  const m = String(name).match(/(\d+)(?=\.[a-z]+$)/i) || String(name).match(/(\d+)$/);
-  return m ? parseInt(m[1],10) : 0;
-}
-function _scanSeq(atlas, patterns){
-  if (!atlas || !atlas.frames) return [];
-  const keys = Array.from(atlas.frames.keys());
-  let out = [];
-  for (const k of keys){
-    for (const re of patterns){
-      if (re.test(k)) { out.push(k); break; }
-    }
-  }
-  out.sort((a,b)=>_numSuffix(a)-_numSuffix(b));
-  return out;
-}
-function _rebuildBarrFrames(slot){
-  if (!slot) return;
-  const idleAtlas = slot.idle;
-  const consAtlas = slot.cons;
-  const destAtlas = slot.dest;
+      cache.idleSeq = _scanSeq(cache.idleAtlas, /^barrack_idle_?\d+\.png$/i, /^barrack_idle\d+\.png$/i);
+      cache.consSeq = _scanSeq(cache.consAtlas, /^barrack_con_complete_?\d+\.png$/i, /^barrack_const_?\d+\.png$/i, /^barrack_const\d+\.png$/i);
+      cache.destSeq = _scanSeq(cache.destAtlas, /^barrack_distruction_?\d+\.png$/i, /^barrack_destruction_?\d+\.png$/i);
+      cache.distFrame = _first(cache.idleAtlas, "barrack_dist.png");
 
-  const idleSeq = _scanSeq(idleAtlas, [/^barrack_idle\d+\.png$/i, /^barracks?_idle\d+\.png$/i]);
-  const dmgSeq  = _scanSeq(idleAtlas, [/^barrack_(dist|damaged)\.png$/i, /^barrack_idle_damaged\.png$/i]);
-  const consSeq = _scanSeq(consAtlas, [
-    /^barrack_(const|cons|construction|build)\d+\.png$/i,
-    /^barracks?_(const|cons|construction|build)\d+\.png$/i
-  ]);
-  const destSeq = _scanSeq(destAtlas, [
-    /^barrack_(distruction|destruction|destroy|dest)\d+\.png$/i,
-    /^barracks?_(distruction|destruction|destroy|dest)\d+\.png$/i
-  ]);
-
-  if (idleSeq.length) BARR.idleLoop = idleSeq;
-  if (dmgSeq.length)  BARR.idleDamaged = [dmgSeq[0]];
-  if (consSeq.length) BARR.cons = consSeq;
-  if (destSeq.length) BARR.dest = destSeq;
-
-  // Safety: if dest atlas missing, prevent 0-length maxT instant remove from feeling like "no anim".
-  if (!destAtlas) BARR.dest = [];
-}
-
-  
-  // Atlas candidate paths (Cloudflare/GitHub Pages are case-sensitive).
-  // We try multiple likely folders because your pipeline moved these around over time.
-  const ATLAS_CANDIDATES = {
-    barracks: {
-      // Normal idle loop (idle1..idle18) + damaged idle (dist) frames live in the same atlas JSON.
-      idle: [
-        "asset/sprite/const/normal/barrack/barrack_idle.json",
-        "asset/sprite/const/normal/barrack/Barrack_idle.json",
-        "asset/sprite/const/destruct/barrack/barrack_idle.json",
-        "asset/sprite/const/destruct/barrack/Barrack_idle.json",
-      ],
-      // Construction animation (plays once, then switch to idle).
-      cons: [
-        "asset/sprite/const/normal/barrack/barrack_const.json",
-        "asset/sprite/const/normal/barrack/barrack_construction.json",
-        "asset/sprite/const/const_anim/barrack/barrack_const.json",
-        "asset/sprite/const/const_anim/barrack/barrack_construction.json",
-      ],
-      // Destruction animation (HP==0, draw under particles).
-      dest: [
-        "asset/sprite/const/const_anim/barrack/barrack_distruction.json",
-        "asset/sprite/const/const_anim/barrack/barrack_destruction.json",
-        "asset/sprite/const/destruct/barrack/barrack_distruction.json",
-        "asset/sprite/const/destruct/barrack/barrack_destruction.json",
-      ],
-    }
-  };
-
-  function _dirOf(url){
-    const i = url.lastIndexOf("/");
-    return (i >= 0) ? url.slice(0, i + 1) : "";
-  }
-
-  async function _loadFirstAtlas(urlList, label){
-    let lastErr = null;
-    for (const url of urlList){
-      try{
-        const atlas = await atlasTP.loadTPAtlasMulti(url, _dirOf(url));
-        return atlas;
-      }catch(e){
-        lastErr = e;
-        console.warn("[buildings] atlas load failed:", label, url, String(e && e.message || e));
-      }
-    }
-    throw (lastErr || new Error("Atlas load failed: " + label));
-  }
-
-
-  function _kickLoadBarracks(){
-    const slot = _loaded.barracks;
-    if (slot.ready || slot.loading) return;
-    slot.loading = true;
-    (async ()=>{
-      try{
-        if (!atlasTP || !atlasTP.loadTPAtlasMulti) throw new Error("atlas_tp.js not loaded");
-        const idle = await _loadFirstAtlas(ATLAS_CANDIDATES.barracks.idle, "barracks idle");
-        const cons = await _loadFirstAtlas(ATLAS_CANDIDATES.barracks.cons, "barracks cons");
-        let dest = null;
-        try{
-          dest = await _loadFirstAtlas(ATLAS_CANDIDATES.barracks.dest, "barracks dest");
-        }catch(_e){
-          dest = null; // allow game to run even if destruction atlas is missing
-        }
-
-        slot.idle = idle; slot.cons = cons; slot.dest = dest;
-
-        // Build per-team recolored atlases (PLAYER=0, ENEMY=1).
-        try{
-          const pRGB = TEAM_ACCENT.PLAYER || [80,180,255];
-          const eRGB = TEAM_ACCENT.ENEMY  || [255,80,90];
-          slot.idleT = { 0:_cloneAtlasWithRecoloredTextures(idle, pRGB), 1:_cloneAtlasWithRecoloredTextures(idle, eRGB) };
-          slot.consT = { 0:_cloneAtlasWithRecoloredTextures(cons, pRGB), 1:_cloneAtlasWithRecoloredTextures(cons, eRGB) };
-          slot.destT = dest ? { 0:_cloneAtlasWithRecoloredTextures(dest, pRGB), 1:_cloneAtlasWithRecoloredTextures(dest, eRGB) } : null;
-        }catch(_e){
-          // If recolor fails (tainted canvas etc), fall back to base atlases.
-          slot.idleT = null; slot.consT = null; slot.destT = null;
-        }
-
-        _rebuildBarrFrames(slot);
-
-        slot.ready = true;
-      }catch(e){
-        slot.err = e;
-        console.error("[buildings] barracks atlas load failed", e);
-      }finally{
-        slot.loading = false;
-      }
+      cache.loaded = true;
+      return true;
     })();
+    return cache.loading;
   }
 
-  function init(){
-    _kickLoadBarracks();
+  function onPlaced(ent){
+    if (!ent || ent.kind!=="barracks") return;
+    stById.set(ent.id, { mode:"cons", t:0 });
+    ensureLoaded().catch(()=>{});
+  }
+  function onSold(ent){
+    // optional: treat as destroyed (no dest anim) or do nothing
+    if (!ent || ent.kind!=="barracks") return;
+    stById.delete(ent.id);
+  }
+  function onDestroyed(ent){
+    if (!ent || ent.kind!=="barracks") return;
+    const st = stById.get(ent.id);
+    stById.delete(ent.id);
+
+    ghosts.push({
+      kind:"barracks",
+      team: ent.team,
+      t:0,
+      x: ent.x, y: ent.y, tw: ent.tw, th: ent.th,
+      mode:"dest"
+    });
+    ensureLoaded().catch(()=>{});
   }
 
-  function tunerKinds(){
-    return ["hq","barracks"];
-  }
+  function tick(dt){
+    if (!dt || dt<=0) return;
 
-  function getTunerCrop(kind){
-    if (kind !== "barracks") return null;
-    const slot = _loaded.barracks;
-    if (!slot.ready || !slot.idle) return { w:1652, h:1252 };
-    const name = BARR.idleLoop[0];
-    const sz = atlasTP.getFrameSourceSize(slot.idle, name);
-    return sz || { w:1652, h:1252 };
-  }
-
-  function _applyTune(ent, cam){
-        const t = (window.PO && window.PO.SPRITE_TUNE && window.PO.SPRITE_TUNE[ent.kind]) ? window.PO.SPRITE_TUNE[ent.kind] : null;
-    const z = (cam && typeof cam.zoom==="number") ? cam.zoom : 1;
-    const scaleMul = (t && typeof t.scaleMul==="number") ? t.scaleMul : 1.0;
-    const offX = (t && t.offsetNudge) ? (t.offsetNudge.x||0) * z : 0;
-    const offY = (t && t.offsetNudge) ? (t.offsetNudge.y||0) * z : 0;
-    const pivX = (t && t.pivotNudge) ? (t.pivotNudge.x||0) : 0;
-    const pivY = (t && t.pivotNudge) ? (t.pivotNudge.y||0) : 0;
-    return { scaleMul, offX, offY, pivX, pivY };
-  }
-
-  function _pickBarracksFrame(ent, st){
-    const ratio = (ent.hpMax>0) ? (ent.hp/ent.hpMax) : 1;
-    const damaged = (ratio <= 0.33);
-    if (st && st.mode==="cons"){
-      const idx = Math.min(BARR.cons.length-1, Math.floor(st.t / st.spf));
-      return { atlas:"cons", name:BARR.cons[idx], done:(idx===BARR.cons.length-1) };
-    }
-    if (damaged) return { atlas:"idle", name:BARR.idleDamaged[0], done:false };
-    const idx = Math.floor((st ? st.t : 0) / (st ? st.spf : 0.09)) % BARR.idleLoop.length;
-    return { atlas:"idle", name:BARR.idleLoop[idx], done:false };
-  }
-
-  function onPlaced(b){
-    if (!b || !b.id) return;
-    if (b.kind==="barracks"){
-      _kickLoadBarracks();
-      _live.set(b.id, { mode:"cons", t:0, spf:0.06 });
-    }
-  }
-
-  function onDestroyed(b){
-    if (!b) return;
-    if (b.kind==="barracks"){
-      _kickLoadBarracks();
-      _ghosts.push({
-        kind:"barracks",
-        mode:"dest",
-        t:0,
-        spf:0.05,
-        x:b.x, y:b.y,
-        tx:b.tx, ty:b.ty, tw:b.tw, th:b.th,
-        team:b.team
-      });
-      _live.delete(b.id);
-    }
-  }
-
-  function onSold(b){
-    if (!b) return;
-    if (b.kind==="barracks"){
-      _kickLoadBarracks();
-      _ghosts.push({
-        kind:"barracks",
-        mode:"sell",
-        t:0,
-        spf:0.045,
-        x:b.x, y:b.y,
-        tx:b.tx, ty:b.ty, tw:b.tw, th:b.th,
-        team:b.team
-      });
-      _live.delete(b.id);
-    }
-  }
-
-  function tick(dt, state){
-    for (const [id, st] of _live){
-      st.t += dt;
-      if (st.mode==="cons"){
-        const maxT = BARR.cons.length * st.spf;
-        if (st.t >= maxT){
-          st.mode="idle";
+    // live states
+    for (const [id, st] of stById){
+      if (PO.__tune && PO.__tune.on && PO.__tune.freeze && (PO.__tune.targetId==null || PO.__tune.targetId===id)){
+        // frozen for tuning
+      }
+      if (st.mode==="cons" && cache.consSeq.length){
+        const dur = cache.consSeq.length / CFG.fps;
+        if (st.t >= dur){
+          st.mode = "idle";
           st.t = 0;
-          st.spf = 0.09;
         }
-      } else {
-        if (st.t > 9999) st.t = 0;
       }
     }
 
-    for (let i=_ghosts.length-1;i>=0;i--){
-      const g=_ghosts[i];
+    // ghosts
+    for (let i=ghosts.length-1;i>=0;i--){
+      const g = ghosts[i];
       g.t += dt;
-      if (g.mode==="dest"){
-        const maxT = BARR.dest.length * g.spf;
-        if (g.t >= maxT) _ghosts.splice(i,1);
-      } else if (g.mode==="sell"){
-        const maxT = BARR.cons.length * g.spf;
-        if (g.t >= maxT) _ghosts.splice(i,1);
+      const seq = cache.destSeq;
+      const dur = (seq.length ? seq.length/CFG.fps : 0.5);
+      if (g.t >= dur){
+        ghosts.splice(i,1);
       }
     }
   }
 
-  function drawGhosts(ctx, cam, helpers, state){
-    const slot = _loaded.barracks;
-    if (!slot.ready) return;
-    const worldToScreen = helpers.worldToScreen;
-    const z = (cam && typeof cam.zoom==="number") ? cam.zoom : 1;
-
-    for (const g of _ghosts){
-      if (g.kind!=="barracks") continue;
-      const p = worldToScreen(g.x, g.y);
-
-      const footprintW = (g.tw + g.th) * helpers.ISO_X;
-      const baseName = BARR.idleLoop[0];
-      const sz = atlasTP.getFrameSourceSize(slot.idle, baseName) || { w:1652, h:1252 };
-      const baseScale = (footprintW / (sz.w || 1)) * z;
-
-      const tune = _applyTune({kind:"barracks"}, cam);
-      const scale = baseScale * (tune.scaleMul || 1);
-      const dx = tune.offX || 0;
-      const dy = tune.offY || 0;
-      const px = tune.pivX || 0;
-      const py = tune.pivY || 0;
-
-      let atlas=null, name=null;
-      if (g.mode==="dest"){
-        const idx = Math.min(BARR.dest.length-1, Math.floor(g.t / g.spf));
-        atlas = _pickTeamAtlas(slot,'dest', g.team); name = BARR.dest[idx];
-      } else if (g.mode==="sell"){
-        const idx = Math.min(BARR.cons.length-1, Math.floor(g.t / g.spf));
-        const rev = (BARR.cons.length-1) - idx;
-        atlas = _pickTeamAtlas(slot,'cons', g.team); name = BARR.cons[rev];
-      }
-      if (!atlas || !name) continue;
-
-      const x = p.x + dx - (px * scale);
-      const y = p.y + dy - (py * scale);
-
-      atlasTP.drawFrame(ctx, atlas, name, x, y, scale, 1);
-    }
+  function _tune(kind){
+    PO.SPRITE_TUNE = PO.SPRITE_TUNE || {};
+    return PO.SPRITE_TUNE[kind] || (PO.SPRITE_TUNE[kind] = {});
+  }
+  function _applyTune(kind, pivX, pivY, offX, offY){
+    const t = _tune(kind);
+    const px = pivX + (t.pivNudgeX||0);
+    const py = pivY + (t.pivNudgeY||0);
+    const ox = offX + (t.offNudgeX||0);
+    const oy = offY + (t.offNudgeY||0);
+    return { px, py, ox, oy, t };
   }
 
-  function drawBuilding(ent, ctx, cam, helpers, state){
+  function _pickFrame(ent){
+    const st = stById.get(ent.id) || {mode:"idle", t:0};
+    const seq = (st.mode==="cons" && cache.consSeq.length) ? cache.consSeq : cache.idleSeq;
+    if (!seq.length) return null;
+
+    // damaged frame override (optional)
+    if (cache.distFrame && typeof ent.hp==="number" && typeof ent.hpMax==="number"){
+      const ratio = ent.hpMax>0 ? (ent.hp/ent.hpMax) : 1;
+      if (ratio <= 0.5){
+        return { atlas:"idle", name: cache.distFrame, st };
+      }
+    }
+
+    const idx = Math.floor(st.t * CFG.fps) % seq.length;
+    const which = (st.mode==="cons" && cache.consSeq.length) ? "cons" : "idle";
+    return { atlas: which, name: seq[idx], st };
+  }
+
+  function drawBuilding(ctx, cam, helpers, ent){
     if (!ent || ent.kind!=="barracks") return false;
-    const slot = _loaded.barracks;
-    _kickLoadBarracks();
-    if (!slot.ready || !slot.idle) return false;
+    if (!cache.loaded) return false;
 
-    const worldToScreen = helpers.worldToScreen;
-    const z = (cam && typeof cam.zoom==="number") ? cam.zoom : 1;
-    const p = worldToScreen(ent.x, ent.y);
+    const pick = _pickFrame(ent);
+    if (!pick) return false;
 
-    const footprintW = (ent.tw + ent.th) * helpers.ISO_X;
-    const baseName = BARR.idleLoop[0];
-    const sz = atlasTP.getFrameSourceSize(slot.idle, baseName) || { w:1652, h:1252 };
-    const baseScale = (footprintW / (sz.w || 1)) * z;
+    const atlas = _teamAtlas(pick.atlas, ent.team);
+    const sz = atlasTP.getFrameSourceSize(atlas, pick.name) || {w:0,h:0};
 
-    const tune = _applyTune(ent, cam);
-    const scale = baseScale * (tune.scaleMul || 1.0);
-    const dx = tune.offX || 0;
-    const dy = tune.offY || 0;
-    const px = tune.pivX || 0;
-    const py = tune.pivY || 0;
+    // world to screen
+    const p = helpers.worldToScreen(ent.x, ent.y, cam);
+    const dx = 0;
+    const dy = 0;
 
-    try{
-      if (helpers.drawFootprintDiamond){
-        helpers.drawFootprintDiamond(ent, "rgba(0,0,0,0.20)", "rgba(0,0,0,0)");
+    const basePivX = sz.w * CFG.anchor.x;
+    const basePivY = sz.h * CFG.anchor.y;
+
+    // offsets (fine tune here if needed)
+    const tuned = _applyTune(ent.kind, basePivX, basePivY, 0, 0);
+
+    const scale = 1;
+    const x = p.x + dx + tuned.ox - tuned.px * scale;
+    const y = p.y + dy + tuned.oy - tuned.py * scale;
+
+    atlasTP.drawFrame(ctx, atlas, pick.name, x, y, scale, 1);
+
+    // tune overlay
+    if (PO.__tune && PO.__tune.on){
+      PO.__tune.lastBarracksId = ent.id;
+      const isTarget = (PO.__tune.targetId==null) || (PO.__tune.targetId===ent.id);
+      if (isTarget){
+        ctx.save();
+        ctx.globalAlpha = 0.9;
+        // pivot crosshair
+        const cx = x + tuned.px*scale;
+        const cy = y + tuned.py*scale;
+        ctx.strokeStyle = "#00ffff";
+        ctx.beginPath();
+        ctx.moveTo(cx-10, cy); ctx.lineTo(cx+10, cy);
+        ctx.moveTo(cx, cy-10); ctx.lineTo(cx, cy+10);
+        ctx.stroke();
+        // text
+        ctx.fillStyle = "#00ffff";
+        ctx.font = "12px monospace";
+        const t = _tune("barracks");
+        const msg1 = `barracks tune | pivNudge=(${t.pivNudgeX||0},${t.pivNudgeY||0}) offNudge=(${t.offNudgeX||0},${t.offNudgeY||0}) freeze=${PO.__tune.freeze? "ON":"OFF"} (Space) step(Q/E) print(C)`;
+        ctx.fillText(msg1, cx + 14, cy - 14);
+        ctx.restore();
       }
-    }catch(_e){}
-
-    let st = _live.get(ent.id);
-    if (!st){
-      st = { mode:"idle", t: (Math.random()*0.2), spf:0.09 };
-      _live.set(ent.id, st);
     }
 
-    const pick = _pickBarracksFrame(ent, st);
-    const atlas = (pick.atlas==="cons") ? slot.cons : slot.idle;
-    const name = pick.name;
-
-    const x = p.x + dx - (px * scale);
-    const y = p.y + dy - (py * scale);
-
-    atlasTP.drawFrame(ctx, atlas, name, x, y, scale, 1);
     return true;
   }
 
-  MOD.init = init;
-  MOD.onPlaced = onPlaced;
-  MOD.onDestroyed = onDestroyed;
-  MOD.onSold = onSold;
-  MOD.tick = tick;
-  MOD.drawBuilding = drawBuilding;
-  MOD.drawGhosts = drawGhosts;
-  MOD.getTunerCrop = getTunerCrop;
-  MOD.tunerKinds = tunerKinds;
+  function drawGhosts(ctx, cam, helpers){
+    if (!cache.loaded) return;
+    if (!ghosts.length) return;
 
-  init();
+    for (const g of ghosts){
+      const seq = cache.destSeq;
+      if (!seq.length) continue;
+      const idx = Math.floor(g.t * CFG.fps);
+      const name = seq[Math.min(idx, seq.length-1)];
+      const atlas = _teamAtlas("dest", g.team);
+
+      const sz = atlasTP.getFrameSourceSize(atlas, name) || {w:0,h:0};
+      const basePivX = sz.w * CFG.anchor.x;
+      const basePivY = sz.h * CFG.anchor.y;
+      const tuned = _applyTune("barracks", basePivX, basePivY, 0, 0);
+
+      const p = helpers.worldToScreen(g.x, g.y, cam);
+      const dx = 0;
+      const x = p.x + dx + tuned.ox - tuned.px;
+      const y = p.y + tuned.oy - tuned.py;
+      atlasTP.drawFrame(ctx, atlas, name, x, y, 1, 1);
+    }
+  }
+
+  // ===== Tune helper (F8) =====
+  (function installTuneHelper(){
+    if (PO.__tuneInstalled) return;
+    PO.__tuneInstalled = true;
+    PO.__tune = { on:false, targetId:null, lastBarracksId:null, lastPrint:0, freeze:false };
+
+    function _print(){
+      const t = _tune("barracks");
+      console.log("[tune]", JSON.stringify({ barracks: {
+        pivNudgeX: t.pivNudgeX||0,
+        pivNudgeY: t.pivNudgeY||0,
+        offNudgeX: t.offNudgeX||0,
+        offNudgeY: t.offNudgeY||0
+      }}, null, 2));
+    }
+    function _step(e){
+      if (e.altKey) return 1;
+      if (e.shiftKey) return 20;
+      return 5;
+    }
+
+    window.addEventListener("keydown", (e)=>{
+      if (e.code==="F8"){
+        PO.__tune.on = !PO.__tune.on;
+        if (!PO.__tune.on) PO.__tune.targetId = null;
+        console.log("[tune]", PO.__tune.on ? "ON" : "OFF");
+        return;
+      }
+      if (!PO.__tune.on) return;
+
+      const t = _tune("barracks");
+      const s = _step(e);
+      let used = false;
+
+      if (e.code==="ArrowLeft"){ t.pivNudgeX = (t.pivNudgeX||0) - s; used=true; }
+      if (e.code==="ArrowRight"){ t.pivNudgeX = (t.pivNudgeX||0) + s; used=true; }
+      if (e.code==="ArrowUp"){ t.pivNudgeY = (t.pivNudgeY||0) - s; used=true; }
+      if (e.code==="ArrowDown"){ t.pivNudgeY = (t.pivNudgeY||0) + s; used=true; }
+
+      if (e.code==="KeyA"){ t.offNudgeX = (t.offNudgeX||0) - s; used=true; }
+      if (e.code==="KeyD"){ t.offNudgeX = (t.offNudgeX||0) + s; used=true; }
+      if (e.code==="KeyW"){ t.offNudgeY = (t.offNudgeY||0) - s; used=true; }
+      if (e.code==="KeyS"){ t.offNudgeY = (t.offNudgeY||0) + s; used=true; }
+
+      if (e.code==="KeyC"){ _print(); used=true; }
+
+      // frame control while frozen
+      if (e.code==="Space"){
+        PO.__tune.freeze = !PO.__tune.freeze;
+        console.log("[tune] freeze", PO.__tune.freeze);
+        used = true;
+      }
+      if (e.code==="KeyQ" || e.code==="KeyE"){
+        const dir = (e.code==="KeyQ") ? -1 : 1;
+        const target = PO.__tune.targetId;
+        if (target!=null && stById.has(target)){
+          const sst = stById.get(target);
+          // step by one frame at CFG.fps
+          sst.t = Math.max(0, sst.t + dir*(1/CFG.fps));
+        }
+        used = true;
+      }
+
+      if (used){ e.preventDefault(); }
+    }, {passive:false});
+
+    const cv = document.getElementById("c") || document.querySelector("canvas");
+    if (cv){
+      cv.addEventListener("mousedown", ()=>{
+        if (!PO.__tune.on) return;
+        if (PO.__tune.lastBarracksId!=null){
+          PO.__tune.targetId = PO.__tune.lastBarracksId;
+          console.log("[tune] target barracks id=", PO.__tune.targetId);
+        }
+      });
+    }
+  })();
+
+  PO.buildings = PO.buildings || {};
+  PO.buildings.ensureLoaded = ensureLoaded;
+  PO.buildings.onPlaced = onPlaced;
+  PO.buildings.onDestroyed = onDestroyed;
+  PO.buildings.onSold = onSold;
+  PO.buildings.tick = tick;
+  PO.buildings.drawBuilding = drawBuilding;
+  PO.buildings.drawGhosts = drawGhosts;
 })();

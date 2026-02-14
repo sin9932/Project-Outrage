@@ -719,7 +719,7 @@ function getBaseBuildTime(kind){
     power:    { hLevel:2, tw:2, th:2, hp:750,  vision:420, provideR: 600 },
     refinery: { hLevel:2, tw:3, th:4, hp:1000, vision:520, provideR: 650 },
     factory:  { hLevel:2, tw:3, th:4, hp:1000, vision:500, provideR: 650 },
-    barracks: { hLevel:2, tw:2, th:3, hp:500,  vision:460, provideR: 600 },
+    barracks: { hLevel:2, tw:3, th:2, hp:500,  vision:460, provideR: 600 },
     radar:    { hLevel:3, tw:2, th:2, hp:1000, vision:600, provideR: 650 },
     turret:   { hLevel:1, tw:1, th:1, hp:400,  vision:560, provideR: 0   },
     civ_oregen: { hLevel:0, tw:2, th:2, hp:999999, vision:0, provideR:0, attackable:false, selectable:false, hideUI:true }
@@ -1182,14 +1182,6 @@ function getBaseBuildTime(kind){
   }
 
   function drawBuildingSprite(ent){
-    // Barracks uses TexturePacker atlas via buildings.js (keeps game.js slim).
-    try{
-      if (ent && ent.kind==="barracks" && window.PO && PO.buildings && typeof PO.buildings.drawBuilding==="function"){
-        const helpers = { worldToScreen, ISO_X, ISO_Y, drawFootprintDiamond };
-        if (PO.buildings.drawBuilding(ent, ctx, cam, helpers, state)) return true;
-      }
-    }catch(_e){}
-
     const cfg = BUILD_SPRITE[ent.kind];
     if (!cfg) return false;
     const img = cfg.img;
@@ -2389,7 +2381,9 @@ function buildingWorldFromTileOrigin(tx,ty,tw,th){
       oregenT:0
     };
     buildings.push(b);
-    // Auto-assign PRIMARY producer if none.
+    
+    try{ if (window.PO && PO.buildings && PO.buildings.onPlaced) PO.buildings.onPlaced(b); }catch(_e){}
+// Auto-assign PRIMARY producer if none.
     if (team===TEAM.PLAYER){
       if (kind==="barracks" && !state.primary.player.barracks) state.primary.player.barracks = b.id;
       if (kind==="factory"  && !state.primary.player.factory)  state.primary.player.factory  = b.id;
@@ -4840,6 +4834,7 @@ try{
 
 
     // 3) Remove from gameplay
+    try{ if (window.PO && PO.buildings && PO.buildings.onDestroyed) PO.buildings.onDestroyed(b); }catch(_e){}
     b.alive = false;
     state.selection.delete(b.id);
     setBuildingOcc(b, 0);
@@ -6731,7 +6726,9 @@ function sellBuilding(b){
     // Selling evacuates units at full HP (RA2-ish flavor).
     spawnEvacUnitsFromBuilding(b, false);
 
-    b.alive=false;
+    try{ if (window.PO && PO.buildings && PO.buildings.onSold) PO.buildings.onSold(b); }catch(_e){}
+
+    b.alive = false;
     state.selection.delete(b.id);
     setBuildingOcc(b,0);
     recomputePower();
@@ -11378,9 +11375,13 @@ let rX = ent.x, rY = ent.y;
         if (ent.team===TEAM.PLAYER){ fill="rgba(10,40,70,0.9)"; stroke=state.colors.player; }
         if (ent.team===TEAM.ENEMY){  fill="rgba(70,10,10,0.9)"; stroke=state.colors.enemy; }
 
-        // Sprite-backed buildings (e.g., HQ / Construction Yard)
-        if (BUILD_SPRITE[ent.kind] || ent.kind==="barracks"){
-          // subtle ground shadow so it sits on the tiles
+        // Barracks: TexturePacker atlas animation (PO.buildings module)
+        if (ent.kind==="barracks" && window.PO && PO.buildings && PO.buildings.drawBuilding){
+          drawFootprintDiamond(ent, "rgba(0,0,0,0.22)", "rgba(0,0,0,0)");
+          const ok = PO.buildings.drawBuilding(ctx, cam, { worldToScreen, ISO_X, ISO_Y }, ent);
+          if (!ok) drawFootprintPrism(ent, fill, stroke);
+        } else if (BUILD_SPRITE[ent.kind]){
+          // subtle ground shadow for sprite buildings
           drawFootprintDiamond(ent, "rgba(0,0,0,0.22)", "rgba(0,0,0,0)");
           drawBuildingSprite(ent);
         } else {
@@ -11752,16 +11753,13 @@ ctx.fill();
     }
 
 
+    try{ if (window.PO && PO.buildings && PO.buildings.drawGhosts) PO.buildings.drawGhosts(ctx, cam, { worldToScreen, ISO_X, ISO_Y }); }catch(_e){}
+
+
+
     // Building destruction explosions
     drawExplosions(ctx);
-
-    // Barracks destruction/sell ghosts should render below particle FX.
-    try{ if (window.PO && PO.buildings && PO.buildings.drawGhosts){
-      const helpers = { worldToScreen, ISO_X, ISO_Y, drawFootprintDiamond };
-      PO.buildings.drawGhosts(ctx, cam, helpers, state);
-    }}catch(_e){}
-
-    // Smoke ring (ground layer) should render *below* sprite FX like exp1
+// Smoke ring (ground layer) should render *below* sprite FX like exp1
     drawSmokeWaves(ctx);
 
     // HQ sprite explosion (exp1) above the ground smoke ring
@@ -12831,7 +12829,6 @@ function sanityCheck(){
       state.t += dt;
       updateCamShake(dt);
       updateExp1Fxs(dt);
-      try{ if (window.PO && PO.buildings && PO.buildings.tick) PO.buildings.tick(dt, state); }catch(_e){}
       updateSmoke(dt);
       updateBlood(dt);
 
@@ -12856,7 +12853,8 @@ function sanityCheck(){
       tickTurrets(dt);
       tickBullets(dt);
 
-      for (let i=units.length-1;i>=0;i--) if (!units[i].alive) units.splice(i,1);
+      try{ if (window.PO && PO.buildings && PO.buildings.tick) PO.buildings.tick(dt); }catch(_e){}
+for (let i=units.length-1;i>=0;i--) if (!units[i].alive) units.splice(i,1);
       for (let i=buildings.length-1;i>=0;i--) if (!buildings[i].alive) buildings.splice(i,1);
 
       if (DEV_VALIDATE){
