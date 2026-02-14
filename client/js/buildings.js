@@ -1,337 +1,192 @@
-/* buildings.js (barracks sprite hook) v16
-   - Atlas URL auto-detect: tries multiple likely paths until one returns valid JSON
-   - Avoids "Unexpected token '<'" when your deploy rewrites missing JSON to index.html
-   - Sync draw entry: PO.buildings.drawBuilding(...) returns boolean
-   - Applies pivot tuner overrides from localStorage key: PO_PIVOT_OVERRIDES
+/*
+  buildings_v17.js
+  Barracks renderer (TexturePacker JSON multipack).
+
+  Key fixes vs v16:
+  - No global can/cam/state/TILE_* reads (all passed in).
+  - Correct path: /asset/sprite/const/distruct/... (not /destruct).
+  - Atlas has no frameNames; we build frame lists via listFramesByPrefix.
+  - Draw uses bottom-center pivot so the building sits on the ground.
 */
-(function(){
+(() => {
   const PO = (window.PO = window.PO || {});
-  PO.buildings = PO.buildings || {};
-  PO.atlasTP = PO.atlasTP || {};
+  const VER = 'v17';
+  const KEY = 'barrack';
 
-  const TAG = "[barrack:v16]";
-
-  // Resolve deployment base path (handles /, /client/, /Project-Outrage/, etc.)
-  const BASE_PATH = (() => {
-    const p = (location && location.pathname) ? location.pathname : "/";
-    if (p.endsWith("/")) return p;
-    const i = p.lastIndexOf("/");
-    return (i >= 0) ? p.slice(0, i + 1) : "/";
-  })();
-
-  function _withBasePath(url) {
-    if (!url) return url;
-    // Keep absolute URLs as-is
-    if (url.startsWith("http://") || url.startsWith("https://") || url.startsWith("/")) return url;
-    // Prefix relative URLs with the current directory (e.g. /Project-Outrage/)
-    const bp = BASE_PATH.startsWith("/") ? BASE_PATH : ("/" + BASE_PATH);
-    return (bp.endsWith("/") ? bp : (bp + "/")) + url;
+  if (!PO.atlasTP) {
+    console.warn(`[${KEY}:${VER}] PO.atlasTP missing. Load atlas_tp.js before buildings.js`);
+    return;
   }
 
-  function _expandUrls(urls) {
-    const out = [];
-    const seen = new Set();
-    for (const u of (urls || [])) {
-      if (!u) continue;
-      const a = u;
-      const b = _withBasePath(u);
-      for (const x of [a, b]) {
-        if (!x) continue;
-        if (seen.has(x)) continue;
-        seen.add(x);
-        out.push(x);
-      }
-    }
-    return out;
+  // ---- tiny helpers ----
+  const _once = new Set();
+  function logOnce(tag, ...args) {
+    const k = `${tag}`;
+    if (_once.has(k)) return;
+    _once.add(k);
+    console.log(...args);
   }
 
-  let _loggedLoaded=false, _loggedDraw=false, _loggedReady=false;
-
-  function logOnce(which, ...args){
-    try{
-      if (which==="loaded" && _loggedLoaded) return;
-      if (which==="draw"   && _loggedDraw) return;
-      if (which==="ready"  && _loggedReady) return;
-      console.log(...args);
-      if (which==="loaded") _loggedLoaded=true;
-      if (which==="draw") _loggedDraw=true;
-      if (which==="ready") _loggedReady=true;
-    }catch(_e){}
+  function nowSec(state) {
+    if (state && typeof state.t === 'number') return state.t;
+    return performance.now() / 1000;
   }
 
-  // --- URL candidates ---
-  // Why: on some deploys, absolute paths (/asset/...) fail if you serve under a subpath,
-  // or your folder is named slightly differently (barrack vs barracks etc.).
-  // We'll try a short list and stop at the first one that loads valid JSON.
-
-  const NORMAL_URLS = [
-    "/asset/sprite/const/normal/barrack/barrack_idle.json",
-  ];
-
-  const CONST_URLS = [
-    "/asset/sprite/const/const_anim/barrack/barrack_const.json",
-  ];
-
-  const DESTR_URLS = [
-    // preferred current path (repo uses "distruct")
-    "/asset/sprite/const/distruct/barrack/barrack_distruct.json",
-    // legacy typo path some older builds used
-    "/asset/sprite/const/destruct/barrack/barrack_distruct.json",
-  ];
-
-  function baseDirFromUrl(u){
-    try{
-      const noHash = String(u).split("#")[0];
-      const noQ = noHash.split("?")[0];
-      const i = noQ.lastIndexOf("/");
-      return (i>=0) ? noQ.slice(0,i+1) : "";
-    }catch(_e){
-      return "";
-    }
-  }
-
-  async function tryLoadAny(urls, label){
-    const loader = PO.atlasTP && PO.atlasTP.loadTPAtlasMulti;
-    if (typeof loader !== "function") throw new Error("atlas_tp.js missing loadTPAtlasMulti");
-
-    let lastErr = null;
-    for (const u of urls){
-      try{
-        // NOTE: if u doesn't exist and your deploy rewrites to HTML with 200,
-        // res.json() throws SyntaxError; we treat that as failure and keep trying.
-        const atlas = await loader(u, baseDirFromUrl(u));
-        console.log(TAG, label, "using", u);
-        return atlas;
-      }catch(e){
-        lastErr = e;
-      }
-    }
-
-    // If nothing worked, throw with the final error.
-    const msg = `${label} atlas JSON not found. Tried: ${urls.join(" | ")}`;
-    const err = new Error(msg);
-    err.cause = lastErr;
-    throw err;
-  }
-
-  const BarracksAtlas = {
+  // ---- atlas cache ----
+  const A = {
+    promise: null,
     ready: false,
     failed: false,
-    loading: false,
-    promise: null,
+    atlases: { normal: null, construct: null, distruct: null },
+    frames: { normal: [], construct: [], distruct: [] },
+  };
 
-    normal: null,
-    construct: null,
-    destruct: null,
+  function _allFrameNames(atlas) {
+    try {
+      if (!atlas || !atlas.frames) return [];
+      return Array.from(atlas.frames.keys());
+    } catch (_) {
+      return [];
+    }
+  }
 
-    kickLoad(){
-      if (this.ready || this.failed || this.loading) return;
+  function _prepAtlas(kind, atlas) {
+    if (!atlas) return;
 
-      // NOTE: We consider "normal" (idle) REQUIRED.
-      // "construct" / "destruct" are OPTIONAL. If missing on the deployed site,
-      // we will fall back to normal so you still see the sprite instead of the debug box.
-      this.loading = true;
+    let prefix = '';
+    if (kind === 'normal') prefix = 'barrack_idle';
+    if (kind === 'construct') prefix = 'barrack_con';
+    if (kind === 'distruct') prefix = 'barrack_distruction';
 
-      const loadOptional = (urls, label) => {
-        return tryLoadAny(_expandUrls(urls), label)
-          .then(atlas => ({ ok: true, atlas, label }))
-          .catch(err => {
-            console.warn(TAG, `[barrack] optional atlas missing: ${label}`, err);
-            return { ok: false, atlas: null, label, err };
-          });
-      };
+    let list = PO.atlasTP.listFramesByPrefix(atlas, prefix, { sortNumeric: true });
+    if (!list || !list.length) list = _allFrameNames(atlas);
 
-      const loadRequired = (urls, label) => {
-        return tryLoadAny(_expandUrls(urls), label)
-          .then(atlas => ({ ok: true, atlas, label }))
-          .catch(err => {
-            console.error(TAG, `[barrack] REQUIRED atlas missing: ${label}`, err);
-            return { ok: false, atlas: null, label, err };
-          });
-      };
+    A.frames[kind] = list;
 
-      this.promise = Promise.all([
-        loadRequired(NORMAL_URLS, "normal"),
-        loadOptional(CONST_URLS, "construct"),
-        loadOptional(DESTR_URLS, "destruct"),
-      ]).then((results)=>{
-        const map = Object.create(null);
-        for (const r of results) map[r.label] = r;
+    // bottom-center pivot for all frames of this atlas
+    try {
+      PO.atlasTP.applyPivotToFrames(atlas, list, { x: 0.5, y: 1.0 });
+    } catch (_) {
+      // not fatal
+    }
+  }
 
-        this.normal   = map.normal?.atlas || null;
-        this.construct= map.construct?.atlas || null;
-        this.destruct = map.destruct?.atlas || null;
+  function ensureLoaded() {
+    if (A.promise) return A.promise;
 
-        this.loading = false;
+    const urls = {
+      normal: '/asset/sprite/const/normal/barrack/barrack_idle.json',
+      construct: '/asset/sprite/const/const_anim/barrack/barrack_const.json',
+      distruct: '/asset/sprite/const/distruct/barrack/barrack_distruct.json',
+    };
 
-        if (!this.normal){
-          this.failed = true;
-          this.ready = false;
-          console.error(TAG, "[barrack] normal atlas NOT loaded => will render fallback box.");
-          return;
-        }
+    console.log(`[${KEY}:${VER}] loading atlases...`);
+    console.log(`[${KEY}:${VER}] normal   ${urls.normal}`);
+    console.log(`[${KEY}:${VER}] construct ${urls.construct}`);
+    console.log(`[${KEY}:${VER}] distruct  ${urls.distruct}`);
 
-        this.failed = false;
-        this.ready = true;
+    A.promise = Promise.allSettled([
+      PO.atlasTP.loadTPAtlasMulti(urls.normal),
+      PO.atlasTP.loadTPAtlasMulti(urls.construct),
+      PO.atlasTP.loadTPAtlasMulti(urls.distruct),
+    ]).then((res) => {
+      const [rN, rC, rD] = res;
+      A.atlases.normal = rN.status === 'fulfilled' ? rN.value : null;
+      A.atlases.construct = rC.status === 'fulfilled' ? rC.value : null;
+      A.atlases.distruct = rD.status === 'fulfilled' ? rD.value : null;
 
-        logOnce("ready", TAG,
-          `[barrack] atlases ready. normal:${!!this.normal} construct:${!!this.construct} destruct:${!!this.destruct}`
+      _prepAtlas('normal', A.atlases.normal);
+      _prepAtlas('construct', A.atlases.construct);
+      _prepAtlas('distruct', A.atlases.distruct);
+
+      // Only normal is required to show something.
+      A.ready = !!A.atlases.normal && A.frames.normal.length > 0;
+      A.failed = !A.ready;
+
+      if (A.ready) {
+        console.log(
+          `[${KEY}:${VER}] READY. frames: normal=${A.frames.normal.length}, construct=${A.frames.construct.length}, distruct=${A.frames.distruct.length}`
         );
-      });
-    }
-  };
-
-  // --- pivot overrides (from tuner) ---
-  let _ovRaw = null;
-  let _ovObj = null;
-  function refreshOverrides(){
-    try{
-      const raw = localStorage.getItem('PO_PIVOT_OVERRIDES');
-      if (raw === _ovRaw) return _ovObj;
-      _ovRaw = raw;
-      _ovObj = raw ? JSON.parse(raw) : null;
-      return _ovObj;
-    }catch(_e){
-      _ovRaw = null;
-      _ovObj = null;
-      return null;
-    }
-  }
-
-  function applyOverridesIfAny(atlas){
-    try{
-      const fn = PO.atlasTP && PO.atlasTP.applyPivotOverrides;
-      if (typeof fn !== 'function') return;
-      const ov = refreshOverrides();
-      if (!ov) return;
-      fn(atlas, ov, { sortNumeric: true });
-    }catch(_e){}
-  }
-
-  // --- frame picking: be tolerant to naming differences ---
-  function firstFrame(atlas, preferRe){
-    try{
-      const keys = atlas && atlas.frames && (atlas.frames.keys ? Array.from(atlas.frames.keys()) : Object.keys(atlas.frames));
-      if (!keys || !keys.length) return null;
-      if (preferRe){
-        const hit = keys.find(k => preferRe.test(String(k)));
-        if (hit) return hit;
+      } else {
+        console.warn(`[${KEY}:${VER}] FAILED to load normal atlas. (If the JSON URL shows the game screen, you are getting index.html instead of JSON)`);
       }
-      return keys[0];
-    }catch(_e){
-      return null;
+
+      return A;
+    });
+
+    return A.promise;
+  }
+
+  // ---- animation selection ----
+  function _kindFor(ent) {
+    // death takes priority
+    if (ent && (ent.hp <= 0 || ent.alive === false || ent.dead === true)) return 'distruct';
+    // construction flag (optional)
+    if (ent && (ent._constructing || ent.constructing || (typeof ent.buildProgress === 'number' && ent.buildProgress < 1))) return 'construct';
+    return 'normal';
+  }
+
+  function _pickFrame(kind, ent, state) {
+    const list = A.frames[kind] || [];
+    if (!list.length) return null;
+
+    const t = nowSec(state);
+
+    // play-once for distruct
+    if (kind === 'distruct') {
+      const fps = 14;
+      if (ent._barrackDeadAt == null) ent._barrackDeadAt = t;
+      const dt = Math.max(0, t - ent._barrackDeadAt);
+      const idx = Math.min(list.length - 1, Math.floor(dt * fps));
+      return list[idx];
     }
+
+    const fps = kind === 'construct' ? 12 : 8;
+    const idx = Math.floor(t * fps) % list.length;
+    return list[idx];
   }
 
-  function pickFrame(ent){
-    const dead = (!ent || ent.hp <= 0 || ent.alive === false);
-    if (dead) return { atlas: "destruct" };
-    if (ent && (ent.placing === true || ent.construction === true || ent.constAnim === true)) return { atlas: "construct" };
-    return { atlas: "normal" };
+  function drawBarrack(ent, ctx, cam, helpers, state) {
+    // fire loading once
+    if (!A.promise) ensureLoaded();
+
+    const kind = _kindFor(ent);
+    const atlas = A.atlases[kind];
+
+    if (!atlas) return false; // let prism fallback draw
+
+    const frameName = _pickFrame(kind, ent, state);
+    if (!frameName) return false;
+
+    const s = helpers.worldToScreen(ent.x, ent.y);
+    const sc = cam && typeof cam.zoom === 'number' ? cam.zoom : 1;
+
+    // bottom-center
+    PO.atlasTP.drawFrame(ctx, atlas, frameName, s.x, s.y, {
+      scale: sc,
+      pivotX: 0.5,
+      pivotY: 1.0,
+      alpha: 1,
+      snap: true,
+    });
+
+    return true;
   }
 
-  function resolveAtlas(which){
-    if (!BarracksAtlas.ready) return null;
-    if (which==="normal") return BarracksAtlas.normal;
-    if (which==="construct") return (BarracksAtlas.construct || BarracksAtlas.normal);
-    if (which==="destruct") return (BarracksAtlas.destruct || BarracksAtlas.normal);
-    return BarracksAtlas.normal;
-  }
+  // ---- plugin hook ----
+  PO.buildings = PO.buildings || {};
 
-  function footprintAnchor(ent, helpers){
-    // Prefer engine-provided world center (ent.x/ent.y). Fall back to tile coords.
-    const ISO_X = helpers && typeof helpers.ISO_X === 'number' ? helpers.ISO_X : null;
-    const TILE = (helpers && typeof helpers.TILE === 'number') ? helpers.TILE
-               : (ISO_X ? (ISO_X * 2) : 110);
-
-    const wx = (typeof ent.x === 'number')
-      ? ent.x
-      : ((ent.tx + (ent.tw * 0.5)) * TILE);
-
-    // ent.y is center of building AABB in world space. We want the south edge.
-    const wy = (typeof ent.y === 'number')
-      ? (ent.y + (ent.th * TILE * 0.5))
-      : ((ent.ty + ent.th) * TILE);
-
-    return { wx, wy, TILE };
-}
-
-  function teamColorFor(ent, state){
-    try{
-      if (state && state.colors && state.colors.team) return state.colors.team[ent.team] || "#55aaff";
-      if (state && state.colors && state.colors.player && ent.team===0) return state.colors.player;
-      if (state && state.colors && state.colors.enemy  && ent.team===1) return state.colors.enemy;
-    }catch(_e){}
-    return "#55aaff";
-  }
-
-  function drawBarracksSync(ctx, ent, x, y){
-    if (!BarracksAtlas.ready){
-      BarracksAtlas.kickLoad();
-      return false;
-    }
-    if (BarracksAtlas.failed) return false;
-
-    const pick = pickFrame(ent);
-    const atlas = resolveAtlas(pick.atlas);
-    if (!atlas) return false;
-
-    applyOverridesIfAny(atlas);
-
-    // try smart-ish preferred frame names first
-    let frame = null;
-    if (pick.atlas === 'normal') frame = firstFrame(atlas, /barrack(?!.*(const|distr|dest))/i);
-    if (pick.atlas === 'construct') frame = firstFrame(atlas, /(const|build|construct)/i);
-    if (pick.atlas === 'destruct') frame = firstFrame(atlas, /(distr|dest|destroy|death)/i);
-    if (!frame) frame = firstFrame(atlas, /barrack/i) || firstFrame(atlas);
-    if (!frame) return false;
-
-    try{
-      // Make sure canvas state isn't accidentally transparent from previous draws.
-      ctx.save();
-      ctx.globalAlpha = 1;
-      ctx.globalCompositeOperation = 'source-over';
-      const sc = (cam && typeof cam.zoom === 'number') ? cam.zoom : 1.0;
-      const ok = PO.atlasTP.drawFrame(ctx, atlas, frame, x, y, sc);
-      ctx.restore();
-
-      if (!ok) {
-        if (!state._barracksOnceLogged) {
-          state._barracksOnceLogged = true;
-          const keys = (atlas && atlas.frames && atlas.frames.keys) ? Array.from(atlas.frames.keys()) : [];
-          console.warn(TAG, 'drawFrame failed. frame=', frame, 'keys(sample)=', keys.slice(0, 10));
-        }
-        return false; // let engine fall back to footprint prism
-      }
-      return true;
-    }catch(e){
-      console.error(TAG, "draw failed", e);
-      return false;
-    }
-  }
-
-  PO.buildings.drawBuilding = function(ent, ctx, cam, helpers, state){
-    try{
-      if (!ent || !ent.kind) return false;
-      const k = String(ent.kind).toLowerCase();
-      if (!(k==="barracks" || k==="barrack" || k.indexOf("barrack")>=0)) return false;
-      logOnce("draw", TAG, "drawBuilding called", k);
-      const p = footprintAnchor(ent, helpers);
-      // teamColor reserved for future tint; currently unused
-      void teamColorFor(ent, state);
-      const s = (helpers && typeof helpers.worldToScreen === "function")
-        ? helpers.worldToScreen(p.x, p.y)
-        : p;
-      return drawBarracksSync(ctx, ent, s.x, s.y);
-    }catch(e){
-      console.error(TAG, "drawBuilding error", e);
+  PO.buildings.drawBuilding = function (ent, ctx, cam, helpers, state) {
+    try {
+      if (!ent) return false;
+      const k = String(ent.kind || '').toLowerCase();
+      if (k !== 'barrack' && k !== 'barracks') return false; // only intercept barracks
+      return drawBarrack(ent, ctx, cam, helpers, state);
+    } catch (e) {
+      logOnce('draw_err', `[${KEY}:${VER}] draw error (logged once):`, e);
       return false;
     }
   };
 
-  PO.drawBarracks = function(ctx, ent, x, y){
-    return drawBarracksSync(ctx, ent, x, y);
-  };
-
-  logOnce("loaded", TAG, "patch loaded. Expect: game.js calls PO.buildings.drawBuilding(...)");
+  console.log(`[${KEY}:${VER}] patch loaded. (Barracks only)`);
 })();
