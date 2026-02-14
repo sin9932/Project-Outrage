@@ -1,142 +1,205 @@
-/*
-  buildings_v17.js
-  Barracks renderer (TexturePacker JSON multipack).
+// buildings_v18.js - Barrack renderer patch (sync draw + robust load/retry + path fallbacks)
+// Drop-in replacement for your client/js/buildings.js (or whichever file defines PO.buildings.drawBuilding)
 
-  Key fixes vs v16:
-  - No global can/cam/state/TILE_* reads (all passed in).
-  - Correct path: /asset/sprite/const/distruct/... (not /destruct).
-  - Atlas has no frameNames; we build frame lists via listFramesByPrefix.
-  - Draw uses bottom-center pivot so the building sits on the ground.
-*/
 (() => {
-  const PO = (window.PO = window.PO || {});
-  const VER = 'v17';
-  const KEY = 'barrack';
+  'use strict';
 
-  if (!PO.atlasTP) {
-    console.warn(`[${KEY}:${VER}] PO.atlasTP missing. Load atlas_tp.js before buildings.js`);
-    return;
+  const KEY = 'barrack';
+  const VER = 'v18';
+
+  // --- PATHS (only these should exist) ---
+  // Your repo: client/asset/sprite/const/
+  //   normal/barrack/barrack_idle.json
+  //   const_anim/barrack/barrack_const.json
+  //   distruct/barrack/barrack_distruct.json
+  // NOTE: Cloudflare Pages returns index.html (HTML) for missing files (status 200). We detect that.
+  const ROOT = '/asset/sprite/const';
+  const URLS = {
+    normal: [`${ROOT}/normal/barrack/barrack_idle.json`],
+    construct: [`${ROOT}/const_anim/barrack/barrack_const.json`],
+    // try new correct path first, then the old misspelled folder (destruct) just in case old builds are cached
+    distruct: [`${ROOT}/distruct/barrack/barrack_distruct.json`, `${ROOT}/destruct/barrack/barrack_distruct.json`],
+  };
+
+  // --- state ---
+  const S = {
+    atlases: { normal: null, construct: null, distruct: null },
+    frames: { normal: [], construct: [], distruct: [] },
+    loading: { normal: false, construct: false, distruct: false },
+    ready: { normal: false, construct: false, distruct: false },
+    tries: { normal: 0, construct: 0, distruct: 0 },
+    maxTries: 25,
+    nextRetryMs: 200,
+    started: false,
+    logged: new Set(),
+  };
+
+  const PO = (window.PO = window.PO || {});
+  PO.buildings = PO.buildings || {};
+
+  function logOnce(id, ...args) {
+    if (S.logged.has(id)) return;
+    S.logged.add(id);
+    console.log(...args);
   }
 
-  // ---- tiny helpers ----
-  const _once = new Set();
-  function logOnce(tag, ...args) {
-    const k = `${tag}`;
-    if (_once.has(k)) return;
-    _once.add(k);
-    console.log(...args);
+  function warnOnce(id, ...args) {
+    if (S.logged.has(id)) return;
+    S.logged.add(id);
+    console.warn(...args);
+  }
+
+  function errOnce(id, ...args) {
+    if (S.logged.has(id)) return;
+    S.logged.add(id);
+    console.error(...args);
+  }
+
+  function hasAtlasTP() {
+    return !!(PO && PO.atlasTP && typeof PO.atlasTP.loadTPAtlasMulti === 'function' && typeof PO.atlasTP.drawFrame === 'function');
   }
 
   function nowSec(state) {
     if (state && typeof state.t === 'number') return state.t;
+    if (state && typeof state.time === 'number') return state.time;
+    if (state && typeof state.now === 'number') return state.now;
     return performance.now() / 1000;
   }
 
-  // ---- atlas cache ----
-  const A = {
-    promise: null,
-    ready: false,
-    failed: false,
-    atlases: { normal: null, construct: null, distruct: null },
-    frames: { normal: [], construct: [], distruct: [] },
-  };
-
-  function _allFrameNames(atlas) {
+  // Try to detect HTML fallback quickly without touching atlas_tp internals.
+  async function looksLikeHTML(url) {
     try {
-      if (!atlas || !atlas.frames) return [];
-      return Array.from(atlas.frames.keys());
-    } catch (_) {
-      return [];
+      const res = await fetch(url, { cache: 'no-store' });
+      const ct = (res.headers.get('content-type') || '').toLowerCase();
+      if (ct.includes('text/html')) return true;
+      // If content-type lies, peek the first bytes.
+      const txt = await res.text();
+      const head = txt.slice(0, 80).trimStart().toLowerCase();
+      return head.startsWith('<!doctype') || head.startsWith('<html') || head.includes('<head');
+    } catch {
+      return false;
     }
   }
 
-  function _prepAtlas(kind, atlas) {
-    if (!atlas) return;
+  async function loadFirstWorking(kind) {
+    const candidates = URLS[kind];
+    const errors = [];
 
-    let prefix = '';
-    if (kind === 'normal') prefix = 'barrack_idle';
-    if (kind === 'construct') prefix = 'barrack_con';
-    if (kind === 'distruct') prefix = 'barrack_distruction';
-
-    let list = PO.atlasTP.listFramesByPrefix(atlas, prefix, { sortNumeric: true });
-    if (!list || !list.length) list = _allFrameNames(atlas);
-
-    A.frames[kind] = list;
-
-    // bottom-center pivot for all frames of this atlas
-    try {
-      PO.atlasTP.applyPivotToFrames(atlas, list, { x: 0.5, y: 1.0 });
-    } catch (_) {
-      // not fatal
+    for (const url of candidates) {
+      // If it is HTML fallback, skip immediately and record.
+      if (await looksLikeHTML(url)) {
+        errors.push({ url, reason: 'got HTML (index.html fallback)' });
+        continue;
+      }
+      try {
+        const atlas = await PO.atlasTP.loadTPAtlasMulti(url);
+        return { atlas, url, errors };
+      } catch (e) {
+        errors.push({ url, reason: (e && e.message) ? e.message : String(e) });
+      }
     }
+
+    return { atlas: null, url: null, errors };
   }
 
-  function ensureLoaded() {
-    if (A.promise) return A.promise;
+  function scheduleRetry() {
+    if (S._retryTimer) return;
+    S._retryTimer = setTimeout(() => {
+      S._retryTimer = null;
+      kickLoad();
+    }, S.nextRetryMs);
+    S.nextRetryMs = Math.min(2000, Math.floor(S.nextRetryMs * 1.35));
+  }
 
-    const urls = {
-      normal: '/asset/sprite/const/normal/barrack/barrack_idle.json',
-      construct: '/asset/sprite/const/const_anim/barrack/barrack_const.json',
-      distruct: '/asset/sprite/const/distruct/barrack/barrack_distruct.json',
-    };
+  async function ensureKind(kind) {
+    if (S.ready[kind]) return true;
+    if (S.loading[kind]) return false;
 
-    console.log(`[${KEY}:${VER}] loading atlases...`);
-    console.log(`[${KEY}:${VER}] normal   ${urls.normal}`);
-    console.log(`[${KEY}:${VER}] construct ${urls.construct}`);
-    console.log(`[${KEY}:${VER}] distruct  ${urls.distruct}`);
+    if (!hasAtlasTP()) {
+      // atlas_tp not ready yet: do NOT mark as failed. just retry later.
+      scheduleRetry();
+      return false;
+    }
 
-    A.promise = Promise.allSettled([
-      PO.atlasTP.loadTPAtlasMulti(urls.normal),
-      PO.atlasTP.loadTPAtlasMulti(urls.construct),
-      PO.atlasTP.loadTPAtlasMulti(urls.distruct),
-    ]).then((res) => {
-      const [rN, rC, rD] = res;
-      A.atlases.normal = rN.status === 'fulfilled' ? rN.value : null;
-      A.atlases.construct = rC.status === 'fulfilled' ? rC.value : null;
-      A.atlases.distruct = rD.status === 'fulfilled' ? rD.value : null;
+    if (S.tries[kind] >= S.maxTries) {
+      warnOnce(`${kind}_giveup`, `[${KEY}:${VER}] giving up loading '${kind}' after ${S.tries[kind]} tries.`);
+      return false;
+    }
 
-      _prepAtlas('normal', A.atlases.normal);
-      _prepAtlas('construct', A.atlases.construct);
-      _prepAtlas('distruct', A.atlases.distruct);
+    S.loading[kind] = true;
+    S.tries[kind]++;
 
-      // Only normal is required to show something.
-      A.ready = !!A.atlases.normal && A.frames.normal.length > 0;
-      A.failed = !A.ready;
-
-      if (A.ready) {
-        console.log(
-          `[${KEY}:${VER}] READY. frames: normal=${A.frames.normal.length}, construct=${A.frames.construct.length}, distruct=${A.frames.distruct.length}`
-        );
-      } else {
-        console.warn(`[${KEY}:${VER}] FAILED to load normal atlas. (If the JSON URL shows the game screen, you are getting index.html instead of JSON)`);
+    try {
+      const { atlas, url, errors } = await loadFirstWorking(kind);
+      if (!atlas) {
+        // Print useful diagnostics once per kind.
+        if (errors && errors.length) {
+          errOnce(
+            `${kind}_errors`,
+            `[${KEY}:${VER}] '${kind}' atlas load failed. Tried:`,
+            errors
+          );
+        } else {
+          errOnce(`${kind}_errors`, `[${KEY}:${VER}] '${kind}' atlas load failed (no details).`);
+        }
+        scheduleRetry();
+        return false;
       }
 
-      return A;
-    });
+      S.atlases[kind] = atlas;
+      S.frames[kind] = PO.atlasTP.listFramesByPrefix(atlas, kind === 'construct' ? 'barrack_con_complete_' : (kind === 'distruct' ? 'barrack_distruction_' : 'barrack_idle'));
 
-    return A.promise;
+      // normal atlas sometimes includes a single "barrack_dist.png" frame that is the best static idle.
+      if (kind === 'normal') {
+        const dist = 'barrack_dist.png';
+        if (atlas.frames && atlas.frames[dist] && !S.frames.normal.includes(dist)) {
+          S.frames.normal.unshift(dist);
+        }
+      }
+
+      // Apply bottom-center pivot to all barrack frames
+      try {
+        PO.atlasTP.applyPivotByPrefix(atlas, 'barrack_', 0.5, 1.0);
+      } catch {}
+
+      S.ready[kind] = true;
+      logOnce(`${kind}_ok`, `[${KEY}:${VER}] loaded '${kind}' atlas from ${url}`);
+      return true;
+    } finally {
+      S.loading[kind] = false;
+    }
   }
 
-  // ---- animation selection ----
-  function _kindFor(ent) {
-    // death takes priority
-    if (ent && (ent.hp <= 0 || ent.alive === false || ent.dead === true)) return 'distruct';
-    // construction flag (optional)
-    if (ent && (ent._constructing || ent.constructing || (typeof ent.buildProgress === 'number' && ent.buildProgress < 1))) return 'construct';
+  function kickLoad() {
+    if (!S.started) {
+      S.started = true;
+      console.log(`[${KEY}:${VER}] patch loaded. (Barrack only) trying to load atlases...`);
+    }
+
+    // fire and forget; retries are scheduled internally
+    ensureKind('normal');
+    ensureKind('construct');
+    ensureKind('distruct');
+  }
+
+  // --- animation selection ---
+  function kindFor(ent) {
+    if (!ent) return 'normal';
+    if (ent.hp <= 0 || ent.alive === false || ent.dead === true) return 'distruct';
+    if (ent._constructing || ent.constructing || (typeof ent.buildProgress === 'number' && ent.buildProgress < 1)) return 'construct';
     return 'normal';
   }
 
-  function _pickFrame(kind, ent, state) {
-    const list = A.frames[kind] || [];
+  function pickFrame(kind, ent, state) {
+    const list = S.frames[kind] || [];
     if (!list.length) return null;
 
     const t = nowSec(state);
 
-    // play-once for distruct
     if (kind === 'distruct') {
       const fps = 14;
-      if (ent._barrackDeadAt == null) ent._barrackDeadAt = t;
-      const dt = Math.max(0, t - ent._barrackDeadAt);
+      if (ent && ent._barrackDeadAt == null) ent._barrackDeadAt = t;
+      const dt = Math.max(0, t - (ent ? ent._barrackDeadAt : t));
       const idx = Math.min(list.length - 1, Math.floor(dt * fps));
       return list[idx];
     }
@@ -146,24 +209,78 @@
     return list[idx];
   }
 
+  function getCtxFromArgs(args) {
+    for (const a of args) {
+      if (a && typeof a.drawImage === 'function') return a;
+    }
+    return null;
+  }
+
+  function getEntFromArgs(args) {
+    for (const a of args) {
+      if (!a || typeof a !== 'object') continue;
+      if (typeof a.drawImage === 'function') continue; // ctx
+      const k = (a.kind || a.type || a.name);
+      if (k) return a;
+    }
+    return null;
+  }
+
+  function getCamFromArgs(args) {
+    for (const a of args) {
+      if (!a || typeof a !== 'object') continue;
+      if (typeof a.zoom === 'number' && (a.x != null || a.y != null || a.scrollX != null)) return a;
+    }
+    return PO.camera || null;
+  }
+
+  function getHelpersFromArgs(args) {
+    for (const a of args) {
+      if (!a || typeof a !== 'object') continue;
+      if (typeof a.worldToScreen === 'function') return a;
+    }
+    if (PO.world && typeof PO.world.worldToScreen === 'function') {
+      return { worldToScreen: PO.world.worldToScreen.bind(PO.world) };
+    }
+    if (PO.iso && typeof PO.iso.worldToScreen === 'function') {
+      return { worldToScreen: PO.iso.worldToScreen.bind(PO.iso) };
+    }
+    return null;
+  }
+
+  function getStateFromArgs(args) {
+    for (const a of args) {
+      if (!a || typeof a !== 'object') continue;
+      if (typeof a.t === 'number' || typeof a.time === 'number' || typeof a.now === 'number') return a;
+    }
+    return null;
+  }
+
   function drawBarrack(ent, ctx, cam, helpers, state) {
-    // fire loading once
-    if (!A.promise) ensureLoaded();
+    // Start loading in the background as soon as we ever try to draw a barrack.
+    if (!S.started) kickLoad();
 
-    const kind = _kindFor(ent);
-    const atlas = A.atlases[kind];
+    const kind = kindFor(ent);
+    const atlas = S.atlases[kind];
+    if (!atlas) return false; // let fallback box draw
 
-    if (!atlas) return false; // let prism fallback draw
-
-    const frameName = _pickFrame(kind, ent, state);
+    const frameName = pickFrame(kind, ent, state);
     if (!frameName) return false;
 
-    const s = helpers.worldToScreen(ent.x, ent.y);
-    const sc = cam && typeof cam.zoom === 'number' ? cam.zoom : 1;
+    const w2s = helpers && typeof helpers.worldToScreen === 'function' ? helpers.worldToScreen : null;
+    if (!w2s) {
+      warnOnce('no_w2s', `[${KEY}:${VER}] no worldToScreen() found. Barrack will fallback to box.`);
+      return false;
+    }
 
-    // bottom-center
-    PO.atlasTP.drawFrame(ctx, atlas, frameName, s.x, s.y, {
-      scale: sc,
+    const pos = w2s(ent.x, ent.y);
+
+    // Zoom
+    const z = cam && typeof cam.zoom === 'number' ? cam.zoom : 1;
+
+    // Draw. Pivot bottom-center (0.5, 1.0) so it sits on the tile.
+    PO.atlasTP.drawFrame(ctx, atlas, frameName, pos.x, pos.y, {
+      scale: z,
       pivotX: 0.5,
       pivotY: 1.0,
       alpha: 1,
@@ -173,20 +290,45 @@
     return true;
   }
 
-  // ---- plugin hook ----
-  PO.buildings = PO.buildings || {};
+  // --- hook into existing drawBuilding without breaking other buildings ---
+  const prevDrawBuilding = PO.buildings.drawBuilding;
 
-  PO.buildings.drawBuilding = function (ent, ctx, cam, helpers, state) {
+  PO.buildings.drawBuilding = function (...args) {
     try {
-      if (!ent) return false;
-      const k = String(ent.kind || '').toLowerCase();
-      if (k !== 'barrack' && k !== 'barracks') return false; // only intercept barracks
-      return drawBarrack(ent, ctx, cam, helpers, state);
+      const ctx = getCtxFromArgs(args);
+      const ent = getEntFromArgs(args);
+      const cam = getCamFromArgs(args);
+      const helpers = getHelpersFromArgs(args);
+      const state = getStateFromArgs(args);
+
+      if (ent) {
+        const k = String(ent.kind || ent.type || '').toLowerCase();
+        if (k === 'barrack' || k === 'barracks') {
+          if (ctx && drawBarrack(ent, ctx, cam, helpers, state)) return true;
+          // If we failed to draw (atlas not ready), fall through to previous drawer (it might draw a placeholder box).
+        }
+      }
+
+      return typeof prevDrawBuilding === 'function' ? prevDrawBuilding.apply(this, args) : false;
     } catch (e) {
-      logOnce('draw_err', `[${KEY}:${VER}] draw error (logged once):`, e);
-      return false;
+      errOnce('drawBuilding_err', `[${KEY}:${VER}] drawBuilding wrapper error (logged once):`, e);
+      return typeof prevDrawBuilding === 'function' ? prevDrawBuilding.apply(this, args) : false;
     }
   };
 
-  console.log(`[${KEY}:${VER}] patch loaded. (Barracks only)`);
+  // Optional: manual reload from console
+  PO.buildings.reloadBarrackAtlases = function () {
+    S.atlases.normal = S.atlases.construct = S.atlases.distruct = null;
+    S.frames.normal = []; S.frames.construct = []; S.frames.distruct = [];
+    S.ready.normal = S.ready.construct = S.ready.distruct = false;
+    S.loading.normal = S.loading.construct = S.loading.distruct = false;
+    S.tries.normal = S.tries.construct = S.tries.distruct = 0;
+    S.nextRetryMs = 200;
+    S.logged.clear();
+    S.started = false;
+    kickLoad();
+  };
+
+  // Kick once (but it will retry if atlas_tp isn't ready yet)
+  kickLoad();
 })();
