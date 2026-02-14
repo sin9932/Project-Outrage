@@ -1,4 +1,4 @@
-/* buildings.js (barracks sprite hook) v9
+/* buildings.js (barracks sprite hook) v16
    - Atlas URL auto-detect: tries multiple likely paths until one returns valid JSON
    - Avoids "Unexpected token '<'" when your deploy rewrites missing JSON to index.html
    - Sync draw entry: PO.buildings.drawBuilding(...) returns boolean
@@ -9,7 +9,7 @@
   PO.buildings = PO.buildings || {};
   PO.atlasTP = PO.atlasTP || {};
 
-  const TAG = "[barrack:v14]";
+  const TAG = "[barrack:v16]";
 
   // Resolve deployment base path (handles /, /client/, /Project-Outrage/, etc.)
   const BASE_PATH = (() => {
@@ -73,6 +73,9 @@
   ];
 
   const DESTR_URLS = [
+    // preferred current path (repo uses "distruct")
+    "/asset/sprite/const/distruct/barrack/barrack_distruct.json",
+    // legacy typo path some older builds used
     "/asset/sprite/const/destruct/barrack/barrack_distruct.json",
   ];
 
@@ -316,7 +319,10 @@
       const p = footprintAnchor(ent, helpers);
       // teamColor reserved for future tint; currently unused
       void teamColorFor(ent, state);
-      return drawBarracksSync(ctx, ent, p.x, p.y);
+      const s = (helpers && typeof helpers.worldToScreen === "function")
+        ? helpers.worldToScreen(p.x, p.y)
+        : p;
+      return drawBarracksSync(ctx, ent, s.x, s.y);
     }catch(e){
       console.error(TAG, "drawBuilding error", e);
       return false;
