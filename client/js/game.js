@@ -327,7 +327,16 @@ function fitMini() {
     NEUTRAL:[170, 170, 170]
   };
 
+  // expose TEAM_ACCENT so other modules (e.g., buildings.js) share the same palette
+  try{
+    if (typeof window !== "undefined" && window.LINK_ENEMY_TO_PLAYER_COLOR) TEAM_ACCENT.ENEMY = TEAM_ACCENT.PLAYER;
+    window.TEAM_ACCENT = TEAM_ACCENT;
+  }catch(_e){}
+
+
   function _teamAccentRGB(team){
+    // Dev/test: mirror factions (enemy uses player's accent)
+    if (typeof window !== "undefined" && window.LINK_ENEMY_TO_PLAYER_COLOR && team === TEAM.ENEMY) return TEAM_ACCENT.PLAYER;
     if (team === TEAM.ENEMY) return TEAM_ACCENT.ENEMY;
     if (team === TEAM.NEUTRAL) return TEAM_ACCENT.NEUTRAL;
     return TEAM_ACCENT.PLAYER;
@@ -880,6 +889,9 @@ function getBaseBuildTime(kind){
       offsetNudge:{ x: 94, y: -26 }
     }
   };
+
+  // expose to module-backed building sprites
+  try{ window.PO = window.PO || {}; window.PO.SPRITE_TUNE = SPRITE_TUNE; }catch(_e){}
 
   // === In-game Sprite Tuner (mouse-adjust pivot/offset/scale) ===
   // Toggle with F2. While enabled and HQ is selected:
@@ -2381,9 +2393,7 @@ function buildingWorldFromTileOrigin(tx,ty,tw,th){
       oregenT:0
     };
     buildings.push(b);
-    
-    try{ if (window.PO && PO.buildings && PO.buildings.onPlaced) PO.buildings.onPlaced(b); }catch(_e){}
-// Auto-assign PRIMARY producer if none.
+    // Auto-assign PRIMARY producer if none.
     if (team===TEAM.PLAYER){
       if (kind==="barracks" && !state.primary.player.barracks) state.primary.player.barracks = b.id;
       if (kind==="factory"  && !state.primary.player.factory)  state.primary.player.factory  = b.id;
@@ -2391,6 +2401,7 @@ function buildingWorldFromTileOrigin(tx,ty,tw,th){
     setBuildingOcc(b, 1);
     recomputePower();
     onBuildingPlaced(b);
+    try{ if (window.PO && PO.buildings && PO.buildings.onPlaced) PO.buildings.onPlaced(b); }catch(_e){}
     return b;
   }
 
@@ -6727,8 +6738,7 @@ function sellBuilding(b){
     spawnEvacUnitsFromBuilding(b, false);
 
     try{ if (window.PO && PO.buildings && PO.buildings.onSold) PO.buildings.onSold(b); }catch(_e){}
-
-    b.alive = false;
+    b.alive=false;
     state.selection.delete(b.id);
     setBuildingOcc(b,0);
     recomputePower();
@@ -9053,6 +9063,31 @@ const keys=new Set();
       return;
     }
 
+    // === Sprite tuner: cycle target kind (F3) ===
+    if (TUNER.on && (e.key === "F3" || e.code === "F3")){
+      try{
+        let kinds = [];
+        // 1) sprite-backed kinds (HQ etc)
+        kinds = kinds.concat(Object.keys(BUILD_SPRITE||{}));
+        // 2) module-backed kinds (barracks etc)
+        if (window.PO && PO.buildings && typeof PO.buildings.tunerKinds === "function"){
+          kinds = kinds.concat(PO.buildings.tunerKinds());
+        }
+        // uniq + stable
+        const seen = new Set();
+        kinds = kinds.filter(k=>{ if (!k) return false; if (seen.has(k)) return false; seen.add(k); return true; });
+        if (!kinds.length) kinds = ["hq"];
+        const cur = kinds.indexOf(TUNER.targetKind);
+        const next = kinds[(cur>=0 ? cur+1 : 0) % kinds.length];
+        TUNER.targetKind = next;
+        _updateTuneOverlay();
+        toast("TUNER TARGET: " + next);
+      }catch(_e){}
+      e.preventDefault();
+      return;
+    }
+
+
     if (TUNER.on){
       const k = (e.key||"").toLowerCase();
       if (k === "escape"){
@@ -11375,17 +11410,33 @@ let rX = ent.x, rY = ent.y;
         if (ent.team===TEAM.PLAYER){ fill="rgba(10,40,70,0.9)"; stroke=state.colors.player; }
         if (ent.team===TEAM.ENEMY){  fill="rgba(70,10,10,0.9)"; stroke=state.colors.enemy; }
 
-        // Barracks: TexturePacker atlas animation (PO.buildings module)
-        if (ent.kind==="barracks" && window.PO && PO.buildings && PO.buildings.drawBuilding){
-          drawFootprintDiamond(ent, "rgba(0,0,0,0.22)", "rgba(0,0,0,0)");
-          const ok = PO.buildings.drawBuilding(ctx, cam, { worldToScreen, ISO_X, ISO_Y }, ent);
-          if (!ok) drawFootprintPrism(ent, fill, stroke);
-        } else if (BUILD_SPRITE[ent.kind]){
-          // subtle ground shadow for sprite buildings
+        // Sprite-backed buildings (e.g., HQ / Construction Yard)
+
+
+        if (BUILD_SPRITE[ent.kind]){
+          // subtle ground shadow so it sits on the tiles
           drawFootprintDiamond(ent, "rgba(0,0,0,0.22)", "rgba(0,0,0,0)");
           drawBuildingSprite(ent);
+
+
+        } else if (window.PO && PO.buildings && PO.buildings.drawBuilding) {
+
+
+          const helpers = { worldToScreen, ISO_X, ISO_Y, drawFootprintDiamond };
+
+
+          const drew = PO.buildings.drawBuilding(ent, ctx, cam, helpers, state);
+
+
+          if (!drew) drawFootprintPrism(ent, fill, stroke);
+
+
         } else {
+
+
           drawFootprintPrism(ent, fill, stroke);
+
+
         }
         // Low power: powered defenses go offline visually (blink + ⚡) by overlaying the BUILDING itself.
         if (ent.kind==="turret" && POWER.turretUse>0 && isUnderPower(ent.team)){
@@ -11753,13 +11804,16 @@ ctx.fill();
     }
 
 
-    try{ if (window.PO && PO.buildings && PO.buildings.drawGhosts) PO.buildings.drawGhosts(ctx, cam, { worldToScreen, ISO_X, ISO_Y }); }catch(_e){}
-
-
+    // Barracks destruction/sell animation ghosts (render below explosions/smoke)
+    try{ if (window.PO && PO.buildings && PO.buildings.drawGhosts){
+      const helpers = { worldToScreen, ISO_X, ISO_Y, drawFootprintDiamond };
+      PO.buildings.drawGhosts(ctx, cam, helpers, state);
+    }}catch(_e){}
 
     // Building destruction explosions
     drawExplosions(ctx);
-// Smoke ring (ground layer) should render *below* sprite FX like exp1
+
+    // Smoke ring (ground layer) should render *below* sprite FX like exp1
     drawSmokeWaves(ctx);
 
     // HQ sprite explosion (exp1) above the ground smoke ring
@@ -12853,8 +12907,7 @@ function sanityCheck(){
       tickTurrets(dt);
       tickBullets(dt);
 
-      try{ if (window.PO && PO.buildings && PO.buildings.tick) PO.buildings.tick(dt); }catch(_e){}
-for (let i=units.length-1;i>=0;i--) if (!units[i].alive) units.splice(i,1);
+      for (let i=units.length-1;i>=0;i--) if (!units[i].alive) units.splice(i,1);
       for (let i=buildings.length-1;i>=0;i--) if (!buildings[i].alive) buildings.splice(i,1);
 
       if (DEV_VALIDATE){
