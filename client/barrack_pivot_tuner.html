@@ -1,530 +1,500 @@
-<!DOCTYPE html>
-
+<!doctype html>
 <html lang="ko">
 <head>
-<meta charset="utf-8"/>
-<meta content="width=device-width, initial-scale=1" name="viewport"/>
-<title>Pivot Tuner (Multi-Texture)</title>
-<style>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Barrack Pivot Tuner (multipack)</title>
+  <style>
     :root{color-scheme:dark;}
-    body{margin:0;font-family:system-ui,Segoe UI,Apple SD Gothic Neo,Malgun Gothic,sans-serif;background:#0b0f16;color:#e6edf6;}
-    .wrap{display:grid;grid-template-columns:360px 1fr;height:100vh;}
-    .panel{padding:14px 12px;border-right:1px solid rgba(255,255,255,.08);overflow:auto;background:linear-gradient(180deg,rgba(255,255,255,.03),rgba(255,255,255,0));}
-    h1{font-size:18px;margin:0 0 10px 0;}
+    body{margin:0;display:flex;height:100vh;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;}
+    #left{width:360px;min-width:320px;max-width:420px;overflow:auto;padding:14px 14px 18px;background:#0c111a;border-right:1px solid #1f2a3a;}
+    #right{flex:1;position:relative;background:radial-gradient(ellipse at center,#101a2a 0%,#070b12 70%);}
+    h1{font-size:18px;margin:0 0 10px;}
+    .hint{opacity:.8;font-size:12px;line-height:1.35;margin:0 0 14px;}
     label{display:block;font-size:12px;opacity:.85;margin:10px 0 6px;}
-    input[type=text], input[type=number]{width:100%;box-sizing:border-box;padding:10px;border-radius:10px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.04);color:#e6edf6;outline:none;}
-    .row{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
-    .btns{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;}
-    button{padding:10px 12px;border-radius:12px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);color:#e6edf6;cursor:pointer;}
-    button:hover{background:rgba(255,255,255,.10);}
-    .hint{font-size:12px;opacity:.75;line-height:1.4;margin-top:8px;}
-    .err{font-size:12px;color:#ff6b6b;white-space:pre-wrap;margin-top:10px;}
-    .ok{font-size:12px;color:#7ee787;white-space:pre-wrap;margin-top:10px;}
-    textarea{width:100%;min-height:140px;box-sizing:border-box;padding:10px;border-radius:10px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.04);color:#e6edf6;outline:none;resize:vertical;}
-    canvas{width:100%;height:100%;display:block;}
-    .stage{position:relative;}
-    .badge{position:absolute;left:14px;top:12px;padding:6px 10px;border-radius:999px;font-size:12px;background:rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.1);backdrop-filter:blur(6px);}
-    .badge span{opacity:.85}
+    input,button,textarea{width:100%;box-sizing:border-box;border:1px solid #25334a;background:#0b1220;color:#e6eefc;border-radius:10px;padding:10px 10px;font-size:14px;}
+    input{height:38px;}
+    textarea{min-height:130px;resize:vertical;font-family:ui-monospace,Consolas,monospace;font-size:12px;line-height:1.3;}
+    .row{display:flex;gap:8px;}
+    .row > *{flex:1;}
+    button{cursor:pointer;background:#0f1b33;border-color:#2b3d5d;}
+    button:hover{background:#132243;}
+    .small{font-size:12px;padding:9px 10px;}
+    .pill{display:inline-block;padding:4px 8px;border:1px solid #2b3d5d;border-radius:999px;font-size:12px;opacity:.9}
+    #status{margin-top:10px;font-size:12px;white-space:pre-wrap;opacity:.9}
+    canvas{position:absolute;inset:0;margin:auto;display:block;}
+    #topBadge{position:absolute;left:12px;top:10px;display:flex;gap:8px;align-items:center;font-size:12px;opacity:.95}
+    #topBadge code{background:#0b1220;border:1px solid #2b3d5d;border-radius:8px;padding:4px 8px;}
   </style>
 </head>
 <body>
-<div class="wrap">
-<div class="panel">
-<h1>Pivot Tuner 🔧</h1>
-<div class="hint">
-      TexturePacker <b>multipack(textures 배열)</b> 지원.<br/>
-      프레임은 <b>끝자리 숫자</b> 기준으로 정렬해서 재생해.<br/>
-      캔버스에서 <b>클릭</b>하면 현재 프레임의 Pivot(anchor)을 찍고, <b>Shift+클릭</b>하면 전체 프레임에 적용.
-    </div>
-<label>Atlas JSON URL (서버 경로)</label>
-<input id="atlasUrl" type="text" value="/asset/sprite/const/distruct/barrack/barrack_distruct.json"/>
-<label>Base path (비우면 JSON 경로에서 자동 추출)</label>
-<input id="basePath" placeholder="예: /asset/sprite/const/distruct/barrack/" type="text"/>
-<label>Frame prefix (예: barrack_distruction_)</label>
-<input id="prefix" type="text" value="barrack_distruction_"/>
-<div class="btns">
-<button id="btnLoad">Load</button>
-<button id="btnPlay">Play</button>
-<button id="btnPrev">◀</button>
-<button id="btnNext">▶</button>
-</div>
-<div class="row">
-<div>
-<label>FPS</label>
-<input id="fps" max="60" min="1" type="number" value="10"/>
-</div>
-<div>
-<label>Zoom</label>
-<input id="zoom" max="6" min="0.1" step="0.05" type="number" value="1"/>
-</div>
-</div>
-<div class="row">
-<div>
-<label>Pivot X (normalized)</label>
-<input id="pivotX" max="1" min="0" step="0.001" type="number" value="0.5"/>
-</div>
-<div>
-<label>Pivot Y (normalized)</label>
-<input id="pivotY" max="1" min="0" step="0.001" type="number" value="0.52"/>
-</div>
-</div>
-<div class="btns">
-<button id="btnApplyCur">Apply to current</button>
-<button id="btnApplyAll">Apply to all</button>
-<button id="btnCopy">Copy output</button>
-<button id="btnSavePrefix">Save prefix pivot</button><button id="btnCopyOverrides">Copy overrides JSON</button><button id="btnSaveLS">Save to localStorage</button><button id="btnLoadLS">Load from localStorage</button></div>
-<label>Footprint overlay (3x2)</label>
-<div class="row">
-<div><label style="margin-top:0">TileW</label><input id="tileW" type="number" value="128"/></div>
-<div><label style="margin-top:0">TileH</label><input id="tileH" type="number" value="64"/></div>
-</div>
-<div class="row">
-<div><label>TilesX</label><input id="tilesX" type="number" value="3"/></div>
-<div><label>TilesY</label><input id="tilesY" type="number" value="2"/></div>
-</div>
-<label>Copy/paste output (frameName -&gt; pivot)</label>
-<textarea id="out" spellcheck="false"></textarea>
-<div class="err" id="status"></div>
-</div>
-<div class="stage">
-<div class="badge"><span id="badgeText">Not loaded</span></div>
-<canvas id="cv"></canvas>
-</div>
-</div>
-<script>
-/** Minimal TexturePacker JSON helper (multipack supported)
- * Expects TP "Unity" style JSON:
- * { textures:[{image,size,frames:[{filename,frame,spriteSourceSize,sourceSize,rotated,trimmed,anchor?}]}] }
- */
-const TP = (() => {
-  const reTailNum = /(\d+)(?=\.[a-z0-9]+$)/i;
-  function numericSuffix(name){
-    const m = name.match(reTailNum);
-    return m ? parseInt(m[1],10) : null;
-  }
-  function normalizeBasePath(atlasUrl, basePathInput){
-    if (basePathInput && basePathInput.trim()) return basePathInput.trim().replace(/\\/g,'/');
-    const u = atlasUrl.trim().replace(/\\/g,'/');
-    const idx = u.lastIndexOf('/');
-    return idx>=0 ? u.slice(0, idx+1) : '';
-  }
-  function flattenFrames(atlas){
-    const out = [];
-    const textures = atlas.textures || [];
-    textures.forEach((tex, texIdx) => {
-      (tex.frames||[]).forEach(fr => {
-        out.push({ name: fr.filename, texIdx, fr });
-      });
-    });
-    return out;
-  }
-  function listFramesByPrefix(atlas, prefix){
-    const all = flattenFrames(atlas);
-    const wanted = all.filter(x => x.name.startsWith(prefix));
-    wanted.sort((a,b)=>{
-      const na = numericSuffix(a.name); const nb = numericSuffix(b.name);
-      if (na==null && nb==null) return a.name.localeCompare(b.name);
-      if (na==null) return 1;
-      if (nb==null) return -1;
-      return na-nb;
-    });
-    return wanted;
-  }
-  return { normalizeBasePath, listFramesByPrefix };
-})();
+  <aside id="left">
+    <h1>Pivot Tuner 🛠️ (TexturePacker multipack 지원)</h1>
+    <p class="hint">
+      - Atlas JSON 안의 <span class="pill">textures[]</span> 를 전부 로드해서 프레임을 합쳐 재생함.<br/>
+      - 프레임 정렬은 <b>파일명 끝자리 숫자</b> 기준 (예: barrack_distruction_12.png).<br/>
+      - <b>Apply</b>는 메모리상의 atlasData를 수정하고, <b>Download JSON</b>으로 수정본을 내려받아 너가 프로젝트에 덮어쓰면 됨.
+    </p>
 
+    <label>Atlas JSON URL (서버 경로 또는 로컬 경로)</label>
+    <input id="atlasUrl" value="/asset/sprite/const/distruct/barrack/barrack_distruct.json"/>
+
+    <label>Frame prefix (예: barrack_distruction_ / barrack_con_complete_ / barrack_idle)</label>
+    <input id="prefix" value="barrack_distruction_"/>
+
+    <div class="row">
+      <div>
+        <label>FPS</label>
+        <input id="fps" type="number" value="12" min="1" max="120"/>
+      </div>
+      <div>
+        <label>Zoom</label>
+        <input id="zoom" type="number" value="0.35" step="0.05" min="0.05" max="6"/>
+      </div>
+    </div>
+
+    <div class="row">
+      <div>
+        <label>Pivot X (0~1)</label>
+        <input id="pivotX" type="number" value="0.5" step="0.01" min="0" max="1"/>
+      </div>
+      <div>
+        <label>Pivot Y (0~1)</label>
+        <input id="pivotY" type="number" value="0.52" step="0.01" min="0" max="1"/>
+      </div>
+    </div>
+
+    <div class="row">
+      <button id="btnLoad" class="small">Load</button>
+      <button id="btnPlay" class="small">Play</button>
+      <button id="btnPrev" class="small">◀</button>
+      <button id="btnNext" class="small">▶</button>
+    </div>
+
+    <div class="row" style="margin-top:8px">
+      <button id="btnApplyCur" class="small">Apply to current</button>
+      <button id="btnApplyAll" class="small">Apply to all</button>
+    </div>
+
+    <div class="row" style="margin-top:8px">
+      <button id="btnDownload" class="small">Download patched JSON</button>
+      <button id="btnCopyJS" class="small">Copy JS override</button>
+    </div>
+
+    <label>Footprint overlay (타일 3x2 기본)</label>
+    <div class="row">
+      <div><input id="tileW" type="number" value="128"/></div>
+      <div><input id="tileH" type="number" value="64"/></div>
+    </div>
+    <div class="row">
+      <div><input id="tilesX" type="number" value="3"/></div>
+      <div><input id="tilesY" type="number" value="2"/></div>
+    </div>
+
+    <label>Copy/paste output</label>
+    <textarea id="out" spellcheck="false"></textarea>
+
+    <div id="status">Idle</div>
+  </aside>
+
+  <main id="right">
+    <div id="topBadge"><span class="pill" id="frameInfo">No frames</span><code id="texInfo">textures:0</code></div>
+    <canvas id="cv"></canvas>
+  </main>
+
+<script>
+'use strict';
 const $ = (id)=>document.getElementById(id);
 const cv = $('cv');
 const ctx = cv.getContext('2d');
 
-let state = {
-  atlasUrl: '',
-  basePath: '',
-  prefix: '',
-  atlas: null,
-  textures: [], // {imageName, img}
-  frameList: [], // [{name,texIdx,fr}]
-  frameIdx: 0,
-  playing: false,
-  lastT: 0,
-  acc: 0,
-  anchors: new Map(),
-};
+function clamp01(n){ n = Number(n); if(!Number.isFinite(n)) return 0; return Math.max(0, Math.min(1, n)); }
+function numOr(id, fallback){ const n = Number($(id).value); return Number.isFinite(n) ? n : fallback; }
+function dirname(path){ const q = path.split('?')[0]; const i = q.lastIndexOf('/'); return i>=0 ? q.slice(0,i+1) : ''; }
 
-function setStatus(msg, ok=false){
-  const el = $('status');
-  el.className = ok ? 'ok' : 'err';
-  el.textContent = msg || '';
+function extractTrailingNumber(name){
+  // name like "barrack_distruction_12.png" or "barrack_con_complete_3.png"
+  const m = name.match(/(\d+)(?=\.png$)/i);
+  if(!m) return null;
+  return Number(m[1]);
 }
 
-function resize(){
-  const rect = cv.getBoundingClientRect();
-  const dpr = Math.max(1, window.devicePixelRatio || 1);
-  cv.width = Math.floor(rect.width * dpr);
-  cv.height = Math.floor(rect.height * dpr);
+let atlasData = null;
+let basePath = '';
+let textures = []; // {img, name}
+let frames = [];   // merged frames for given prefix: [{name, texIndex, frame, sourceSize, spriteSourceSize, rotated, anchor}]
+let playing = false;
+let cur = 0;
+let lastT = 0;
+
+function setStatus(msg){ $('status').textContent = msg; }
+function setInfo(){
+  $('texInfo').textContent = `textures:${textures.length}`;
+  if(frames.length){
+    const f = frames[cur];
+    $('frameInfo').textContent = `${f.name}  [${cur+1}/${frames.length}]  tex:${f.texIndex}`;
+  } else {
+    $('frameInfo').textContent = `No frames`;
+  }
+}
+
+function resizeCanvas(){
+  const r = $('right').getBoundingClientRect();
+  const dpr = window.devicePixelRatio || 1;
+  cv.width = Math.floor(r.width * dpr);
+  cv.height = Math.floor(r.height * dpr);
+  cv.style.width = r.width + 'px';
+  cv.style.height = r.height + 'px';
   ctx.setTransform(dpr,0,0,dpr,0,0);
-  draw();
 }
-window.addEventListener('resize', resize);
+window.addEventListener('resize', resizeCanvas);
 
-async function fetchJson(url){
-  const res = await fetch(url, {cache:'no-store'});
-  if (!res.ok) throw new Error(`JSON fetch failed: ${res.status} ${res.statusText}\n${url}`);
-  return await res.json();
-}
-
-async function loadImage(url){
-  return await new Promise((resolve,reject)=>{
-    const img = new Image();
-    img.onload=()=>resolve(img);
-    img.onerror=()=>reject(new Error(`Image load failed: ${url}`));
-    img.src=url;
-  });
-}
-
-function currentFrame(){
-  if (!state.frameList.length) return null;
-  return state.frameList[state.frameIdx];
-}
-
-function effectiveAnchor(frameName, fr){
-  if (state.anchors.has(frameName)) return state.anchors.get(frameName);
-  if (fr.anchor && typeof fr.anchor.x==='number' && typeof fr.anchor.y==='number') return {x:fr.anchor.x,y:fr.anchor.y};
-  return {x:0.5,y:0.5};
-}
-
-function setBadge(text){ $('badgeText').textContent = text; }
-function fmt(n){ return (Math.round(n*1000)/1000).toFixed(3); }
-function parseNum(v, d){ const n = Number(v); return Number.isFinite(n)?n:d; }
-
-function outputText(){
-  const lines = state.frameList.map(x=>{
-    const a = effectiveAnchor(x.name, x.fr);
-    return `${x.name}: { x: ${fmt(a.x)}, y: ${fmt(a.y)} }`;
-  });
-  $('out').value = lines.join('\n');
-}
-
-function drawIsoFootprint(cx, cy, tileW, tileH, tilesX, tilesY){
+function drawDiamondGrid(cx, cy, tileW, tileH, tilesX, tilesY){
+  // isometric diamond footprint centered at (cx,cy)
   ctx.save();
-  ctx.globalAlpha = 0.8;
+  ctx.translate(cx, cy);
+  ctx.globalAlpha = 0.75;
+  ctx.strokeStyle = 'rgba(100,170,255,0.8)';
   ctx.lineWidth = 1;
-  ctx.strokeStyle = 'rgba(120,180,255,.45)';
-  ctx.fillStyle = 'rgba(80,140,220,.08)';
 
-  const totalW = (tilesX + tilesY) * (tileW/2);
-  const totalH = (tilesX + tilesY) * (tileH/2);
-  const originX = cx - totalW/2;
-  const originY = cy - totalH/2;
-
-  for (let ty=0; ty<tilesY; ty++){
-    for (let tx=0; tx<tilesX; tx++){
-      const px = originX + (tx - ty) * (tileW/2) + totalW/2;
-      const py = originY + (tx + ty) * (tileH/2) + totalH/4;
+  // footprint extents in iso space
+  for(let y=0;y<tilesY;y++){
+    for(let x=0;x<tilesX;x++){
+      const ox = (x - y) * (tileW/2);
+      const oy = (x + y) * (tileH/2);
       ctx.beginPath();
-      ctx.moveTo(px, py - tileH/2);
-      ctx.lineTo(px + tileW/2, py);
-      ctx.lineTo(px, py + tileH/2);
-      ctx.lineTo(px - tileW/2, py);
+      ctx.moveTo(ox, oy - tileH/2);
+      ctx.lineTo(ox + tileW/2, oy);
+      ctx.lineTo(ox, oy + tileH/2);
+      ctx.lineTo(ox - tileW/2, oy);
       ctx.closePath();
-      ctx.fill();
       ctx.stroke();
     }
   }
   ctx.restore();
 }
 
-function draw(){
-  const frWrap = currentFrame();
-  ctx.clearRect(0,0,cv.width,cv.height);
-  if (!frWrap || !state.atlas) return;
+function buildUntrimmedCanvas(f){
+  const fullW = f.sourceSize?.w ?? f.frame.w;
+  const fullH = f.sourceSize?.h ?? f.frame.h;
+  const off = document.createElement('canvas');
+  off.width = fullW;
+  off.height = fullH;
+  const octx = off.getContext('2d');
 
-  const zoom = parseNum($('zoom').value, 1);
-  const tileW = parseNum($('tileW').value, 128);
-  const tileH = parseNum($('tileH').value, 64);
-  const tilesX = parseNum($('tilesX').value, 3);
-  const tilesY = parseNum($('tilesY').value, 2);
+  const tex = textures[f.texIndex]?.img;
+  if(!tex) return {canvas:off, w:fullW, h:fullH};
 
-  const {name, texIdx, fr} = frWrap;
-  const img = state.textures[texIdx]?.img;
-  if (!img) return;
+  // draw trimmed region into untrimmed
+  const fr = f.frame;
+  const ss = f.spriteSourceSize ?? {x:0,y:0,w:fr.w,h:fr.h};
 
-  const srcW = fr.sourceSize?.w ?? fr.frame.w;
-  const srcH = fr.sourceSize?.h ?? fr.frame.h;
-  const ss = fr.spriteSourceSize || {x:0,y:0,w:fr.frame.w,h:fr.frame.h};
+  if(f.rotated){
+    // TexturePacker rotation: frame.w/h are swapped in atlas; handle by rotating draw
+    // We draw into a temp canvas, then rotate into destination.
+    const temp = document.createElement('canvas');
+    temp.width = fr.w;
+    temp.height = fr.h;
+    const tctx = temp.getContext('2d');
+    // For rotated sprites, many TP exports store width/height swapped; this is a best-effort.
+    tctx.save();
+    // draw the atlas region directly
+    tctx.drawImage(tex, fr.x, fr.y, fr.w, fr.h, 0, 0, fr.w, fr.h);
+    tctx.restore();
 
-  const a = effectiveAnchor(name, fr);
-  const pivotSrcX = a.x * srcW;
-  const pivotSrcY = a.y * srcH;
-  const pivotTrimX = pivotSrcX - ss.x;
-  const pivotTrimY = pivotSrcY - ss.y;
+    octx.save();
+    // rotate -90 degrees into destination at ss.x/y
+    octx.translate(ss.x, ss.y);
+    octx.translate(temp.width/2, temp.height/2);
+    octx.rotate(-Math.PI/2);
+    octx.translate(-temp.height/2, -temp.width/2);
+    octx.drawImage(temp, 0, 0);
+    octx.restore();
+  } else {
+    octx.drawImage(tex, fr.x, fr.y, fr.w, fr.h, ss.x, ss.y, ss.w, ss.h);
+  }
 
-  const rect = cv.getBoundingClientRect();
-  const cx = rect.width/2;
-  const cy = rect.height/2;
-  const drawX = cx - pivotTrimX * zoom;
-  const drawY = cy - pivotTrimY * zoom;
+  return {canvas:off, w:fullW, h:fullH};
+}
 
-  drawIsoFootprint(cx, cy, tileW, tileH, tilesX, tilesY);
+function render(){
+  const r = $('right').getBoundingClientRect();
+  ctx.clearRect(0,0,r.width,r.height);
+
+  const cx = r.width/2;
+  const cy = r.height/2;
+
+  const tileW = numOr('tileW',128);
+  const tileH = numOr('tileH',64);
+  const tilesX = numOr('tilesX',3);
+  const tilesY = numOr('tilesY',2);
+
+  drawDiamondGrid(cx, cy, tileW, tileH, tilesX, tilesY);
+
+  if(!frames.length) return;
+
+  const f = frames[cur];
+  const z = numOr('zoom',1);
+  const px = clamp01($('pivotX').value);
+  const py = clamp01($('pivotY').value);
+
+  // use frame's own anchor if available unless user is actively applying; we show current input pivot values for tuning
+  const {canvas, w, h} = buildUntrimmedCanvas(f);
+
+  const drawW = w * z;
+  const drawH = h * z;
+
+  // pivot point at center of footprint (cx,cy)
+  const dx = cx - (px * drawW);
+  const dy = cy - (py * drawH);
 
   ctx.save();
+  ctx.globalAlpha = 1;
   ctx.imageSmoothingEnabled = true;
-  if (fr.rotated){
-    const fw = fr.frame.w, fh = fr.frame.h;
-    ctx.translate(drawX + fw*zoom/2, drawY + fh*zoom/2);
-    ctx.rotate(-Math.PI/2);
-    ctx.drawImage(img, fr.frame.x, fr.frame.y, fw, fh, (-fh/2)*zoom, (-fw/2)*zoom, fh*zoom, fw*zoom);
-    ctx.setTransform(1,0,0,1,0,0);
-  } else {
-    ctx.drawImage(img, fr.frame.x, fr.frame.y, fr.frame.w, fr.frame.h, drawX, drawY, fr.frame.w*zoom, fr.frame.h*zoom);
-  }
+  ctx.drawImage(canvas, dx, dy, drawW, drawH);
 
   // pivot crosshair
-  ctx.save();
-  ctx.strokeStyle = 'rgba(255,255,255,.85)';
+  const pivotX = cx;
+  const pivotY = cy;
+  ctx.strokeStyle = 'rgba(255,220,120,0.95)';
   ctx.lineWidth = 2;
   ctx.beginPath();
-  ctx.moveTo(cx-10, cy); ctx.lineTo(cx+10, cy);
-  ctx.moveTo(cx, cy-10); ctx.lineTo(cx, cy+10);
+  ctx.moveTo(pivotX-10, pivotY);
+  ctx.lineTo(pivotX+10, pivotY);
+  ctx.moveTo(pivotX, pivotY-10);
+  ctx.lineTo(pivotX, pivotY+10);
   ctx.stroke();
-  ctx.restore();
 
-  // bbox
-  ctx.save();
-  ctx.strokeStyle = 'rgba(255,200,0,.35)';
+  // bounding box
+  ctx.strokeStyle = 'rgba(255,190,80,0.55)';
   ctx.lineWidth = 1;
-  ctx.strokeRect(drawX, drawY, fr.frame.w*zoom, fr.frame.h*zoom);
+  ctx.strokeRect(dx, dy, drawW, drawH);
   ctx.restore();
 
-  ctx.restore();
-
-  setBadge(`${name}  [tex ${texIdx}]  pivot=(${fmt(a.x)},${fmt(a.y)})  frame=${state.frameIdx+1}/${state.frameList.length}`);
+  setInfo();
 }
 
-function stepFrame(dir){
-  if (!state.frameList.length) return;
-  state.frameIdx = (state.frameIdx + dir + state.frameList.length) % state.frameList.length;
-  const frWrap = currentFrame();
-  const a = effectiveAnchor(frWrap.name, frWrap.fr);
-  $('pivotX').value = a.x;
-  $('pivotY').value = a.y;
-  draw();
-}
-
-function tick(t){
-  if (!state.playing){ requestAnimationFrame(tick); return; }
-  if (!state.lastT) state.lastT = t;
-  const dt = (t - state.lastT) / 1000;
-  state.lastT = t;
-
-  const fps = Math.max(1, Math.min(60, parseNum($('fps').value, 10)));
-  const spf = 1 / fps;
-  state.acc += dt;
-  while (state.acc >= spf){
-    state.acc -= spf;
-    stepFrame(1);
+function tick(ts){
+  if(!playing){ render(); return; }
+  const fps = Math.max(1, numOr('fps',12));
+  const step = 1000 / fps;
+  if(!lastT) lastT = ts;
+  const dt = ts - lastT;
+  if(dt >= step){
+    lastT = ts - (dt % step);
+    cur = (cur + 1) % Math.max(1, frames.length);
   }
+  render();
   requestAnimationFrame(tick);
 }
 
-function applyTo(names){
-  const x = Math.max(0, Math.min(1, parseNum($('pivotX').value, 0.5)));
-  const y = Math.max(0, Math.min(1, parseNum($('pivotY').value, 0.5)));
-  names.forEach(n=>state.anchors.set(n,{x,y}));
-  outputText();
-  draw();
+function rebuildFramesByPrefix(){
+  if(!atlasData) { frames=[]; return; }
+  const prefix = $('prefix').value.trim();
+  const list = [];
+  atlasData.textures.forEach((tex, texIndex)=>{
+    (tex.frames||[]).forEach(fr=>{
+      const name = fr.filename;
+      if(!prefix || name.startsWith(prefix)){
+        list.push({
+          name,
+          texIndex,
+          frame: fr.frame,
+          rotated: !!fr.rotated,
+          sourceSize: fr.sourceSize,
+          spriteSourceSize: fr.spriteSourceSize,
+          anchor: fr.anchor ? {x: fr.anchor.x, y: fr.anchor.y} : {x:0.5,y:0.5},
+          _ref: fr
+        });
+      }
+    });
+  });
+
+  // sort by trailing number if exists, else stable by name
+  list.sort((a,b)=>{
+    const na = extractTrailingNumber(a.name);
+    const nb = extractTrailingNumber(b.name);
+    if(na!=null && nb!=null) return na-nb;
+    if(na!=null && nb==null) return -1;
+    if(na==null && nb!=null) return 1;
+    return a.name.localeCompare(b.name);
+  });
+
+  frames = list;
+  cur = 0;
+  lastT = 0;
+  setInfo();
 }
 
-async function load(){
+async function loadAtlas(){
+  setStatus('Loading atlas JSON...');
+  const url = $('atlasUrl').value.trim();
+  if(!url){ setStatus('ERR: atlasUrl empty'); return; }
+
+  basePath = dirname(url);
   try{
-    setStatus('Loading...', true);
-    state.atlasUrl = $('atlasUrl').value.trim();
-    state.prefix = $('prefix').value.trim();
-    if (!state.atlasUrl) throw new Error('Atlas URL 비었음');
-
-    const atlas = await fetchJson(state.atlasUrl);
-    state.atlas = atlas;
-
-    state.basePath = TP.normalizeBasePath(state.atlasUrl, $('basePath').value);
-    $('basePath').value = state.basePath;
-
-    const textures = atlas.textures || [];
-    if (!textures.length) throw new Error('atlas.textures 없음 (TexturePacker JSON 맞는지 확인)');
-
-    state.textures = [];
-    for (let i=0;i<textures.length;i++){
-      const imgName = textures[i].image;
-      const imgUrl = state.basePath + imgName;
-      const img = await loadImage(imgUrl);
-      state.textures.push({imageName: imgName, img});
-    }
-
-    const list = TP.listFramesByPrefix(atlas, state.prefix);
-    if (!list.length) throw new Error(`prefix로 프레임 0개: ${state.prefix}`);
-
-    state.frameList = list;
-    state.frameIdx = 0;
-
-    const first = currentFrame();
-    const a = effectiveAnchor(first.name, first.fr);
-    $('pivotX').value = a.x;
-    $('pivotY').value = a.y;
-
-    state.playing = false;
-    state.lastT = 0;
-    state.acc = 0;
-
-    outputText();
-    setStatus(`Loaded OK\ntextures=${state.textures.length}\nframes=${state.frameList.length}`, true);
-    resize();
+    const res = await fetch(url, {cache:'no-store'});
+    if(!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+    atlasData = await res.json();
   }catch(e){
-    console.error(e);
-    setStatus(String(e), false);
+    setStatus('ERR: atlas json fetch 실패\n' + e.message);
+    atlasData = null;
+    return;
   }
+
+  if(!atlasData.textures || !Array.isArray(atlasData.textures)){
+    setStatus('ERR: textures[] 없는 atlas json임');
+    return;
+  }
+
+  // load images
+  textures = [];
+  const promises = atlasData.textures.map((t, i)=>{
+    return new Promise((resolve,reject)=>{
+      const img = new Image();
+      img.onload = ()=>resolve({img, name:t.image});
+      img.onerror = ()=>reject(new Error('image load fail: ' + t.image));
+      img.src = basePath + t.image;
+    });
+  });
+
+  try{
+    const loaded = await Promise.all(promises);
+    textures = loaded;
+  }catch(e){
+    setStatus('ERR: atlas image 로드 실패\n' + e.message + '\n(basePath=' + basePath + ')');
+    return;
+  }
+
+  rebuildFramesByPrefix();
+
+  $('out').value = '';
+  setStatus(`Loaded OK\nbasePath=${basePath}\ntextures=${textures.length}\nframes=${frames.length}`);
+  render();
 }
 
-$('btnLoad').addEventListener('click', load);
+function applyPivotTo(names){
+  if(!atlasData) return;
+  const x = clamp01($('pivotX').value);
+  const y = clamp01($('pivotY').value);
+
+  const nameSet = new Set(names);
+  atlasData.textures.forEach(tex=>{
+    tex.frames.forEach(fr=>{
+      if(nameSet.has(fr.filename)){
+        fr.anchor = {x, y};
+      }
+    });
+  });
+
+  // also update frames list cached anchor (optional)
+  frames.forEach(f=>{
+    if(nameSet.has(f.name)){
+      f.anchor = {x,y};
+      if(f._ref) f._ref.anchor = {x,y};
+    }
+  });
+
+  setStatus(`Applied pivot (${x.toFixed(3)},${y.toFixed(3)}) to ${names.length} frame(s).`);
+}
+
+function applyCurrent(){
+  if(!frames.length) return;
+  applyPivotTo([frames[cur].name]);
+}
+function applyAll(){
+  if(!frames.length) return;
+  applyPivotTo(frames.map(f=>f.name));
+}
+
+function downloadPatched(){
+  if(!atlasData) { setStatus('ERR: atlas not loaded'); return; }
+  const url = $('atlasUrl').value.trim();
+  const filename = (url.split('?')[0].split('/').pop() || 'atlas_patched.json');
+  const blob = new Blob([JSON.stringify(atlasData, null, 2)], {type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setStatus('Downloaded patched JSON: ' + filename + '\n(이 파일을 프로젝트의 atlas json에 덮어쓰면 "피벗 박기" 완료)');
+}
+
+
+function applyToClientLocalStorage(){
+  const x = clamp01($('pivotX').value);
+  const y = clamp01($('pivotY').value);
+  const prefix = $('prefix').value.trim();
+  if(!prefix){ setStatus('ERR: prefix is empty'); return; }
+  let obj = {};
+  try { obj = JSON.parse(localStorage.getItem('PO_PIVOT_OVERRIDES')||'{}') || {}; } catch(e){ obj = {}; }
+  obj[prefix] = { x, y };
+  localStorage.setItem('PO_PIVOT_OVERRIDES', JSON.stringify(obj));
+  setStatus(`Saved override: ${prefix} -> (${x.toFixed(3)},${y.toFixed(3)}) . Reload your game page.`);
+}
+
+function copyJSOverride(){
+  const x = clamp01($('pivotX').value);
+  const y = clamp01($('pivotY').value);
+  const prefix = $('prefix').value.trim();
+  const s =
+`// paste into your client code (once), then call applyAtlasPivotOverride(atlasJson, PIVOTS)
+const PIVOTS = [
+  { prefix: ${JSON.stringify(prefix)}, x: ${x.toFixed(3)}, y: ${y.toFixed(3)} },
+];
+
+function applyAtlasPivotOverride(atlas, pivots){
+  if(!atlas?.textures) return;
+  for(const tex of atlas.textures){
+    for(const fr of (tex.frames||[])){
+      for(const p of pivots){
+        if(p.prefix && fr.filename.startsWith(p.prefix)){
+          fr.anchor = { x: p.x, y: p.y };
+          break;
+        }
+      }
+    }
+  }
+}`;
+  $('out').value = s;
+  navigator.clipboard?.writeText(s).catch(()=>{});
+  setStatus('Copied JS override snippet to output (and clipboard if allowed).');
+}
+
+$('btnLoad').addEventListener('click', ()=>loadAtlas());
 $('btnPlay').addEventListener('click', ()=>{
-  state.playing = !state.playing;
-  $('btnPlay').textContent = state.playing ? 'Pause' : 'Play';
+  playing = !playing;
+  $('btnPlay').textContent = playing ? 'Pause' : 'Play';
+  if(playing){ lastT = 0; requestAnimationFrame(tick); }
+  else { render(); }
 });
-$('btnPrev').addEventListener('click', ()=>stepFrame(-1));
-$('btnNext').addEventListener('click', ()=>stepFrame(1));
-$('btnApplyCur').addEventListener('click', ()=>{ const fr = currentFrame(); if (fr) applyTo([fr.name]); });
-$('btnApplyAll').addEventListener('click', ()=>applyTo(state.frameList.map(x=>x.name)));
-$('btnCopy').addEventListener('click', async ()=>{
-  try{ await navigator.clipboard.writeText($('out').value); setStatus('Copied ✅', true); }
-  catch{ setStatus('Copy 실패. 텍스트 영역에서 수동 복사해.', false); }
+$('btnPrev').addEventListener('click', ()=>{
+  if(!frames.length) return;
+  cur = (cur - 1 + frames.length) % frames.length;
+  render();
 });
+$('btnNext').addEventListener('click', ()=>{
+  if(!frames.length) return;
+  cur = (cur + 1) % frames.length;
+  render();
+});
+$('btnApplyCur').addEventListener('click', applyCurrent);
+$('btnApplyAll').addEventListener('click', applyAll);
+$('btnDownload').addEventListener('click', downloadPatched);
+$('btnApplyToClient').addEventListener('click', applyToClientLocalStorage);
+$('btnCopyJS').addEventListener('click', copyJSOverride);
 
-['pivotX','pivotY','zoom','tileW','tileH','tilesX','tilesY'].forEach(id=>$(id).addEventListener('input', draw));
-
-cv.addEventListener('click', (ev)=>{
-  const frWrap = currentFrame();
-  if (!frWrap) return;
-  const {name, fr} = frWrap;
-
-  const rect = cv.getBoundingClientRect();
-  const zoom = parseNum($('zoom').value, 1);
-  const srcW = fr.sourceSize?.w ?? fr.frame.w;
-  const srcH = fr.sourceSize?.h ?? fr.frame.h;
-  const ss = fr.spriteSourceSize || {x:0,y:0,w:fr.frame.w,h:fr.frame.h};
-
-  const a = effectiveAnchor(name, fr);
-  const pivotSrcX = a.x * srcW;
-  const pivotSrcY = a.y * srcH;
-  const pivotTrimX = pivotSrcX - ss.x;
-  const pivotTrimY = pivotSrcY - ss.y;
-
-  const cx = rect.width/2;
-  const cy = rect.height/2;
-  const drawX = cx - pivotTrimX * zoom;
-  const drawY = cy - pivotTrimY * zoom;
-
-  const mx = ev.clientX - rect.left;
-  const my = ev.clientY - rect.top;
-  const trimX = (mx - drawX) / zoom;
-  const trimY = (my - drawY) / zoom;
-  const srcX = trimX + ss.x;
-  const srcY = trimY + ss.y;
-
-  const newAx = Math.max(0, Math.min(1, srcX / srcW));
-  const newAy = Math.max(0, Math.min(1, srcY / srcH));
-
-  $('pivotX').value = newAx;
-  $('pivotY').value = newAy;
-
-  if (ev.shiftKey) applyTo(state.frameList.map(x=>x.name));
-  else applyTo([name]);
+$('prefix').addEventListener('change', ()=>{
+  rebuildFramesByPrefix();
+  render();
+});
+['pivotX','pivotY','zoom','tileW','tileH','tilesX','tilesY'].forEach(id=>{
+  $(id).addEventListener('input', ()=>render());
 });
 
-requestAnimationFrame(tick);
-resize();
-
-
-  // ---- Pivot overrides (prefix -> pivot) helpers ----
-  let pivotOverrides = {};
-  function readOverridesFromLS(){
-    try{
-      const raw = localStorage.getItem('PO_PIVOT_OVERRIDES');
-      if (!raw) return {};
-      const obj = JSON.parse(raw);
-      return (obj && typeof obj === 'object') ? obj : {};
-    }catch(e){
-      return {};
-    }
-  }
-  function writeOverridesToLS(obj){
-    try{
-      localStorage.setItem('PO_PIVOT_OVERRIDES', JSON.stringify(obj, null, 2));
-      return true;
-    }catch(e){
-      return false;
-    }
-  }
-  pivotOverrides = readOverridesFromLS();
-
-  const btnSavePrefix = document.getElementById('btnSavePrefix');
-  const btnCopyOverrides = document.getElementById('btnCopyOverrides');
-  const btnSaveLS = document.getElementById('btnSaveLS');
-  const btnLoadLS = document.getElementById('btnLoadLS');
-
-  function currentPrefix(){
-    return (elPrefix.value || '').trim();
-  }
-  function currentPivot(){
-    return { x: Number(elPivotX.value), y: Number(elPivotY.value) };
-  }
-
-  if (btnSavePrefix){
-    btnSavePrefix.addEventListener('click', ()=>{
-      const p = currentPrefix();
-      if (!p){
-        setStatus('ERR: prefix is empty');
-        return;
-      }
-      pivotOverrides[p] = currentPivot();
-      setStatus(`Saved prefix pivot: ${p} => (${pivotOverrides[p].x.toFixed(3)}, ${pivotOverrides[p].y.toFixed(3)})`);
-    });
-  }
-
-  if (btnCopyOverrides){
-    btnCopyOverrides.addEventListener('click', async ()=>{
-      const txt = JSON.stringify(pivotOverrides, null, 2);
-      elOutput.value = txt;
-      try{
-        await navigator.clipboard.writeText(txt);
-        setStatus('Copied overrides JSON');
-      }catch(e){
-        setStatus('Overrides JSON prepared (clipboard blocked)');
-      }
-    });
-  }
-
-  if (btnSaveLS){
-    btnSaveLS.addEventListener('click', ()=>{
-      // also store current prefix value right now
-      const p = currentPrefix();
-      if (p) pivotOverrides[p] = currentPivot();
-      const ok = writeOverridesToLS(pivotOverrides);
-      setStatus(ok ? 'Saved to localStorage: PO_PIVOT_OVERRIDES' : 'ERR: failed to write localStorage');
-    });
-  }
-
-  if (btnLoadLS){
-    btnLoadLS.addEventListener('click', ()=>{
-      pivotOverrides = readOverridesFromLS();
-      const p = currentPrefix();
-      if (p && pivotOverrides[p]){
-        elPivotX.value = pivotOverrides[p].x;
-        elPivotY.value = pivotOverrides[p].y;
-        setStatus(`Loaded pivot for prefix: ${p}`);
-      }else{
-        setStatus('Loaded localStorage (no pivot for current prefix)');
-      }
-      draw();
-    });
-  }
+resizeCanvas();
+render();
 </script>
 </body>
 </html>

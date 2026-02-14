@@ -1,0 +1,21 @@
+0. 피벗 튜너를 그냥 열면 안되고,
+
+1. 로컬 서버 켠 뒤 브라우저에서 열어:
+
+예: http://localhost:8000/barrack_pivot_tuner_v5.html
+
+2. Atlas JSON URL 넣기 (예: 막사 파괴)
+
+/asset/sprite/const/distruct/barrack/barrack_distruct.json
+
+Frame prefix 넣기 (예: barrack_distruction_)
+
+3. Load
+
+4. Pivot X/Y를 네가 고정하려는 값으로 세팅 (지금 말한 0.5 / 0.52)
+
+5. Apply to all
+
+6. Download patched JSON
+
+7. 다운된 JSON 파일을 원래 경로의 JSON에 덮어쓰기하고 커밋하면 끝.

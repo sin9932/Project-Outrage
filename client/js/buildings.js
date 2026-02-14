@@ -27,7 +27,7 @@
   // ---- Small helpers ----
   function _suffixNumber(name) {
     // "..._12.png" -> 12, otherwise NaN
-    const m = /_(\d+)\.png$/i.exec(name);
+    const m = /(\d+)\.png$/i.exec(name);
     return m ? parseInt(m[1], 10) : Number.NaN;
   }
 
@@ -85,29 +85,6 @@
         this.idleAtlas = idleA;
         this.constAtlas = consA;
         this.distructAtlas = distA;
-
-        // Default pivot for all barracks animations (normalized to source size).
-        const DEFAULT_PIVOT = { x: 0.5, y: 0.52 };
-        if (atlasTP.applyPivotByPrefix) {
-          atlasTP.applyPivotByPrefix(idleA, 'barrack_idle', DEFAULT_PIVOT);
-          atlasTP.applyPivotByPrefix(consA, 'barrack_con_complete_', DEFAULT_PIVOT);
-          atlasTP.applyPivotByPrefix(distA, 'barrack_distruction_', DEFAULT_PIVOT);
-        } else {
-          // fallback: push anchor onto every frame we collected later
-          // (older atlasTP versions without applyPivotByPrefix)
-        }
-
-        // Optional: allow quick override via DevTools/localStorage without editing code.
-        // localStorage key: PO_PIVOT_OVERRIDES = { '<prefix>': {x,y}, ... }
-        if (atlasTP.loadPivotOverridesFromLocalStorage && atlasTP.applyPivotOverrides) {
-          const ov = atlasTP.loadPivotOverridesFromLocalStorage('PO_PIVOT_OVERRIDES');
-          if (ov) {
-            atlasTP.applyPivotOverrides(idleA, ov);
-            atlasTP.applyPivotOverrides(consA, ov);
-            atlasTP.applyPivotOverrides(distA, ov);
-          }
-        }
-
 
         this.idleFrames = _collectFrames(idleA, "barrack_idle");               // barrack_idle1.png ...
         this.constFrames = _collectFrames(consA, "barrack_con_complete_");     // barrack_con_complete_1.png ...
