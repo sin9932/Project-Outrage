@@ -9,7 +9,7 @@
   PO.buildings = PO.buildings || {};
   PO.atlasTP = PO.atlasTP || {};
 
-  const TAG = "[barrack:v13]";
+  const TAG = "[barrack:v14]";
 
   // Resolve deployment base path (handles /, /client/, /Project-Outrage/, etc.)
   const BASE_PATH = (() => {
@@ -65,41 +65,15 @@
   // We'll try a short list and stop at the first one that loads valid JSON.
 
   const NORMAL_URLS = [
-    // Your repo screenshots show: asset/sprite/const/normal/barrack/barrack_idle.json
-    "asset/sprite/const/normal/barrack/barrack_idle.json",
     "/asset/sprite/const/normal/barrack/barrack_idle.json",
-    "asset/sprite/const/normal/barracks/barrack_idle.json",
-    "/asset/sprite/const/normal/barracks/barrack_idle.json",
-
-    // In case your deploy root is /client (rare, but happens)
-    "client/asset/sprite/const/normal/barrack/barrack_idle.json",
-    "/client/asset/sprite/const/normal/barrack/barrack_idle.json",
   ];
 
   const CONST_URLS = [
-    // Your repo screenshots show: asset/sprite/const/const_anim/barrack/barrack_const.json
-    "asset/sprite/const/const_anim/barrack/barrack_const.json",
     "/asset/sprite/const/const_anim/barrack/barrack_const.json",
-    "asset/sprite/const/const_anim/barracks/barrack_const.json",
-    "/asset/sprite/const/const_anim/barracks/barrack_const.json",
-
-    "client/asset/sprite/const/const_anim/barrack/barrack_const.json",
-    "/client/asset/sprite/const/const_anim/barrack/barrack_const.json",
   ];
 
   const DESTR_URLS = [
-    // Your repo screenshots show folder name is "distruct" (typo) and file is barrack_distruct.json
-    "asset/sprite/const/distruct/barrack/barrack_distruct.json",
-    "/asset/sprite/const/distruct/barrack/barrack_distruct.json",
-    "asset/sprite/const/distruct/barracks/barrack_distruct.json",
-    "/asset/sprite/const/distruct/barracks/barrack_distruct.json",
-
-    // If you later rename to destruct, keep these too
-    "asset/sprite/const/destruct/barrack/barrack_distruct.json",
     "/asset/sprite/const/destruct/barrack/barrack_distruct.json",
-
-    "client/asset/sprite/const/distruct/barrack/barrack_distruct.json",
-    "/client/asset/sprite/const/distruct/barrack/barrack_distruct.json",
   ];
 
   function baseDirFromUrl(u){

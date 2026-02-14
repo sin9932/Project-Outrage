@@ -1,4 +1,4 @@
-/* atlas_tp.js v4
+/* atlas_tp.js
    Minimal TexturePacker JSON (multi-texture) loader + draw helper.
    - Supports format: { textures:[{image,size,frames:[{filename,frame,rotated,trimmed,spriteSourceSize,sourceSize,anchor}]}] }
 */
@@ -22,149 +22,53 @@
     return baseDir + "/" + file;
   }
 
-  function _parseTPMulti(json, baseDir){
-  // Normalize a variety of atlas JSON formats:
-  // - TexturePacker: { meta:{image}, frames:{name:{frame:{x,y,w,h}, ...}} }
-  // - TexturePacker multipack: { textures:[{image, frames:{...}}, ...] }
-  // - Aseprite array/hash: { meta:{image}, frames:[{filename, frame:{...}, ...}] } or frames:{name:{frame:{...}}}
-  const atlas = {
-    textures: [],
-    frames: new Map(),
-    ready: true,
-    json
-  };
-
-  function normPath(p){
-    if(!p) return null;
-    // keep URLs, otherwise resolve relative to baseDir
-    if(/^(https?:)?\/\//i.test(p)) return p;
-    if(p.startsWith('/')) return p;
-    return baseDir + p;
-  }
-
-  function addTexture(imageName){
-    const url = normPath(imageName);
-    if(!url) return -1;
-    const tex = { url, img: new Image(), ready: false };
-    // Same-origin in your GH Pages setup, but keep safe for dev.
-    try{ tex.img.crossOrigin = 'anonymous'; }catch(_){}
-    tex.img.onload = ()=>{ tex.ready = true; };
-    tex.img.onerror = ()=>{ tex.ready = false; };
-    tex.img.src = url;
-    atlas.textures.push(tex);
-    return atlas.textures.length - 1;
-  }
-
-  function normRect(r){
-    if(!r) return {x:0,y:0,w:0,h:0};
-    // Some tools use {x,y,w,h} already
-    if(typeof r.x==='number') return {x:r.x, y:r.y, w:r.w ?? r.width ?? 0, h:r.h ?? r.height ?? 0};
-    return {x:0,y:0,w:0,h:0};
-  }
-
-  function normSize(s, fallbackW, fallbackH){
-    if(!s) return {w:fallbackW, h:fallbackH};
-    return {w: s.w ?? s.width ?? fallbackW, h: s.h ?? s.height ?? fallbackH};
-  }
-
-  function addFrame(name, fr, texIndex){
-    if(!name) return;
-    const frameRect = normRect(fr.frame || fr.frameRect || fr);
-    const rotated = !!fr.rotated;
-    const trimmed = !!fr.trimmed;
-
-    const sss = fr.spriteSourceSize || fr.sprite_source_size || fr.spriteSource || null;
-    const source = fr.sourceSize || fr.source_size || fr.source || null;
-
-    const spriteSourceSize = sss ? {
-      x: sss.x ?? 0,
-      y: sss.y ?? 0,
-      w: sss.w ?? sss.width ?? frameRect.w,
-      h: sss.h ?? sss.height ?? frameRect.h
-    } : { x:0, y:0, w: frameRect.w, h: frameRect.h };
-
-    const sourceSize = source ? normSize(source, frameRect.w, frameRect.h) : { w: frameRect.w, h: frameRect.h };
-
-    atlas.frames.set(String(name), {
-      tex: texIndex,
-      frame: frameRect,
-      rotated,
-      trimmed,
-      spriteSourceSize,
-      sourceSize
-    });
-  }
-
-  // Multipack (TexturePacker)
-  if(Array.isArray(json && json.textures)){
-    for(const t of json.textures){
-      const imgName = t.image || (t.meta && t.meta.image) || (t.metadata && t.metadata.image);
-      const texIndex = addTexture(imgName);
-      const frames = t.frames || {};
-      if(Array.isArray(frames)){
-        for(const fr of frames){
-          addFrame(fr.filename || fr.name, fr, texIndex);
-        }
-      }else{
-        for(const [k, fr] of Object.entries(frames)){
-          addFrame(k, fr, texIndex);
-        }
+  function _parseTPMulti(json){
+    const atlas = { textures:[], frames:new Map() };
+    const textures = json.textures || [];
+    for (let ti=0; ti<textures.length; ti++){
+      const t = textures[ti];
+      const tex = {
+        image: t.image,
+        size: t.size || { w:0, h:0 },
+        frames: t.frames || [],
+        img: null,
+      };
+      atlas.textures.push(tex);
+      for (const fr of tex.frames){
+        const name = fr.filename;
+        atlas.frames.set(name, {
+          tex: ti,
+          name,
+          frame: fr.frame,
+          rotated: !!fr.rotated,
+          trimmed: !!fr.trimmed,
+          spriteSourceSize: fr.spriteSourceSize || { x:0,y:0,w:fr.frame.w,h:fr.frame.h },
+          sourceSize: fr.sourceSize || { w:fr.frame.w,h:fr.frame.h },
+          anchor: fr.anchor || { x:0.5, y:0.5 },
+        });
       }
     }
     return atlas;
   }
 
-  // Single sheet
-  const imgName = (json && json.meta && json.meta.image) || (json && json.image) || null;
-  const texIndex = addTexture(imgName);
-
-  const frames = (json && json.frames) ? json.frames : null;
-  if(Array.isArray(frames)){
-    for(let i=0;i<frames.length;i++){
-      const fr = frames[i];
-      addFrame(fr.filename || fr.name || ('frame_' + i), fr, texIndex);
-    }
-  }else if(frames && typeof frames === 'object'){
-    for(const [k, fr] of Object.entries(frames)){
-      addFrame(k, fr, texIndex);
-    }
-  }
-
-  return atlas;
-}
-
   async function loadTPAtlasMulti(jsonUrl, baseDir){
-    // baseDir default: directory of jsonUrl
-    if (!baseDir){
-      try{
-        const noHash = String(jsonUrl).split("#")[0];
-        const noQ = noHash.split("?")[0];
-        const i = noQ.lastIndexOf("/");
-        baseDir = (i>=0) ? noQ.slice(0,i+1) : "";
-      }catch(_e){
-        baseDir = "";
-      }
-    }
-
-    const res = await fetch(jsonUrl, {cache:"no-store"});
-    if (!res.ok) throw new Error("Atlas JSON fetch failed: " + jsonUrl + " (HTTP " + res.status + ")");
+    const res = await fetch(jsonUrl);
+    if (!res.ok) throw new Error("Atlas JSON fetch failed: " + jsonUrl);
     const text = await res.text();
-    const t = text.trim();
-    if (!t || t[0] === "<"){
-      // Cloudflare Pages / SPA fallbacks often return HTML for missing JSON
-      throw new Error("Atlas JSON is not JSON (got HTML). URL: " + jsonUrl);
-    }
-
-    let json;
-    try{ json = JSON.parse(text); }
-    catch(e){ throw new Error("Atlas JSON parse failed: " + jsonUrl + " (" + e.message + ")"); }
-
+      const trimmed = text.trimStart();
+      const first = trimmed[0];
+      if (first !== "{" && first !== "[") {
+        const peek = trimmed.slice(0, 160).replace(/\s+/g, " ");
+        const ct = (res.headers.get("content-type") || "unknown").toLowerCase();
+        throw new Error(`atlas JSON is not JSON (got ${ct}). URL: ${jsonUrl}. Peek: ${peek}`);
+      }
+      const json = JSON.parse(trimmed);
     const atlas = _parseTPMulti(json);
 
     for (let i=0;i<atlas.textures.length;i++){
-      const tx = atlas.textures[i];
-      const imgPath = _join(baseDir || "", tx.image);
-      tx.img = await _loadImage(imgPath);
+      const t = atlas.textures[i];
+      const imgPath = _join(baseDir || "", t.image);
+      t.img = await _loadImage(imgPath);
     }
     return atlas;
   }
