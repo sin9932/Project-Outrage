@@ -21,14 +21,6 @@ ${e.filename}:${e.lineno}:${e.colno}
   });
 
   const canvas = document.getElementById("c");
-  // FORCE fullscreen canvas (prevents tiny top-left render)
-  canvas.style.position = "fixed";
-  canvas.style.left = "0";
-  canvas.style.top = "0";
-  canvas.style.width = "100vw";
-  canvas.style.height = "100vh";
-  canvas.style.display = "block";
-  canvas.style.zIndex = "1";
   const ctx = canvas.getContext("2d");
   const mmCanvas = document.getElementById("mmc");
   const mmCtx = mmCanvas.getContext("2d");
@@ -254,24 +246,32 @@ function fitMini() {
   fitMini();
 
   // TV noise for minimap when low power
-  const minimapNoise = (window.PO && window.PO.minimapNoise)
-    ? window.PO.minimapNoise.create(mmCtx)
-    : null;
-
+  const mmNoise = document.createElement("canvas");
+  const mmNoiseCtx = mmNoise.getContext("2d");
+  let mmNoiseT = 0;
   function drawMinimapNoise(W,H){
-    if (minimapNoise) minimapNoise.draw(W,H);
-    else {
-      // fallback: simple blackout if module missing
-      mmCtx.save();
-      mmCtx.fillStyle="rgba(0,0,0,0.55)";
-      mmCtx.fillRect(0,0,W,H);
-      mmCtx.fillStyle="rgba(255,210,110,0.9)";
-      mmCtx.font="bold 12px system-ui";
-      mmCtx.fillText("LOW POWER", 10, 20);
-      mmCtx.restore();
+    const s = 96; // small buffer, scaled up
+    if (mmNoise.width!==s || mmNoise.height!==s){ mmNoise.width=s; mmNoise.height=s; }
+    const img = mmNoiseCtx.getImageData(0,0,s,s);
+    const d = img.data;
+    // refresh every frame (cheap due to small buffer)
+    for (let i=0; i<d.length; i+=4){
+      const v = (Math.random()*255)|0;
+      d[i]=v; d[i+1]=v; d[i+2]=v; d[i+3]=255;
     }
+    mmNoiseCtx.putImageData(img,0,0);
+    mmCtx.save();
+    mmCtx.imageSmoothingEnabled = false;
+    mmCtx.globalAlpha = 0.95;
+    mmCtx.drawImage(mmNoise, 0,0, W,H);
+    mmCtx.globalAlpha = 1;
+    mmCtx.fillStyle="rgba(0,0,0,0.35)";
+    mmCtx.fillRect(0,0,W,H);
+    mmCtx.fillStyle="rgba(255,210,110,0.9)";
+    mmCtx.font="bold 12px system-ui";
+    mmCtx.fillText("LOW POWER", 10, 20);
+    mmCtx.restore();
   }
-
 
   function getPointerCanvasPx(e) {
     const rect = canvas.getBoundingClientRect();
@@ -2351,6 +2351,7 @@ function buildingWorldFromTileOrigin(tx,ty,tw,th){
     const b = {
       id: nextId++,
       team, kind,
+      cls: spec.cls || "",
       grp: 0,
       tx, ty, tw, th,
       x: wpos.cx, y: wpos.cy,
@@ -3349,7 +3350,7 @@ let wx = (p.tx+0.5)*TILE, wy=(p.ty+0.5)*TILE;
 // RA2-feel queueing for infantry:
 // Instead of having everyone steer to tile center (then push/correct/jitter),
 // pick a temporary sub-slot for the NEXT waypoint tile. If no slot is available, WAIT.
-if (u.cls==="inf"){
+if ((UNIT[u.kind] && UNIT[u.kind].cls==="inf")){
   const ni = idx(p.tx,p.ty);
   let mask = (u.team===0) ? infSlotMask0[ni] : infSlotMask1[ni];
 
@@ -3389,7 +3390,7 @@ if (u.cls==="inf"){
 
 
     // HARD HOLD: if infantry is already locked to its sub-slot in this tile, don't keep steering.
-    if (u.cls==="inf" && u.holdPos && tileOfX(u.x)===p.tx && tileOfY(u.y)===p.ty) return false;
+    if ((UNIT[u.kind] && UNIT[u.kind].cls==="inf") && u.holdPos && tileOfX(u.x)===p.tx && tileOfY(u.y)===p.ty) return false;
 
     // Reservation + capacity: prevents multiple units trying to occupy the same tile-center,
     // which caused circular "강강수월래" orbiting at diamond corners.
@@ -3408,8 +3409,10 @@ if (u.cls==="inf"){
             const spot = findNearestFreePoint(goalWx, goalWy, u, 2);
             const nTx = tileOfX(spot.x), nTy = tileOfY(spot.y);
             if ((nTx!==p.tx || nTy!==p.ty) && canEnterTile(u, nTx, nTy) && reserveTile(u, nTx, nTy)) {
-              const wp2 = tileToWorldCenter(nTx, nTy);
-              u.order = {type:(u.order && u.order.type) ? u.order.type : "move", x:wp2.x, y:wp2.y, tx:nTx, ty:nTy};
+              const _ucls = (UNIT[u.kind] && UNIT[u.kind].cls) ? UNIT[u.kind].cls : "";
+              const _ss = (u.order && u.order.subSlot!=null) ? (u.order.subSlot & 3) : ((u.subSlot!=null) ? (u.subSlot & 3) : 0);
+              const wp2 = (_ucls==="inf") ? tileToWorldSubslot(nTx, nTy, _ss) : tileToWorldCenter(nTx, nTy);
+              u.order = {type:(u.order && u.order.type) ? u.order.type : "move", x:wp2.x, y:wp2.y, tx:nTx, ty:nTy, subSlot:_ss};
               setPathTo(u, wp2.x, wp2.y);
               u.lastRetargetT = state.t;
               u.finalBlockT = 0;
@@ -3468,7 +3471,7 @@ if (u.cls==="inf"){
     if (d < 2 || (u.pathI >= (u.path.length-1) && d < 12)){
       // Reduce "tile-by-tile fidget": only hard-snap on the FINAL node.
       if (u.pathI >= (u.path.length-1)){
-        if (u.cls==="inf"){
+        if ((UNIT[u.kind] && UNIT[u.kind].cls==="inf")){
   // Prefer the destination slot assigned at command time (prevents "everyone rushes tile center" jitter).
   let slot = (u.order && u.order.tx===p.tx && u.order.ty===p.ty && u.order.subSlot!=null) ? (u.order.subSlot|0) : (u.subSlot|0);
   const sp = tileToWorldSubslot(p.tx, p.ty, slot);
@@ -3480,7 +3483,7 @@ if (u.cls==="inf"){
           u.x = sx; u.y = sy;
         }
       }
-      if (!(u.cls==="inf" && u.pathI >= (u.path.length-1))) u.holdPos = false;
+      if (!((UNIT[u.kind] && UNIT[u.kind].cls==="inf") && u.pathI >= (u.path.length-1))) u.holdPos = false;
       u.pathI++;
       clearReservation(u);
       // If we consumed the last waypoint, finalize the order right here.

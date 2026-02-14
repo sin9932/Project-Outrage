@@ -127,25 +127,15 @@ function _rebuildBarrFrames(slot){
   const idleSeq = _scanSeq(idleAtlas, [/^barrack_idle\d+\.png$/i, /^barracks?_idle\d+\.png$/i]);
   const dmgSeq  = _scanSeq(idleAtlas, [/^barrack_(dist|damaged)\.png$/i, /^barrack_idle_damaged\.png$/i]);
   const consSeq = _scanSeq(consAtlas, [
-  // legacy naming: barrack_const1.png, barrack_build12.png ...
-  /^barrack_(const|cons|construction|build)\d+\.png$/i,
-  /^barracks?_(const|cons|construction|build)\d+\.png$/i,
+    /^barrack_(const|cons|construction|build)\d+\.png$/i,
+    /^barracks?_(const|cons|construction|build)\d+\.png$/i
+  ]);
+  const destSeq = _scanSeq(destAtlas, [
+    /^barrack_(distruction|destruction|destroy|dest)\d+\.png$/i,
+    /^barracks?_(distruction|destruction|destroy|dest)\d+\.png$/i
+  ]);
 
-  // your current naming: barrack_con_complete_1.png ...
-  /^barrack_con_complete_?\d+\.png$/i,
-  /^barracks?_con_complete_?\d+\.png$/i,
-]);
-const destSeq = _scanSeq(destAtlas, [
-  // legacy naming: barrack_distruction1.png ...
-  /^barrack_(distruction|destruction|destroy|dest)\d+\.png$/i,
-  /^barracks?_(distruction|destruction|destroy|dest)\d+\.png$/i,
-
-  // your current naming: barrack_distruction_35.png ...
-  /^barrack_(distruction|destruction|destroy|dest)_?\d+\.png$/i,
-  /^barracks?_(distruction|destruction|destroy|dest)_?\d+\.png$/i,
-]);
-
-if (idleSeq.length) BARR.idleLoop = idleSeq;
+  if (idleSeq.length) BARR.idleLoop = idleSeq;
   if (dmgSeq.length)  BARR.idleDamaged = [dmgSeq[0]];
   if (consSeq.length) BARR.cons = consSeq;
   if (destSeq.length) BARR.dest = destSeq;
@@ -157,65 +147,34 @@ if (idleSeq.length) BARR.idleLoop = idleSeq;
   const PATH = {
     barracks: {
       idle: { json:"asset/sprite/const/normal/barrack/Barrack_idle.json", base:"asset/sprite/const/normal/barrack/" },
-      cons: { json:"asset/sprite/const/const_anim/barrack_const.json", base:"asset/sprite/const/const_anim/barrack/" },
-      dest: { json:"asset/sprite/const/destruct/barrack_distruction.json", base:"asset/sprite/const/destruct/barrack/" },
+      cons: { json:"asset/sprite/const/const_anim/barrack/barrack_const.json", base:"asset/sprite/const/const_anim/barrack/" },
+      dest: { json:"asset/sprite/const/destruct/barrack/barrack_distruction.json", base:"asset/sprite/const/destruct/barrack/" },
     }
   };
 
-  
-// Barracks atlas path fallbacks (your folder layout can vary)
-const BARRACK_CAND = {
-  idle: [
-    { json: PATH.barracks.idle.json, base: PATH.barracks.idle.base },
-    { json: "asset/sprite/const/destruct/barrack/Barrack_idle.json",   base: "asset/sprite/const/destruct/barrack/" },
-    { json: "asset/sprite/const/const_anim/barrack/Barrack_idle.json", base: "asset/sprite/const/const_anim/barrack/" },
-  ],
-  cons: [
-    { json: PATH.barracks.cons.json, base: PATH.barracks.cons.base },
-    { json: "asset/sprite/const/normal/barrack/barrack_const.json",    base: "asset/sprite/const/normal/barrack/" },
-    { json: "asset/sprite/const/destruct/barrack/barrack_const.json",  base: "asset/sprite/const/destruct/barrack/" },
-  ],
-  dest: [
-    { json: "asset/sprite/const/destruct/barrack/barrack_distruction.json",  base: "asset/sprite/const/destruct/barrack/" },
-    { json: "asset/sprite/const/const_anim/barrack/barrack_distruction.json",base: "asset/sprite/const/const_anim/barrack/" },
-    { json: "asset/sprite/const/normal/barrack/barrack_distruction.json",    base: "asset/sprite/const/normal/barrack/" },
-
-    // common spelling variant
-    { json: "asset/sprite/const/destruct/barrack/barrack_destruction.json",   base: "asset/sprite/const/destruct/barrack/" },
-    { json: "asset/sprite/const/const_anim/barrack/barrack_destruction.json",base: "asset/sprite/const/const_anim/barrack/" },
-    { json: "asset/sprite/const/normal/barrack/barrack_destruction.json",    base: "asset/sprite/const/normal/barrack/" },
-  ]
-};
-
-async function _tryLoadTPMulti(cands){
-  let lastErr = null;
-  for (const c of cands){
-    try{
-      return await atlasTP.loadTPAtlasMulti(c.json, c.base);
-    }catch(e){
-      lastErr = e;
-    }
-  }
-  throw lastErr || new Error("Atlas load failed (no candidates)");
-}
-function _kickLoadBarracks(){
+  function _kickLoadBarracks(){
     const slot = _loaded.barracks;
     if (slot.ready || slot.loading) return;
     slot.loading = true;
     (async ()=>{
       try{
         if (!atlasTP || !atlasTP.loadTPAtlasMulti) throw new Error("atlas_tp.js not loaded");
-        const idle = await _tryLoadTPMulti(BARRACK_CAND.idle);
-const cons = await _tryLoadTPMulti(BARRACK_CAND.cons);
-let dest = null;
-try{
-  dest = await _tryLoadTPMulti(BARRACK_CAND.dest);
-}catch(_e){
-  // If still missing, degrade gracefully (no destruction frames)
-  dest = null;
-}
+        const idle = await atlasTP.loadTPAtlasMulti(PATH.barracks.idle.json, PATH.barracks.idle.base);
+        const cons = await atlasTP.loadTPAtlasMulti(PATH.barracks.cons.json, PATH.barracks.cons.base);
+        let dest = null;
+        try{
+          dest = await atlasTP.loadTPAtlasMulti(PATH.barracks.dest.json, PATH.barracks.dest.base);
+        }catch(_e1){
+          // Fallback for common filename variants
+          try{
+            dest = await atlasTP.loadTPAtlasMulti("asset/sprite/const/destruct/barrack/barrack_destruction.json", PATH.barracks.dest.base);
+          }catch(_e2){
+            // If still missing, degrade gracefully (no destruction frames)
+            dest = null;
+          }
+        }
 
-slot.idle = idle; slot.cons = cons; slot.dest = dest;
+        slot.idle = idle; slot.cons = cons; slot.dest = dest;
 
         // Build per-team recolored atlases (PLAYER=0, ENEMY=1).
         try{
