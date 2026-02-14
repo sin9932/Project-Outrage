@@ -1,4 +1,4 @@
-/* buildings.js (barracks sprite hook) v9
+/* buildings.js (barracks sprite hook) v10
    - Atlas URL auto-detect: tries multiple likely paths until one returns valid JSON
    - Avoids "Unexpected token '<'" when your deploy rewrites missing JSON to index.html
    - Sync draw entry: PO.buildings.drawBuilding(...) returns boolean
@@ -9,7 +9,7 @@
   PO.buildings = PO.buildings || {};
   PO.atlasTP = PO.atlasTP || {};
 
-  const TAG = "[barracks:v9]";
+  const TAG = "[barracks:v11]";
   let _loggedLoaded=false, _loggedDraw=false, _loggedReady=false;
 
   function logOnce(which, ...args){
@@ -79,8 +79,8 @@
   }
 
   async function tryLoadAny(urls, label){
-    const loader = PO.atlasTP && PO.atlasTP.loadTPAtlasMulti;
-    if (typeof loader !== "function") throw new Error("atlas_tp.js missing loadTPAtlasMulti");
+    const loader = (PO.atlasTP && (PO.atlasTP.loadTPAtlasAny || PO.atlasTP.loadTPAtlasMulti));
+    if (typeof loader !== "function") throw new Error("atlas_tp.js missing loader (loadTPAtlasAny/loadTPAtlasMulti)");
 
     let lastErr = null;
     for (const u of urls){
@@ -88,7 +88,11 @@
         // NOTE: if u doesn't exist and your deploy rewrites to HTML with 200,
         // res.json() throws SyntaxError; we treat that as failure and keep trying.
         const atlas = await loader(u, baseDirFromUrl(u));
-        console.log(TAG, label, "using", u);
+        const fc = (atlas && atlas.frames && typeof atlas.frames.size==="number") ? atlas.frames.size : 0;
+        const tc = (atlas && atlas.textures && typeof atlas.textures.length==="number") ? atlas.textures.length : 0;
+        const sample = (atlas && atlas.frames && atlas.frames.keys) ? atlas.frames.keys().next().value : null;
+        console.log(TAG, label, "using", u, `(frames=${fc}, textures=${tc})`);
+        if (!fc) throw new Error("Atlas has 0 frames: " + u);
         return atlas;
       }catch(e){
         lastErr = e;

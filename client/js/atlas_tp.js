@@ -1,95 +1,170 @@
-/* atlas_tp.js v2
-   Minimal TexturePacker JSON (multi-texture) loader + draw helper.
-   - Supports format: { textures:[{image,size,frames:[{filename,frame,rotated,trimmed,spriteSourceSize,sourceSize,anchor}]}] }
+/* atlas_tp.js v3
+   - Supports TexturePacker multipack (json.textures[]) AND single-pack (json.frames + meta.image)
+   - Auto baseDir from jsonUrl if not provided
+   - Exposes: PO.atlasTP.loadTPAtlasAny (and alias loadTPAtlasMulti), drawFrame, listFramesByPrefix
 */
 (function(){
-  "use strict";
   const PO = (window.PO = window.PO || {});
   PO.atlasTP = PO.atlasTP || {};
 
-  function _loadImage(src){
-    return new Promise((resolve,reject)=>{
-      const img = new Image();
-      img.onload = ()=>resolve(img);
-      img.onerror = ()=>reject(new Error("Image load failed: " + src));
-      img.src = src;
-    });
+  const _imgCache = new Map();
+
+  function _join(base, rel){
+    base = String(base || "");
+    rel = String(rel || "");
+    if (!base) return rel;
+    if (!rel) return base;
+    if (base.endsWith("/") && rel.startsWith("/")) return base + rel.slice(1);
+    if (!base.endsWith("/") && !rel.startsWith("/")) return base + "/" + rel;
+    return base + rel;
   }
 
-  function _join(baseDir, file){
-    if (!baseDir) return file;
-    if (baseDir.endsWith("/")) return baseDir + file;
-    return baseDir + "/" + file;
+  function _inferBaseDir(jsonUrl){
+    try{
+      const noHash = String(jsonUrl).split("#")[0];
+      const noQ = noHash.split("?")[0];
+      const i = noQ.lastIndexOf("/");
+      return (i >= 0) ? noQ.slice(0, i+1) : "";
+    }catch(_e){
+      return "";
+    }
+  }
+
+  function _loadImage(url){
+    const key = String(url);
+    if (_imgCache.has(key)) return _imgCache.get(key);
+    const p = new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = () => reject(new Error("Image load failed: " + url));
+      img.src = url;
+    });
+    _imgCache.set(key, p);
+    return p;
+  }
+
+  function _normFrameObj(fr){
+    const F = fr.frame || fr;
+    const w = (F && F.w) || 0, h = (F && F.h) || 0;
+    const SSS = fr.spriteSourceSize || {x:0,y:0,w:w,h:h};
+    const SS  = fr.sourceSize || {w:(SSS.w||w), h:(SSS.h||h)};
+    return {
+      frame: F,
+      rotated: !!fr.rotated,
+      trimmed: !!fr.trimmed,
+      spriteSourceSize: SSS,
+      sourceSize: SS,
+      anchor: fr.anchor || null,
+    };
   }
 
   function _parseTPMulti(json){
     const atlas = { textures:[], frames:new Map() };
-    const textures = json.textures || [];
+    const textures = Array.isArray(json.textures) ? json.textures : [];
     for (let ti=0; ti<textures.length; ti++){
-      const t = textures[ti];
+      const t = textures[ti] || {};
       const tex = {
         image: t.image,
         size: t.size || { w:0, h:0 },
-        frames: t.frames || [],
+        frames: Array.isArray(t.frames) ? t.frames : [],
         img: null,
       };
       atlas.textures.push(tex);
-      for (const fr of tex.frames){
+      for (const fr0 of tex.frames){
+        const fr = fr0 || {};
         const name = fr.filename;
+        if (!name) continue;
+        const nf = _normFrameObj(fr);
         atlas.frames.set(name, {
           tex: ti,
-          name,
-          frame: fr.frame,
-          rotated: !!fr.rotated,
-          trimmed: !!fr.trimmed,
-          spriteSourceSize: fr.spriteSourceSize || { x:0,y:0,w:fr.frame.w,h:fr.frame.h },
-          sourceSize: fr.sourceSize || { w:fr.frame.w,h:fr.frame.h },
-          anchor: fr.anchor || { x:0.5, y:0.5 },
+          frame: nf.frame,
+          rotated: nf.rotated,
+          trimmed: nf.trimmed,
+          spriteSourceSize: nf.spriteSourceSize,
+          sourceSize: nf.sourceSize,
+          anchor: nf.anchor,
         });
       }
     }
     return atlas;
   }
 
-  async function loadTPAtlasMulti(jsonUrl, baseDir){
-    // baseDir default: directory of jsonUrl
-    if (!baseDir){
-      try{
-        const noHash = String(jsonUrl).split("#")[0];
-        const noQ = noHash.split("?")[0];
-        const i = noQ.lastIndexOf("/");
-        baseDir = (i>=0) ? noQ.slice(0,i+1) : "";
-      }catch(_e){
-        baseDir = "";
-      }
+  function _parseTPSingle(json){
+    const atlas = { textures:[], frames:new Map() };
+    const meta = (json && json.meta) ? json.meta : {};
+    const image = meta.image || (json && json.image) || null;
+
+    const tex = { image: image, size: meta.size || {w:0,h:0}, frames: [], img: null };
+    atlas.textures.push(tex);
+
+    let framesArr = [];
+    if (Array.isArray(json.frames)){
+      // frames: [{filename, frame, ...}, ...]
+      framesArr = json.frames;
+    } else if (json.frames && typeof json.frames === "object"){
+      // frames: { "name.png": {frame:{...}, ...}, ...}
+      framesArr = Object.entries(json.frames).map(([filename, obj]) => {
+        const o = obj || {};
+        return Object.assign({ filename }, o);
+      });
     }
 
-    const res = await fetch(jsonUrl, {cache:"no-store"});
-    if (!res.ok) throw new Error("Atlas JSON fetch failed: " + jsonUrl + " (HTTP " + res.status + ")");
-    const text = await res.text();
-    const t = text.trim();
-    if (!t || t[0] === "<"){
-      // Cloudflare Pages / SPA fallbacks often return HTML for missing JSON
-      throw new Error("Atlas JSON is not JSON (got HTML). URL: " + jsonUrl);
-    }
-
-    let json;
-    try{ json = JSON.parse(text); }
-    catch(e){ throw new Error("Atlas JSON parse failed: " + jsonUrl + " (" + e.message + ")"); }
-
-    const atlas = _parseTPMulti(json);
-
-    for (let i=0;i<atlas.textures.length;i++){
-      const tx = atlas.textures[i];
-      const imgPath = _join(baseDir || "", tx.image);
-      tx.img = await _loadImage(imgPath);
+    for (const fr0 of framesArr){
+      const fr = fr0 || {};
+      const name = fr.filename;
+      if (!name) continue;
+      const nf = _normFrameObj(fr);
+      atlas.frames.set(name, {
+        tex: 0,
+        frame: nf.frame,
+        rotated: nf.rotated,
+        trimmed: nf.trimmed,
+        spriteSourceSize: nf.spriteSourceSize,
+        sourceSize: nf.sourceSize,
+        anchor: nf.anchor,
+      });
     }
     return atlas;
   }
 
+  function _parseTexturePacker(json){
+    if (json && Array.isArray(json.textures)) return _parseTPMulti(json);
+    return _parseTPSingle(json || {});
+  }
+
+  async function loadTPAtlasAny(jsonUrl, baseDir){
+    if (!baseDir) baseDir = _inferBaseDir(jsonUrl);
+
+    const res = await fetch(jsonUrl, {cache:"no-store"});
+    if (!res.ok) throw new Error("Atlas JSON fetch failed: " + jsonUrl + " (HTTP " + res.status + ")");
+    const text = await res.text();
+    const t = (text || "").trim();
+    if (!t || t[0] === "<"){
+      throw new Error("Atlas JSON is HTML (missing file or SPA fallback): " + jsonUrl);
+    }
+
+    let json;
+    try{ json = JSON.parse(t); }
+    catch(e){ throw new Error("Atlas JSON parse failed: " + jsonUrl + " (" + e.message + ")"); }
+
+    const atlas = _parseTexturePacker(json);
+
+    // load textures
+    for (let i=0;i<atlas.textures.length;i++){
+      const tx = atlas.textures[i];
+      if (!tx || !tx.image) continue;
+      const imgPath = _join(baseDir || "", tx.image);
+      tx.img = await _loadImage(imgPath);
+    }
+
+    return atlas;
+  }
+
   function drawFrame(ctx, atlas, frameName, x, y, scale=1, alpha=1){
-    const fr = atlas.frames.get(frameName);
+    if (!atlas || !atlas.frames) return false;
+    const fr = (atlas.frames.get) ? atlas.frames.get(frameName) : null;
     if (!fr) return false;
+
     const tex = atlas.textures[fr.tex];
     const img = tex && tex.img;
     if (!img) return false;
@@ -102,122 +177,41 @@
     const ox = (-SS.w * A.x) + SSS.x;
     const oy = (-SS.h * A.y) + SSS.y;
 
-    if (fr.rotated){
-      ctx.save();
-      ctx.globalAlpha *= alpha;
-      ctx.translate(x + (ox*scale), y + (oy*scale));
-      ctx.rotate(-Math.PI/2);
-      ctx.drawImage(img, F.x, F.y, F.h, F.w, 0, 0, F.h*scale, F.w*scale);
-      ctx.restore();
-      return true;
-    }
-
     ctx.save();
-    ctx.globalAlpha *= alpha;
+    ctx.globalCompositeOperation = "source-over";
+    ctx.globalAlpha = ctx.globalAlpha * alpha;
+
     ctx.drawImage(img, F.x, F.y, F.w, F.h, x + ox*scale, y + oy*scale, F.w*scale, F.h*scale);
+
     ctx.restore();
     return true;
   }
 
-  
-// --- helpers: numeric-suffix ordering for animations (e.g. foo_1.png .. foo_20.png) ---
-function trailingNumber(name) {
-  if (!name) return null;
-  const m = String(name).match(/(\d+)(?=\.[a-zA-Z0-9]+$)/);
-  return m ? parseInt(m[1], 10) : null;
-}
+  function trailingNumber(name) {
+    if (!name) return null;
+    const m = String(name).match(/(\d+)(?=\.[a-zA-Z0-9]+$)/);
+    return m ? parseInt(m[1], 10) : null;
+  }
 
-function listFramesByPrefix(atlas, prefix, opts) {
-  opts = opts || {};
-  const want = String(prefix || '');
-  const keys = (atlas && atlas.frames)
-    ? Array.from(atlas.frames.keys ? atlas.frames.keys() : Object.keys(atlas.frames))
-    : [];
-  let frames = keys.filter(k => String(k).startsWith(want));
-  if (opts.sortNumeric !== false) {
-    frames.sort((a,b) => {
+  function listFramesByPrefix(atlas, prefix){
+    if (!atlas || !atlas.frames) return [];
+    const keys = Array.from(atlas.frames.keys());
+    const pre = String(prefix || "");
+    const hits = keys.filter(k => String(k).startsWith(pre));
+    hits.sort((a,b)=>{
       const na = trailingNumber(a);
       const nb = trailingNumber(b);
       if (na == null && nb == null) return String(a).localeCompare(String(b));
       if (na == null) return 1;
       if (nb == null) return -1;
-      if (na !== nb) return na - nb;
-      return String(a).localeCompare(String(b));
+      return na - nb;
     });
-  }
-  return frames;
-}
-
-function getFrame(atlas, frameName) {
-  if (!atlas || !atlas.frames) return null;
-  if (atlas.frames.get) return atlas.frames.get(frameName) || null;
-  return atlas.frames[frameName] || null;
-}
-
-
-// Apply a normalized pivot (TexturePacker "anchor") to frames.
-// Pivot is normalized to the SOURCE size (not the trimmed frame).
-function applyPivot(atlas, frameName, pivot){
-  const fr = getFrame(atlas, frameName);
-  if (!fr) return false;
-  fr.anchor = { x: Number(pivot.x), y: Number(pivot.y) };
-  return true;
-}
-
-function applyPivotToFrames(atlas, frameNames, pivot){
-  if (!frameNames) return 0;
-  let n = 0;
-  for (const name of frameNames){
-    if (applyPivot(atlas, name, pivot)) n++;
-  }
-  return n;
-}
-
-function applyPivotByPrefix(atlas, prefix, pivot, opts){
-  const frames = listFramesByPrefix(atlas, prefix, opts);
-  return applyPivotToFrames(atlas, frames, pivot);
-}
-
-// localStorage schema (same origin):
-//   key "PO_PIVOT_OVERRIDES" => { "<prefix>": { "x": 0.5, "y": 0.52 }, ... }
-function loadPivotOverridesFromLocalStorage(key){
-  try{
-    const raw = localStorage.getItem(key || 'PO_PIVOT_OVERRIDES');
-    if (!raw) return null;
-    const obj = JSON.parse(raw);
-    if (!obj || typeof obj !== 'object') return null;
-    return obj;
-  }catch(e){
-    return null;
-  }
-}
-
-function applyPivotOverrides(atlas, overrides, opts){
-  if (!overrides) return 0;
-  let n = 0;
-  for (const prefix of Object.keys(overrides)){
-    const p = overrides[prefix];
-    if (!p) continue;
-    n += applyPivotByPrefix(atlas, prefix, { x: p.x, y: p.y }, opts);
-  }
-  return n;
-}
-
-function getFrameSourceSize(atlas, frameName){
-    const fr = atlas.frames.get(frameName);
-    if (!fr) return null;
-    return { w: fr.sourceSize.w, h: fr.sourceSize.h };
+    return hits;
   }
 
-  PO.atlasTP.loadTPAtlasMulti = loadTPAtlasMulti;
+  PO.atlasTP.loadTPAtlasAny = loadTPAtlasAny;
+  // backward-compatible aliases
+  PO.atlasTP.loadTPAtlasMulti = loadTPAtlasAny;
   PO.atlasTP.drawFrame = drawFrame;
-  PO.atlasTP.getFrameSourceSize = getFrameSourceSize;
   PO.atlasTP.listFramesByPrefix = listFramesByPrefix;
-  PO.atlasTP.trailingNumber = trailingNumber;
-  PO.atlasTP.applyPivot = applyPivot;
-  PO.atlasTP.applyPivotToFrames = applyPivotToFrames;
-  PO.atlasTP.applyPivotByPrefix = applyPivotByPrefix;
-  PO.atlasTP.loadPivotOverridesFromLocalStorage = loadPivotOverridesFromLocalStorage;
-  PO.atlasTP.applyPivotOverrides = applyPivotOverrides;
-  PO.atlasTP.getFrame = getFrame;
 })();
