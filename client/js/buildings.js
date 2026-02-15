@@ -1,386 +1,541 @@
-// buildings_v18.js - Barrack renderer patch (sync draw + robust load/retry + path fallbacks)
-// Drop-in replacement for your client/js/buildings.js (or whichever file defines PO.buildings.drawBuilding)
+// buildings.js patch: Barrack atlases + pivot/scale + sell/destroy FX (v21)
+// - Loads 3 TexturePacker atlases for Barrack:
+//   normal (idle), construct (build complete / also used reverse for sell), distruct (destroy)
+// - Applies pivot from localStorage (or defaults) to ALL barrack frames at runtime
+// - Applies per-building render scale (defaults from localStorage or 0.14)
+// - Adds "ghost" one-shot animations so sell/destroy can still animate even if entity is removed instantly
+//
+// Drop-in: replace your existing client/js/buildings.js (or merge the relevant parts).
+// Assumes atlas_tp.js provides: loadAtlasTP(), drawFrame(), applyPivotByPrefix().
 
-(() => {
-  'use strict';
+(function(){
+  if (!window.PO) window.PO = {};
+  const PO = window.PO;
 
-  const KEY = 'barrack';
-  const VER = 'v18';
+  // ---------- user-tunable defaults ----------
+  // If you use the pivot tuner, you can also just set localStorage keys:
+  //   barrack_pivot_x / barrack_pivot_y / barrack_scale
+  const DEFAULT_BARRACK_PIVOT = { x: 0.4955, y: 0.4370 };
+  const DEFAULT_BARRACK_SCALE = 0.14;
 
-  // --- PATHS (only these should exist) ---
-  // Your repo: client/asset/sprite/const/
-  //   normal/barrack/barrack_idle.json
-  //   const_anim/barrack/barrack_const.json
-  //   distruct/barrack/barrack_distruct.json
-  // NOTE: Cloudflare Pages returns index.html (HTML) for missing files (status 200). We detect that.
-  let ROOT = '/asset/sprite/const';
-  // Some deployments serve from repo root where assets live under /client/asset/...
-  // Detect once at runtime so JSON/PNG requests don't get rewritten to index.html.
-  async function detectRootOnce() {
-    if (detectRootOnce._done) return ROOT;
-    detectRootOnce._done = true;
-    const testPaths = [
-      '/asset/sprite/const',
-      '/client/asset/sprite/const',
-      'asset/sprite/const'
-    ];
-    const testRel = '/normal/barrack/barrack_idle.json';
-    for (const base of testPaths) {
-      const url = (base.endsWith('/') ? base.slice(0,-1) : base) + testRel;
-      try {
-        const r = await fetch(url, { cache: 'no-store' });
-        const t = await r.text();
-        if (r.ok && !looksLikeHTML(t) && t.trimStart().startsWith('{')) {
-          ROOT = base.startsWith('/') ? base : '/' + base;
-          break;
-        }
-      } catch {}
-    }
-    return ROOT;
-  }
-  const URLS = {
-    normal: [`${ROOT}/normal/barrack/barrack_idle.json`],
-    construct: [`${ROOT}/const_anim/barrack/barrack_const.json`],
-    // try new correct path first, then the old misspelled folder (destruct) just in case old builds are cached
-    distruct: [`${ROOT}/distruct/barrack/barrack_distruct.json`, `${ROOT}/destruct/barrack/barrack_distruct.json`],
-  };
+  // Animation speeds (frames per second)
+  const BARRACK_CONSTRUCT_FPS = 12;
+  const BARRACK_DISTRUCT_FPS  = 12;
 
-  // --- state ---
-  const S = {
-    atlases: { normal: null, construct: null, distruct: null },
-    frames: { normal: [], construct: [], distruct: [] },
-    loading: { normal: false, construct: false, distruct: false },
-    ready: { normal: false, construct: false, distruct: false },
-    tries: { normal: 0, construct: 0, distruct: 0 },
-    maxTries: 25,
-    nextRetryMs: 200,
-    started: false,
-    logged: new Set(),
-  };
+  // ---------- helpers ----------
+  function safeNum(v){ const n = Number(v); return Number.isFinite(n) ? n : null; }
 
-  const PO = (window.PO = window.PO || {});
-  PO.buildings = PO.buildings || {};
-
-  function logOnce(id, ...args) {
-    if (S.logged.has(id)) return;
-    S.logged.add(id);
-    console.log(...args);
+  function readPivot(){
+    try{
+      const x = safeNum(localStorage.getItem('barrack_pivot_x'));
+      const y = safeNum(localStorage.getItem('barrack_pivot_y'));
+      if (x !== null && y !== null) return { x, y };
+    }catch(_){/* ignore */}
+    return { ...DEFAULT_BARRACK_PIVOT };
   }
 
-  function warnOnce(id, ...args) {
-    if (S.logged.has(id)) return;
-    S.logged.add(id);
-    console.warn(...args);
+  function readScale(){
+    try{
+      const s = safeNum(localStorage.getItem('barrack_scale'));
+      if (s !== null && s > 0) return s;
+    }catch(_){/* ignore */}
+    return DEFAULT_BARRACK_SCALE;
   }
 
-  function errOnce(id, ...args) {
-    if (S.logged.has(id)) return;
-    S.logged.add(id);
-    console.error(...args);
-  }
-
-  function hasAtlasTP() {
-    return !!(PO && PO.atlasTP && typeof PO.atlasTP.loadTPAtlasMulti === 'function' && typeof PO.atlasTP.drawFrame === 'function');
-  }
-
-  function nowSec(state) {
-    if (state && typeof state.t === 'number') return state.t;
-    if (state && typeof state.time === 'number') return state.time;
-    if (state && typeof state.now === 'number') return state.now;
+  function nowSec(state){
+    const t = state && (state.t ?? state.time ?? state.now ?? state.nowSec ?? null);
+    if (typeof t === 'number' && isFinite(t)) return t;
     return performance.now() / 1000;
   }
 
-  // Try to detect HTML fallback quickly without touching atlas_tp internals.
-  async function looksLikeHTML(url) {
-    try {
-      const res = await fetch(url, { cache: 'no-store' });
-      const ct = (res.headers.get('content-type') || '').toLowerCase();
-      if (ct.includes('text/html')) return true;
-      // If content-type lies, peek the first bytes.
-      const txt = await res.text();
-      const head = txt.slice(0, 80).trimStart().toLowerCase();
-      return head.startsWith('<!doctype') || head.startsWith('<html') || head.includes('<head');
-    } catch {
-      return false;
-    }
+  function clamp01(x){ return Math.max(0, Math.min(1, x)); }
+
+  function isBarrack(ent){
+    if (!ent) return false;
+    const k = (ent.kind ?? ent.type ?? ent.name ?? ent.id ?? '').toString().toLowerCase();
+    return k === 'barrack' || k === 'barracks' || k === 'rax' || k === 'barrack1' || ent._isBarrack === true;
   }
 
-  async function loadFirstWorking(kind) {
-    const candidates = URLS[kind];
-    const errors = [];
-
-    for (const url of candidates) {
-      // If it is HTML fallback, skip immediately and record.
-      if (await looksLikeHTML(url)) {
-        errors.push({ url, reason: 'got HTML (index.html fallback)' });
-        continue;
-      }
-      try {
-        const atlas = await PO.atlasTP.loadTPAtlasMulti(url);
-        return { atlas, url, errors };
-      } catch (e) {
-        errors.push({ url, reason: (e && e.message) ? e.message : String(e) });
-      }
+  // Convert tile coords -> world coords (center-ish)
+  function entWorld(ent, helpers){
+    // Prefer helper if exists
+    if (helpers && typeof helpers.buildingWorldXY === 'function') {
+      const p = helpers.buildingWorldXY(ent);
+      if (p && isFinite(p.x) && isFinite(p.y)) return p;
     }
 
-    return { atlas: null, url: null, errors };
+    // Common fields
+    const tx = ent.tx ?? ent.x ?? ent.tileX ?? 0;
+    const ty = ent.ty ?? ent.y ?? ent.tileY ?? 0;
+
+    // Tile sizes (fallback)
+    const tileW = (PO.cfg && PO.cfg.tileW) || 64;
+    const tileH = (PO.cfg && PO.cfg.tileH) || 32;
+
+    // Isometric-ish projection: many engines already store world coords,
+    // but if you're giving tile coords, this makes it at least consistent.
+    const wx = (ent.wx ?? ent.worldX ?? (tx - ty) * (tileW/2))
+    const wy = (ent.wy ?? ent.worldY ?? (tx + ty) * (tileH/2))
+
+    return { x: wx, y: wy };
   }
 
-  function scheduleRetry() {
-    if (S._retryTimer) return;
-    S._retryTimer = setTimeout(() => {
-      S._retryTimer = null;
-      kickLoad();
-    }, S.nextRetryMs);
-    S.nextRetryMs = Math.min(2000, Math.floor(S.nextRetryMs * 1.35));
+  // ---------- Barrack atlas loader state ----------
+  const S = {
+    ver: 'v21',
+    loaded: { normal:false, construct:false, distruct:false },
+    atlas : { normal:null,  construct:null,  distruct:null },
+    frames: { normal:[],    construct:[],    distruct:[] },
+    dur: { construct: 1.5, distruct: 1.5, sell: 1.5 },
+    promises: { normal:null, construct:null, distruct:null },
+    pivotApplied: { normal:false, construct:false, distruct:false },
+
+    ghosts: [],
+    _ghostDrawStamp: -1,
+
+    // Optional: expose runtime config
+    cfg: {
+      get pivot(){ return readPivot(); },
+      get scale(){ return readScale(); },
+    },
+  };
+
+  function setPaths(){
+    // Your deployed structure (from your screenshots)
+    return {
+      normal:   '/asset/sprite/const/normal/barrack/barrack_idle.json',
+      construct:'/asset/sprite/const/const_anim/barrack/barrack_const.json',
+      distruct: '/asset/sprite/const/distruct/barrack/barrack_distruct.json',
+    };
   }
 
-  async function ensureKind(kind) {
-    if (S.ready[kind]) return true;
-    if (S.loading[kind]) return false;
+  async function ensureAtlas(kind){
+    if (S.loaded[kind]) return true;
+    if (S.promises[kind]) { await S.promises[kind]; return S.loaded[kind]; }
 
-    if (!hasAtlasTP()) {
-      // atlas_tp not ready yet: do NOT mark as failed. just retry later.
-      scheduleRetry();
-      return false;
-    }
+    const paths = setPaths();
+    const url = paths[kind];
+    if (!url) return false;
 
-    if (S.tries[kind] >= S.maxTries) {
-      warnOnce(`${kind}_giveup`, `[${KEY}:${VER}] giving up loading '${kind}' after ${S.tries[kind]} tries.`);
-      return false;
-    }
+    S.promises[kind] = (async () => {
+      try{
+        const atlas = await PO.atlasTP.loadAtlasTP(url);
+        S.atlas[kind] = atlas;
+        S.loaded[kind] = true;
 
-    S.loading[kind] = true;
-    S.tries[kind]++;
-
-    try {
-      const { atlas, url, errors } = await loadFirstWorking(kind);
-      if (!atlas) {
-        // Print useful diagnostics once per kind.
-        if (errors && errors.length) {
-          errOnce(
-            `${kind}_errors`,
-            `[${KEY}:${VER}] '${kind}' atlas load failed. Tried:`,
-            errors
-          );
-        } else {
-          errOnce(`${kind}_errors`, `[${KEY}:${VER}] '${kind}' atlas load failed (no details).`);
+        // Cache frame names with numeric suffix sorting.
+        if (kind === 'normal') {
+          S.frames.normal = PO.atlasTP.listFramesByPrefix(atlas, 'barrack_idle', { sort: true });
+        } else if (kind === 'construct') {
+          S.frames.construct = PO.atlasTP.listFramesByPrefix(atlas, 'barrack_con_complete_', { sort: true });
+          S.dur.construct = (S.frames.construct.length || 1) / BARRACK_CONSTRUCT_FPS;
+          S.dur.sell = S.dur.construct;
+        } else if (kind === 'distruct') {
+          S.frames.distruct = PO.atlasTP.listFramesByPrefix(atlas, 'barrack_dist', { sort: true });
+          S.dur.distruct = (S.frames.distruct.length || 1) / BARRACK_DISTRUCT_FPS;
         }
-        scheduleRetry();
-        return false;
+
+        // Apply pivot to all barrack frames (runtime, so you don't need to bake it into JSON)
+        try{
+          const piv = readPivot();
+          PO.atlasTP.applyPivotByPrefix(atlas, 'barrack_', piv.x, piv.y);
+          S.pivotApplied[kind] = true;
+        }catch(_){ /* ignore */ }
+      }catch(e){
+        console.error('[barrack:'+S.ver+'] failed to load '+kind+' atlas', url, e);
+        S.loaded[kind] = false;
       }
+    })();
 
-      S.atlases[kind] = atlas;
-      const prefix = (kind === 'construct') ? 'barrack_const' : ((kind === 'distruct') ? 'barrack_distruction_' : 'barrack_idle');
-      S.frames[kind] = PO.atlasTP.listFramesByPrefix(atlas, prefix);
-// normal atlas sometimes includes a single "barrack_dist.png" frame that is the best static idle.
-      if (kind === 'normal') {
-        const dist = 'barrack_dist.png';
-        if (atlas.frames && atlas.frames[dist] && !S.frames.normal.includes(dist)) {
-          S.frames.normal.unshift(dist);
-        }
+    await S.promises[kind];
+    return S.loaded[kind];
+  }
+
+  function kickLoad(){
+    // Start all loads ASAP (do not await)
+    ensureAtlas('normal');
+    ensureAtlas('construct');
+    ensureAtlas('distruct');
+  }
+
+  // ---------- animation selection ----------
+  function kindFor(ent, state){
+    // Destroy flags (try lots of names to match your codebase)
+    const hp = (ent.hp ?? ent.HP ?? ent.health ?? ent.life ?? null);
+    const dead = ent.dead || ent.destroyed || ent.isDead || ent.isDestroyed || ent._dead || ent._destroyed;
+    const st = (ent.state ?? ent.mode ?? ent.phase ?? '').toString().toLowerCase();
+
+    const now = nowSec(state);
+
+    // Auto-expire our "first-seen" construct FX without depending on your build system.
+    if (ent._autoConstructFx && typeof ent._constructStart === 'number') {
+      if ((now - ent._constructStart) >= (S.dur.construct || 1.5)) {
+        ent._constructing = false;
+        ent._autoConstructFx = false;
       }
-      // Pivot: do NOT override here. Use per-frame anchor/pivot from the TP JSON (edited via your pivot tool).
-S.ready[kind] = true;
-      logOnce(`${kind}_ok`, `[${KEY}:${VER}] loaded '${kind}' atlas from ${url}`);
-      return true;
-    } finally {
-      S.loading[kind] = false;
     }
+
+    if (dead || st.includes('destroy') || st.includes('dead') || st.includes('distruct') || (typeof hp === 'number' && hp <= 0)) {
+      return 'distruct';
+    }
+
+    // Sell flags
+    const selling = ent._selling || ent.selling || ent.isSelling || ent.sell || ent.toSell || ent.wantSell || ent.pendingSell;
+    if (selling || st.includes('sell') || st.includes('refund')) {
+      return 'sell';
+    }
+
+    // Constructing flags
+    const prog = (ent.progress ?? ent.buildProgress ?? ent.buildProg ?? ent.constructProgress ?? ent.constructProg ?? null);
+    const constructing = ent._constructing || ent.constructing || ent.isConstructing || st.includes('construct') || st.includes('build');
+    if ((typeof prog === 'number' && prog < 1) || constructing) {
+      return 'construct';
+    }
+
+    return 'normal';
   }
 
-  function kickLoad() {
-    if (!S.started) {
-      S.started = true;
-      console.log(`[${KEY}:${VER}] patch loaded. (Barrack only) trying to load atlases...`);
+  function frameAt(kind, tSec){
+    const frames = S.frames[kind] || [];
+    if (!frames.length) return null;
+
+    if (kind === 'normal') {
+      return frames[0];
     }
 
-    // fire and forget; retries are scheduled internally
-    ensureKind('normal');
-    ensureKind('construct');
-    ensureKind('distruct');
+    const fps = (kind === 'distruct') ? BARRACK_DISTRUCT_FPS : BARRACK_CONSTRUCT_FPS;
+    const idx = Math.floor(Math.max(0, tSec) * fps);
+
+    if (kind === 'construct') {
+      // Play once then hold last
+      return frames[Math.min(idx, frames.length - 1)];
+    }
+
+    if (kind === 'distruct') {
+      // Play once then hold last
+      return frames[Math.min(idx, frames.length - 1)];
+    }
+
+    if (kind === 'sell') {
+      // Reverse of construct
+      const r = Math.min(idx, frames.length - 1);
+      return frames[Math.max(0, frames.length - 1 - r)];
+    }
+
+    return frames[0];
   }
 
-  // --- animation selection ---
-  function kindFor(ent) {
-  if (!ent) return 'normal';
-
-  // Selling: reverse-play construct (needs game.js to keep the entity alive for a short time)
-  if (ent._selling || ent.selling || ent.isSelling || (typeof ent.sellProgress === 'number')) return 'sell';
-
-  // Destroyed: play distruct once
-  const hp = (typeof ent.hp === 'number') ? ent.hp
-           : (typeof ent.health === 'number') ? ent.health
-           : (typeof ent.HP === 'number') ? ent.HP
-           : NaN;
-  if ((Number.isFinite(hp) && hp <= 0) || ent._destroyed || ent.destroyed || ent.dead) return 'distruct';
-
-  // Constructing: play construct
-  const bp = (typeof ent.buildProgress === 'number') ? ent.buildProgress
-           : (typeof ent.progress === 'number') ? ent.progress
-           : NaN;
-  if (ent._constructing || ent.constructing || (Number.isFinite(bp) && bp < 1)) return 'construct';
-
-  return 'normal';
-}
-
-
-  function pickFrame(kind, ent, state) {
-  // 'sell' uses construct frames but reversed
-  const baseKind = (kind === 'sell') ? 'construct' : kind;
-
-  const frames = S.frames[baseKind] || [];
-  if (!frames.length) return null;
-
-  const fps = 12;
-  const t = nowSec(state);
-
-  // One-shot for construct/sell/distruct: clamp to last frame
-  if (baseKind === 'construct' || baseKind === 'distruct') {
-    const key = (kind === 'sell') ? '_sellAt' : (baseKind === 'construct') ? '_constructAt' : '_distructAt';
-    if (ent[key] == null) ent[key] = t;
-    const dt = Math.max(0, t - ent[key]);
-    let idx = Math.floor(dt * fps);
-    if (idx >= frames.length) idx = frames.length - 1;
-
-    // Reverse for sell
-    if (kind === 'sell') idx = (frames.length - 1) - idx;
-
-    return frames[Math.max(0, Math.min(frames.length - 1, idx))];
+  function durSec(kind){
+    const frames = S.frames[kind] || [];
+    if (!frames.length) return 0.5;
+    const fps = (kind === 'distruct') ? BARRACK_DISTRUCT_FPS : BARRACK_CONSTRUCT_FPS;
+    return (frames.length / fps) + 0.05;
   }
 
-  // Normal: loop
-  const idx = Math.floor(t * fps) % frames.length;
-  return frames[idx];
-}
+  // ---------- ghost FX (sell/destroy even if entity is removed instantly) ----------
+  function spawnGhost(ent, fxKind, state, helpers){
+    if (!ent || !isBarrack(ent)) return;
 
+    const w = entWorld(ent, helpers);
+    const start = nowSec(state);
 
-  function getCtxFromArgs(args) {
-    for (const a of args) {
-      if (a && typeof a.drawImage === 'function') return a;
-    }
-    return null;
-  }
+    // Deduplicate: same ent id + same fx kind within a short window
+    const id = ent.id ?? ent.uid ?? ent.guid ?? ent._id ?? null;
+    const key = String(id ?? (w.x+','+w.y)) + ':' + fxKind;
 
-  function getEntFromArgs(args) {
-    for (const a of args) {
-      if (!a || typeof a !== 'object') continue;
-      if (typeof a.drawImage === 'function') continue; // ctx
-      const k = (a.kind || a.type || a.name);
-      if (k) return a;
-    }
-    return null;
-  }
-
-  function getCamFromArgs(args) {
-    for (const a of args) {
-      if (!a || typeof a !== 'object') continue;
-      if (typeof a.zoom === 'number' && (a.x != null || a.y != null || a.scrollX != null)) return a;
-    }
-    return PO.camera || null;
-  }
-
-  function getHelpersFromArgs(args) {
-    for (const a of args) {
-      if (!a || typeof a !== 'object') continue;
-      if (typeof a.worldToScreen === 'function') return a;
-    }
-    if (PO.world && typeof PO.world.worldToScreen === 'function') {
-      return { worldToScreen: PO.world.worldToScreen.bind(PO.world) };
-    }
-    if (PO.iso && typeof PO.iso.worldToScreen === 'function') {
-      return { worldToScreen: PO.iso.worldToScreen.bind(PO.iso) };
-    }
-    return null;
-  }
-
-  function getStateFromArgs(args) {
-    for (const a of args) {
-      if (!a || typeof a !== 'object') continue;
-      if (typeof a.t === 'number' || typeof a.time === 'number' || typeof a.now === 'number') return a;
-    }
-    return null;
-  }
-
-  function drawBarrack(ent, ctx, cam, helpers, state) {
-    // Start loading in the background as soon as we ever try to draw a barrack.
-    if (!S.started) kickLoad();
-
-    let kind = kindFor(ent);
-
-    // If buildProgress isn't implemented yet, still show 'construct' once when it first appears.
-    const t = nowSec(state);
-    if (ent._seenAt == null) ent._seenAt = t;
-    if (kind === 'normal' && (t - ent._seenAt) < 0.9) kind = 'construct';
-const atlasKind = (kind === 'sell') ? 'construct' : kind;
-    const atlas = S.atlases[atlasKind];
-    if (!atlas) return false; // let fallback box draw
-
-    const frameName = pickFrame(kind, ent, state);
-    if (!frameName) return false;
-
-    const w2s = helpers && typeof helpers.worldToScreen === 'function' ? helpers.worldToScreen : null;
-    if (!w2s) {
-      warnOnce('no_w2s', `[${KEY}:${VER}] no worldToScreen() found. Barrack will fallback to box.`);
-      return false;
+    // If a ghost with same key started within 0.1s, ignore
+    for (let i = S.ghosts.length - 1; i >= 0; i--) {
+      const g = S.ghosts[i];
+      if (g.key === key && Math.abs(g.start - start) < 0.1) return;
     }
 
-    const pos = w2s(ent.x, ent.y);
+    // Map FX kind to atlas kind
+    const atlasKind = (fxKind === 'sell') ? 'construct' : (fxKind === 'distruct') ? 'distruct' : fxKind;
 
-    // Zoom
-    const z = cam && typeof cam.zoom === 'number' ? cam.zoom : 1;
-
-    // Draw. Pivot bottom-center (0.5, 1.0) so it sits on the tile.
-    PO.atlasTP.drawFrame(ctx, atlas, frameName, pos.x, pos.y, {
-      scale: z,
-      pivotX: 0.5,
-      pivotY: 1.0,
-      alpha: 1,
-      snap: true,
+    S.ghosts.push({
+      key,
+      fxKind,
+      atlasKind,
+      x: w.x,
+      y: w.y,
+      start,
+      end: start + durSec(fxKind === 'sell' ? 'construct' : atlasKind),
     });
+  }
+
+  function drawGhostsOncePerFrame(ctx, cam, helpers, state){
+    // Draw ghosts at most once per visual frame.
+    const stamp = Math.floor(nowSec(state) * 60);
+    if (S._ghostDrawStamp === stamp) return;
+    S._ghostDrawStamp = stamp;
+
+    if (!S.ghosts.length) return;
+
+    // Need atlases loaded
+    if (!S.loaded.construct) ensureAtlas('construct');
+    if (!S.loaded.distruct) ensureAtlas('distruct');
+
+    const z = (cam && cam.z) ? cam.z : (PO.cam && PO.cam.z) ? PO.cam.z : 1;
+    const scale = readScale() * z;
+
+    const t = nowSec(state);
+
+    // Draw and filter
+    const out = [];
+    for (const g of S.ghosts) {
+      if (t > g.end) continue;
+
+      const atlas = S.atlas[g.atlasKind];
+      if (!atlas) { out.push(g); continue; }
+
+      const dt = t - g.start;
+      const frame = (g.fxKind === 'sell')
+        ? frameAt('sell', dt)
+        : frameAt(g.atlasKind, dt);
+
+      if (!frame) { out.push(g); continue; }
+
+      // Helpers may have world->screen transform
+      let sx = g.x, sy = g.y;
+      if (helpers && typeof helpers.worldToScreen === 'function') {
+        const p = helpers.worldToScreen(g.x, g.y);
+        if (p && isFinite(p.x) && isFinite(p.y)) { sx = p.x; sy = p.y; }
+      }
+
+      PO.atlasTP.drawFrame(ctx, atlas, frame, sx, sy, { scale });
+      out.push(g);
+    }
+
+    S.ghosts = out;
+  }
+
+  // ---------- draw (Barrack only) ----------
+  function drawBarrack(ent, state, ctx, cam, helpers){
+    // Make sure ghosts render (once per frame)
+    drawGhostsOncePerFrame(ctx, cam, helpers, state);
+
+    // Auto play build-complete animation once when a barrack is first seen
+    if (!ent._barrackSeen) {
+      ent._barrackSeen = true;
+      const hp = (ent.hp ?? ent.HP ?? ent.health ?? ent.life ?? 1);
+      const selling = !!(ent._selling || ent.selling || ent.isSelling || ent.sell || ent.toSell || ent.pendingSell);
+      if (hp > 0 && !selling) {
+        ent._constructing = true;
+        ent._autoConstructFx = true;
+        ent._constructStart = nowSec(state);
+      }
+    }
+
+    const kind = kindFor(ent, state);
+
+    // Ensure needed atlases
+    const needNormal = ensureAtlas('normal');
+    const needConst  = ensureAtlas('construct');
+    const needDist   = ensureAtlas('distruct');
+
+    // If any are missing, do not draw fallback box. Just skip drawing this frame.
+    if (!S.loaded.normal || !S.loaded.construct || !S.loaded.distruct) {
+      return true; // handled
+    }
+
+    const z = (cam && cam.z) ? cam.z : (PO.cam && PO.cam.z) ? PO.cam.z : 1;
+    const scale = readScale() * z;
+
+    // Choose atlas for this kind
+    let atlasKind = 'normal';
+    if (kind === 'construct' || kind === 'sell') atlasKind = 'construct';
+    if (kind === 'distruct') atlasKind = 'distruct';
+
+    const atlas = S.atlas[atlasKind];
+    if (!atlas) return true;
+
+    // Time base
+    const t = nowSec(state);
+
+    // Start times stored per-entity to make one-shot deterministic
+    if (kind === 'construct') {
+      if (!ent._constructStart) ent._constructStart = t;
+    } else {
+      ent._constructStart = null;
+    }
+
+    if (kind === 'distruct') {
+      if (!ent._distructStart) ent._distructStart = t;
+    } else {
+      ent._distructStart = null;
+    }
+
+    if (kind === 'sell') {
+      if (!ent._sellStart) ent._sellStart = t;
+    } else {
+      ent._sellStart = null;
+    }
+
+    const start = (kind === 'construct') ? ent._constructStart
+               : (kind === 'distruct') ? ent._distructStart
+               : (kind === 'sell')     ? ent._sellStart
+               : t;
+
+    const dt = Math.max(0, t - (start || t));
+
+    const frame = (kind === 'sell')
+      ? frameAt('sell', dt)
+      : frameAt(atlasKind, dt);
+
+    if (!frame) return true;
+
+    // World->screen
+    let w = entWorld(ent, helpers);
+    let sx = w.x, sy = w.y;
+    if (helpers && typeof helpers.worldToScreen === 'function') {
+      const p = helpers.worldToScreen(w.x, w.y);
+      if (p && isFinite(p.x) && isFinite(p.y)) { sx = p.x; sy = p.y; }
+    }
+
+    // Draw with atlas pivot (applied by applyPivotByPrefix)
+    PO.atlasTP.drawFrame(ctx, atlas, frame, sx, sy, { scale });
 
     return true;
   }
 
-  // --- hook into existing drawBuilding without breaking other buildings ---
-  const prevDrawBuilding = PO.buildings.drawBuilding;
+  // ---------- patch install ----------
+  function install(){
+    if (!PO.atlasTP || !PO.atlasTP.loadAtlasTP || !PO.atlasTP.drawFrame) {
+      console.warn('[barrack:'+S.ver+'] atlas_tp.js not ready yet; retrying...');
+      setTimeout(install, 250);
+      return;
+    }
 
-  PO.buildings.drawBuilding = function (...args) {
-    try {
-      const ctx = getCtxFromArgs(args);
-      const ent = getEntFromArgs(args);
-      const cam = getCamFromArgs(args);
-      const helpers = getHelpersFromArgs(args);
-      const state = getStateFromArgs(args);
+    if (!PO.buildings) PO.buildings = {};
 
-      if (ent) {
-        const k = String(ent.kind || ent.type || '').toLowerCase();
-        if (k === 'barrack' || k === 'barracks') {
-          if (ctx && drawBarrack(ent, ctx, cam, helpers, state)) return true;
-          // If we failed to draw (atlas not ready), fall through to previous drawer (it might draw a placeholder box).
-        }
+    // Wrap existing drawBuilding so only barrack uses atlases; others remain unchanged
+    const prevDrawBuilding = PO.buildings.drawBuilding;
+    PO.buildings.drawBuilding = function(...args){
+      const { ent, state, ctx, cam, helpers } = getArgs(args);
+
+      // Always draw ghosts once per frame even if no barrack is drawn this call
+      if (ctx) drawGhostsOncePerFrame(ctx, cam, helpers, state);
+
+      if (ent && isBarrack(ent) && ctx) {
+        const handled = drawBarrack(ent, state, ctx, cam, helpers);
+        if (handled) return;
       }
 
-      return typeof prevDrawBuilding === 'function' ? prevDrawBuilding.apply(this, args) : false;
-    } catch (e) {
-      errOnce('drawBuilding_err', `[${KEY}:${VER}] drawBuilding wrapper error (logged once):`, e);
-      return typeof prevDrawBuilding === 'function' ? prevDrawBuilding.apply(this, args) : false;
-    }
-  };
+      if (typeof prevDrawBuilding === 'function') {
+        return prevDrawBuilding.apply(this, args);
+      }
+    };
 
-  // Optional: manual reload from console
-  PO.buildings.reloadBarrackAtlases = function () {
-    S.atlases.normal = S.atlases.construct = S.atlases.distruct = null;
-    S.frames.normal = []; S.frames.construct = []; S.frames.distruct = [];
-    S.ready.normal = S.ready.construct = S.ready.distruct = false;
-    S.loading.normal = S.loading.construct = S.loading.distruct = false;
-    S.tries.normal = S.tries.construct = S.tries.distruct = 0;
-    S.nextRetryMs = 200;
-    S.logged.clear();
-    S.started = false;
+    // Add best-effort hooks to spawn ghosts on sell/remove calls
+    bestEffortHooks();
+
     kickLoad();
-  };
 
-  // Kick once (but it will retry if atlas_tp isn't ready yet)
-  kickLoad();
+    console.log('[barrack:'+S.ver+'] installed. pivot=', readPivot(), 'scale=', readScale());
+  }
+
+  function getArgs(args){
+    // Try to discover the typical signature:
+    // drawBuilding(ent, state, ctx, cam, helpers)
+    // or drawBuilding(ctx, cam, ent, state, helpers)
+    let ent = null, state = null, ctx = null, cam = null, helpers = null;
+
+    for (const a of args) {
+      if (!ctx && a && a.canvas && a.fillRect && a.drawImage) ctx = a;
+      else if (!cam && a && typeof a === 'object' && ('z' in a) && ('x' in a) && ('y' in a)) cam = a;
+      else if (!helpers && a && typeof a === 'object' && (typeof a.worldToScreen === 'function' || typeof a.buildingWorldXY === 'function')) helpers = a;
+    }
+
+    // Entity likely has hp/owner/kind
+    for (const a of args) {
+      if (ent) break;
+      if (a && typeof a === 'object' && (('hp' in a) || ('kind' in a) || ('type' in a) || ('owner' in a) || ('team' in a))) {
+        // avoid grabbing ctx/cam/helpers
+        if (a !== ctx && a !== cam && a !== helpers) ent = a;
+      }
+    }
+
+    // State likely has t/time/dt
+    for (const a of args) {
+      if (state) break;
+      if (a && typeof a === 'object' && (('t' in a) || ('time' in a) || ('dt' in a) || ('now' in a) || ('nowSec' in a))) {
+        if (a !== ctx && a !== cam && a !== helpers && a !== ent) state = a;
+      }
+    }
+
+    return { ent, state, ctx, cam, helpers };
+  }
+
+  function wrapFn(obj, name, fn){
+    if (!obj || typeof obj[name] !== 'function') return false;
+    const orig = obj[name];
+    if (orig._barrackWrapped) return true;
+    const wrapped = function(...args){ return fn.call(this, orig, args); };
+    wrapped._barrackWrapped = true;
+    obj[name] = wrapped;
+    return true;
+  }
+
+  function bestEffortHooks(){
+    // Hook sell paths
+    const sellNames = ['sellBuilding','sellSelected','sell','sellCurrent','onSell','doSell'];
+    const killNames = ['destroyBuilding','killBuilding','removeBuilding','removeEntity','deleteBuilding','onBuildingDestroyed','destroy','kill'];
+
+    const targets = [];
+    if (PO.buildings) targets.push(PO.buildings);
+    if (PO.ui) targets.push(PO.ui);
+    if (PO.game) targets.push(PO.game);
+
+    for (const t of targets) {
+      for (const n of sellNames) {
+        wrapFn(t, n, (orig, args) => {
+          const ent = args.find(a => a && typeof a === 'object' && isBarrack(a));
+          const state = null;
+          if (ent) spawnGhost(ent, 'sell', state, null);
+          return orig.apply(this, args);
+        });
+      }
+
+      for (const n of killNames) {
+        wrapFn(t, n, (orig, args) => {
+          // If args include reason string, try to classify
+          const reason = args.find(a => typeof a === 'string');
+          const ent = args.find(a => a && typeof a === 'object' && isBarrack(a));
+          if (ent) {
+            const r = (reason || '').toLowerCase();
+            if (r.includes('sell')) spawnGhost(ent, 'sell', null, null);
+            else if (r.includes('destroy') || r.includes('dead') || r.includes('kill')) spawnGhost(ent, 'distruct', null, null);
+            else {
+              // default: treat as destroy only if hp<=0
+              const hp = (ent.hp ?? ent.health ?? null);
+              if (typeof hp === 'number' && hp <= 0) spawnGhost(ent, 'distruct', null, null);
+            }
+          }
+          return orig.apply(this, args);
+        });
+      }
+    }
+
+    // DOM fallback for the Sell button (Korean label: "매각")
+    try{
+      document.addEventListener('click', (ev) => {
+        const btn = ev.target && ev.target.closest ? ev.target.closest('button') : null;
+        if (!btn) return;
+        const txt = (btn.textContent || '').trim();
+        if (txt !== '매각') return;
+
+        // Try common selected references
+        const ent = PO.selected || PO.sel || (PO.ui && (PO.ui.selected || PO.ui.sel || PO.ui.currentSelected)) || (PO.game && (PO.game.selected || PO.game.sel));
+        if (ent && isBarrack(ent)) spawnGhost(ent, 'sell', null, null);
+      }, true);
+    }catch(_){/* ignore */}
+  }
+
+  // Install when DOM is ready-ish
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', install);
+  } else {
+    install();
+  }
+
 })();
