@@ -329,7 +329,7 @@ function fitMini() {
 
   // expose TEAM_ACCENT so other modules (e.g., buildings.js) share the same palette
   try{
-    if (typeof window !== "undefined" && window.LINK_ENEMY_TO_PLAYER_COLOR) TEAM_ACCENT.ENEMY = TEAM_ACCENT.PLAYER;
+    // NOTE: enemy color linking disabled (caused enemy palette to mirror player)
     window.TEAM_ACCENT = TEAM_ACCENT;
   }catch(_e){}
 
@@ -2498,7 +2498,7 @@ function buildingWorldFromTileOrigin(tx,ty,tw,th){
     setBuildingOcc(b, 1);
     recomputePower();
     onBuildingPlaced(b);
-    try{ if (window.PO && PO.buildings && PO.buildings.onPlaced) PO.buildings.onPlaced(b); }catch(_e){}
+    try{ if (window.PO && PO.buildings && PO.buildings.onPlaced) PO.buildings.onPlaced(b, state); }catch(_e){}
     return b;
   }
 
@@ -4942,7 +4942,7 @@ try{
 
 
     // 3) Remove from gameplay
-    try{ if (b && b.kind === "barracks" && window.PO && PO.buildings && PO.buildings.onDestroyed) PO.buildings.onDestroyed(b); }catch(_e){}
+    try{ if (window.PO && PO.buildings && PO.buildings.onDestroyed) PO.buildings.onDestroyed(b, state); }catch(_e){}
     b.alive = false;
     state.selection.delete(b.id);
     setBuildingOcc(b, 0);
@@ -6827,6 +6827,10 @@ if (q.paused && !debugFastProd){
 
 function sellBuilding(b){
     if (!b || !b.alive || b.civ) return;
+
+    // Prevent double-sell spam while animation is running
+    if (b.kind==="barracks" && b._barrackSelling) return;
+
     const refund = Math.floor((COST[b.kind]||0) * 0.5);
     if (b.team===TEAM.PLAYER) state.player.money += refund;
     else state.enemy.money += refund;
@@ -6834,7 +6838,28 @@ function sellBuilding(b){
     // Selling evacuates units at full HP (RA2-ish flavor).
     spawnEvacUnitsFromBuilding(b, false);
 
-    try{ if (window.PO && PO.buildings && PO.buildings.onSold) PO.buildings.onSold(b); }catch(_e){}
+    // Barracks: play "construction" animation in reverse, then remove footprint.
+    if (b.kind==="barracks"){
+      try{
+        if (window.PO && PO.buildings && PO.buildings.onSold){
+          PO.buildings.onSold(b, state);
+        }else{
+          // Fallback: if plugin missing, schedule a short delay so it doesn't insta-pop.
+          b._barrackSelling = true;
+          b._barrackSellFinalizeAt = state.t + 0.9;
+        }
+      }catch(_e){
+        b._barrackSelling = true;
+        b._barrackSellFinalizeAt = state.t + 0.9;
+      }
+
+      // Immediately unselect, but keep it alive/occupying until animation finishes.
+      state.selection.delete(b.id);
+      return;
+    }
+
+    // Default: immediate removal
+    try{ if (window.PO && PO.buildings && PO.buildings.onSold) PO.buildings.onSold(b, state); }catch(_e){}
     b.alive=false;
     state.selection.delete(b.id);
     setBuildingOcc(b,0);
@@ -11516,7 +11541,7 @@ let rX = ent.x, rY = ent.y;
           drawBuildingSprite(ent);
 
 
-        } else if (ent.kind === "barracks" && window.PO && PO.buildings && PO.buildings.drawBuilding) {
+        } else if (window.PO && PO.buildings && PO.buildings.drawBuilding) {
 
 
           const helpers = { worldToScreen, ISO_X, ISO_Y, drawFootprintDiamond };
@@ -11690,6 +11715,7 @@ let rX = ent.x, rY = ent.y;
       }
     }
 
+    
     // Repair FX (wrench animation)
     drawWrenchFx();
 
@@ -11900,6 +11926,12 @@ ctx.fill();
     }
 
 
+    // Barracks destruction/sell animation ghosts (render below explosions/smoke)
+    try{ if (window.PO && PO.buildings && PO.buildings.drawGhosts){
+      const helpers = { worldToScreen, ISO_X, ISO_Y, drawFootprintDiamond };
+      PO.buildings.drawGhosts(ctx, cam, helpers, state);
+    }}catch(_e){}
+
     // Building destruction explosions
     drawExplosions(ctx);
 
@@ -11912,13 +11944,6 @@ ctx.fill();
 
     // Smoke plume (puffs) can sit above the explosion a bit
     drawSmokePuffs(ctx);
-
-    // Barracks destruction/sell animation ghosts
-    // Render ABOVE explosion/smoke so it is visible immediately.
-    try{ if (window.PO && PO.buildings && PO.buildings.drawGhosts){
-      const helpers = { worldToScreen, ISO_X, ISO_Y, drawFootprintDiamond };
-      PO.buildings.drawGhosts(ctx, cam, helpers, state);
-    }}catch(_e){}
     drawDmgSmokePuffs(ctx);
 // Building fire FX (critical HP)
     for (const f of fires){
@@ -12271,8 +12296,16 @@ for (let ty=0; ty<MAP_H; ty+=2){
 
 
     function safePlace(team, kind, nearTx, nearTy){
-      const spot=findFootprintSpotNear(kind, nearTx, nearTy, 420);
-      return addBuilding(team, kind, spot.tx, spot.ty);
+      const spot = findFootprintSpotNear(kind, nearTx, nearTy, 420);
+      if (!spot) return null;
+      const b = addBuilding(team, kind, spot.tx, spot.ty);
+      // Start-of-game buildings are already built: skip barracks build animation.
+      if (b && kind==="barracks"){
+        b._barrackNoBuildAnim = true;
+        b._barrackBuildT0 = null;
+        b._barrackBuildDone = true;
+      }
+      return b;
     }
 
     const pHQ = safePlace(TEAM.PLAYER,"hq", a.tx-2, a.ty-2);
@@ -12978,6 +13011,22 @@ function sanityCheck(){
 
     if (running && !gameOver && !pauseMenuOpen){
       state.t += dt;
+
+      // Finalize barracks selling AFTER reverse-build animation completes
+      let _needPower=false, _needElim=false;
+      for (const b of buildings){
+        if (!b || !b.alive) continue;
+        if (b.kind==="barracks" && b._barrackSelling && b._barrackSellFinalizeAt!=null && state.t >= b._barrackSellFinalizeAt){
+          b.alive = false;
+          state.selection.delete(b.id);
+          setBuildingOcc(b, 0);
+          _needPower = true;
+          _needElim  = true;
+        }
+      }
+      if (_needPower) recomputePower();
+      if (_needElim)  checkElimination();
+
       updateCamShake(dt);
       updateExp1Fxs(dt);
       updateSmoke(dt);

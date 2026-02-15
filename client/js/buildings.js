@@ -184,13 +184,45 @@
   }
 
   // --- public hooks ---
-  PO.buildings.onDestroyed = function(b) {
+  // Called when an actual building entity is created (construction finished).
+  // We use this to start timers at the correct moment (NOT first time drawn).
+  PO.buildings.onPlaced = function(b, state){
+    if (!b || b.kind!=="barracks") return;
+    const now = (state && state.t!=null) ? state.t : (performance.now()/1000);
+    b._barrackSeen = true;
+    b._barrackIdleT0 = now;
+    if (!b._barrackNoBuildAnim){
+      b._barrackBuildT0 = now;
+      b._barrackBuildDone = false;
+    }else{
+      b._barrackBuildT0 = null;
+      b._barrackBuildDone = true;
+    }
+  };
+
+  // Selling: replay build animation in reverse, then game.js removes footprint.
+  PO.buildings.onSold = function(b, state){
+    if (!b || b.kind!=="barracks") return;
+    // Ensure atlases are loading; if not ready yet, game.js will still delay a bit.
+    if (!st.ready) ensureAtlasesLoaded();
+    const now = (state && state.t!=null) ? state.t : (performance.now()/1000);
+    const n = (st.frames && st.frames.build && st.frames.build.length) ? st.frames.build.length : 17;
+    const dur = n / BUILD_FPS;
+    b._barrackSelling = true;
+    b._barrackSellT0 = now;
+    b._barrackSellFinalizeAt = now + dur;
+    // While selling, ignore build->idle state machine
+    b._barrackBuildDone = true;
+    b._barrackBuildT0 = null;
+  };
+
+  PO.buildings.onDestroyed = function(b, state){
     // Called from game.js destroyBuilding() after removing the entity from state.
     // We spawn a ghost that replays distruct frames at the old position.
     // Guard: do not affect other buildings.
     if (!b || b.kind !== "barracks") return;
     try {
-      const now = (PO._state && PO._state.t) ? PO._state.t : (performance.now() / 1000);
+      const now = (state && state.t!=null) ? state.t : (performance.now() / 1000);
       st.ghosts.push({
         x: b.x, y: b.y,
         tw: b.tw, th: b.th,
@@ -256,7 +288,19 @@
       if (!ent._barrackNoBuildAnim) ent._barrackBuildT0 = now;
     }
 
-    // If dead, do not draw here; ghost will play (destroyBuilding calls onDestroyed)
+        // Selling (reverse of build animation)
+    if (ent._barrackSelling && st.frames.build.length){
+      const t0s = ent._barrackSellT0 != null ? ent._barrackSellT0 : (ent._barrackSellT0 = now);
+      const dtS = Math.max(0, now - t0s);
+      const idxR = (st.frames.build.length - 1) - Math.floor(dtS * BUILD_FPS);
+      if (idxR >= 0){
+        return drawFrameTeam("build", st.atlases.build, ctx, st.frames.build[idxR], sx, sy, team, scale);
+      }
+      // Done: keep returning true (draw nothing). game.js will remove footprint/alive.
+      return true;
+    }
+
+// If dead, do not draw here; ghost will play (destroyBuilding calls onDestroyed)
     if ((ent.hp ?? 1) <= 0) return true;
 
     // Build -> Idle state machine
