@@ -261,6 +261,26 @@
 
       <div class="grid2" style="margin-top:10px;">
         <div class="row">
+          <input id="showAxis" type="checkbox" checked />
+          <label for="showAxis" style="margin:0;">풋프린트 축(↘/↙) 표시</label>
+        </div>
+        <div class="row">
+          <input id="showMini" type="checkbox" checked />
+          <label for="showMini" style="margin:0;">탑다운(직사각형) 미니뷰</label>
+        </div>
+      </div>
+
+      <div id="miniWrap" style="margin-top:10px;">
+        <div class="small muted" style="margin-bottom:6px;">
+          아이소 화면에선 “직사각형 풋프린트”가 평행사변형처럼 보이는 게 정상.
+          헷갈리면 아래 미니뷰에서 3×2 같은 직사각형을 같이 봐.
+        </div>
+        <canvas id="miniCv" width="260" height="180" style="width:100%;height:auto;border:1px solid rgba(255,255,255,.08);border-radius:10px;background:rgba(0,0,0,.25)"></canvas>
+      </div>
+
+
+      <div class="grid2" style="margin-top:10px;">
+        <div class="row">
           <input id="showAnchor" type="checkbox" checked />
           <label for="showAnchor" style="margin:0;">앵커(찍는점) 표시</label>
         </div>
@@ -899,7 +919,127 @@ window.PO = window.PO || {};
       ctx.restore();
     }
 
-    ctx.restore();
+          // 풋프린트 "직사각형" 가이드(외곽선 + 축). 아이소에서는 평행사변형으로 보이는게 정상.
+    const showAxis = $('showAxis') ? $('showAxis').checked : false;
+    if (showAxis) {
+      const pa = gameWorldToScreen((tx) * iso.TILE, (ty) * iso.TILE, cam, iso, baseX, baseY);
+      const pb = gameWorldToScreen((tx + tw) * iso.TILE, (ty) * iso.TILE, cam, iso, baseX, baseY);
+      const pc = gameWorldToScreen((tx + tw) * iso.TILE, (ty + th) * iso.TILE, cam, iso, baseX, baseY);
+      const pd = gameWorldToScreen((tx) * iso.TILE, (ty + th) * iso.TILE, cam, iso, baseX, baseY);
+
+      // outer outline
+      ctx.save();
+      ctx.strokeStyle = 'rgba(255,255,255,.22)';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([8, 6]);
+      ctx.beginPath();
+      ctx.moveTo(pa.x, pa.y);
+      ctx.lineTo(pb.x, pb.y);
+      ctx.lineTo(pc.x, pc.y);
+      ctx.lineTo(pd.x, pd.y);
+      ctx.closePath();
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      // axis arrows (W: +x ↘, H: +y ↙)
+      function arrow(a, b, label) {
+        ctx.strokeStyle = 'rgba(121,167,255,.85)';
+        ctx.fillStyle = 'rgba(121,167,255,.85)';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(a.x, a.y);
+        ctx.lineTo(b.x, b.y);
+        ctx.stroke();
+
+        const ang = Math.atan2(b.y - a.y, b.x - a.x);
+        const ah = 10;
+        ctx.beginPath();
+        ctx.moveTo(b.x, b.y);
+        ctx.lineTo(b.x - Math.cos(ang - 0.55) * ah, b.y - Math.sin(ang - 0.55) * ah);
+        ctx.lineTo(b.x - Math.cos(ang + 0.55) * ah, b.y - Math.sin(ang + 0.55) * ah);
+        ctx.closePath();
+        ctx.fill();
+
+        const mx = (a.x + b.x) * 0.5;
+        const my = (a.y + b.y) * 0.5;
+        ctx.font = '12px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace';
+        ctx.fillStyle = 'rgba(255,255,255,.75)';
+        ctx.fillText(label, mx + 6, my - 6);
+      }
+
+      arrow(pa, pb, `W=${tw}  ↘(+x)`);
+      arrow(pa, pd, `H=${th}  ↙(+y)`);
+
+      // origin dot
+      ctx.fillStyle = 'rgba(255,206,106,.85)';
+      ctx.beginPath();
+      ctx.arc(pa.x, pa.y, 4, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+
+ctx.restore();
+  }
+
+
+  function drawMiniFootprint() {
+    const wrap = $('miniWrap');
+    const mini = $('miniCv');
+    if (!wrap || !mini) return;
+
+    const on = $('showMini') ? $('showMini').checked : false;
+    wrap.style.display = on ? '' : 'none';
+    if (!on) return;
+
+    const tw = Math.max(1, parseNum('fpW', 3));
+    const th = Math.max(1, parseNum('fpH', 2));
+    const mctx = mini.getContext('2d');
+
+    // high DPI crisp
+    const mw = mini.width, mh = mini.height;
+    mctx.clearRect(0, 0, mw, mh);
+
+    const pad = 18;
+    const cell = Math.max(10, Math.floor(Math.min((mw - pad*2) / tw, (mh - pad*2) / th)));
+    const w = cell * tw;
+    const h = cell * th;
+    const ox = Math.floor((mw - w) / 2);
+    const oy = Math.floor((mh - h) / 2);
+
+    // fill rect
+    mctx.fillStyle = 'rgba(108,255,176,.10)';
+    mctx.fillRect(ox, oy, w, h);
+
+    // grid
+    mctx.strokeStyle = 'rgba(255,255,255,.18)';
+    mctx.lineWidth = 1;
+    for (let x = 0; x <= tw; x++) {
+      mctx.beginPath();
+      mctx.moveTo(ox + x * cell, oy);
+      mctx.lineTo(ox + x * cell, oy + h);
+      mctx.stroke();
+    }
+    for (let y = 0; y <= th; y++) {
+      mctx.beginPath();
+      mctx.moveTo(ox, oy + y * cell);
+      mctx.lineTo(ox + w, oy + y * cell);
+      mctx.stroke();
+    }
+
+    // outline
+    mctx.strokeStyle = 'rgba(108,255,176,.85)';
+    mctx.lineWidth = 2;
+    mctx.strokeRect(ox, oy, w, h);
+
+    // origin marker (0,0)
+    mctx.fillStyle = 'rgba(255,206,106,.90)';
+    mctx.fillRect(ox + 2, oy + 2, 8, 8);
+
+    // labels
+    mctx.font = '12px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace';
+    mctx.fillStyle = 'rgba(255,255,255,.78)';
+    mctx.fillText(`Top-down: W=${tw} →, H=${th} ↓`, 10, 16);
+    mctx.fillText(`(0,0) origin`, 10, mh - 10);
   }
 
   function render() {
@@ -933,6 +1073,7 @@ window.PO = window.PO || {};
     const baseY = h * clamp(parseNum('baseYRatio', 0.22), 0, 1);
 
     drawFootprintOverlay(iso, cam);
+    drawMiniFootprint();
 
     // draw sprite at anchor
     if (atlas && curFrame) {
