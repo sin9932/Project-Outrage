@@ -1,139 +1,289 @@
-// buildings.js patch: Barrack atlases + pivot/scale + team palette + sell/destroy FX (v23)
-//
-// Drop-in: overwrite client/js/buildings.js
-// Compatible with atlas_tp.js v6+ (loadAtlasTP/listFramesByPrefix/drawFrame/applyPivotByPrefix)
-//
-// v23 fixes vs v22:
-// - Correct distruct frame prefix: barrack_distruction_
-// - Correct applyPivotByPrefix signature (pivot object)
-// - Correct position math: use worldToScreen(tileX,tileY) directly (no iso->world reconversion)
-// - Team palette tint: replaces magenta pixels with team color (cached)
-// - Sell/Destroy FX: keeps playing via "ghost" even when entity vanishes instantly (UI click + removal detection fallback)
-
-(function () {
-  'use strict';
-
+// buildings.js patch: Barrack fix v24
+// 목표:
+// 1) 위치/피벗이 엉뚱한 곳으로 튀는 문제: drawBuilding 인자에서 "화면좌표 힌트"를 우선 사용 + 후보좌표 자동 선택
+// 2) 진영 팔레트(마젠타 -> 팀색) 적용
+// 3) 매각/파괴 애니메이션: 오브젝트가 즉시 삭제돼도 "고스트"로 끝까지 출력
+// 4) 캐시/로드 순서 헷갈림 방지: 로드되면 무조건 콘솔에 로그 찍음
+(() => {
   const PO = (window.PO = window.PO || {});
-  PO.buildings = PO.buildings || {};
-
   const KEY = 'barrack';
-  const VER = 'v23';
+  const VER = 'v24';
 
-  const DEFAULT_PIVOT = { x: 0.4955, y: 0.4370 };
-  const DEFAULT_SCALE = 0.14;
-  const FPS_CONSTRUCT = 12;
-  const FPS_DISTRUCT = 12;
+  // 파일이 "로드 됐는지"부터 확실하게 보이게
+  console.log(`[${KEY}:${VER}] script loaded`);
 
-  const LOG_ONCE = new Set();
-  function logOnce(k, ...args) {
-    if (LOG_ONCE.has(k)) return;
-    LOG_ONCE.add(k);
-    console.log(...args);
+  const S = {
+    installed: false,
+    kicked: false,
+    installPath: null,
+
+    // atlases
+    atlases: { normal: null, construct: null, distruct: null },
+    atlasP: { normal: null, construct: null, distruct: null },
+
+    // URL candidates (여러 배포환경에서 경로가 달라지는 걸 흡수)
+    urlCands: { normal: [], construct: [], distruct: [] },
+
+    // best prefix for each atlas kind
+    prefix: { normal: null, construct: null, distruct: null },
+
+    // caches
+    tintCache: new Map(), // key: frameName|teamHex
+    lastSeen: new Map(),  // key: snapId -> snap
+
+    // ghosts
+    ghosts: [],
+  };
+
+  // ---------------- utils ----------------
+  const clamp01 = (v) => Math.max(0, Math.min(1, Number(v)));
+  const nowSec = (state) => {
+    const t = state && (state.t ?? state.time ?? state.now);
+    if (typeof t === 'number' && isFinite(t)) return t;
+    return performance.now() / 1000;
+  };
+  const stamp60 = (state) => Math.floor(nowSec(state) * 60);
+
+  function isFiniteNum(v) {
+    return typeof v === 'number' && isFinite(v);
   }
-  function warnOnce(k, ...args) {
-    if (LOG_ONCE.has(k)) return;
-    LOG_ONCE.add(k);
-    console.warn(...args);
+
+  function safeText(x) {
+    try { return String(x); } catch (_) { return ''; }
   }
 
-  function safeNum(v) {
-    const n = Number(v);
-    return Number.isFinite(n) ? n : null;
+  function isOnScreen(ctx, x, y, pad = 256) {
+    if (!ctx || !ctx.canvas) return false;
+    const w = ctx.canvas.width || 0;
+    const h = ctx.canvas.height || 0;
+    return x >= -pad && y >= -pad && x <= w + pad && y <= h + pad;
+  }
+
+  function normalizeHex(c) {
+    if (!c) return null;
+    const s = safeText(c).trim();
+    if (!s) return null;
+    // #rgb or #rrggbb
+    let m = s.match(/^#([0-9a-fA-F]{3})$/);
+    if (m) {
+      const r = m[1][0], g = m[1][1], b = m[1][2];
+      return ('#' + r + r + g + g + b + b).toLowerCase();
+    }
+    m = s.match(/^#([0-9a-fA-F]{6})$/);
+    if (m) return ('#' + m[1]).toLowerCase();
+
+    // rgb(a)
+    m = s.match(/^rgba?\(([^)]+)\)$/i);
+    if (m) {
+      const parts = m[1].split(',').map(x => Number(x.trim()));
+      if (parts.length >= 3 && parts.every(n => isFinite(n))) {
+        const r = Math.max(0, Math.min(255, parts[0] | 0));
+        const g = Math.max(0, Math.min(255, parts[1] | 0));
+        const b = Math.max(0, Math.min(255, parts[2] | 0));
+        return '#' + [r, g, b].map(v => v.toString(16).padStart(2, '0')).join('');
+      }
+    }
+    return null;
+  }
+
+  function hexToRgb(hex) {
+    const h = normalizeHex(hex);
+    if (!h) return null;
+    return {
+      r: parseInt(h.slice(1, 3), 16),
+      g: parseInt(h.slice(3, 5), 16),
+      b: parseInt(h.slice(5, 7), 16),
+    };
+  }
+
+  // ---------------- config (pivot / scale) ----------------
+  function readScale() {
+    const d = 0.14;
+    try {
+      const v = Number(localStorage.getItem('po_barrack_scale'));
+      if (isFinite(v) && v > 0.001 && v < 10) return v;
+    } catch (_) {}
+    return d;
   }
 
   function readPivot() {
+    const def = { x: 0.4955, y: 0.4370 };
+    let x = def.x, y = def.y;
     try {
-      const x = safeNum(localStorage.getItem('po_barrack_pivot_x')) ?? safeNum(localStorage.getItem('barrack_pivot_x'));
-      const y = safeNum(localStorage.getItem('po_barrack_pivot_y')) ?? safeNum(localStorage.getItem('barrack_pivot_y'));
-      if (x !== null && y !== null) return { x, y };
+      const px = Number(localStorage.getItem('po_barrack_pivot_x'));
+      const py = Number(localStorage.getItem('po_barrack_pivot_y'));
+      if (isFinite(px)) x = clamp01(px);
+      if (isFinite(py)) y = clamp01(py);
     } catch (_) {}
-    return { ...DEFAULT_PIVOT };
+    return { x, y };
   }
 
-  function readScale() {
+  // ---------------- asset path candidates ----------------
+  function makeUrl(rel) {
+    // document.baseURI 기준으로 상대경로를 절대 URL로 변환
+    return new URL(rel, document.baseURI).toString();
+  }
+
+  function setPaths() {
+    // 배포환경에 따라 루트가 다를 수 있어서 후보 여러개를 둠
+    const roots = [
+      'asset/sprite/const',
+      'client/asset/sprite/const',
+    ];
+
+    // 파일명 후보도 여러개를 둠 (네 폴더/파일이 오타 섞여있을 수 있음)
+    const normalJson = [
+      'normal/barrack/barrack_idle.json',
+    ];
+
+    const constructJson = [
+      'const_anim/barrack/barrack_const.json',
+      'const_anim/barrack/barrack_con_complete.json',
+    ];
+
+    const distructJson = [
+      'distruct/barrack/barrack_distruct.json',
+      'destruct/barrack/barrack_distruct.json',
+      'destruct/barrack/barrack_destruct.json',
+      'distruction/barrack/barrack_distruction.json',
+      'destruction/barrack/barrack_destruction.json',
+    ];
+
+    const build = (root, rel) => makeUrl(root + '/' + rel);
+
+    S.urlCands.normal = roots.flatMap(r => normalJson.map(j => build(r, j)));
+    S.urlCands.construct = roots.flatMap(r => constructJson.map(j => build(r, j)));
+    S.urlCands.distruct = roots.flatMap(r => distructJson.map(j => build(r, j)));
+  }
+
+  setPaths();
+
+  // ---------------- atlas helpers ----------------
+  function getAtlasLoader() {
+    const A = PO.atlasTP;
+    if (!A) return null;
+    return A.loadTPAtlasMulti || A.loadTPAtlas || A.loadAtlasTPMulti || A.loadAtlasTP || null;
+  }
+
+  function listFrames(atlas, prefix) {
+    const A = PO.atlasTP;
+    if (!A || typeof A.listFramesByPrefix !== 'function') return [];
+    return A.listFramesByPrefix(atlas, prefix, { sort: true });
+  }
+
+  function applyPivot(atlas) {
+    const A = PO.atlasTP;
+    if (!A || typeof A.applyPivotByPrefix !== 'function') return 0;
+    const piv = readPivot();
+    // barrack_ 로 시작하는 모든 프레임에 pivot 강제
+    return A.applyPivotByPrefix(atlas, 'barrack_', piv);
+  }
+
+  function pickBestPrefix(atlas, kind) {
+    const cands =
+      kind === 'normal'
+        ? ['barrack_idle', 'barrack_idle_']
+        : kind === 'construct'
+          ? ['barrack_con_complete_', 'barrack_const_', 'barrack_construct_', 'barrack_build_']
+          : ['barrack_distruction_', 'barrack_destruction_', 'barrack_distruct_', 'barrack_destruct_', 'barrack_destroy_'];
+
+    let best = null;
+    let bestN = 0;
+    for (const p of cands) {
+      const n = listFrames(atlas, p).length;
+      if (n > bestN) { bestN = n; best = p; }
+    }
+    return best;
+  }
+
+  async function ensureAtlas(kind) {
+    if (S.atlases[kind]) return S.atlases[kind];
+    if (S.atlasP[kind]) return S.atlasP[kind];
+
+    const loader = getAtlasLoader();
+    if (!loader) throw new Error('atlas_tp loader not ready');
+
+    const p = (async () => {
+      const cands = S.urlCands[kind] || [];
+      let lastErr = null;
+
+      for (const url of cands) {
+        try {
+          const atlas = await loader(url);
+          // pivot apply
+          applyPivot(atlas);
+
+          const pref = pickBestPrefix(atlas, kind);
+          S.prefix[kind] = pref;
+
+          const size = atlas && atlas.frames ? atlas.frames.size : 0;
+          console.log(`[${KEY}:${VER}] ${kind} atlas loaded`, { url, frames: size, prefix: pref });
+
+          S.atlases[kind] = atlas;
+          return atlas;
+        } catch (e) {
+          lastErr = e;
+          console.warn(`[${KEY}:${VER}] ${kind} atlas load failed`, url, (e && e.message) ? e.message : e);
+        }
+      }
+      throw lastErr || new Error(`${kind} atlas load failed`);
+    })();
+
+    S.atlasP[kind] = p;
     try {
-      const s = safeNum(localStorage.getItem('po_barrack_scale')) ?? safeNum(localStorage.getItem('barrack_scale'));
-      if (s !== null && s > 0) return s;
-    } catch (_) {}
-    return DEFAULT_SCALE;
+      return await p;
+    } finally {
+      // keep S.atlasP so concurrent calls share same promise
+    }
   }
 
-  function nowSec(state) {
-    const t = state && (state.t ?? state.time ?? state.now ?? state.nowSec ?? null);
-    if (typeof t === 'number' && isFinite(t)) return t;
-    return performance.now() / 1000;
+  function kickLoad() {
+    if (S.kicked) return;
+    S.kicked = true;
+    // 비동기로 로드 시작
+    ensureAtlas('normal').catch(() => {});
+    ensureAtlas('construct').catch(() => {});
+    ensureAtlas('distruct').catch(() => {});
   }
 
-  function stamp60(state) {
-    return Math.floor(nowSec(state) * 60);
-  }
-
+  // ---------------- entity detection ----------------
   function isBarrack(ent) {
-    if (!ent) return false;
-    const k = (ent.kind ?? ent.type ?? ent.name ?? '').toString().toLowerCase();
-    return k === 'barrack' || k === 'barracks' || k === 'rax' || ent._isBarrack === true;
+    if (!ent || typeof ent !== 'object') return false;
+    const n = safeText(ent.kind || ent.type || ent.name || '').toLowerCase();
+    if (n.includes('barrack')) return true;
+    // id/blueprint name
+    const id = safeText(ent.id || ent.blueprint || ent.proto || '').toLowerCase();
+    return id.includes('barrack');
   }
 
-  function entTile(ent) {
-    const tx = ent.tx ?? ent.tileX ?? ent.x ?? 0;
-    const ty = ent.ty ?? ent.tileY ?? ent.y ?? 0;
-    return { x: tx, y: ty };
+  function getTeamIndex(ent) {
+    const v =
+      ent.team ??
+      ent.faction ??
+      ent.side ??
+      ent.ownerId ??
+      (ent.owner && (ent.owner.team ?? ent.owner.faction ?? ent.owner.side)) ??
+      0;
+    const n = Number(v);
+    if (isFinite(n)) return n | 0;
+    const s = safeText(v).toLowerCase();
+    if (s.includes('enemy') || s.includes('red')) return 1;
+    if (s.includes('player') || s.includes('blue')) return 0;
+    return 0;
   }
 
-  function worldToScreen(tile, helpers) {
-    try {
-      if (helpers && typeof helpers.worldToScreen === 'function') {
-        const p = helpers.worldToScreen(tile.x, tile.y);
-        if (p && isFinite(p.x) && isFinite(p.y)) return { x: p.x, y: p.y };
-      }
-      if (typeof window.worldToScreen === 'function') {
-        const p = window.worldToScreen(tile.x, tile.y);
-        if (p && isFinite(p.x) && isFinite(p.y)) return { x: p.x, y: p.y };
-      }
-    } catch (_) {}
+  function getColorFromUI(teamIdx) {
+    // index.html에 pColor/eColor input이 있으니 그걸 우선 신뢰
+    const p = document.getElementById('pColor');
+    const e = document.getElementById('eColor');
+    const pHex = normalizeHex(p && p.value);
+    const eHex = normalizeHex(e && e.value);
 
-    // fallback (rough)
-    const tileW = (PO.cfg && PO.cfg.tileW) || 64;
-    const tileH = (PO.cfg && PO.cfg.tileH) || 32;
-    return { x: (tile.x - tile.y) * (tileW / 2), y: (tile.x + tile.y) * (tileH / 2) };
-  }
+    const link = !!window.LINK_ENEMY_TO_PLAYER_COLOR;
+    if (teamIdx === 1 && link && pHex) return pHex;
 
-  function isOnscreen(p, ctx) {
-    if (!ctx || !ctx.canvas) return true;
-    const w = ctx.canvas.width || 0;
-    const h = ctx.canvas.height || 0;
-    const m = 350;
-    return p.x >= -m && p.x <= w + m && p.y >= -m && p.y <= h + m;
-  }
-
-  // ---------------- team color helpers ----------------
-  function clamp255(n) {
-    n = n | 0;
-    return n < 0 ? 0 : n > 255 ? 255 : n;
-  }
-  function hex2(n) {
-    const s = clamp255(n).toString(16);
-    return s.length === 1 ? '0' + s : s;
-  }
-
-  function normalizeColorToHex(c) {
-    if (typeof c !== 'string') return null;
-    const s = c.trim();
-    if (!s) return null;
-
-    if (s[0] === '#') {
-      if (s.length === 4) return ('#' + s[1] + s[1] + s[2] + s[2] + s[3] + s[3]).toLowerCase();
-      if (s.length === 7) return s.toLowerCase();
-      if (s.length === 9) return s.slice(0, 7).toLowerCase();
-      return null;
-    }
-
-    const m = s.match(/rgba?\s*\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/i);
-    if (m) {
-      const r = Number(m[1]), g = Number(m[2]), b = Number(m[3]);
-      return ('#' + hex2(r) + hex2(g) + hex2(b)).toLowerCase();
-    }
-
+    if (teamIdx === 0 && pHex) return pHex;
+    if (teamIdx === 1 && eHex) return eHex;
     return null;
   }
 
@@ -147,21 +297,15 @@
     );
   }
 
-  function getTeamIndex(ent) {
-    const t = ent.team ?? ent.teamId ?? ent.ownerTeam ?? ent.factionId ?? ent.playerId ?? null;
-    if (typeof t === 'number' && isFinite(t)) return t | 0;
-    if (typeof t === 'string') {
-      const s = t.toLowerCase();
-      if (s === 'player' || s === 'ally' || s === 'blue') return 0;
-      if (s === 'enemy' || s === 'red') return 1;
-    }
-    if (ent.isEnemy === true) return 1;
-    return 0;
-  }
-
   function getTeamColor(ent) {
     if (!ent) return null;
 
+    // 0) UI 컬러 픽커 우선
+    const idx = getTeamIndex(ent);
+    const ui = getColorFromUI(idx);
+    if (ui) return ui;
+
+    // 1) 엔티티에 직접 컬러가 박혀있으면 그거 사용
     const direct =
       ent.teamColor ||
       ent.factionColor ||
@@ -170,501 +314,465 @@
       (ent.owner && (ent.owner.teamColor || ent.owner.color || ent.owner.factionColor)) ||
       null;
 
-    const d = normalizeColorToHex(direct);
+    const d = normalizeHex(direct);
     if (d) return d;
 
-    // localStorage common keys (try to follow your earlier note)
+    // 2) localStorage common keys
     try {
       const lsKeys = ['po_team_color', 'po_faction_color', 'po_player_color', 'team_color', 'faction_color', 'player_color'];
       for (const k of lsKeys) {
-        const v = normalizeColorToHex(localStorage.getItem(k) || '');
+        const v = normalizeHex(localStorage.getItem(k) || '');
         if (v) return v;
       }
     } catch (_) {}
 
+    // 3) 배열 기반 팔레트
     const arr = getTeamColorsArray();
     if (arr && typeof arr === 'object') {
-      const idx = getTeamIndex(ent);
-      const v = normalizeColorToHex(arr[idx] || arr[String(idx)] || '');
+      const v = normalizeHex(arr[idx] || arr[String(idx)] || '');
       if (v) return v;
     }
 
-    // fallback
-    const idx = getTeamIndex(ent);
+    // 4) 마지막 fallback
     return idx === 1 ? '#ff3b3b' : '#3da9ff';
   }
 
-  // ---------------- tint cache (magenta -> teamColor) ----------------
-  function getTrimmedCanvas(atlas, fr) {
-    atlas.__poTrimCache = atlas.__poTrimCache || new Map();
-    const key = fr.name + '|' + fr.texIndex;
-    if (atlas.__poTrimCache.has(key)) return atlas.__poTrimCache.get(key);
+  // ---------------- frame selection ----------------
+  function kindFor(ent, state) {
+    // 상태 문자열도 최대한 흡수
+    const st = safeText(ent.state || ent.status || ent.animState || ent.mode || '').toLowerCase();
+
+    const hp = ent.hp ?? ent.health ?? ent.HP;
+    const hpNum = Number(hp);
+
+    // sell flags (다양한 이름 흡수)
+    if (ent.selling || ent.isSelling || ent.sellProgress != null || ent.sellAt != null || st.includes('sell') || st.includes('sold')) {
+      return 'sell';
+    }
+
+    // destroyed flags
+    if (ent.dead || ent.destroyed || ent.isDestroyed || st.includes('destroy') || st.includes('destruct') || st.includes('distruct') || st.includes('death')) {
+      return 'distruct';
+    }
+    if (isFinite(hpNum) && hpNum <= 0) return 'distruct';
+
+    // building flags
+    const bp = ent.buildProgress ?? ent.progress ?? ent.buildPct ?? null;
+    const bpn = Number(bp);
+    if (isFinite(bpn) && bpn < 1) return 'construct';
+    if (st.includes('build') || st.includes('construct')) return 'construct';
+
+    return 'normal';
+  }
+
+  function getFramesFor(kind) {
+    const atlas = S.atlases[kind];
+    const pref = S.prefix[kind];
+    if (!atlas || !pref) return [];
+    const key = kind + '|' + pref + '|' + (atlas.jsonUrl || '');
+    if (S._framesCache && S._framesCache[key]) return S._framesCache[key];
+    S._framesCache = S._framesCache || Object.create(null);
+    const arr = listFrames(atlas, pref);
+    S._framesCache[key] = arr;
+    return arr;
+  }
+
+  function frameAt(kind, t, reverse = false) {
+    const frames = getFramesFor(kind);
+    if (!frames || frames.length === 0) return null;
+
+    // 8 fps 정도로 느긋하게
+    const fps = 8;
+    const idx = Math.floor(t * fps);
+    let i = idx % frames.length;
+    if (reverse) i = (frames.length - 1 - i);
+    return frames[i];
+  }
+
+  // ---------------- tinting (magenta -> teamColor) ----------------
+  function isMagenta(r, g, b) {
+    // 강한 마젠타만 치환. 가장자리 안티앨리어싱도 잡히게 약간 넓게.
+    // 기준: R,B 높고 G 낮음
+    return r >= 210 && b >= 210 && g <= 90;
+  }
+
+  function getTintedCanvas(atlas, frameName, teamHex) {
+    if (!atlas || !frameName || !teamHex) return null;
+    const fr = atlas.frames && atlas.frames.get(frameName);
+    if (!fr) return null;
+
+    const key = frameName + '|' + teamHex;
+    if (S.tintCache.has(key)) return S.tintCache.get(key);
 
     const tex = atlas.textures && atlas.textures[fr.texIndex];
     const img = tex && tex.img;
     if (!img) return null;
 
-    const sx = fr.frame.x,
-      sy = fr.frame.y,
-      sw = fr.frame.w,
-      sh = fr.frame.h;
-
+    const sw = fr.frame.w, sh = fr.frame.h;
     const c = document.createElement('canvas');
-    const ctx = c.getContext('2d');
-
-    if (!fr.rotated) {
-      c.width = sw;
-      c.height = sh;
-      ctx.drawImage(img, sx, sy, sw, sh, 0, 0, sw, sh);
-    } else {
-      // match atlas_tp getRotatedCanvas: width=sh, height=sw
-      c.width = sh;
-      c.height = sw;
-      ctx.save();
-      ctx.translate(0, c.height);
-      ctx.rotate(-Math.PI / 2);
-      ctx.drawImage(img, sx, sy, sw, sh, 0, 0, sw, sh);
-      ctx.restore();
-    }
-
-    atlas.__poTrimCache.set(key, c);
-    return c;
-  }
-
-  function tintMagentaTo(canvas, teamHex) {
-    // returns a new canvas
-    const out = document.createElement('canvas');
-    out.width = canvas.width;
-    out.height = canvas.height;
-    const octx = out.getContext('2d');
-    octx.drawImage(canvas, 0, 0);
-
-    let data;
+    c.width = sw;
+    c.height = sh;
+    const cctx = c.getContext('2d');
     try {
-      data = octx.getImageData(0, 0, out.width, out.height);
+      // rotated는 여기서는 생략. rotated가 나오면 원본 drawFrame로 fallback됨.
+      cctx.drawImage(img, fr.frame.x, fr.frame.y, sw, sh, 0, 0, sw, sh);
+
+      const td = hexToRgb(teamHex);
+      if (!td) { S.tintCache.set(key, c); return c; }
+
+      const imgData = cctx.getImageData(0, 0, sw, sh);
+      const d = imgData.data;
+      for (let i = 0; i < d.length; i += 4) {
+        const r = d[i], g = d[i + 1], b = d[i + 2], a = d[i + 3];
+        if (a === 0) continue;
+        if (isMagenta(r, g, b)) {
+          d[i] = td.r;
+          d[i + 1] = td.g;
+          d[i + 2] = td.b;
+        }
+      }
+      cctx.putImageData(imgData, 0, 0);
+      S.tintCache.set(key, c);
+      return c;
     } catch (e) {
-      // security/cors
+      // 캔버스가 tainted면 tint 못 함. 그럴 땐 null 리턴해서 원본 drawFrame 사용
+      console.warn(`[${KEY}:${VER}] tint failed (tainted canvas?)`, e && e.message ? e.message : e);
+      S.tintCache.set(key, null);
       return null;
     }
+  }
 
-    const rT = parseInt(teamHex.slice(1, 3), 16);
-    const gT = parseInt(teamHex.slice(3, 5), 16);
-    const bT = parseInt(teamHex.slice(5, 7), 16);
+  // ---------------- position: best guess ----------------
+  function extractScreenHint(ctx, nums) {
+    // nums 후보가 많을 수 있음. 앞 2개, 뒤 2개 둘 다 테스트해서 화면 안에 들어오는 쪽 우선.
+    if (!nums || nums.length < 2) return null;
 
-    const d = data.data;
+    const candPairs = [];
+    candPairs.push([nums[0], nums[1]]);
+    if (nums.length >= 4) candPairs.push([nums[nums.length - 2], nums[nums.length - 1]]);
 
-    // tolerance: magenta-ish pixels
-    for (let i = 0; i < d.length; i += 4) {
-      const a = d[i + 3];
-      if (a === 0) continue;
-      const r = d[i],
-        g = d[i + 1],
-        b = d[i + 2];
-      // classic #ff00ff with tolerance
-      if (r > 200 && g < 70 && b > 200) {
-        d[i] = rT;
-        d[i + 1] = gT;
-        d[i + 2] = bT;
-      }
+    let best = null;
+    let bestScore = 1e18;
+    for (const [x, y] of candPairs) {
+      if (!isFiniteNum(x) || !isFiniteNum(y)) continue;
+      // 화면 내면 최우선
+      const ons = isOnScreen(ctx, x, y, 512);
+      const score = (ons ? 0 : 1e9) + Math.abs(x) + Math.abs(y);
+      if (score < bestScore) { bestScore = score; best = { x, y, from: 'args' }; }
     }
+    return best;
+  }
 
-    octx.putImageData(data, 0, 0);
+  function extractTileCandidates(ent) {
+    const out = [];
+    const push = (x, y, tag) => {
+      if (isFiniteNum(x) && isFiniteNum(y)) out.push({ x, y, tag });
+    };
+
+    push(ent.tx, ent.ty, 'tx');
+    push(ent.tileX, ent.tileY, 'tileX');
+    push(ent.gridX, ent.gridY, 'gridX');
+    if (ent.tile && typeof ent.tile === 'object') push(ent.tile.x, ent.tile.y, 'tileObj');
+    if (ent.pos && typeof ent.pos === 'object') push(ent.pos.x, ent.pos.y, 'pos');
+    // 마지막으로 x,y는 가장 위험 (tile일 수도 있고 worldPx일 수도 있음)
+    push(ent.x, ent.y, 'xy');
+
     return out;
   }
 
-  function getTintedCanvas(atlas, fr, teamHex) {
-    atlas.__poTintCache = atlas.__poTintCache || new Map();
-    const key = fr.name + '|' + fr.texIndex + '|' + teamHex;
-    if (atlas.__poTintCache.has(key)) return atlas.__poTintCache.get(key);
-
-    const base = getTrimmedCanvas(atlas, fr);
-    if (!base) return null;
-
-    const tinted = tintMagentaTo(base, teamHex);
-    if (!tinted) {
-      warnOnce('tint_cors', `[${KEY}:${VER}] tint failed (canvas tainted?). Barrack will render without palette tint.`);
-      atlas.__poTintCache.set(key, base);
-      return base;
-    }
-
-    atlas.__poTintCache.set(key, tinted);
-    return tinted;
+  function worldToScreen(helpers, x, y) {
+    try {
+      const p = helpers.worldToScreen(x, y);
+      if (p && isFiniteNum(p.x) && isFiniteNum(p.y)) return { x: p.x, y: p.y };
+      // 일부 구현은 [x,y]로 반환할 수도 있음
+      if (Array.isArray(p) && p.length >= 2 && isFiniteNum(p[0]) && isFiniteNum(p[1])) return { x: p[0], y: p[1] };
+    } catch (_) {}
+    return null;
   }
 
-  function drawFrameBarrack(ctx, atlas, frameName, x, y, opts) {
-    const fr = atlas && atlas.frames && atlas.frames.get ? atlas.frames.get(frameName) : null;
+  function pickBestScreenPos(ctx, helpers, ent) {
+    if (!helpers || typeof helpers.worldToScreen !== 'function') return null;
+
+    const cands = extractTileCandidates(ent);
+    if (cands.length === 0) return null;
+
+    let best = null;
+    let bestScore = 1e18;
+    for (const c of cands) {
+      const p = worldToScreen(helpers, c.x, c.y);
+      if (!p) continue;
+
+      const ons = isOnScreen(ctx, p.x, p.y, 512);
+      // tag 우선순위: tx/tileX 쪽이 안전
+      const tagPenalty =
+        c.tag === 'tx' ? 0 :
+        c.tag === 'tileX' ? 10 :
+        c.tag === 'gridX' ? 20 :
+        c.tag === 'tileObj' ? 30 :
+        c.tag === 'pos' ? 40 :
+        80; // xy
+
+      // 화면 밖이면 큰 페널티
+      const score = (ons ? 0 : 1e9) + tagPenalty + (Math.abs(p.x) + Math.abs(p.y)) * 0.0001;
+      if (score < bestScore) {
+        bestScore = score;
+        best = { x: p.x, y: p.y, from: 'worldToScreen:' + c.tag, tile: { x: c.x, y: c.y } };
+      }
+    }
+    return best;
+  }
+
+  function fallbackIso(ent) {
+    // 최후의 최후: 타일 기준 iso 변환
+    const t = extractTileCandidates(ent)[0] || { x: 0, y: 0 };
+    const tileW = 64, tileH = 32;
+    return { x: (t.x - t.y) * (tileW / 2), y: (t.x + t.y) * (tileH / 2), from: 'fallbackIso' };
+  }
+
+  // ---------------- render (normal + sell + distruct) ----------------
+  function drawFrameCustom(ctx, atlas, frameName, pivotPt, scale, pivot, teamHex) {
+    if (!ctx || !atlas || !atlas.frames || !frameName) return false;
+    const fr = atlas.frames.get(frameName);
     if (!fr) return false;
 
-    const scale = Number(opts.scale ?? 1);
-    const alpha = Number(opts.alpha ?? 1);
-    const teamHex = normalizeColorToHex(opts.teamColor || '');
+    // rotated는 tint 처리 귀찮으니 그냥 원본 drawFrame로 fallback
+    if (fr.rotated) {
+      const A = PO.atlasTP;
+      if (A && typeof A.drawFrame === 'function') {
+        return A.drawFrame(ctx, atlas, frameName, pivotPt.x, pivotPt.y, { scale, pivot });
+      }
+      return false;
+    }
 
-    const pivot = opts.pivot || fr.pivot || { x: 0.5, y: 0.5 };
-    const px = pivot.x ?? 0.5;
-    const py = pivot.y ?? 0.5;
+    const origW = fr.sourceSize.w || fr.frame.w;
+    const origH = fr.sourceSize.h || fr.frame.h;
 
-    const origW = (fr.sourceSize && fr.sourceSize.w) || (fr.rotated ? fr.frame.h : fr.frame.w);
-    const origH = (fr.sourceSize && fr.sourceSize.h) || (fr.rotated ? fr.frame.w : fr.frame.h);
-    const trimX = (fr.spriteSourceSize && fr.spriteSourceSize.x) || 0;
-    const trimY = (fr.spriteSourceSize && fr.spriteSourceSize.y) || 0;
+    const px = (pivot && isFiniteNum(pivot.x)) ? pivot.x : 0.5;
+    const py = (pivot && isFiniteNum(pivot.y)) ? pivot.y : 0.5;
 
-    const dx = x - px * origW * scale + trimX * scale;
-    const dy = y - py * origH * scale + trimY * scale;
+    const trimX = fr.spriteSourceSize.x || 0;
+    const trimY = fr.spriteSourceSize.y || 0;
 
-    const img = teamHex ? getTintedCanvas(atlas, fr, teamHex) : getTrimmedCanvas(atlas, fr);
-    if (!img) return false;
+    const dx = pivotPt.x - px * origW * scale + trimX * scale;
+    const dy = pivotPt.y - py * origH * scale + trimY * scale;
 
-    ctx.save();
-    const oldAlpha = ctx.globalAlpha;
-    ctx.globalAlpha = oldAlpha * alpha;
-    ctx.drawImage(img, 0, 0, img.width, img.height, dx, dy, img.width * scale, img.height * scale);
-    ctx.globalAlpha = oldAlpha;
-    ctx.restore();
+    // tint 적용
+    const tinted = teamHex ? getTintedCanvas(atlas, frameName, teamHex) : null;
+    if (tinted) {
+      ctx.drawImage(tinted, 0, 0, tinted.width, tinted.height, dx, dy, tinted.width * scale, tinted.height * scale);
+      return true;
+    }
+
+    // 원본 draw (pivot 적용)
+    const A = PO.atlasTP;
+    if (A && typeof A.drawFrame === 'function') {
+      return A.drawFrame(ctx, atlas, frameName, pivotPt.x, pivotPt.y, { scale, pivot });
+    }
+    return false;
+  }
+
+  function drawBarrack(ctx, ent, helpers, state, screenHint) {
+    kickLoad();
+
+    const t = nowSec(state);
+    const kind = kindFor(ent, state);
+
+    // 로드돼야 그릴 수 있음. 로딩 중엔 박스 그리기 싫으니 그냥 "안 그림"
+    const atlasKind = (kind === 'sell') ? 'construct' : kind;
+    const atlas = S.atlases[atlasKind];
+    if (!atlas || !S.prefix[atlasKind]) return true;
+
+    // pivot point 선택
+    const pivotPt =
+      (screenHint && isFiniteNum(screenHint.x) && isFiniteNum(screenHint.y))
+        ? { x: screenHint.x, y: screenHint.y, from: screenHint.from || 'hint' }
+        : (pickBestScreenPos(ctx, helpers, ent) || fallbackIso(ent));
+
+    const scale = readScale();
+    const pivot = readPivot();
+    const teamHex = getTeamColor(ent);
+
+    let frameName = null;
+    if (kind === 'normal') frameName = frameAt('normal', t, false);
+    else if (kind === 'construct') frameName = frameAt('construct', t, false);
+    else if (kind === 'sell') frameName = frameAt('construct', t, true); // 역재생
+    else frameName = frameAt('distruct', t, false);
+
+    if (!frameName) return true;
+
+    // 실제 draw
+    drawFrameCustom(ctx, atlas, frameName, pivotPt, scale, pivot, teamHex);
+
+    // track snapshot for ghost spawn
+    track(ent, pivotPt, kind, state);
+
     return true;
   }
 
-  // ---------------- barrack atlases ----------------
-  const S = {
-    urls: null,
-    atlases: { normal: null, construct: null, distruct: null },
-    frames: { normal: [], construct: [], distruct: [] },
-    loading: { normal: false, construct: false, distruct: false },
-    ready: { normal: false, construct: false, distruct: false },
-
-    ghosts: [],
-    tracked: new Map(), // id -> snapshot
-    lastGcStamp: 0,
-
-    installed: false,
-    kicked: false,
-  };
-
-  function setPaths() {
-    // Use absolute root (Cloudflare Pages serves /client as site root). Your assets are under /asset/...
-    const ROOT = '/asset/sprite/const';
-    S.urls = {
-      normal: `${ROOT}/normal/barrack/barrack_idle.json`,
-      construct: `${ROOT}/const_anim/barrack/barrack_const.json`,
-      distruct: `${ROOT}/distruct/barrack/barrack_distruct.json`,
-    };
-  }
-
-  function hasAtlasTP() {
-    return !!(PO.atlasTP && typeof PO.atlasTP.loadAtlasTP === 'function' && typeof PO.atlasTP.listFramesByPrefix === 'function');
-  }
-
-  async function ensureAtlas(kind) {
-    if (S.ready[kind]) return true;
-    if (!hasAtlasTP()) return false;
-    if (S.loading[kind]) return false;
-
-    const url = S.urls && S.urls[kind];
-    if (!url) return false;
-
-    S.loading[kind] = true;
-    try {
-      const atlas = await PO.atlasTP.loadAtlasTP(url);
-      if (!atlas) return false;
-
-      S.atlases[kind] = atlas;
-
-      let prefix;
-      if (kind === 'normal') prefix = 'barrack_idle';
-      else if (kind === 'construct') prefix = 'barrack_con_complete_';
-      else prefix = 'barrack_distruction_';
-
-      S.frames[kind] = PO.atlasTP.listFramesByPrefix(atlas, prefix, { sort: true });
-
-      // Apply pivot override to all barrack* frames (correct signature: pivot object)
-      const piv = readPivot();
-      try {
-        PO.atlasTP.applyPivotByPrefix(atlas, 'barrack_', { x: piv.x, y: piv.y });
-      } catch (e) {
-        // not fatal
-      }
-
-      S.ready[kind] = true;
-      logOnce(`atlas_${kind}`, `[${KEY}:${VER}] atlas '${kind}' loaded`, url);
-      return true;
-    } catch (e) {
-      warnOnce(`atlas_${kind}_err`, `[${KEY}:${VER}] atlas '${kind}' failed`, url, e);
-      return false;
-    } finally {
-      S.loading[kind] = false;
-    }
-  }
-
-  function kickLoad() {
-    if (S.kicked) return;
-    S.kicked = true;
-
-    if (!S.urls) setPaths();
-
-    // fire-and-forget
-    ensureAtlas('normal');
-    ensureAtlas('construct');
-    ensureAtlas('distruct');
-
-    logOnce('kick', `[${KEY}:${VER}] patch loaded. loading barrack atlases...`);
-  }
-
-  function allReady() {
-    return S.ready.normal && S.ready.construct && S.ready.distruct;
-  }
-
-  // ---------------- animation selection ----------------
-  function getHp(ent) {
-    const v = ent.hp ?? ent.health ?? ent.HP ?? null;
-    return typeof v === 'number' && isFinite(v) ? v : null;
-  }
-
-  function getBuildProgress(ent) {
-    const v = ent.buildProgress ?? ent.progress ?? ent.bp ?? null;
-    return typeof v === 'number' && isFinite(v) ? v : null;
-  }
-
-  function kindFor(ent) {
-    if (!ent) return 'normal';
-
-    if (ent._selling || ent.selling || ent.isSelling || (typeof ent.sellProgress === 'number')) return 'sell';
-
-    const hp = getHp(ent);
-    if ((hp !== null && hp <= 0) || ent._destroyed || ent.destroyed || ent.dead) return 'distruct';
-
-    const bp = getBuildProgress(ent);
-    if (ent._constructing || ent.constructing || (bp !== null && bp < 1)) return 'construct';
-
-    return 'normal';
-  }
-
-  function frameAt(kind, frames, t, entOrGhost) {
-    if (!frames || !frames.length) return null;
-
-    if (kind === 'normal') {
-      // loop idle (but your normal atlas has a stable static frame too)
-      const fps = 8;
-      const idx = Math.floor(t * fps) % frames.length;
-      return frames[idx];
-    }
-
-    const fps = kind === 'distruct' ? FPS_DISTRUCT : FPS_CONSTRUCT;
-    const key = kind === 'distruct' ? '__po_distructAt' : kind === 'sell' ? '__po_sellAt' : '__po_constructAt';
-    if (entOrGhost[key] == null) entOrGhost[key] = t;
-    const dt = Math.max(0, t - entOrGhost[key]);
-    let idx = Math.floor(dt * fps);
-    if (idx >= frames.length) idx = frames.length - 1;
-    if (kind === 'sell') idx = (frames.length - 1) - idx;
-    return frames[Math.max(0, Math.min(frames.length - 1, idx))];
-  }
-
-  // ---------------- ghosts (sell/destroy) ----------------
-  function spawnGhost(snap, kind, t0) {
-    const g = {
-      kind,
-      tx: snap.tx,
-      ty: snap.ty,
-      teamColor: snap.teamColor,
-      hp: snap.hp,
-      __po_start: t0 ?? null,
-    };
-    S.ghosts.push(g);
-  }
-
-  function gcTracked(state) {
+  function track(ent, pivotPt, kind, state) {
+    const id = snapId(ent);
+    if (!id) return;
     const s = stamp60(state);
-    if (s === S.lastGcStamp) return;
-    S.lastGcStamp = s;
-
-    // if entity vanished (not seen for a few frames) and it was onscreen, spawn ghost
-    const TH = 6; // frames
-    for (const [id, snap] of S.tracked.entries()) {
-      if (s - snap.lastSeen < TH) continue;
-      if (!snap.lastOnscreen) {
-        S.tracked.delete(id);
-        continue;
-      }
-
-      const k = snap.hp !== null && snap.hp <= 0 ? 'distruct' : 'sell';
-      spawnGhost(snap, k, snap.lastSeenTime);
-      S.tracked.delete(id);
-    }
-  }
-
-  function drawGhosts(ctx, helpers, state) {
-    if (!S.ghosts.length) return;
-
-    const t = nowSec(state);
-
-    const framesConstruct = S.frames.construct;
-    const framesDistruct = S.frames.distruct;
-
-    const scale = readScale();
-    const pivot = readPivot();
-
-    const keep = [];
-    for (const g of S.ghosts) {
-      // sync one-shot start time
-      if (g.__po_start != null && g.__po_sellAt == null && g.__po_distructAt == null) {
-        const key = g.kind === 'sell' ? '__po_sellAt' : '__po_distructAt';
-        g[key] = g.__po_start;
-        g.__po_start = null;
-      }
-
-      const tile = { x: g.tx, y: g.ty };
-      const p = worldToScreen(tile, helpers);
-
-      const frames = g.kind === 'distruct' ? framesDistruct : framesConstruct;
-      const atlas = g.kind === 'distruct' ? S.atlases.distruct : S.atlases.construct;
-
-      const frame = frameAt(g.kind, frames, t, g);
-      if (frame) {
-        drawFrameBarrack(ctx, atlas, frame, p.x, p.y, { scale, alpha: 1, pivot, teamColor: g.teamColor });
-      }
-
-      const key = g.kind === 'distruct' ? '__po_distructAt' : '__po_sellAt';
-      const start = g[key] ?? t;
-      const fps = g.kind === 'distruct' ? FPS_DISTRUCT : FPS_CONSTRUCT;
-      const dt = Math.max(0, t - start);
-      const idx = Math.floor(dt * fps);
-      if (idx < frames.length - 1) keep.push(g);
-    }
-
-    S.ghosts = keep;
-  }
-
-  // ---------------- main barrack draw ----------------
-  function drawBarrack(ent, ctx, helpers, state) {
-    if (!allReady()) return false;
-
-    const kind = kindFor(ent);
-    const t = nowSec(state);
-
-    const scale = readScale();
-    const pivot = readPivot();
-    const teamColor = getTeamColor(ent);
-
-    const tile = entTile(ent);
-    const p = worldToScreen(tile, helpers);
-
-    const atlas = kind === 'construct' || kind === 'sell' ? S.atlases.construct : kind === 'distruct' ? S.atlases.distruct : S.atlases.normal;
-    const frames = kind === 'construct' || kind === 'sell' ? S.frames.construct : kind === 'distruct' ? S.frames.distruct : S.frames.normal;
-
-    const frame = frameAt(kind, frames, t, ent);
-    if (!frame) return false;
-
-    return drawFrameBarrack(ctx, atlas, frame, p.x, p.y, { scale, alpha: 1, pivot, teamColor });
-  }
-
-  // ---------------- track removal fallback ----------------
-  function trackBarrack(ent, ctx, helpers, state) {
-    const s = stamp60(state);
-    const id = (ent.id ?? ent.uid ?? ent._id ?? ent.guid ?? null);
-    const tile = entTile(ent);
-    const p = worldToScreen(tile, helpers);
-
-    const snapId = id != null ? String(id) : `${tile.x},${tile.y}`;
-    const hp = getHp(ent);
-
-    S.tracked.set(snapId, {
-      id: snapId,
-      tx: tile.x,
-      ty: tile.y,
-      hp,
-      teamColor: getTeamColor(ent),
+    const hp = Number(ent.hp ?? ent.health ?? ent.HP ?? 1);
+    S.lastSeen.set(id, {
+      id,
       lastSeen: s,
       lastSeenTime: nowSec(state),
-      lastOnscreen: isOnscreen(p, ctx),
+      lastKind: kind,
+      lastHp: isFinite(hp) ? hp : 1,
+      teamIdx: getTeamIndex(ent),
+      screenX: pivotPt.x,
+      screenY: pivotPt.y,
+      onScreen: true,
     });
   }
 
-  // ---------------- install patch ----------------
+  function snapId(ent) {
+    const id = ent.id ?? ent._id ?? ent.uid ?? ent.guid ?? null;
+    if (id != null) return safeText(id);
+    const tx = ent.tx ?? ent.tileX ?? null;
+    const ty = ent.ty ?? ent.tileY ?? null;
+    if (isFiniteNum(tx) && isFiniteNum(ty)) return `barrack@${tx},${ty}`;
+    return null;
+  }
+
+  function gcAndSpawnGhosts(state) {
+    const s = stamp60(state);
+    const TH = 10; // 약 0.16초 정도
+    for (const [id, snap] of S.lastSeen.entries()) {
+      if (s - snap.lastSeen < TH) continue;
+
+      // 엔티티가 사라진 경우: 마지막 상태로 고스트 생성
+      // hp<=0 이면 파괴, 아니면 매각으로 가정
+      const kind = (snap.lastHp <= 0) ? 'distruct' : 'sell';
+
+      spawnGhost({
+        teamIdx: snap.teamIdx,
+        x: snap.screenX,
+        y: snap.screenY,
+        kind,
+        start: snap.lastSeenTime,
+      });
+
+      S.lastSeen.delete(id);
+    }
+  }
+
+  function spawnGhost(g) {
+    if (!g || !isFiniteNum(g.x) || !isFiniteNum(g.y)) return;
+    const life = (g.kind === 'sell') ? 1.2 : 1.2; // seconds
+    S.ghosts.push({
+      kind: g.kind,
+      teamIdx: g.teamIdx | 0,
+      x: g.x,
+      y: g.y,
+      t0: g.start || (performance.now() / 1000),
+      life,
+    });
+  }
+
+  function drawGhosts(ctx, helpers, state) {
+    if (!ctx) return;
+    const t = nowSec(state);
+
+    // 오래된 고스트 정리
+    S.ghosts = S.ghosts.filter(g => (t - g.t0) <= g.life);
+
+    for (const g of S.ghosts) {
+      const atlasKind = (g.kind === 'sell') ? 'construct' : g.kind;
+      const atlas = S.atlases[atlasKind];
+      if (!atlas || !S.prefix[atlasKind]) continue;
+
+      const scale = readScale();
+      const pivot = readPivot();
+
+      const teamHex = getColorFromUI(g.teamIdx) || (g.teamIdx === 1 ? '#ff3b3b' : '#3da9ff');
+
+      const tt = (t - g.t0);
+      let frameName = null;
+      if (g.kind === 'sell') frameName = frameAt('construct', tt, true);
+      else frameName = frameAt('distruct', tt, false);
+
+      if (!frameName) continue;
+
+      drawFrameCustom(ctx, atlas, frameName, { x: g.x, y: g.y }, scale, pivot, teamHex);
+    }
+  }
+
+  // ---------------- install wrapper ----------------
+  function findDrawBuilding() {
+    // 1) PO.buildings.drawBuilding
+    if (PO.buildings && typeof PO.buildings.drawBuilding === 'function') {
+      return { obj: PO.buildings, key: 'drawBuilding', path: 'PO.buildings.drawBuilding' };
+    }
+
+    // 2) global drawBuilding
+    if (typeof window.drawBuilding === 'function') {
+      return { obj: window, key: 'drawBuilding', path: 'window.drawBuilding' };
+    }
+
+    // 3) PO.game.drawBuilding
+    if (PO.game && typeof PO.game.drawBuilding === 'function') {
+      return { obj: PO.game, key: 'drawBuilding', path: 'PO.game.drawBuilding' };
+    }
+
+    return null;
+  }
+
   function tryInstall() {
     if (S.installed) return true;
-    if (!PO.buildings || typeof PO.buildings.drawBuilding !== 'function') return false;
 
-    const orig = PO.buildings.drawBuilding;
+    const ref = findDrawBuilding();
+    if (!ref) return false;
 
-    PO.buildings.drawBuilding = function patchedDrawBuilding(...args) {
+    const orig = ref.obj[ref.key];
+    if (typeof orig !== 'function') return false;
+
+    ref.obj[ref.key] = function patchedDrawBuilding(...args) {
       // locate ctx + ent + helpers/state
-      let ctx = null,
-        ent = null,
-        helpers = null,
-        state = null;
+      let ctx = null, ent = null, helpers = null, state = null;
+      const nums = [];
+
       for (const a of args) {
         if (!ctx && a && typeof a.drawImage === 'function') ctx = a;
         else if (!ent && a && typeof a === 'object' && (a.kind || a.type || a.name || a.hp != null || a.buildProgress != null)) ent = a;
         else if (!helpers && a && typeof a === 'object' && typeof a.worldToScreen === 'function') helpers = a;
         else if (!state && a && typeof a === 'object' && (typeof a.t === 'number' || typeof a.time === 'number' || typeof a.now === 'number')) state = a;
+
+        if (isFiniteNum(a)) nums.push(a);
       }
 
-      // always keep atlases loading
       if (!S.kicked) kickLoad();
 
-      // run GC once per frame
-      gcTracked(state);
+      // 고스트는 프레임마다 먼저 그려줌 (ctx 있을 때만)
+      if (ctx) {
+        try { drawGhosts(ctx, helpers, state); } catch (_) {}
+        try { gcAndSpawnGhosts(state); } catch (_) {}
+      }
 
-      // draw ghost FX (but only when atlases ready)
-      if (allReady() && ctx) drawGhosts(ctx, helpers, state);
-
-      // barrack override
       if (ent && isBarrack(ent)) {
-        // track for removal-based fallback
-        if (ctx) trackBarrack(ent, ctx, helpers, state);
-
-        if (allReady() && ctx) {
-          // draw our barrack
-          const ok = drawBarrack(ent, ctx, helpers, state);
-          if (ok) return true;
+        const hint = extractScreenHint(ctx, nums);
+        // barrack은 기본 박스/폴백을 없애기 위해 항상 true 리턴
+        try { return drawBarrack(ctx, ent, helpers, state, hint); } catch (e) {
+          console.warn(`[${KEY}:${VER}] drawBarrack failed`, e && e.message ? e.message : e);
+          return true;
         }
-        // suppress default fallback box while loading
-        return true;
       }
 
       return orig.apply(this, args);
     };
 
     S.installed = true;
-    const piv = readPivot();
-    const sc = readScale();
-    logOnce('installed', `[${KEY}:${VER}] installed. pivot=`, piv, `scale=${sc}`);
+    S.installPath = ref.path;
+    console.log(`[${KEY}:${VER}] installed on ${ref.path}`);
     return true;
   }
 
-  // ---------------- sell button hook ----------------
-  function installSellHook() {
-    // DOM fallback for "매각" button
+  // 반복 설치 시도 (game.js가 나중에 정의될 수도 있음)
+  const timer = setInterval(() => {
     try {
-      document.addEventListener(
-        'click',
-        (ev) => {
-          const btn = ev.target && ev.target.closest ? ev.target.closest('button') : null;
-          if (!btn) return;
-          const txt = (btn.textContent || '').trim();
-          if (txt !== '매각') return;
-
-          const ent =
-            PO.selected ||
-            PO.sel ||
-            (PO.ui && (PO.ui.selected || PO.ui.sel || PO.ui.currentSelected)) ||
-            (PO.game && (PO.game.selected || PO.game.sel)) ||
-            null;
-
-          if (ent && isBarrack(ent)) {
-            const tile = entTile(ent);
-            spawnGhost({ tx: tile.x, ty: tile.y, hp: getHp(ent), teamColor: getTeamColor(ent) }, 'sell', nowSec(null));
-          }
-        },
-        true
-      );
+      if (tryInstall()) clearInterval(timer);
     } catch (_) {}
-  }
+  }, 200);
 
-  // ---------------- boot ----------------
-  setPaths();
-  installSellHook();
-
-  (function bootRetry() {
-    if (tryInstall()) return;
-    setTimeout(bootRetry, 200);
-  })();
 })();
