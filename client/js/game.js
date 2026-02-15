@@ -4942,7 +4942,7 @@ try{
 
 
     // 3) Remove from gameplay
-    try{ if (window.PO && PO.buildings && PO.buildings.onDestroyed) PO.buildings.onDestroyed(b); }catch(_e){}
+    try{ if (b && b.kind === "barracks" && window.PO && PO.buildings && PO.buildings.onDestroyed) PO.buildings.onDestroyed(b); }catch(_e){}
     b.alive = false;
     state.selection.delete(b.id);
     setBuildingOcc(b, 0);
@@ -11516,7 +11516,7 @@ let rX = ent.x, rY = ent.y;
           drawBuildingSprite(ent);
 
 
-        } else if (window.PO && PO.buildings && PO.buildings.drawBuilding) {
+        } else if (ent.kind === "barracks" && window.PO && PO.buildings && PO.buildings.drawBuilding) {
 
 
           const helpers = { worldToScreen, ISO_X, ISO_Y, drawFootprintDiamond };
@@ -11900,12 +11900,6 @@ ctx.fill();
     }
 
 
-    // Barracks destruction/sell animation ghosts (render below explosions/smoke)
-    try{ if (window.PO && PO.buildings && PO.buildings.drawGhosts){
-      const helpers = { worldToScreen, ISO_X, ISO_Y, drawFootprintDiamond };
-      PO.buildings.drawGhosts(ctx, cam, helpers, state);
-    }}catch(_e){}
-
     // Building destruction explosions
     drawExplosions(ctx);
 
@@ -11918,6 +11912,13 @@ ctx.fill();
 
     // Smoke plume (puffs) can sit above the explosion a bit
     drawSmokePuffs(ctx);
+
+    // Barracks destruction/sell animation ghosts
+    // Render ABOVE explosion/smoke so it is visible immediately.
+    try{ if (window.PO && PO.buildings && PO.buildings.drawGhosts){
+      const helpers = { worldToScreen, ISO_X, ISO_Y, drawFootprintDiamond };
+      PO.buildings.drawGhosts(ctx, cam, helpers, state);
+    }}catch(_e){}
     drawDmgSmokePuffs(ctx);
 // Building fire FX (critical HP)
     for (const f of fires){

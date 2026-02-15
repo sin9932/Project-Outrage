@@ -187,6 +187,8 @@
   PO.buildings.onDestroyed = function(b) {
     // Called from game.js destroyBuilding() after removing the entity from state.
     // We spawn a ghost that replays distruct frames at the old position.
+    // Guard: do not affect other buildings.
+    if (!b || b.kind !== "barracks") return;
     try {
       const now = (PO._state && PO._state.t) ? PO._state.t : (performance.now() / 1000);
       st.ghosts.push({
