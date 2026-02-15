@@ -255,7 +255,7 @@
         </div>
         <div class="row">
           <input id="showFoot" type="checkbox" checked />
-          <label for="showFoot" style="margin:0;">풋프린트 외곽선 표시</label>
+          <label for="showFoot" style="margin:0;">풋프린트 타일(다이아) 표시</label>
         </div>
       </div>
 
@@ -870,32 +870,33 @@ window.PO = window.PO || {};
     }
 
     if (showFoot) {
-      // 풋프린트 외곽선만
-      ctx.strokeStyle = 'rgba(108,255,176,.65)';
+      // 풋프린트: "네모 박스"가 아니라, 실제 아이소메트릭 다이아(타일) 묶음으로 표시
+      const dx = iso.ISO_X * cam.zoom;
+      const dy = iso.ISO_Y * cam.zoom;
+
+      // 채움(약하게) + 외곽(강하게)
+      ctx.save();
+      ctx.fillStyle = 'rgba(108,255,176,.08)';
+      ctx.strokeStyle = 'rgba(108,255,176,.75)';
       ctx.lineWidth = 2;
 
-      // outline corners in tile coords
-      const corners = [
-        [tx, ty],
-        [tx + tw, ty],
-        [tx + tw, ty + th],
-        [tx, ty + th],
-      ];
+      for (let fy = 0; fy < th; fy++) {
+        for (let fx = 0; fx < tw; fx++) {
+          const wx = (tx + fx) * iso.TILE;
+          const wy = (ty + fy) * iso.TILE;
+          const p = gameWorldToScreen(wx, wy, cam, iso, baseX, baseY);
 
-      const pts = corners.map(([cx,cy]) => {
-        const wpos = {x:cx*iso.TILE, y:cy*iso.TILE};
-        return gameWorldToScreen(wpos.x, wpos.y, cam, iso, baseX, baseY);
-      });
-
-      ctx.beginPath();
-      // diamond-ish polygon in screen using tile corners mapping (not perfect rectangle, but good for anchor)
-      // draw edges by walking corners in order
-      ctx.moveTo(pts[0].x, pts[0].y);
-      ctx.lineTo(pts[1].x, pts[1].y);
-      ctx.lineTo(pts[2].x, pts[2].y);
-      ctx.lineTo(pts[3].x, pts[3].y);
-      ctx.closePath();
-      ctx.stroke();
+          ctx.beginPath();
+          ctx.moveTo(p.x, p.y - dy);
+          ctx.lineTo(p.x + dx, p.y);
+          ctx.lineTo(p.x, p.y + dy);
+          ctx.lineTo(p.x - dx, p.y);
+          ctx.closePath();
+          ctx.fill();
+          ctx.stroke();
+        }
+      }
+      ctx.restore();
     }
 
     ctx.restore();

@@ -1,28 +1,9 @@
-1. client에서 터미널 열고 python -m http.server 8000
+파일을 client/ 루트에 두고(네 로컬서버가 client를 루트로 서빙하는 상태)
 
-입력하면 로컬호스트 모드가 된다. 그상태애서
+브라우저에서 http://localhost:8000/barrack_pivot_tuner_v3_game_matched.html 열어
 
-http://localhost:8000/barrack_pivot_tuner.html
+Atlas JSON URL에 정확한 경로 넣고 Load
 
-를 주소에 쓴다.
+좌측에서 Footprint(3x2), Building tx/ty, Anchor mode(center/south) 맞추고
 
-
-2.  Atlas JSON URL에 네 barrack atlas json 경로 넣기
-
-Frame prefix 넣기 (예: barrack_idle, barrack_con_complete_, barrack_distruction_)
-
-게임 좌표 모드 체크 ON
-
-Footprint를 막사면 3 x 2로
-
-Anchor mode는 일단 south corner로 두고 맞춰봐
-
-만약 네 게임 코드에서 “풋프린트 중심”에 박는 방식이면 center로 바꾸면 됨
-
-피벗 슬라이더로 맞춘 다음
-
-한 프레임만이면 Apply to current
-
-전부면 Apply to all
-
-그리고 Download patched JSON
+Pivot X/Y 슬라이더로 맞춘 다음 Apply pivot to prefix → Download patched JSON
