@@ -223,6 +223,20 @@
         </div>
       </div>
 
+      <div class="grid2" style="margin-top:6px;">
+        <div>
+          <label>Footprint Y 방향</label>
+          <select id="fpYDir">
+            <option value="ne" selected>NE (ty 감소, ↗)</option>
+            <option value="sw">SW (ty 증가, ↙)</option>
+          </select>
+        </div>
+        <div>
+          <label style="opacity:.8">설명</label>
+          <div class="small">네 게임처럼 "3×2가 동남쪽으로 길게" 보이게 하려면 NE(ty 감소)를 쓰면 됨.</div>
+        </div>
+      </div>
+
       <div class="grid2" style="margin-top:10px;">
         <div>
           <label>Building tx</label>
@@ -857,6 +871,8 @@ window.PO = window.PO || {};
 
     const tw = parseNum('fpW', 3), th = parseNum('fpH', 2);
     const tx = parseNum('bTX', 0), ty = parseNum('bTY', 0);
+    const yDir = ($('fpYDir') ? $('fpYDir').value : 'sw');
+    const ySign = (yDir === 'ne') ? -1 : 1; // fy 증가가 NE로 가면 -ty
 
     // 그리드: 화면에 보이는 대략 범위만 그려도 되지만, 여기선 간단히 주변만
     const showGrid = $('showGrid').checked;
@@ -903,7 +919,7 @@ window.PO = window.PO || {};
       for (let fy = 0; fy < th; fy++) {
         for (let fx = 0; fx < tw; fx++) {
           const wx = (tx + fx) * iso.TILE;
-          const wy = (ty + fy) * iso.TILE;
+          const wy = (ty + (ySign * fy)) * iso.TILE;
           const p = gameWorldToScreen(wx, wy, cam, iso, baseX, baseY);
 
           ctx.beginPath();
@@ -924,8 +940,8 @@ window.PO = window.PO || {};
     if (showAxis) {
       const pa = gameWorldToScreen((tx) * iso.TILE, (ty) * iso.TILE, cam, iso, baseX, baseY);
       const pb = gameWorldToScreen((tx + tw) * iso.TILE, (ty) * iso.TILE, cam, iso, baseX, baseY);
-      const pc = gameWorldToScreen((tx + tw) * iso.TILE, (ty + th) * iso.TILE, cam, iso, baseX, baseY);
-      const pd = gameWorldToScreen((tx) * iso.TILE, (ty + th) * iso.TILE, cam, iso, baseX, baseY);
+      const pc = gameWorldToScreen((tx + tw) * iso.TILE, (ty + (ySign * th)) * iso.TILE, cam, iso, baseX, baseY);
+      const pd = gameWorldToScreen((tx) * iso.TILE, (ty + (ySign * th)) * iso.TILE, cam, iso, baseX, baseY);
 
       // outer outline
       ctx.save();
@@ -968,7 +984,7 @@ window.PO = window.PO || {};
       }
 
       arrow(pa, pb, `W=${tw}  ↘(+x)`);
-      arrow(pa, pd, `H=${th}  ↙(+y)`);
+      arrow(pa, pd, (yDir === 'ne') ? `H=${th}  ↗(ty-)` : `H=${th}  ↙(ty+)`);
 
       // origin dot
       ctx.fillStyle = 'rgba(255,206,106,.85)';
@@ -1241,7 +1257,14 @@ ctx.restore();
     $('btnDownload').addEventListener('click', downloadPatchedJSON);
 
     // rerender on any numeric/control changes
-    const rerenderIds = ['fps','scale','tile','isoX','isoY','camTX','camTY','camZoom','fpW','fpH','bTX','bTY','anchorMode','baseYRatio','showGrid','showFoot','showAnchor','showBounds'];
+    const rerenderIds = [
+      'fps','scale','tile','isoX','isoY',
+      'camTX','camTY','camZoom',
+      'fpW','fpH','fpYDir',
+      'bTX','bTY',
+      'anchorMode','baseYRatio',
+      'showGrid','showFoot','showAxis','showAnchor','showBounds','showMini'
+    ];
     for (const id of rerenderIds) {
       $(id).addEventListener('input', render);
       $(id).addEventListener('change', render);
