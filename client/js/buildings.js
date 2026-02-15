@@ -192,58 +192,131 @@
   }
 
   // Main plugin: only handles barracks. Return false for others so game.js draws prism fallback.
-  PO.buildings.drawBuilding = function drawBuilding(ctx, b, x, y, dz, now) {
-    // Kind in your game.js seems to be "barracks" (plural).
-    const kind = b && b.kind;
-    if (kind !== "barracks" && kind !== "barrack") return false;
+  PO.buildings.drawBuilding = function drawBuilding(...args) {
+    // Supports BOTH call styles:
+    //  - New: drawBuilding(ent, ctx, cam, helpers, state)
+    //  - Old: drawBuilding(ctx, ent, x, y, dz, now)
+    let ctx = null, b = null, x = null, y = null, dz = 0, now = null;
+    let cam = null, helpers = null, stateObj = null;
+
+    // New signature (most common in current game.js)
+    if (args[1] && typeof args[1].drawImage === "function" && args[0] && typeof args[0] === "object" && typeof args[0].kind === "string") {
+      b = args[0];
+      ctx = args[1];
+      cam = args[2] || null;
+      helpers = args[3] || null;
+      stateObj = args[4] || null;
+    }
+    // Old signature
+    else if (args[0] && typeof args[0].drawImage === "function") {
+      ctx = args[0];
+      b = args[1];
+      x = args[2];
+      y = args[3];
+      dz = args[4] || 0;
+      now = args[5];
+    }
+    // Fallback: try to find pieces
+    else {
+      for (const a of args) if (!ctx && a && typeof a.drawImage === "function") ctx = a;
+      for (const a of args) if (!b && a && typeof a === "object" && typeof a.kind === "string") b = a;
+      for (const a of args) if (!cam && a && typeof a === "object" && typeof a.zoom === "number") cam = a;
+      for (const a of args) if (!helpers && a && typeof a === "object" && typeof a.worldToScreen === "function") helpers = a;
+      for (const a of args) if (!stateObj && a && typeof a === "object" && (typeof a.t === "number" || typeof a.time === "number")) stateObj = a;
+    }
+
     if (!ctx || !b) return false;
+
+    const kind = b.kind;
+    if (kind !== "barracks" && kind !== "barrack") return false;
+
+    // Time source
+    if (typeof now !== "number" || !isFinite(now)) {
+      if (stateObj && typeof stateObj.t === "number") now = stateObj.t;
+      else if (stateObj && typeof stateObj.time === "number") now = stateObj.time;
+      else if (typeof performance !== "undefined" && performance.now) now = performance.now();
+      else now = Date.now();
+    }
+
+    // Screen anchor (ground point)
+    if (typeof x !== "number" || typeof y !== "number") {
+      const w2s =
+        (helpers && typeof helpers.worldToScreen === "function")
+          ? helpers.worldToScreen
+          : (typeof worldToScreen === "function" ? worldToScreen : null);
+
+      if (!w2s) return false;
+
+      const tileSize = (typeof TILE === "number" && isFinite(TILE)) ? TILE : 110;
+
+      const tx = (typeof b.tx === "number") ? b.tx : null;
+      const ty = (typeof b.ty === "number") ? b.ty : null;
+      const tw = (typeof b.tw === "number") ? b.tw : 1;
+      const th = (typeof b.th === "number") ? b.th : 1;
+
+      if (tx != null && ty != null) {
+        // Midpoint of the footprint's south edge (same concept used elsewhere in game.js)
+        const sSW = w2s(tx * tileSize, (ty + th) * tileSize);
+        const sSE = w2s((tx + tw) * tileSize, (ty + th) * tileSize);
+        x = Math.round((sSW.x + sSE.x) * 0.5);
+        y = Math.round((sSW.y + sSE.y) * 0.5);
+        dz = 0;
+      } else if (typeof b.x === "number" && typeof b.y === "number") {
+        const s = w2s(b.x, b.y);
+        x = Math.round(s.x);
+        y = Math.round(s.y);
+        dz = 0;
+      } else {
+        return false;
+      }
+    }
 
     if (st.failed) return false;
 
-    // Kick off async load once; until ready, use fallback prism.
-    if (!st.promise) {
-      loadAtlases();
-      return false;
-    }
+    if (!st.promise) { loadAtlases(); return false; }
     if (!st.ready) return false;
 
-    // State selection (your current game.js has no construction progress fields).
+    // Choose animation state
     let state = "idle";
     if (typeof b.hp === "number" && b.hp <= 0) state = "distruct";
+    // If you have a "constructing" flag, you can swap to "const" here.
+    // if (b.constructing) state = "const";
     if (!st.atlases[state]) state = "idle";
 
-    const frameName = pickFrame(state, now) || st.frameLists[state][0];
-    if (!frameName) return false;
+    const list = st.frameLists[state];
+    if (!list || !list.length) return false;
 
+    const frameName = pickFrame(state, now) || list[0];
     const atlas = getTeamAtlas(state, b.team);
     if (!atlas) return false;
 
-    // Scale to footprint width.
-    const isoX = getIsoX();
+    // Scale to footprint width (fix: use sourceSize.w, not a non-existent fr.src.w)
+    const isoX = (helpers && typeof helpers.ISO_X === "number") ? helpers.ISO_X : getIsoX();
     const footprintW = ((b.tw || 1) + (b.th || 1)) * isoX;
 
-    const fr = st.atlases[state].frames && st.atlases[state].frames.get ? st.atlases[state].frames.get(frameName) : null;
-    const srcW = fr && fr.src ? fr.src.w : null;
-    const zoom = getCamZoom();
+    const fr =
+      st.atlases[state].frames && st.atlases[state].frames.get
+        ? st.atlases[state].frames.get(frameName)
+        : null;
+
+    const srcW =
+      fr && fr.sourceSize && typeof fr.sourceSize.w === "number"
+        ? fr.sourceSize.w
+        : (fr && fr.frame && typeof fr.frame.w === "number" ? fr.frame.w : null);
+
+    const zoom = (cam && typeof cam.zoom === "number") ? cam.zoom : getCamZoom();
 
     let scale = zoom;
-    if (srcW && srcW > 0) {
-      scale *= (footprintW / srcW);
-    } else {
-      // fallback scale
-      scale *= 1.0;
-    }
+    if (srcW && footprintW) scale = zoom * (footprintW / srcW);
 
-    // Draw using bottom-center anchoring.
-    const dx = x;
-    const dy = (y - dz);
-
+    // Draw (anchor = ground point in screen space; pivot comes from the atlas JSON's anchor/pivot)
     try {
-      PO.atlasTP.drawFrame(ctx, atlas, frameName, dx, dy, { scale });
+      PO.atlasTP.drawFrame(ctx, atlas, frameName, x, y - (dz || 0), { scale });
       return true;
     } catch (e) {
-      console.warn(TAG, "drawFrame failed", e);
+      logOnce("drawFail", "buildings.js drawFrame failed: " + (e && e.message ? e.message : e));
       return false;
     }
   };
+
 })();
