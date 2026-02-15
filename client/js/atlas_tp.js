@@ -1,4 +1,4 @@
-/* atlas_tp.js (TexturePacker) v6
+/* atlas_tp.js (TexturePacker) v6 + v22 back-compat
    - Supports TP Multi (textures[] array) and TP Hash (frames:{}), plus frames[] array.
    - Produces atlas.frames (Map) and atlas.framesByName (plain object) for compatibility.
    - Provides drawFrame() that respects trimming and optional rotated frames.
@@ -306,6 +306,10 @@
   PO.atlasTP.getFrameBounds = getFrameBounds;
   PO.atlasTP.listFramesByPrefix = listFramesByPrefix;
   PO.atlasTP.applyPivotByPrefix = applyPivotByPrefix;
+
+  // Back-compat aliases (older patches expect loadAtlasTP*)
+  PO.atlasTP.loadAtlasTP = loadTPAtlas;
+  PO.atlasTP.loadAtlasTPMulti = loadTPAtlasMulti;
 
   console.log(`[atlas_tp:v${VERSION}] ready`);
 })();
