@@ -13,7 +13,31 @@
   //   const_anim/barrack/barrack_const.json
   //   distruct/barrack/barrack_distruct.json
   // NOTE: Cloudflare Pages returns index.html (HTML) for missing files (status 200). We detect that.
-  const ROOT = '/asset/sprite/const';
+  let ROOT = '/asset/sprite/const';
+  // Some deployments serve from repo root where assets live under /client/asset/...
+  // Detect once at runtime so JSON/PNG requests don't get rewritten to index.html.
+  async function detectRootOnce() {
+    if (detectRootOnce._done) return ROOT;
+    detectRootOnce._done = true;
+    const testPaths = [
+      '/asset/sprite/const',
+      '/client/asset/sprite/const',
+      'asset/sprite/const'
+    ];
+    const testRel = '/normal/barrack/barrack_idle.json';
+    for (const base of testPaths) {
+      const url = (base.endsWith('/') ? base.slice(0,-1) : base) + testRel;
+      try {
+        const r = await fetch(url, { cache: 'no-store' });
+        const t = await r.text();
+        if (r.ok && !looksLikeHTML(t) && t.trimStart().startsWith('{')) {
+          ROOT = base.startsWith('/') ? base : '/' + base;
+          break;
+        }
+      } catch {}
+    }
+    return ROOT;
+  }
   const URLS = {
     normal: [`${ROOT}/normal/barrack/barrack_idle.json`],
     construct: [`${ROOT}/const_anim/barrack/barrack_const.json`],
