@@ -875,6 +875,89 @@ function getBaseBuildTime(kind){
       teamColor: true // apply team palette to accent pixels
     }
   };
+  // --- Barracks (animated atlas; kind = "barracks", asset folder = "barrack") ---
+  const BARRACKS_ATLAS = {
+    idle:  { json: 'asset/sprite/const/normal/barrack/barrack_idle.json',  base: 'asset/sprite/const/normal/barrack/' },
+    build: { json: 'asset/sprite/const/const_anim/barrack/barrack_const.json', base: 'asset/sprite/const/const_anim/barrack/' },
+    die:   { json: 'asset/sprite/const/distruct/barrack/barrack_distruct.json', base: 'asset/sprite/const/distruct/barrack/' },
+    _loading: false,
+    _ready: false,
+    atlases: { idle: null, build: null, die: null },
+    frames:  { idle: null, build: null, die: null }
+  };
+
+  function _barracksSortFrames(frames){
+    if (!frames || !frames.length) return frames || [];
+    const num = (s)=>{
+      const m = String(s).match(/(\d+)(?!.*\d)/);
+      return m ? parseInt(m[1], 10) : -1;
+    };
+    return frames.slice().sort((a,b)=>{
+      const na = num(a), nb = num(b);
+      if (na !== -1 && nb !== -1 && na !== nb) return na - nb;
+      return String(a).localeCompare(String(b));
+    });
+  }
+
+  async function ensureBarracksAtlasLoaded(){
+    if (BARRACKS_ATLAS._ready || BARRACKS_ATLAS._loading) return;
+    BARRACKS_ATLAS._loading = true;
+    try{
+      const atp = (window.PO && window.PO.atlasTP) || null;
+      if (!atp || !atp.loadAtlasTPMulti || !atp.listFramesByPrefix) throw new Error('atlasTP not ready');
+
+      const loadOne = async (slotKey, def)=>{
+        try{
+          const atlas = await atp.loadAtlasTPMulti(def.json, def.base);
+          const frames = _barracksSortFrames(atp.listFramesByPrefix(atlas, ''));
+          if (!frames || frames.length === 0) throw new Error('no frames in atlas');
+          BARRACKS_ATLAS.atlases[slotKey] = atlas;
+          BARRACKS_ATLAS.frames[slotKey] = frames;
+          return true;
+        }catch(e){
+          console.warn(`[barracks] atlas load failed (${slotKey})`, def.json, e);
+          return false;
+        }
+      };
+
+      const okIdle = await loadOne('idle', BARRACKS_ATLAS.idle);
+      await loadOne('build', BARRACKS_ATLAS.build);
+      await loadOne('die', BARRACKS_ATLAS.die);
+
+      BARRACKS_ATLAS._ready = !!okIdle;
+      if (BARRACKS_ATLAS._ready) console.log('[barracks] atlases ready');
+    } finally {
+      BARRACKS_ATLAS._loading = false;
+    }
+  }
+
+  function drawBarracksSprite(ctx, ent, s){
+    const atp = (window.PO && window.PO.atlasTP) || null;
+    if (!atp || !atp.drawFrame) return false;
+    if (!BARRACKS_ATLAS._ready){
+      ensureBarracksAtlasLoaded();
+      return false;
+    }
+
+    const atlas = BARRACKS_ATLAS.atlases.idle;
+    const frames = BARRACKS_ATLAS.frames.idle;
+    if (!atlas || !frames || frames.length === 0) return false;
+
+    const fps = 8;
+    const idx = Math.floor(((performance.now() / 1000) * fps) % frames.length);
+    const frameName = frames[idx];
+
+    const b = (atp.getFrameBounds && atp.getFrameBounds(atlas, frameName)) || { x0: 0, y0: 0, x1: 0, y1: 0, w: 0, h: 0 };
+    // drawFrame() positions by the frame pivot; getFrameBounds() gives bounds relative to that pivot.
+    // Align sprite bottom-center to the building world position (isoToScreen output).
+    const dx = Math.round(s.x - (b.x0 + b.w * 0.5));
+    const dy = Math.round(s.y - b.y1);
+
+    atp.drawFrame(ctx, atlas, frameName, dx, dy, { scale: 1 });
+    return true;
+  }
+
+
   
 
   // === Sprite tuning knobs (YOU edit these) ===
@@ -1194,6 +1277,11 @@ function getBaseBuildTime(kind){
   }
 
   function drawBuildingSprite(ent){
+    if (ent && ent.kind === 'barracks') {
+      const s = isoToScreen(ent.x, ent.y);
+      if (drawBarracksSprite(ctx, ent, s)) return true;
+    }
+
     const cfg = BUILD_SPRITE[ent.kind];
     if (!cfg) return false;
     const img = cfg.img;
