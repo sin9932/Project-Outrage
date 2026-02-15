@@ -603,12 +603,6 @@ function updateSnipDeathFx(){
   }
 }
 
-  // isoToScreen compatibility: older code may call isoToScreen() for world coords.
-  function isoToScreen(wx, wy){
-    return worldToScreen(wx, wy);
-  }
-
-
 function getSnipDieTeamSheet(teamId){
   const key=teamId;
   let c=SNIP_DIE_TEAM_SHEET.get(key);
@@ -892,14 +886,6 @@ function getBaseBuildTime(kind){
     frames:  { idle: null, build: null, die: null }
   };
 
-  const BARRACKS_GHOSTS = [];
-  const BARRACKS_SCALE_BASE = 0.14;
-  const BARRACKS_IDLE_FPS  = 20;
-  const BARRACKS_BUILD_FPS = 20;
-  const BARRACKS_DIE_FPS   = 20;
-  const BARRACKS_RED_HP_FRAC = 0.20;
-
-
   function _barracksSortFrames(frames){
     if (!frames || !frames.length) return frames || [];
     const num = (s)=>{
@@ -922,13 +908,7 @@ function getBaseBuildTime(kind){
 
       const loadOne = async (slotKey, def)=>{
         try{
-          const loadMulti = atp.loadTPAtlasMulti || atp.loadAtlasTPMulti;
-        const atlas = await loadMulti(def.json, def.base);
-
-        // Force building pivot/anchor for barracks atlases (from in-game tuner)
-        if (atlas && atlas.frames){
-          for (const fr of atlas.frames.values()) fr.anchor = {x:0.4955, y:0.4370};
-        }
+          const atlas = await atp.loadAtlasTPMulti(def.json, def.base);
           const frames = _barracksSortFrames(atp.listFramesByPrefix(atlas, ''));
           if (!frames || frames.length === 0) throw new Error('no frames in atlas');
           BARRACKS_ATLAS.atlases[slotKey] = atlas;
@@ -951,143 +931,36 @@ function getBaseBuildTime(kind){
     }
   }
 
-  function _barracksPickTeamIndex(team){
-  // TEAM is internal; in this codebase: PLAYER=0, ENEMY=1, NEUTRAL=2
-  if (team === 1) return 1;
-  if (team === 2) return 2;
-  return 0;
-}
-
-function _barracksTeamRGB(team){
-  const idx = _barracksPickTeamIndex(team);
-  const rgb = (window.TEAM_ACCENT && window.TEAM_ACCENT[idx]) ? window.TEAM_ACCENT[idx] : [70,140,255];
-  return rgb;
-}
-
-function drawBarracksFrameTeam(ctx, atlas, frameName, pivotX, pivotY, scale, team){
-  const atp = PO.atlasTP;
-  if (!atp || !atlas) return;
-
-  const fr = atlas.frames && atlas.frames.get(frameName);
-  if (!fr) return;
-
-  // Resolve which texture image holds this frame
-  const tex = atlas.textures[fr.texIndex];
-  const img = tex && tex.img;
-  if (!img) return;
-
-  const fx = fr.frame.x, fy = fr.frame.y, fw = fr.frame.w, fh = fr.frame.h;
-
-  // Team palette swap only on the cropped frame region (cache is inside _getTeamCroppedSprite)
-  const cropped = _getTeamCroppedSprite(img, {x:fx, y:fy, w:fw, h:fh}, team);
-  const src = cropped || img;
-
-  const sourceW = fr.sourceSize.w, sourceH = fr.sourceSize.h;
-  const sss = fr.spriteSourceSize || {x:0,y:0,w:sourceW,h:sourceH};
-  const sx = sss.x, sy = sss.y;
-
-  const anc = fr.pivot || fr.anchor || {x:0.5, y:1};
-  const pivotPx = anc.x * sourceW;
-  const pivotPy = anc.y * sourceH;
-
-  const drawX = pivotX + (sx - pivotPx) * scale;
-  const drawY = pivotY + (sy - pivotPy) * scale;
-
-  if (cropped){
-    ctx.drawImage(src, 0, 0, fw, fh, drawX, drawY, fw * scale, fh * scale);
-  } else {
-    ctx.drawImage(src, fx, fy, fw, fh, drawX, drawY, fw * scale, fh * scale);
-  }
-}
-
-function drawBarracksSprite(ent, ctx){
-  ensureBarracksAtlasLoaded();
-  if (!BARRACKS_ATLAS._ready) return false;
-
-  const atp = PO.atlasTP;
-  const idleAtlas  = BARRACKS_ATLAS.atlases.idle;
-  const buildAtlas = BARRACKS_ATLAS.atlases.build;
-
-  if (!atp || !idleAtlas) return false;
-
-  const z = cam.zoom || 1;
-  const baseScale = BARRACKS_SCALE_BASE * z;
-
-  // Pivot target: building footprint center in world -> screen
-  const p = worldToScreen(ent.x, ent.y);
-  const pivotX = p.x, pivotY = p.y;
-
-  const now = performance.now() * 0.001;
-
-  // --- 1) Build-complete animation (plays once after creation)
-  // If you need to suppress this for start-buildings later, set ent._barrackNoBuildAnim = true.
-  if (!ent._barrackNoBuildAnim){
-    if (ent._barrackBuildT0 == null && buildAtlas && BARRACKS_ATLAS.frames.build && BARRACKS_ATLAS.frames.build.length){
-      ent._barrackBuildT0 = now;
+  function drawBarracksSprite(ctx, ent, s){
+    const atp = (window.PO && window.PO.atlasTP) || null;
+    if (!atp || !atp.drawFrame) return false;
+    if (!BARRACKS_ATLAS._ready){
+      ensureBarracksAtlasLoaded();
+      return false;
     }
-    if (ent._barrackBuildT0 != null){
-      const frames = BARRACKS_ATLAS.frames.build || [];
-      const idx = Math.floor((now - ent._barrackBuildT0) * BARRACKS_BUILD_FPS);
-      if (idx < frames.length){
-        drawBarracksFrameTeam(ctx, buildAtlas, frames[idx], pivotX, pivotY, baseScale, ent.team);
-        return true;
-      } else {
-        // done
-        ent._barrackBuildT0 = null;
-      }
-    }
-  }
 
-  // --- 2) Damaged (red HP only): show barrack_dist.png ONLY when red
-  const hpMax = ent.hpMax || 1;
-  const hpFrac = (ent.hp == null ? 1 : Math.max(0, ent.hp) / hpMax);
+    const atlas = BARRACKS_ATLAS.atlases.idle;
+    const frames = BARRACKS_ATLAS.frames.idle;
+    if (!atlas || !frames || frames.length === 0) return false;
 
-  const damageFrame = (BARRACKS_ATLAS.frames.idle || []).find(n => /barrack_dist\.png$/i.test(n));
-  if (hpFrac <= BARRACKS_RED_HP_FRAC && damageFrame){
-    drawBarracksFrameTeam(ctx, idleAtlas, damageFrame, pivotX, pivotY, baseScale, ent.team);
+    const fps = 8;
+    const idx = Math.floor(((performance.now() / 1000) * fps) % frames.length);
+    const frameName = frames[idx];
+
+    const b = (atp.getFrameBounds && atp.getFrameBounds(atlas, frameName)) || { x0: 0, y0: 0, x1: 0, y1: 0, w: 0, h: 0 };
+    // drawFrame() positions by the frame pivot; getFrameBounds() gives bounds relative to that pivot.
+    // Align sprite bottom-center to the building world position (isoToScreen output).
+    const dx = Math.round(s.x - (b.x0 + b.w * 0.5));
+    const dy = Math.round(s.y - b.y1);
+
+    atp.drawFrame(ctx, atlas, frameName, dx, dy, { scale: 1 });
     return true;
   }
 
-  // --- 3) Normal idle loop: barrack_idle1..16 only
-  const idleLoop = atp.listFramesByPrefix(idleAtlas, 'barrack_idle')
-    .filter(n => !/barrack_dist\.png$/i.test(n));
-  if (!idleLoop.length) return false;
 
-  const idx = Math.floor(now * BARRACKS_IDLE_FPS) % idleLoop.length;
-  drawBarracksFrameTeam(ctx, idleAtlas, idleLoop[idx], pivotX, pivotY, baseScale, ent.team);
-  return true;
-}
+  
 
-function pushBarracksGhost(kind, x, y, team){
-  BARRACKS_GHOSTS.push({ kind, x, y, team, t0: performance.now() * 0.001 });
-}
-
-function drawBarracksGhosts(ctx){
-  if (!BARRACKS_GHOSTS.length) return;
-  ensureBarracksAtlasLoaded();
-  if (!BARRACKS_ATLAS._ready) return;
-
-  const dieAtlas = BARRACKS_ATLAS.atlases.die;
-  const frames = BARRACKS_ATLAS.frames.die || [];
-  if (!dieAtlas || !frames.length) return;
-
-  const now = performance.now() * 0.001;
-  const z = cam.zoom || 1;
-  const scale = BARRACKS_SCALE_BASE * z;
-
-  for (let i = BARRACKS_GHOSTS.length - 1; i >= 0; i--){
-    const g = BARRACKS_GHOSTS[i];
-    const t = now - g.t0;
-    const idx = Math.floor(t * BARRACKS_DIE_FPS);
-    if (idx >= frames.length){
-      BARRACKS_GHOSTS.splice(i, 1);
-      continue;
-    }
-    const p = worldToScreen(g.x, g.y);
-    drawBarracksFrameTeam(ctx, dieAtlas, frames[idx], p.x, p.y, scale, g.team);
-  }
-}
-// === Sprite tuning knobs (YOU edit these) ===
+  // === Sprite tuning knobs (YOU edit these) ===
   // pivotNudge is in SOURCE pixels (bbox-space, before scaling).
   // offsetNudge is in SCREEN pixels (after scaling, before zoom).
   // anchor: "center" to stick the sprite to the 5x5 footprint center (what you asked).
@@ -5071,7 +4944,6 @@ try{
     // 3) Remove from gameplay
     try{ if (window.PO && PO.buildings && PO.buildings.onDestroyed) PO.buildings.onDestroyed(b); }catch(_e){}
     b.alive = false;
-    if (b.kind === 'barracks') pushBarracksGhost('die', b.x, b.y, b.team);
     state.selection.delete(b.id);
     setBuildingOcc(b, 0);
     recomputePower();
@@ -6964,7 +6836,6 @@ function sellBuilding(b){
 
     try{ if (window.PO && PO.buildings && PO.buildings.onSold) PO.buildings.onSold(b); }catch(_e){}
     b.alive=false;
-    if (b.kind === 'barracks') pushBarracksGhost('sell', b.x, b.y, b.team);
     state.selection.delete(b.id);
     setBuildingOcc(b,0);
     recomputePower();
@@ -11818,6 +11689,12 @@ let rX = ent.x, rY = ent.y;
         }
       }
     }
+    // Building death ghosts (eg. barracks distruct)
+    if (window.PO && PO.buildings && typeof PO.buildings.drawGhosts === "function") {
+      PO.buildings.drawGhosts(ctx, cam, helpers, state);
+    }
+
+
 
     
     // Repair FX (wrench animation)
@@ -12031,7 +11908,6 @@ ctx.fill();
 
 
     // Barracks destruction/sell animation ghosts (render below explosions/smoke)
-    drawBarracksGhosts(ctx);
     try{ if (window.PO && PO.buildings && PO.buildings.drawGhosts){
       const helpers = { worldToScreen, ISO_X, ISO_Y, drawFootprintDiamond };
       PO.buildings.drawGhosts(ctx, cam, helpers, state);

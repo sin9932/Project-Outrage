@@ -1,322 +1,257 @@
-/* buildings.js - barracks TP atlas loader + renderer plugin (v28)
-   - Defines PO.buildings.drawBuilding(ctx, b, x, y, dz, now)
-   - Loads TexturePacker JSON from your repo paths:
-     normal:    asset/sprite/const/normal/barrack/barrack_idle.json
-     const:     asset/sprite/const/const_anim/barrack/barrack_const.json
-     distruct:  asset/sprite/const/distruct/barrack/barrack_distruct.json
+/* buildings.js - Barracks renderer plugin (pivot + team palette + build anim + death ghost)
+   Drop-in: load after atlas_tp.js and before game.js
 */
 (() => {
-  const TAG = "[barracks:v28]";
-  const W = (typeof window !== "undefined") ? window : globalThis;
-
-  W.PO = W.PO || {};
+  const PO = (window.PO = window.PO || {});
   PO.buildings = PO.buildings || {};
+  const st = PO.buildings._barracks = PO.buildings._barracks || {};
 
-  const st = {
-    promise: null,
-    ready: false,
-    failed: false,
-    prefix: null,
-    atlases: { idle: null, const: null, distruct: null },
-    frameLists: { idle: [], const: [], distruct: [] },
-    teamAtlases: { idle: {}, const: {}, distruct: {} },
-    logged: { boot: false, ok: false, fail: false }
+  // Tuned to your in-game pivot/scale screenshot
+  const BASE_SCALE = 0.14;
+  const IDLE_FPS   = 20;
+  const BUILD_FPS  = 24;
+  const DEATH_FPS  = 20;
+  const LOW_HP_RATIO = 0.20;
+  const FORCE_PIVOT = { x: 0.4955, y: 0.4370 }; // from your screenshot (use distruct pivot)
+
+  st.ready = false;
+  st.loading = false;
+  st.atlases = st.atlases || {};
+  st.frames  = st.frames  || {};
+  st.ghosts  = st.ghosts  || [];
+  st._teamTexCache = st._teamTexCache || new Map(); // key: `${atlasKey}|${texIndex}|${team}` => tintedImg
+
+  // --- helpers ---
+  const _numSuffix = (name) => {
+    const m = name.match(/(\d+)\.png$/);
+    return m ? parseInt(m[1], 10) : 0;
   };
 
-  function logOnce(kind, ...args) {
-    if (st.logged[kind]) return;
-    st.logged[kind] = true;
-    (kind === "fail" ? console.error : console.log)(TAG, ...args);
+  function listFramesByPrefixSorted(atlas, prefix) {
+    if (!atlas || !atlas.frames) return [];
+    const out = [];
+    for (const k of atlas.frames.keys()) if (k.startsWith(prefix)) out.push(k);
+    out.sort((a,b) => _numSuffix(a) - _numSuffix(b));
+    return out;
   }
 
-  function looksLikeJsonAtlas(text) {
-    if (!text) return false;
-    const t = String(text).trim();
-    if (!t.startsWith("{")) return false;
-    if (t.startsWith("<")) return false;
-    // TexturePacker "multi atlas" has "textures" usually
-    return t.includes('"textures"') || t.includes('"frames"');
+  function forcePivotOnAtlas(atlas, pivot) {
+    if (!atlas || !atlas.frames) return;
+    for (const fr of atlas.frames.values()) fr.pivot = pivot;
   }
 
-  async function probePrefix() {
-    // Try a small set of likely repo-root layouts.
-    // Your local path: D:\repos\project_outrage\Project-Outrage\client\asset\...
-    const sub = "sprite/const/normal/barrack/barrack_idle.json";
-    const prefixes = [
-      "asset",
-      "client/asset",
-      "Project-Outrage/client/asset",
-      "Project-Outrage/Project-Outrage/client/asset",
-      "/asset",
-      "/client/asset",
-      "/Project-Outrage/client/asset",
-      "/Project-Outrage/Project-Outrage/client/asset",
-    ];
+  function _getTeamTextureImg(atlasKey, atlas, texIndex, team) {
+    const texArr = atlas && atlas.textures ? atlas.textures : [];
+    const tex = texArr[texIndex] || texArr[0];
+    const img = tex && tex.img;
+    if (!img) return null;
 
-    for (const pref of prefixes) {
-      const url = `${pref}/${sub}`.replaceAll("//", "/");
-      try {
-        const r = await fetch(url, { cache: "no-store" });
-        if (!r.ok) continue;
+    // If palette tool isn't available yet, just return original.
+    if (typeof window._getTeamCroppedSprite !== "function") return img;
 
-        // Some hosts return index.html (SPA fallback) as 200, detect it.
-        const txt = await r.text();
-        if (looksLikeJsonAtlas(txt)) {
-          return pref.replace(/\/$/, "");
-        }
-      } catch (_) {
-        // ignore
-      }
+    const key = `${atlasKey}|${texIndex}|${team}`;
+    const cached = st._teamTexCache.get(key);
+    if (cached) return cached;
+
+    const w = img.naturalWidth || img.width;
+    const h = img.naturalHeight || img.height;
+    const tinted = window._getTeamCroppedSprite(img, { x: 0, y: 0, w, h }, team) || img;
+
+    st._teamTexCache.set(key, tinted);
+    return tinted;
+  }
+
+  function drawFrameTeam(atlasKey, atlas, ctx, filename, x, y, team, scale) {
+    if (!atlas || !atlas.frames) return false;
+    const fr = atlas.frames.get(filename);
+    if (!fr) return false;
+
+    const texIndex = (fr.texIndex != null) ? fr.texIndex : 0;
+    const img = _getTeamTextureImg(atlasKey, atlas, texIndex, team);
+    if (!img) return false;
+
+    const frame = fr.frame || { x:0, y:0, w:0, h:0 };
+    const sss   = fr.spriteSourceSize || { x:0, y:0, w:frame.w, h:frame.h };
+    const srcSz = fr.sourceSize || { w: sss.w, h: sss.h };
+    const pv    = fr.pivot || FORCE_PIVOT;
+
+    const dx = x - (pv.x * srcSz.w - sss.x) * scale;
+    const dy = y - (pv.y * srcSz.h - sss.y) * scale;
+    const dw = frame.w * scale;
+    const dh = frame.h * scale;
+
+    ctx.drawImage(img, frame.x, frame.y, frame.w, frame.h, dx, dy, dw, dh);
+    return true;
+  }
+
+  async function ensureAtlasesLoaded() {
+    if (st.ready || st.loading) return;
+    st.loading = true;
+
+    const atlasTP = PO.atlasTP;
+    if (!atlasTP) {
+      console.warn("[barracks] atlasTP not loaded yet");
+      st.loading = false;
+      return;
     }
-    return null;
-  }
 
-  function mkPaths(prefix) {
-    // NOTE: folder name is "barrack" but building kind is usually "barracks" in game.js
-    const base = (p) => `${prefix}/${p}`.replaceAll("//", "/");
-
-    return {
+    const defs = {
       idle: {
-        jsonUrl: base("sprite/const/normal/barrack/barrack_idle.json"),
-        baseDir: base("sprite/const/normal/barrack/"),
+        jsonUrl: "asset/sprite/const/normal/barrack/barrack_idle.json",
+        base:   "asset/sprite/const/normal/barrack/"
       },
-      const: {
-        jsonUrl: base("sprite/const/const_anim/barrack/barrack_const.json"),
-        baseDir: base("sprite/const/const_anim/barrack/"),
+      build: {
+        jsonUrl: "asset/sprite/const/const_anim/barrack/barrack_const.json",
+        base:   "asset/sprite/const/const_anim/barrack/"
       },
       distruct: {
-        jsonUrl: base("sprite/const/distruct/barrack/barrack_distruct.json"),
-        baseDir: base("sprite/const/distruct/barrack/"),
-      },
+        jsonUrl: "asset/sprite/const/distruct/barrack/barrack_distruct.json",
+        base:   "asset/sprite/const/distruct/barrack/"
+      }
     };
-  }
 
-  async function loadAtlases() {
-    if (st.promise) return st.promise;
-
-    st.promise = (async () => {
-      logOnce("boot", "boot");
-
-      if (!PO.atlasTP || typeof PO.atlasTP.loadTPAtlasMulti !== "function") {
-        st.failed = true;
-        logOnce("fail", "PO.atlasTP.loadTPAtlasMulti missing. atlas_tp.js not loaded?");
-        return;
-      }
-
-      const pref = await probePrefix();
-      if (!pref) {
-        st.failed = true;
-        logOnce(
-          "fail",
-          "Could not locate barracks JSON via known prefixes.",
-          "Tried: asset/, client/asset/, Project-Outrage/client/asset/ ..."
-        );
-        return;
-      }
-      st.prefix = pref.replace(/\/$/, "");
-      const P = mkPaths(st.prefix);
-
-      // Load in parallel; if one fails, still allow others to work.
-      const tasks = [
-        PO.atlasTP.loadTPAtlasMulti(P.idle.jsonUrl, P.idle.baseDir).then(a => (st.atlases.idle = a)).catch(e => { console.warn(TAG, "idle atlas load failed", e); }),
-        PO.atlasTP.loadTPAtlasMulti(P.const.jsonUrl, P.const.baseDir).then(a => (st.atlases.const = a)).catch(e => { console.warn(TAG, "const atlas load failed", e); }),
-        PO.atlasTP.loadTPAtlasMulti(P.distruct.jsonUrl, P.distruct.baseDir).then(a => (st.atlases.distruct = a)).catch(e => { console.warn(TAG, "distruct atlas load failed", e); }),
-      ];
-      await Promise.all(tasks);
-
-      // Build frame lists (sorted) for animation.
-      for (const k of ["idle", "const", "distruct"]) {
-        const a = st.atlases[k];
-        if (a && a.frames && typeof a.frames.keys === "function") {
-          st.frameLists[k] = Array.from(a.frames.keys()).sort();
-        }
-      }
-
-      st.ready = !!st.atlases.idle; // require at least idle
-      if (st.ready) logOnce("ok", "ready", { prefix: st.prefix, idleFrames: st.frameLists.idle.length });
-      else {
-        st.failed = true;
-        logOnce("fail", "Atlas load finished but idle atlas is missing. Check file names/paths.");
-      }
-    })();
-
-    return st.promise;
-  }
-
-  function getCamZoom() {
-    // game.js uses global `cam.zoom`. In browsers, top-level const is still in global lexical env.
     try {
-      if (typeof cam !== "undefined" && cam && typeof cam.zoom === "number") return cam.zoom;
-    } catch (_) {}
-    return 1;
-  }
+      const [idleA, buildA, dieA] = await Promise.all([
+        atlasTP.loadTPAtlasMulti(defs.idle.jsonUrl, defs.idle.base),
+        atlasTP.loadTPAtlasMulti(defs.build.jsonUrl, defs.build.base),
+        atlasTP.loadTPAtlasMulti(defs.distruct.jsonUrl, defs.distruct.base),
+      ]);
 
-  function getIsoX() {
-    try { if (typeof ISO_X !== "undefined") return ISO_X; } catch (_) {}
-    return 40; // fallback
-  }
+      st.atlases.idle = idleA;
+      st.atlases.build = buildA;
+      st.atlases.distruct = dieA;
 
-  function getTeamAtlas(key, team) {
-    const base = st.atlases[key];
-    if (!base) return null;
+      // Frames lists (numeric order)
+      const idleAll = listFramesByPrefixSorted(idleA, "barrack_idle");
+      st.frames.idleLoop = idleAll.filter(n => n !== "barrack_dist.png");
+      st.frames.idleDamage = idleA.frames.has("barrack_dist.png") ? "barrack_dist.png" : null;
 
-    // If team tint helper exists in game.js, tint the whole sheet once per team.
-    const t = (team == null) ? 0 : team;
-    const cache = st.teamAtlases[key];
-    if (cache && cache[t]) return cache[t];
+      st.frames.build = listFramesByPrefixSorted(buildA, "barrack_con_complete_");
+      st.frames.distruct = listFramesByPrefixSorted(dieA, "barrack_distruction_");
 
-    if (typeof _getTeamCroppedSprite === "function" && base.img) {
-      const w = base.img.naturalWidth || base.img.width;
-      const h = base.img.naturalHeight || base.img.height;
-      if (w && h) {
-        const tinted = _getTeamCroppedSprite(base.img, { x: 0, y: 0, w, h }, t);
-        if (tinted) {
-          cache[t] = { ...base, img: tinted };
-          return cache[t];
-        }
+      // Pivot: force all frames to the distruct pivot (your request)
+      // If distruct atlas has a pivot on any frame, use that; else FORCE_PIVOT.
+      let pv = FORCE_PIVOT;
+      if (st.frames.distruct.length) {
+        const f0 = dieA.frames.get(st.frames.distruct[0]);
+        if (f0 && f0.pivot) pv = f0.pivot;
       }
-    }
+      forcePivotOnAtlas(idleA, pv);
+      forcePivotOnAtlas(buildA, pv);
+      forcePivotOnAtlas(dieA, pv);
 
-    // Fallback: no tinting
-    cache[t] = base;
-    return base;
-  }
-
-  function pickFrame(key, now) {
-    const list = st.frameLists[key];
-    if (!list || list.length === 0) return null;
-    // Slow-ish loop for buildings
-    const t = (typeof now === "number") ? now : performance.now();
-    const idx = Math.floor(t / 120) % list.length;
-    return list[idx];
-  }
-
-  // Main plugin: only handles barracks. Return false for others so game.js draws prism fallback.
-  PO.buildings.drawBuilding = function drawBuilding(...args) {
-    // Supports BOTH call styles:
-    //  - New: drawBuilding(ent, ctx, cam, helpers, state)
-    //  - Old: drawBuilding(ctx, ent, x, y, dz, now)
-    let ctx = null, b = null, x = null, y = null, dz = 0, now = null;
-    let cam = null, helpers = null, stateObj = null;
-
-    // New signature (most common in current game.js)
-    if (args[1] && typeof args[1].drawImage === "function" && args[0] && typeof args[0] === "object" && typeof args[0].kind === "string") {
-      b = args[0];
-      ctx = args[1];
-      cam = args[2] || null;
-      helpers = args[3] || null;
-      stateObj = args[4] || null;
-    }
-    // Old signature
-    else if (args[0] && typeof args[0].drawImage === "function") {
-      ctx = args[0];
-      b = args[1];
-      x = args[2];
-      y = args[3];
-      dz = args[4] || 0;
-      now = args[5];
-    }
-    // Fallback: try to find pieces
-    else {
-      for (const a of args) if (!ctx && a && typeof a.drawImage === "function") ctx = a;
-      for (const a of args) if (!b && a && typeof a === "object" && typeof a.kind === "string") b = a;
-      for (const a of args) if (!cam && a && typeof a === "object" && typeof a.zoom === "number") cam = a;
-      for (const a of args) if (!helpers && a && typeof a === "object" && typeof a.worldToScreen === "function") helpers = a;
-      for (const a of args) if (!stateObj && a && typeof a === "object" && (typeof a.t === "number" || typeof a.time === "number")) stateObj = a;
-    }
-
-    if (!ctx || !b) return false;
-
-    const kind = b.kind;
-    if (kind !== "barracks" && kind !== "barrack") return false;
-
-    // Time source
-    if (typeof now !== "number" || !isFinite(now)) {
-      if (stateObj && typeof stateObj.t === "number") now = stateObj.t;
-      else if (stateObj && typeof stateObj.time === "number") now = stateObj.time;
-      else if (typeof performance !== "undefined" && performance.now) now = performance.now();
-      else now = Date.now();
-    }
-
-    // Screen anchor (ground point)
-    if (typeof x !== "number" || typeof y !== "number") {
-      const w2s =
-        (helpers && typeof helpers.worldToScreen === "function")
-          ? helpers.worldToScreen
-          : (typeof worldToScreen === "function" ? worldToScreen : null);
-
-      if (!w2s) return false;
-
-      const tileSize = (typeof TILE === "number" && isFinite(TILE)) ? TILE : 110;
-
-      const tx = (typeof b.tx === "number") ? b.tx : null;
-      const ty = (typeof b.ty === "number") ? b.ty : null;
-      const tw = (typeof b.tw === "number") ? b.tw : 1;
-      const th = (typeof b.th === "number") ? b.th : 1;
-
-      if (tx != null && ty != null) {
-        // Midpoint of the footprint's south edge (same concept used elsewhere in game.js)
-        const sSW = w2s(tx * tileSize, (ty + th) * tileSize);
-        const sSE = w2s((tx + tw) * tileSize, (ty + th) * tileSize);
-        x = Math.round((sSW.x + sSE.x) * 0.5);
-        y = Math.round((sSW.y + sSE.y) * 0.5);
-        dz = 0;
-      } else if (typeof b.x === "number" && typeof b.y === "number") {
-        const s = w2s(b.x, b.y);
-        x = Math.round(s.x);
-        y = Math.round(s.y);
-        dz = 0;
-      } else {
-        return false;
-      }
-    }
-
-    if (st.failed) return false;
-
-    if (!st.promise) { loadAtlases(); return false; }
-    if (!st.ready) return false;
-
-    // Choose animation state
-    let state = "idle";
-    if (typeof b.hp === "number" && b.hp <= 0) state = "distruct";
-    // If you have a "constructing" flag, you can swap to "const" here.
-    // if (b.constructing) state = "const";
-    if (!st.atlases[state]) state = "idle";
-
-    const list = st.frameLists[state];
-    if (!list || !list.length) return false;
-
-    const frameName = pickFrame(state, now) || list[0];
-    const atlas = getTeamAtlas(state, b.team);
-    if (!atlas) return false;
-
-    // Scale to footprint width (fix: use sourceSize.w, not a non-existent fr.src.w)
-    const isoX = (helpers && typeof helpers.ISO_X === "number") ? helpers.ISO_X : getIsoX();
-    const footprintW = ((b.tw || 1) + (b.th || 1)) * isoX;
-
-    const fr =
-      st.atlases[state].frames && st.atlases[state].frames.get
-        ? st.atlases[state].frames.get(frameName)
-        : null;
-
-    const srcW =
-      fr && fr.sourceSize && typeof fr.sourceSize.w === "number"
-        ? fr.sourceSize.w
-        : (fr && fr.frame && typeof fr.frame.w === "number" ? fr.frame.w : null);
-
-    const zoom = (cam && typeof cam.zoom === "number") ? cam.zoom : getCamZoom();
-
-    let scale = zoom;
-    if (srcW && footprintW) scale = zoom * (footprintW / srcW);
-
-    // Draw (anchor = ground point in screen space; pivot comes from the atlas JSON's anchor/pivot)
-    try {
-      PO.atlasTP.drawFrame(ctx, atlas, frameName, x, y - (dz || 0), { scale });
-      return true;
+      st.ready = true;
+      console.log("[barracks] atlases ready", {
+        idle: st.frames.idleLoop.length,
+        build: st.frames.build.length,
+        distruct: st.frames.distruct.length,
+        pivot: pv
+      });
     } catch (e) {
-      logOnce("drawFail", "buildings.js drawFrame failed: " + (e && e.message ? e.message : e));
+      console.error("[barracks] atlas load failed", e);
+    } finally {
+      st.loading = false;
+    }
+  }
+
+  // --- public hooks ---
+  PO.buildings.onDestroyed = function(b) {
+    // Called from game.js destroyBuilding() after removing the entity from state.
+    // We spawn a ghost that replays distruct frames at the old position.
+    try {
+      const now = (PO._state && PO._state.t) ? PO._state.t : (performance.now() / 1000);
+      st.ghosts.push({
+        x: b.x, y: b.y,
+        tw: b.tw, th: b.th,
+        team: b.team ?? 0,
+        t0: now
+      });
+    } catch (e) {
+      console.warn("[barracks] onDestroyed failed", e);
+    }
+  };
+
+  PO.buildings.drawGhosts = function(ctx, cam, helpers, state) {
+    if (!st.ready || !st.frames.distruct.length) return;
+    const now = state && state.t != null ? state.t : (performance.now() / 1000);
+    const scale = BASE_SCALE * (cam && cam.zoom ? cam.zoom : 1);
+
+    // Iterate backwards so splice is safe
+    for (let i = st.ghosts.length - 1; i >= 0; i--) {
+      const g = st.ghosts[i];
+      const dt = Math.max(0, now - g.t0);
+      const idx = Math.floor(dt * DEATH_FPS);
+
+      if (idx >= st.frames.distruct.length) {
+        st.ghosts.splice(i, 1);
+        continue;
+      }
+
+      const p = helpers.worldToScreen(g.x, g.y);
+      const dz = Math.max(g.tw, g.th) * helpers.ISO_Y * (cam && cam.zoom ? cam.zoom : 1);
+      const sx = p.x;
+      const sy = p.y - dz;
+
+      drawFrameTeam("distruct", st.atlases.distruct, ctx, st.frames.distruct[idx], sx, sy, g.team, scale);
+    }
+  };
+
+  PO.buildings.drawBuilding = function(ent, ctx, cam, helpers, state) {
+    // Only handle barracks; let default renderer do other buildings.
+    if (!ent || ent.kind !== "barracks") return false;
+
+    // Fire and forget load (first draw will show prism; next draw will show sprite)
+    if (!st.ready) {
+      ensureAtlasesLoaded();
       return false;
     }
+
+    const now = state && state.t != null ? state.t : (performance.now() / 1000);
+    const z = cam && cam.zoom ? cam.zoom : 1;
+    const scale = BASE_SCALE * z;
+
+    const p = helpers.worldToScreen(ent.x, ent.y);
+    const dz = Math.max(ent.tw, ent.th) * helpers.ISO_Y * z;
+    const sx = p.x;
+    const sy = p.y - dz;
+
+    const team = ent.team ?? 0;
+
+    // One-time build animation (when the building first becomes a real building)
+    // If you ever want to skip build anim for starting buildings, set ent._barrackNoBuildAnim=true in spawn.
+    if (!ent._barrackSeen) {
+      ent._barrackSeen = true;
+      ent._barrackIdleT0 = now;
+      if (!ent._barrackNoBuildAnim) ent._barrackBuildT0 = now;
+    }
+
+    // If dead, do not draw here; ghost will play (destroyBuilding calls onDestroyed)
+    if ((ent.hp ?? 1) <= 0) return true;
+
+    // Build -> Idle state machine
+    if (ent._barrackBuildT0 != null && !ent._barrackBuildDone && st.frames.build.length) {
+      const dt = Math.max(0, now - ent._barrackBuildT0);
+      const idx = Math.floor(dt * BUILD_FPS);
+      if (idx < st.frames.build.length) {
+        return drawFrameTeam("build", st.atlases.build, ctx, st.frames.build[idx], sx, sy, team, scale);
+      }
+      ent._barrackBuildDone = true;
+      // continue to idle
+    }
+
+    // Idle loop vs damaged sprite
+    const hp = ent.hp ?? 1;
+    const hpMax = ent.hpMax ?? ent.maxHp ?? 1;
+    const ratio = hpMax > 0 ? (hp / hpMax) : 1;
+
+    if (ratio <= LOW_HP_RATIO && st.frames.idleDamage) {
+      return drawFrameTeam("idle", st.atlases.idle, ctx, st.frames.idleDamage, sx, sy, team, scale);
+    }
+
+    if (!st.frames.idleLoop.length) return false;
+    const t0 = ent._barrackIdleT0 != null ? ent._barrackIdleT0 : (ent._barrackIdleT0 = now);
+    const idx = Math.floor(Math.max(0, now - t0) * IDLE_FPS) % st.frames.idleLoop.length;
+    return drawFrameTeam("idle", st.atlases.idle, ctx, st.frames.idleLoop[idx], sx, sy, team, scale);
   };
 
 })();
