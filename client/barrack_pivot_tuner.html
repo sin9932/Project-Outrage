@@ -3,40 +3,44 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
-  <title>Barrack Pivot Tuner (multipack)</title>
+  <title>Barrack Pivot Tuner v2 (match game placement)</title>
   <style>
     :root{color-scheme:dark;}
     body{margin:0;display:flex;height:100vh;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;}
-    #left{width:360px;min-width:320px;max-width:420px;overflow:auto;padding:14px 14px 18px;background:#0c111a;border-right:1px solid #1f2a3a;}
+    #left{width:380px;min-width:320px;max-width:460px;overflow:auto;padding:14px 14px 18px;background:#0c111a;border-right:1px solid #1f2a3a;}
     #right{flex:1;position:relative;background:radial-gradient(ellipse at center,#101a2a 0%,#070b12 70%);}
     h1{font-size:18px;margin:0 0 10px;}
-    .hint{opacity:.8;font-size:12px;line-height:1.35;margin:0 0 14px;}
-    label{display:block;font-size:12px;opacity:.85;margin:10px 0 6px;}
-    input,button,textarea{width:100%;box-sizing:border-box;border:1px solid #25334a;background:#0b1220;color:#e6eefc;border-radius:10px;padding:10px 10px;font-size:14px;}
-    input{height:38px;}
-    textarea{min-height:130px;resize:vertical;font-family:ui-monospace,Consolas,monospace;font-size:12px;line-height:1.3;}
-    .row{display:flex;gap:8px;}
-    .row > *{flex:1;}
+    .hint{opacity:.82;font-size:12px;line-height:1.45;margin:0 0 14px;}
+    .pill{display:inline-block;padding:2px 6px;border:1px solid #2b3d5d;border-radius:999px;font-size:11px;opacity:.9}
+    label{display:block;font-size:12px;opacity:.86;margin:10px 0 6px;}
+    input,button,textarea,select{width:100%;box-sizing:border-box;border:1px solid #243247;background:#0f1624;color:#e6eefc;border-radius:10px;padding:10px 10px;font-size:14px;}
+    input,select{height:38px;}
+    textarea{min-height:140px;resize:vertical;line-height:1.35;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px;}
     button{cursor:pointer;background:#0f1b33;border-color:#2b3d5d;}
-    button:hover{background:#132243;}
-    .small{font-size:12px;padding:9px 10px;}
-    .pill{display:inline-block;padding:4px 8px;border:1px solid #2b3d5d;border-radius:999px;font-size:12px;opacity:.9}
-    #status{margin-top:10px;font-size:12px;white-space:pre-wrap;opacity:.9}
-    canvas{position:absolute;inset:0;margin:auto;display:block;}
-    #topBadge{position:absolute;left:12px;top:10px;display:flex;gap:8px;align-items:center;font-size:12px;opacity:.95}
-    #topBadge code{background:#0b1220;border:1px solid #2b3d5d;border-radius:8px;padding:4px 8px;}
+    button:hover{filter:brightness(1.12);}
+    .row{display:flex;gap:8px;align-items:center;}
+    .row>div{flex:1;}
+    .small{height:36px;padding:8px 10px;font-size:13px;}
+    .status{white-space:pre-wrap;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px;opacity:.9;margin-top:10px;padding:10px;border:1px dashed #2b3d5d;border-radius:10px;}
+    .group{border:1px solid #1f2a3a;border-radius:12px;padding:10px;margin-top:10px;background:#0b1424;}
+    .groupTitle{font-size:12px;opacity:.9;margin:0 0 6px;}
+    .checkRow{display:flex;align-items:center;gap:10px;}
+    .checkRow input{width:auto;height:auto;}
+    .mini{font-size:11px;opacity:.75;margin:4px 0 0;}
+    canvas{width:100%;height:100%;display:block;}
   </style>
 </head>
 <body>
   <aside id="left">
-    <h1>Pivot Tuner 🛠️ (TexturePacker multipack 지원)</h1>
+    <h1>Pivot Tuner v2 🛠️</h1>
     <p class="hint">
-      - Atlas JSON 안의 <span class="pill">textures[]</span> 를 전부 로드해서 프레임을 합쳐 재생함.<br/>
-      - 프레임 정렬은 <b>파일명 끝자리 숫자</b> 기준 (예: barrack_distruction_12.png).<br/>
-      - <b>Apply</b>는 메모리상의 atlasData를 수정하고, <b>Download JSON</b>으로 수정본을 내려받아 너가 프로젝트에 덮어쓰면 됨.
+      목적: <b>atlas_tp.js의 drawFrame 피벗 계산</b>과 <b>game.js의 isometric 좌표</b>를 그대로 따라가서, 여기서 맞춘 피벗이 게임에서도 1:1로 맞게 보기.<br/>
+      - Atlas JSON 안 <span class="pill">textures[]</span> multipack 전부 로드.<br/>
+      - 프레임 정렬: 파일명 끝 숫자(예: barrack_idle12.png).<br/>
+      - <b>Apply</b>는 메모리의 atlasData를 수정, <b>Download</b>로 패치본 JSON 저장.
     </p>
 
-    <label>Atlas JSON URL (서버 경로 또는 로컬 경로)</label>
+    <label>Atlas JSON URL</label>
     <input id="atlasUrl" value="/asset/sprite/const/distruct/barrack/barrack_distruct.json"/>
 
     <label>Frame prefix (예: barrack_distruction_ / barrack_con_complete_ / barrack_idle)</label>
@@ -45,22 +49,22 @@
     <div class="row">
       <div>
         <label>FPS</label>
-        <input id="fps" type="number" value="12" min="1" max="120"/>
+        <input id="fps" type="number" value="20" min="1" max="120"/>
       </div>
       <div>
-        <label>Zoom</label>
-        <input id="zoom" type="number" value="0.35" step="0.05" min="0.05" max="6"/>
+        <label>Scale (게임과 맞추는 값)</label>
+        <input id="scale" type="number" value="0.14" step="0.01"/>
       </div>
     </div>
 
     <div class="row">
       <div>
         <label>Pivot X (0~1)</label>
-        <input id="pivotX" type="number" value="0.5" step="0.01" min="0" max="1"/>
+        <input id="pivotX" type="range" min="0" max="1" step="0.0005" value="0.5"/>
       </div>
       <div>
         <label>Pivot Y (0~1)</label>
-        <input id="pivotY" type="number" value="0.52" step="0.01" min="0" max="1"/>
+        <input id="pivotY" type="range" min="0" max="1" step="0.0005" value="0.5"/>
       </div>
     </div>
 
@@ -81,99 +85,113 @@
       <button id="btnCopyJS" class="small">Copy JS override</button>
     </div>
 
-    <label>Footprint overlay (타일 3x2 기본)</label>
-    <div class="row">
-      <div><input id="tileW" type="number" value="128"/></div>
-      <div><input id="tileH" type="number" value="64"/></div>
-    </div>
-    <div class="row">
-      <div><input id="tilesX" type="number" value="3"/></div>
-      <div><input id="tilesY" type="number" value="2"/></div>
+    <div class="group">
+      <div class="groupTitle">게임 좌표 모드 (isometric 1:1)</div>
+      <div class="checkRow">
+        <input id="useGame" type="checkbox" checked/>
+        <div style="font-size:13px;opacity:.92">게임 배치 방식으로 오버레이/앵커 계산</div>
+      </div>
+      <div class="mini">game.js 기준: TILE=128이면 ISO_X=64, ISO_Y=32 (다이아 128x64)</div>
+
+      <div class="row" style="margin-top:8px">
+        <div>
+          <label>TILE</label>
+          <input id="TILE" type="number" value="128" step="1"/>
+        </div>
+        <div>
+          <label>Cam zoom</label>
+          <input id="camZoom" type="number" value="1" step="0.1"/>
+        </div>
+      </div>
+
+      <div class="row">
+        <div>
+          <label>Cam tileX</label>
+          <input id="camTX" type="number" value="0" step="0.25"/>
+        </div>
+        <div>
+          <label>Cam tileY</label>
+          <input id="camTY" type="number" value="0" step="0.25"/>
+        </div>
+      </div>
+
+      <div class="row">
+        <div>
+          <label>Building tx</label>
+          <input id="bTX" type="number" value="0" step="1"/>
+        </div>
+        <div>
+          <label>Building ty</label>
+          <input id="bTY" type="number" value="0" step="1"/>
+        </div>
+      </div>
+
+      <div class="row">
+        <div>
+          <label>Footprint W (tw)</label>
+          <input id="bTW" type="number" value="3" step="1" min="1"/>
+        </div>
+        <div>
+          <label>Footprint H (th)</label>
+          <input id="bTH" type="number" value="2" step="1" min="1"/>
+        </div>
+      </div>
+
+      <label>Anchor mode</label>
+      <select id="anchorMode">
+        <option value="southCorner">south corner (game default)</option>
+        <option value="center">center (footprint center)</option>
+        <option value="southEdge">south edge center</option>
+        <option value="customWorld">custom world (tiles)</option>
+      </select>
+
+      <div class="row" id="customWorldRow" style="display:none">
+        <div>
+          <label>custom world X (tiles)</label>
+          <input id="customWX" type="number" value="0" step="0.25"/>
+        </div>
+        <div>
+          <label>custom world Y (tiles)</label>
+          <input id="customWY" type="number" value="0" step="0.25"/>
+        </div>
+      </div>
+
+      <div class="checkRow" style="margin-top:8px">
+        <input id="showTiles" type="checkbox" checked/>
+        <div style="font-size:13px;opacity:.92">타일 그리드 표시</div>
+      </div>
+      <div class="checkRow" style="margin-top:6px">
+        <input id="showOutline" type="checkbox" checked/>
+        <div style="font-size:13px;opacity:.92">풋프린트 외곽선 표시</div>
+      </div>
     </div>
 
     <label>Copy/paste output</label>
     <textarea id="out" spellcheck="false"></textarea>
 
-    <div id="status">Idle</div>
+    <div id="status" class="status">Ready.</div>
   </aside>
 
   <main id="right">
-    <div id="topBadge"><span class="pill" id="frameInfo">No frames</span><code id="texInfo">textures:0</code></div>
     <canvas id="cv"></canvas>
   </main>
 
 <script>
-'use strict';
 const $ = (id)=>document.getElementById(id);
 const cv = $('cv');
 const ctx = cv.getContext('2d');
 
+let dpr = Math.max(1, window.devicePixelRatio || 1);
+
 function clamp01(n){ n = Number(n); if(!Number.isFinite(n)) return 0; return Math.max(0, Math.min(1, n)); }
-function numOr(id, fallback){ const n = Number($(id).value); return Number.isFinite(n) ? n : fallback; }
-function dirname(path){ const q = path.split('?')[0]; const i = q.lastIndexOf('/'); return i>=0 ? q.slice(0,i+1) : ''; }
+function numOr(id, fallback){ const el = $(id); if(!el) return fallback; const n = Number(el.value); return Number.isFinite(n) ? n : fallback; }
+function dirname(path){ const q = (path||'').split('?')[0]; const i = q.lastIndexOf('/'); return i>=0 ? q.slice(0,i+1) : ''; }
 
-function extractTrailingNumber(name){
-  // name like "barrack_distruction_12.png" or "barrack_con_complete_3.png"
-  const m = name.match(/(\d+)(?=\.png$)/i);
-  if(!m) return null;
-  return Number(m[1]);
-}
-
-let atlasData = null;
-let basePath = '';
-let textures = []; // {img, name}
-let frames = [];   // merged frames for given prefix: [{name, texIndex, frame, sourceSize, spriteSourceSize, rotated, anchor}]
-let playing = false;
-let cur = 0;
-let lastT = 0;
-
-function setStatus(msg){ $('status').textContent = msg; }
-function setInfo(){
-  $('texInfo').textContent = `textures:${textures.length}`;
-  if(frames.length){
-    const f = frames[cur];
-    $('frameInfo').textContent = `${f.name}  [${cur+1}/${frames.length}]  tex:${f.texIndex}`;
-  } else {
-    $('frameInfo').textContent = `No frames`;
-  }
-}
-
-// ---- Pivot overrides persistence (for game runtime) ----
-// Saved under localStorage key: "PO_PIVOT_OVERRIDES"
-// Format: { "<prefix>": { "x": 0.5, "y": 0.5 }, ... }
-const LS_PIVOT_KEY = "PO_PIVOT_OVERRIDES";
-
-function loadPivotOverridesLS(){
-  try{
-    return JSON.parse(localStorage.getItem(LS_PIVOT_KEY) || "{}") || {};
-  }catch(_e){
-    return {};
-  }
-}
-
-function savePivotOverridesLS(obj){
-  try{
-    localStorage.setItem(LS_PIVOT_KEY, JSON.stringify(obj));
-    return true;
-  }catch(_e){
-    return false;
-  }
-}
-
-function persistPrefixPivot(prefix, x, y){
-  const p = (prefix || "").trim();
-  if(!p) return { ok:false, reason:"prefix empty" };
-  const obj = loadPivotOverridesLS();
-  obj[p] = { x, y };
-  const ok = savePivotOverridesLS(obj);
-  return { ok, reason: ok ? "saved" : "localStorage blocked" };
-}
-
-
+function setStatus(s){ $('status').textContent = s; }
 
 function resizeCanvas(){
   const r = $('right').getBoundingClientRect();
-  const dpr = window.devicePixelRatio || 1;
+  dpr = Math.max(1, window.devicePixelRatio || 1);
   cv.width = Math.floor(r.width * dpr);
   cv.height = Math.floor(r.height * dpr);
   cv.style.width = r.width + 'px';
@@ -182,150 +200,93 @@ function resizeCanvas(){
 }
 window.addEventListener('resize', resizeCanvas);
 
-function drawDiamondGrid(cx, cy, tileW, tileH, tilesX, tilesY){
-  // isometric diamond footprint centered at (cx,cy)
-  ctx.save();
-  ctx.translate(cx, cy);
-  ctx.globalAlpha = 0.75;
-  ctx.strokeStyle = 'rgba(100,170,255,0.8)';
-  ctx.lineWidth = 1;
-
-  // footprint extents in iso space
-  for(let y=0;y<tilesY;y++){
-    for(let x=0;x<tilesX;x++){
-      const ox = (x - y) * (tileW/2);
-      const oy = (x + y) * (tileH/2);
-      ctx.beginPath();
-      ctx.moveTo(ox, oy - tileH/2);
-      ctx.lineTo(ox + tileW/2, oy);
-      ctx.lineTo(ox, oy + tileH/2);
-      ctx.lineTo(ox - tileW/2, oy);
-      ctx.closePath();
-      ctx.stroke();
-    }
-  }
-  ctx.restore();
+function extractTrailingNumber(name){
+  const m = name.match(/(\d+)(?=\.png$)/i);
+  if(!m) return null;
+  return Number(m[1]);
 }
 
-function buildUntrimmedCanvas(f){
-  const fullW = f.sourceSize?.w ?? f.frame.w;
-  const fullH = f.sourceSize?.h ?? f.frame.h;
-  const off = document.createElement('canvas');
-  off.width = fullW;
-  off.height = fullH;
-  const octx = off.getContext('2d');
+let atlasData = null;
+let basePath = '';
+let textures = []; // {img, name}
+let frames = [];   // merged frames for given prefix: [{name, texIndex, frame, rotated, sourceSize, spriteSourceSize, anchor, _ref}]
+let cur = 0;
+let playing = false;
+let lastT = 0;
 
-  const tex = textures[f.texIndex]?.img;
-  if(!tex) return {canvas:off, w:fullW, h:fullH};
+const LS_PIVOT_KEY = 'pivotTuner_prefixToPivot_v2';
 
-  // draw trimmed region into untrimmed
-  const fr = f.frame;
-  const ss = f.spriteSourceSize ?? {x:0,y:0,w:fr.w,h:fr.h};
-
-  if(f.rotated){
-    // TexturePacker rotation: frame.w/h are swapped in atlas; handle by rotating draw
-    // We draw into a temp canvas, then rotate into destination.
-    const temp = document.createElement('canvas');
-    temp.width = fr.w;
-    temp.height = fr.h;
-    const tctx = temp.getContext('2d');
-    // For rotated sprites, many TP exports store width/height swapped; this is a best-effort.
-    tctx.save();
-    // draw the atlas region directly
-    tctx.drawImage(tex, fr.x, fr.y, fr.w, fr.h, 0, 0, fr.w, fr.h);
-    tctx.restore();
-
-    octx.save();
-    // rotate -90 degrees into destination at ss.x/y
-    octx.translate(ss.x, ss.y);
-    octx.translate(temp.width/2, temp.height/2);
-    octx.rotate(-Math.PI/2);
-    octx.translate(-temp.height/2, -temp.width/2);
-    octx.drawImage(temp, 0, 0);
-    octx.restore();
-  } else {
-    octx.drawImage(tex, fr.x, fr.y, fr.w, fr.h, ss.x, ss.y, ss.w, ss.h);
-  }
-
-  return {canvas:off, w:fullW, h:fullH};
+function loadPersistedPivot(prefix){
+  try{
+    const raw = localStorage.getItem(LS_PIVOT_KEY);
+    if(!raw) return null;
+    const obj = JSON.parse(raw);
+    return obj && obj[prefix] ? obj[prefix] : null;
+  }catch(e){ return null; }
+}
+function persistPrefixPivot(prefix, x, y){
+  try{
+    const p = prefix.trim();
+    if(!p) return {ok:false, reason:'empty prefix'};
+    const raw = localStorage.getItem(LS_PIVOT_KEY);
+    const obj = raw ? JSON.parse(raw) : {};
+    obj[p] = {x, y};
+    localStorage.setItem(LS_PIVOT_KEY, JSON.stringify(obj));
+    return {ok:true};
+  }catch(e){ return {ok:false, reason:String(e)}; }
 }
 
-function render(){
-  const r = $('right').getBoundingClientRect();
-  ctx.clearRect(0,0,r.width,r.height);
-
-  const cx = r.width/2;
-  const cy = r.height/2;
-
-  const tileW = numOr('tileW',128);
-  const tileH = numOr('tileH',64);
-  const tilesX = numOr('tilesX',3);
-  const tilesY = numOr('tilesY',2);
-
-  drawDiamondGrid(cx, cy, tileW, tileH, tilesX, tilesY);
-
-  if(!frames.length) return;
-
-  const f = frames[cur];
-  const z = numOr('zoom',1);
-  const px = clamp01($('pivotX').value);
-  const py = clamp01($('pivotY').value);
-
-  // use frame's own anchor if available unless user is actively applying; we show current input pivot values for tuning
-  const {canvas, w, h} = buildUntrimmedCanvas(f);
-
-  const drawW = w * z;
-  const drawH = h * z;
-
-  // pivot point at center of footprint (cx,cy)
-  const dx = cx - (px * drawW);
-  const dy = cy - (py * drawH);
-
-  ctx.save();
-  ctx.globalAlpha = 1;
-  ctx.imageSmoothingEnabled = true;
-  ctx.drawImage(canvas, dx, dy, drawW, drawH);
-
-  // pivot crosshair
-  const pivotX = cx;
-  const pivotY = cy;
-  ctx.strokeStyle = 'rgba(255,220,120,0.95)';
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.moveTo(pivotX-10, pivotY);
-  ctx.lineTo(pivotX+10, pivotY);
-  ctx.moveTo(pivotX, pivotY-10);
-  ctx.lineTo(pivotX, pivotY+10);
-  ctx.stroke();
-
-  // bounding box
-  ctx.strokeStyle = 'rgba(255,190,80,0.55)';
-  ctx.lineWidth = 1;
-  ctx.strokeRect(dx, dy, drawW, drawH);
-  ctx.restore();
-
-  setInfo();
+function isHTMLLikely(s){
+  if(typeof s!=='string') return false;
+  const t = s.trim().toLowerCase();
+  return t.startsWith('<!doctype') || t.startsWith('<html') || t.includes('<head') || t.includes('<body');
 }
 
-function tick(ts){
-  if(!playing){ render(); return; }
-  const fps = Math.max(1, numOr('fps',12));
-  const step = 1000 / fps;
-  if(!lastT) lastT = ts;
-  const dt = ts - lastT;
-  if(dt >= step){
-    lastT = ts - (dt % step);
-    cur = (cur + 1) % Math.max(1, frames.length);
+async function fetchJsonSmart(url){
+  const res = await fetch(url, {cache:'no-store'});
+  const txt = await res.text();
+  if(!res.ok) throw new Error('HTTP ' + res.status + ' ' + res.statusText);
+  if(isHTMLLikely(txt)) throw new Error('Atlas URL returned HTML (경로 404/fallback 가능성 높음)');
+  return JSON.parse(txt);
+}
+
+function loadImage(url){
+  return new Promise((resolve,reject)=>{
+    const img = new Image();
+    img.onload = ()=>resolve(img);
+    img.onerror = ()=>reject(new Error('failed to load image: ' + url));
+    img.src = url;
+  });
+}
+
+async function loadAtlas(){
+  const url = $('atlasUrl').value.trim();
+  if(!url){ setStatus('ERR: atlasUrl empty'); return; }
+  setStatus('Loading atlas JSON...');
+  atlasData = await fetchJsonSmart(url);
+  basePath = dirname(url);
+
+  // load multipack textures
+  textures = [];
+  setStatus('Loading textures...');
+  for(const tex of (atlasData.textures||[])){
+    const texName = tex.image;
+    const texUrl = texName.startsWith('http') ? texName : basePath + texName;
+    const img = await loadImage(texUrl);
+    textures.push({img, name: texName});
   }
+  setStatus('Loaded textures: ' + textures.length);
+
+  rebuildFramesByPrefix(true);
   render();
-  requestAnimationFrame(tick);
 }
 
-function rebuildFramesByPrefix(){
-  if(!atlasData) { frames=[]; return; }
+function rebuildFramesByPrefix(resetPivotFromSaved){
+  frames = [];
+  if(!atlasData) return;
   const prefix = $('prefix').value.trim();
   const list = [];
-  atlasData.textures.forEach((tex, texIndex)=>{
+  (atlasData.textures||[]).forEach((tex, texIndex)=>{
     (tex.frames||[]).forEach(fr=>{
       const name = fr.filename;
       if(!prefix || name.startsWith(prefix)){
@@ -343,7 +304,6 @@ function rebuildFramesByPrefix(){
     });
   });
 
-  // sort by trailing number if exists, else stable by name
   list.sort((a,b)=>{
     const na = extractTrailingNumber(a.name);
     const nb = extractTrailingNumber(b.name);
@@ -355,55 +315,295 @@ function rebuildFramesByPrefix(){
 
   frames = list;
   cur = 0;
-  lastT = 0;
-  setInfo();
+
+  if(resetPivotFromSaved){
+    const saved = loadPersistedPivot(prefix);
+    if(saved){
+      $('pivotX').value = clamp01(saved.x);
+      $('pivotY').value = clamp01(saved.y);
+    }
+  }
+  setStatus('Frames: ' + frames.length + (prefix? (' (prefix: ' + prefix + ')') : ''));
 }
 
-async function loadAtlas(){
-  setStatus('Loading atlas JSON...');
-  const url = $('atlasUrl').value.trim();
-  if(!url){ setStatus('ERR: atlasUrl empty'); return; }
+function buildUntrimmedCanvas(f){
+  const fullW = f.sourceSize?.w ?? f.frame.w;
+  const fullH = f.sourceSize?.h ?? f.frame.h;
 
-  basePath = dirname(url);
-  try{
-    const res = await fetch(url, {cache:'no-store'});
-    if(!res.ok) throw new Error(`${res.status} ${res.statusText}`);
-    atlasData = await res.json();
-  }catch(e){
-    setStatus('ERR: atlas json fetch 실패\n' + e.message);
-    atlasData = null;
+  const off = document.createElement('canvas');
+  off.width = fullW;
+  off.height = fullH;
+  const octx = off.getContext('2d');
+
+  const tex = textures[f.texIndex]?.img;
+  if(!tex) return {canvas:off, w:fullW, h:fullH};
+
+  const fr = f.frame;
+  const ss = f.spriteSourceSize ?? {x:0,y:0,w:fr.w,h:fr.h};
+
+  if(f.rotated){
+    // rotated frame: draw to temp, rotate into untrimmed
+    const tmp = document.createElement('canvas');
+    tmp.width = fr.h;
+    tmp.height = fr.w;
+    const tctx = tmp.getContext('2d');
+    tctx.drawImage(tex, fr.x, fr.y, fr.w, fr.h, 0, 0, fr.h, fr.w);
+
+    octx.save();
+    octx.translate(ss.x + ss.w/2, ss.y + ss.h/2);
+    octx.rotate(-Math.PI/2);
+    octx.drawImage(tmp, -ss.h/2, -ss.w/2, ss.h, ss.w);
+    octx.restore();
+  }else{
+    octx.drawImage(tex, fr.x, fr.y, fr.w, fr.h, ss.x, ss.y, fr.w, fr.h);
+  }
+
+  return {canvas:off, w:fullW, h:fullH};
+}
+
+// -------- Game placement math (from game.js) --------
+function computeIsoConsts(){
+  const TILE = numOr('TILE',128);
+  const ISO_X = TILE/2;
+  const ISO_Y = TILE/4;
+  return {TILE, ISO_X, ISO_Y};
+}
+function worldToIso(wx, wy, TILE, ISO_X, ISO_Y){
+  return { x: (wx - wy) * (ISO_X / TILE), y: (wx + wy) * (ISO_Y / TILE) };
+}
+function worldToScreen(wx, wy, opt){
+  const {TILE, ISO_X, ISO_Y} = opt;
+  const iso = worldToIso(wx, wy, TILE, ISO_X, ISO_Y);
+
+  // camera in tiles -> world pixels
+  const camWX = opt.camTX * TILE;
+  const camWY = opt.camTY * TILE;
+  const camIso = worldToIso(camWX, camWY, TILE, ISO_X, ISO_Y);
+
+  return {
+    x: (iso.x - camIso.x) * opt.zoom + opt.baseX,
+    y: (iso.y - camIso.y) * opt.zoom + opt.baseY
+  };
+}
+
+function drawCross(x,y, size, color){
+  ctx.save();
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(x-size, y);
+  ctx.lineTo(x+size, y);
+  ctx.moveTo(x, y-size);
+  ctx.lineTo(x, y+size);
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawTileDiamondAt(cx, cy, TILE, zoom){
+  const w = TILE * zoom;
+  const h = (TILE/2) * zoom;
+  ctx.beginPath();
+  ctx.moveTo(cx, cy - h/2);
+  ctx.lineTo(cx + w/2, cy);
+  ctx.lineTo(cx, cy + h/2);
+  ctx.lineTo(cx - w/2, cy);
+  ctx.closePath();
+  ctx.stroke();
+}
+
+function drawFootprintOverlay(opt){
+  const {TILE} = opt;
+  const zoom = opt.zoom;
+  const tx = opt.bTX, ty = opt.bTY, tw = opt.bTW, th = opt.bTH;
+
+  if($('showTiles').checked){
+    ctx.save();
+    ctx.globalAlpha = 0.65;
+    ctx.strokeStyle = 'rgba(100,170,255,0.85)';
+    ctx.lineWidth = 1;
+
+    for(let y=0;y<th;y++){
+      for(let x=0;x<tw;x++){
+        const wx = (tx + x + 0.5) * TILE;
+        const wy = (ty + y + 0.5) * TILE;
+        const p = worldToScreen(wx, wy, opt);
+        drawTileDiamondAt(p.x, p.y, TILE, zoom);
+      }
+    }
+    ctx.restore();
+  }
+
+  if($('showOutline').checked){
+    const nw = worldToScreen((tx)*TILE, (ty)*TILE, opt);
+    const ne = worldToScreen((tx+tw)*TILE, (ty)*TILE, opt);
+    const se = worldToScreen((tx+tw)*TILE, (ty+th)*TILE, opt);
+    const sw = worldToScreen((tx)*TILE, (ty+th)*TILE, opt);
+
+    ctx.save();
+    ctx.globalAlpha = 0.9;
+    ctx.strokeStyle = 'rgba(0,255,160,0.85)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(nw.x, nw.y);
+    ctx.lineTo(ne.x, ne.y);
+    ctx.lineTo(se.x, se.y);
+    ctx.lineTo(sw.x, sw.y);
+    ctx.closePath();
+    ctx.stroke();
+    ctx.restore();
+  }
+}
+
+function computeAnchorScreen(opt){
+  const {TILE} = opt;
+  const tx = opt.bTX, ty = opt.bTY, tw = opt.bTW, th = opt.bTH;
+  const mode = $('anchorMode').value;
+
+  let wx, wy;
+  if(mode==='center'){
+    wx = (tx + tw*0.5) * TILE;
+    wy = (ty + th*0.5) * TILE;
+  }else if(mode==='southEdge'){
+    wx = (tx + tw*0.5) * TILE;
+    wy = (ty + th) * TILE;
+  }else if(mode==='customWorld'){
+    wx = numOr('customWX',0) * TILE;
+    wy = numOr('customWY',0) * TILE;
+  }else{ // southCorner
+    wx = (tx + tw) * TILE;
+    wy = (ty + th) * TILE;
+  }
+  return worldToScreen(wx, wy, opt);
+}
+
+// -------- Render --------
+function render(){
+  const r = $('right').getBoundingClientRect();
+  ctx.clearRect(0,0,r.width,r.height);
+
+  const baseX = r.width/2;
+  const baseY = r.height/2;
+
+  const useGame = $('useGame').checked;
+
+  let anchor = {x:baseX, y:baseY};
+  let overlayInfo = '';
+  if(useGame){
+    const {TILE, ISO_X, ISO_Y} = computeIsoConsts();
+    const camZoom = numOr('camZoom',1);
+    const camTX = numOr('camTX',0);
+    const camTY = numOr('camTY',0);
+    const bTX = numOr('bTX',0);
+    const bTY = numOr('bTY',0);
+    const bTW = numOr('bTW',3);
+    const bTH = numOr('bTH',2);
+
+    const opt = {TILE, ISO_X, ISO_Y, zoom:camZoom, camTX, camTY, baseX, baseY, bTX, bTY, bTW, bTH};
+
+    // footprint + anchor
+    drawFootprintOverlay(opt);
+    anchor = computeAnchorScreen(opt);
+
+    // draw anchor cross
+    drawCross(anchor.x, anchor.y, 10, 'rgba(255,255,255,0.9)');
+    drawCross(anchor.x, anchor.y, 20, 'rgba(255,120,0,0.7)');
+
+    overlayInfo = `TILE=${TILE} ISO_X=${ISO_X} ISO_Y=${ISO_Y} camZoom=${camZoom} camTile=(${camTX},${camTY})\n` +
+                  `bTile=(${bTX},${bTY}) footprint=(${bTW}x${bTH}) anchorMode=${$('anchorMode').value} anchorScreen=(${anchor.x.toFixed(1)},${anchor.y.toFixed(1)})`;
+  }else{
+    // legacy: center diamond footprint
+    const tileW = 128;
+    const tileH = 64;
+    const tilesX = numOr('bTW',3);
+    const tilesY = numOr('bTH',2);
+
+    ctx.save();
+    ctx.globalAlpha = 0.75;
+    ctx.strokeStyle = 'rgba(100,170,255,0.85)';
+    ctx.lineWidth = 1;
+    for(let y=0;y<tilesY;y++){
+      for(let x=0;x<tilesX;x++){
+        const ox = (x - y) * (tileW/2);
+        const oy = (x + y) * (tileH/2);
+        ctx.beginPath();
+        ctx.moveTo(baseX + ox, baseY + oy - tileH/2);
+        ctx.lineTo(baseX + ox + tileW/2, baseY + oy);
+        ctx.lineTo(baseX + ox, baseY + oy + tileH/2);
+        ctx.lineTo(baseX + ox - tileW/2, baseY + oy);
+        ctx.closePath();
+        ctx.stroke();
+      }
+    }
+    ctx.restore();
+
+    anchor = {x:baseX, y:baseY};
+    drawCross(anchor.x, anchor.y, 10, 'rgba(255,255,255,0.9)');
+    overlayInfo = 'Legacy overlay: anchor at canvas center';
+  }
+
+  if(!frames.length){
+    $('out').value = overlayInfo;
     return;
   }
 
-  if(!atlasData.textures || !Array.isArray(atlasData.textures)){
-    setStatus('ERR: textures[] 없는 atlas json임');
-    return;
-  }
+  const f = frames[cur];
+  const scale = numOr('scale',0.14) * (useGame ? numOr('camZoom',1) : 1);
+  const px = clamp01($('pivotX').value);
+  const py = clamp01($('pivotY').value);
 
-  // load images
-  textures = [];
-  const promises = atlasData.textures.map((t, i)=>{
-    return new Promise((resolve,reject)=>{
-      const img = new Image();
-      img.onload = ()=>resolve({img, name:t.image});
-      img.onerror = ()=>reject(new Error('image load fail: ' + t.image));
-      img.src = basePath + t.image;
-    });
-  });
+  const {canvas, w, h} = buildUntrimmedCanvas(f);
+  const drawW = w * scale;
+  const drawH = h * scale;
 
-  try{
-    const loaded = await Promise.all(promises);
-    textures = loaded;
-  }catch(e){
-    setStatus('ERR: atlas image 로드 실패\n' + e.message + '\n(basePath=' + basePath + ')');
-    return;
-  }
+  // pivot point aligns to computed anchor
+  const dx = anchor.x - (px * drawW);
+  const dy = anchor.y - (py * drawH);
 
-  rebuildFramesByPrefix();
+  // draw sprite
+  ctx.save();
+  ctx.imageSmoothingEnabled = true;
+  ctx.globalAlpha = 1;
+  ctx.drawImage(canvas, dx, dy, drawW, drawH);
+  ctx.restore();
 
-  $('out').value = '';
-  setStatus(`Loaded OK\nbasePath=${basePath}\ntextures=${textures.length}\nframes=${frames.length}`);
+  // label
+  ctx.save();
+  ctx.fillStyle = 'rgba(230,238,252,0.95)';
+  ctx.font = '13px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace';
+  ctx.fillText(f.name, 14, 22);
+  ctx.restore();
+
+  // debug output
+  const pivotPx = (px * w);
+  const pivotPy = (py * h);
+  const tri = f.frame;
+  const ss = f.spriteSourceSize ?? {x:0,y:0,w:tri.w,h:tri.h};
+
+  $('out').value =
+    overlayInfo + '\n\n' +
+    `frame=${f.name}\n` +
+    `sourceSize=${w}x${h} pivot(norm)=(${px.toFixed(4)},${py.toFixed(4)}) pivot(px)=(${pivotPx.toFixed(1)},${pivotPy.toFixed(1)})\n` +
+    `trim(frame)=${tri.w}x${tri.h} @(${tri.x},${tri.y}) rotated=${!!f.rotated}\n` +
+    `spriteSourceSize=${ss.w}x${ss.h} @(${ss.x},${ss.y})\n` +
+    `suggest JSON anchor: {"x": ${px.toFixed(4)}, "y": ${py.toFixed(4)}}`;
+}
+
+function stepFrame(dir){
+  if(!frames.length) return;
+  cur = (cur + dir + frames.length) % frames.length;
   render();
+}
+
+function tick(t){
+  if(!playing){ requestAnimationFrame(tick); return; }
+  const fps = Math.max(1, numOr('fps',20));
+  const dt = t - lastT;
+  const frameDur = 1000 / fps;
+  if(dt >= frameDur){
+    lastT = t;
+    stepFrame(1);
+  }
+  requestAnimationFrame(tick);
 }
 
 function applyPivotTo(names){
@@ -411,27 +611,23 @@ function applyPivotTo(names){
   const x = clamp01($('pivotX').value);
   const y = clamp01($('pivotY').value);
 
+  const prefix = $('prefix').value;
+  const persist = persistPrefixPivot(prefix, x, y);
+
   const nameSet = new Set(names);
-  atlasData.textures.forEach(tex=>{
-    tex.frames.forEach(fr=>{
+  let changed = 0;
+
+  (atlasData.textures||[]).forEach(tex=>{
+    (tex.frames||[]).forEach(fr=>{
       if(nameSet.has(fr.filename)){
         fr.anchor = {x, y};
+        changed++;
       }
     });
   });
 
-  // also update frames list cached anchor (optional)
-  frames.forEach(f=>{
-    if(nameSet.has(f.name)){
-      f.anchor = {x,y};
-      if(f._ref) f._ref.anchor = {x,y};
-    }
-  });
-
-  const prefix = $('prefix').value;
-  const persist = persistPrefixPivot(prefix, x, y);
-  const note = persist.ok ? ` + saved to localStorage (${LS_PIVOT_KEY}) for prefix: "${prefix.trim()}"` : ` (not saved: ${persist.reason})`;
-  setStatus(`Applied pivot (${x.toFixed(3)},${y.toFixed(3)}) to ${names.length} frame(s).` + note);
+  const note = persist.ok ? ` + saved to localStorage (${LS_PIVOT_KEY})` : ` (not saved: ${persist.reason})`;
+  setStatus(`Applied pivot (${x.toFixed(4)},${y.toFixed(4)}) to ${changed} frame(s).` + note);
 }
 
 function applyCurrent(){
@@ -454,69 +650,65 @@ function downloadPatched(){
   document.body.appendChild(a);
   a.click();
   a.remove();
-  setStatus('Downloaded patched JSON: ' + filename + '\n(이 파일을 프로젝트의 atlas json에 덮어쓰면 "피벗 박기" 완료)');
+  setStatus('Downloaded patched JSON: ' + filename);
 }
 
 function copyJSOverride(){
+  const prefix = $('prefix').value.trim();
   const x = clamp01($('pivotX').value);
   const y = clamp01($('pivotY').value);
-  const prefix = $('prefix').value.trim();
-  const s =
-`// paste into your client code (once), then call applyAtlasPivotOverride(atlasJson, PIVOTS)
-const PIVOTS = [
-  { prefix: ${JSON.stringify(prefix)}, x: ${x.toFixed(3)}, y: ${y.toFixed(3)} },
-];
 
-function applyAtlasPivotOverride(atlas, pivots){
-  if(!atlas?.textures) return;
-  for(const tex of atlas.textures){
-    for(const fr of (tex.frames||[])){
-      for(const p of pivots){
-        if(p.prefix && fr.filename.startsWith(p.prefix)){
-          fr.anchor = { x: p.x, y: p.y };
-          break;
-        }
-      }
-    }
-  }
-}`;
-  $('out').value = s;
-  navigator.clipboard?.writeText(s).catch(()=>{});
-  setStatus('Copied JS override snippet to output (and clipboard if allowed).');
+  const snippet =
+`// paste into your atlas override map (prefix based)
+const PIVOT_OVERRIDES = {
+  "${prefix}": { x: ${x.toFixed(4)}, y: ${y.toFixed(4)} }
+};`;
+  navigator.clipboard.writeText(snippet).then(()=>{
+    setStatus('Copied JS override to clipboard.');
+  }).catch(()=>{
+    setStatus('ERR: clipboard write failed (브라우저 권한 확인)');
+  });
 }
 
-$('btnLoad').addEventListener('click', ()=>loadAtlas());
+function toggleCustomWorld(){
+  $('customWorldRow').style.display = ($('anchorMode').value === 'customWorld') ? '' : 'none';
+}
+
+$('btnLoad').addEventListener('click', ()=>loadAtlas().catch(e=>setStatus('ERR: ' + e.message)));
 $('btnPlay').addEventListener('click', ()=>{
   playing = !playing;
   $('btnPlay').textContent = playing ? 'Pause' : 'Play';
-  if(playing){ lastT = 0; requestAnimationFrame(tick); }
-  else { render(); }
 });
-$('btnPrev').addEventListener('click', ()=>{
-  if(!frames.length) return;
-  cur = (cur - 1 + frames.length) % frames.length;
-  render();
-});
-$('btnNext').addEventListener('click', ()=>{
-  if(!frames.length) return;
-  cur = (cur + 1) % frames.length;
-  render();
-});
-$('btnApplyCur').addEventListener('click', applyCurrent);
-$('btnApplyAll').addEventListener('click', applyAll);
-$('btnDownload').addEventListener('click', downloadPatched);
-$('btnCopyJS').addEventListener('click', copyJSOverride);
+$('btnPrev').addEventListener('click', ()=>stepFrame(-1));
+$('btnNext').addEventListener('click', ()=>stepFrame(1));
+$('btnApplyCur').addEventListener('click', ()=>applyCurrent());
+$('btnApplyAll').addEventListener('click', ()=>applyAll());
+$('btnDownload').addEventListener('click', ()=>downloadPatched());
+$('btnCopyJS').addEventListener('click', ()=>copyJSOverride());
 
 $('prefix').addEventListener('change', ()=>{
-  rebuildFramesByPrefix();
+  rebuildFramesByPrefix(true);
   render();
 });
-['pivotX','pivotY','zoom','tileW','tileH','tilesX','tilesY'].forEach(id=>{
-  $(id).addEventListener('input', ()=>render());
+
+$('anchorMode').addEventListener('change', ()=>{
+  toggleCustomWorld();
+  render();
+});
+
+[
+  'pivotX','pivotY','fps','scale','useGame',
+  'TILE','camZoom','camTX','camTY','bTX','bTY','bTW','bTH',
+  'customWX','customWY','showTiles','showOutline'
+].forEach(id=>{
+  const el = $(id);
+  if(el) el.addEventListener('input', ()=>render());
 });
 
 resizeCanvas();
+toggleCustomWorld();
 render();
+requestAnimationFrame(tick);
 </script>
 </body>
 </html>
