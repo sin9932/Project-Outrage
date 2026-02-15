@@ -239,7 +239,7 @@
     const dy = (y - dz);
 
     try {
-      PO.atlasTP.drawFrame(ctx, atlas, frameName, dx, dy, scale, { anchorX: 0.5, anchorY: 1.0 });
+      PO.atlasTP.drawFrame(ctx, atlas, frameName, dx, dy, { scale });
       return true;
     } catch (e) {
       console.warn(TAG, "drawFrame failed", e);
