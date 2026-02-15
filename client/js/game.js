@@ -5972,6 +5972,7 @@ const tx=tileOfX(u.x), ty=tileOfY(u.y);
               if (bl.x>=x0-8 && bl.x<=x0+b.w+8 && bl.y>=y0-8 && bl.y<=y0+b.h+8){ hit=b; break; }
             }
           }
+          }
 
           // dmg bonus: tank
           let dmg = bl.dmg;
@@ -5984,8 +5985,6 @@ const tx=tileOfX(u.x), ty=tileOfY(u.y);
           }
 
           if (hit) applyDamage(hit, dmg, bl.ownerId, bl.team);
-          }
-
 
           // impact FX: ellipse dodge + sparks
           flashes.push({x: bl.x, y: bl.y, r: 48 + Math.random()*10, life: 0.10, delay: 0});
@@ -11156,6 +11155,22 @@ function drawPathFx(){
       const req = tech.tabProducer[cat] || [];
       return prereqOk(req);
     }
+
+// If a producer type is completely gone, clear its production queue & totals.
+// (User spec: losing all producers nukes the whole category until rebuilt.)
+function resetProducerQueues(prodKind){
+  if (prodKind === "barracks"){
+    if (prodFIFO && prodFIFO.barracks) prodFIFO.barracks.length = 0;
+    for (const k of ["infantry","engineer","sniper"]) prodTotal[k] = 0;
+    state.primary.player.barracks = null;
+  } else if (prodKind === "factory"){
+    if (prodFIFO && prodFIFO.factory) prodFIFO.factory.length = 0;
+    for (const k of ["tank","harvester","ifv"]) prodTotal[k] = 0;
+    state.primary.player.factory = null;
+  }
+}
+if (!hasP("barracks")) resetProducerQueues("barracks");
+if (!hasP("factory"))  resetProducerQueues("factory");
 
     // Hide whole category tabs if their required producer buildings don't exist.
     try{
