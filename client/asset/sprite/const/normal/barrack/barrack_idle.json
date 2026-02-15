@@ -1,445 +1,445 @@
 {
-	"textures": [
-		{
-			"image": "barrack_idle.png",
-			"format": "RGBA8888",
-			"size": {
-				"w": 3452,
-				"h": 2850
-			},
-			"scale": 1,
-			"frames": [
-				{
-					"filename": "barrack_dist.png",
-					"rotated": false,
-					"trimmed": true,
-					"sourceSize": {
-						"w": 1652,
-						"h": 1252
-					},
-					"spriteSourceSize": {
-						"x": 392,
-						"y": 302,
-						"w": 862,
-						"h": 570
-					},
-					"frame": {
-						"x": 0,
-						"y": 0,
-						"w": 862,
-						"h": 570
-					},
-					"anchor": {
-						"x": 0.5,
-						"y": 0.52
-					}
-				},
-				{
-					"filename": "barrack_idle1.png",
-					"rotated": false,
-					"trimmed": true,
-					"sourceSize": {
-						"w": 1652,
-						"h": 1252
-					},
-					"spriteSourceSize": {
-						"x": 392,
-						"y": 303,
-						"w": 863,
-						"h": 570
-					},
-					"frame": {
-						"x": 862,
-						"y": 0,
-						"w": 863,
-						"h": 570
-					},
-					"anchor": {
-						"x": 0.5,
-						"y": 0.52
-					}
-				},
-				{
-					"filename": "barrack_idle2.png",
-					"rotated": false,
-					"trimmed": true,
-					"sourceSize": {
-						"w": 1652,
-						"h": 1252
-					},
-					"spriteSourceSize": {
-						"x": 392,
-						"y": 303,
-						"w": 863,
-						"h": 570
-					},
-					"frame": {
-						"x": 1725,
-						"y": 0,
-						"w": 863,
-						"h": 570
-					},
-					"anchor": {
-						"x": 0.5,
-						"y": 0.52
-					}
-				},
-				{
-					"filename": "barrack_idle3.png",
-					"rotated": false,
-					"trimmed": true,
-					"sourceSize": {
-						"w": 1652,
-						"h": 1252
-					},
-					"spriteSourceSize": {
-						"x": 392,
-						"y": 303,
-						"w": 863,
-						"h": 570
-					},
-					"frame": {
-						"x": 2588,
-						"y": 0,
-						"w": 863,
-						"h": 570
-					},
-					"anchor": {
-						"x": 0.5,
-						"y": 0.52
-					}
-				},
-				{
-					"filename": "barrack_idle4.png",
-					"rotated": false,
-					"trimmed": true,
-					"sourceSize": {
-						"w": 1652,
-						"h": 1252
-					},
-					"spriteSourceSize": {
-						"x": 392,
-						"y": 303,
-						"w": 863,
-						"h": 570
-					},
-					"frame": {
-						"x": 0,
-						"y": 570,
-						"w": 863,
-						"h": 570
-					},
-					"anchor": {
-						"x": 0.5,
-						"y": 0.52
-					}
-				},
-				{
-					"filename": "barrack_idle5.png",
-					"rotated": false,
-					"trimmed": true,
-					"sourceSize": {
-						"w": 1652,
-						"h": 1252
-					},
-					"spriteSourceSize": {
-						"x": 392,
-						"y": 303,
-						"w": 863,
-						"h": 570
-					},
-					"frame": {
-						"x": 863,
-						"y": 570,
-						"w": 863,
-						"h": 570
-					},
-					"anchor": {
-						"x": 0.5,
-						"y": 0.52
-					}
-				},
-				{
-					"filename": "barrack_idle6.png",
-					"rotated": false,
-					"trimmed": true,
-					"sourceSize": {
-						"w": 1652,
-						"h": 1252
-					},
-					"spriteSourceSize": {
-						"x": 392,
-						"y": 303,
-						"w": 863,
-						"h": 570
-					},
-					"frame": {
-						"x": 1726,
-						"y": 570,
-						"w": 863,
-						"h": 570
-					},
-					"anchor": {
-						"x": 0.5,
-						"y": 0.52
-					}
-				},
-				{
-					"filename": "barrack_idle7.png",
-					"rotated": false,
-					"trimmed": true,
-					"sourceSize": {
-						"w": 1652,
-						"h": 1252
-					},
-					"spriteSourceSize": {
-						"x": 392,
-						"y": 303,
-						"w": 863,
-						"h": 570
-					},
-					"frame": {
-						"x": 2589,
-						"y": 570,
-						"w": 863,
-						"h": 570
-					},
-					"anchor": {
-						"x": 0.5,
-						"y": 0.52
-					}
-				},
-				{
-					"filename": "barrack_idle8.png",
-					"rotated": false,
-					"trimmed": true,
-					"sourceSize": {
-						"w": 1652,
-						"h": 1252
-					},
-					"spriteSourceSize": {
-						"x": 392,
-						"y": 303,
-						"w": 863,
-						"h": 570
-					},
-					"frame": {
-						"x": 0,
-						"y": 1140,
-						"w": 863,
-						"h": 570
-					},
-					"anchor": {
-						"x": 0.5,
-						"y": 0.52
-					}
-				},
-				{
-					"filename": "barrack_idle9.png",
-					"rotated": false,
-					"trimmed": true,
-					"sourceSize": {
-						"w": 1652,
-						"h": 1252
-					},
-					"spriteSourceSize": {
-						"x": 392,
-						"y": 303,
-						"w": 863,
-						"h": 570
-					},
-					"frame": {
-						"x": 863,
-						"y": 1140,
-						"w": 863,
-						"h": 570
-					},
-					"anchor": {
-						"x": 0.5,
-						"y": 0.52
-					}
-				},
-				{
-					"filename": "barrack_idle10.png",
-					"rotated": false,
-					"trimmed": true,
-					"sourceSize": {
-						"w": 1652,
-						"h": 1252
-					},
-					"spriteSourceSize": {
-						"x": 392,
-						"y": 303,
-						"w": 863,
-						"h": 570
-					},
-					"frame": {
-						"x": 1726,
-						"y": 1140,
-						"w": 863,
-						"h": 570
-					},
-					"anchor": {
-						"x": 0.5,
-						"y": 0.52
-					}
-				},
-				{
-					"filename": "barrack_idle11.png",
-					"rotated": false,
-					"trimmed": true,
-					"sourceSize": {
-						"w": 1652,
-						"h": 1252
-					},
-					"spriteSourceSize": {
-						"x": 392,
-						"y": 303,
-						"w": 863,
-						"h": 570
-					},
-					"frame": {
-						"x": 2589,
-						"y": 1140,
-						"w": 863,
-						"h": 570
-					},
-					"anchor": {
-						"x": 0.5,
-						"y": 0.52
-					}
-				},
-				{
-					"filename": "barrack_idle12.png",
-					"rotated": false,
-					"trimmed": true,
-					"sourceSize": {
-						"w": 1652,
-						"h": 1252
-					},
-					"spriteSourceSize": {
-						"x": 392,
-						"y": 303,
-						"w": 863,
-						"h": 570
-					},
-					"frame": {
-						"x": 0,
-						"y": 1710,
-						"w": 863,
-						"h": 570
-					},
-					"anchor": {
-						"x": 0.5,
-						"y": 0.52
-					}
-				},
-				{
-					"filename": "barrack_idle13.png",
-					"rotated": false,
-					"trimmed": true,
-					"sourceSize": {
-						"w": 1652,
-						"h": 1252
-					},
-					"spriteSourceSize": {
-						"x": 392,
-						"y": 303,
-						"w": 863,
-						"h": 570
-					},
-					"frame": {
-						"x": 863,
-						"y": 1710,
-						"w": 863,
-						"h": 570
-					},
-					"anchor": {
-						"x": 0.5,
-						"y": 0.52
-					}
-				},
-				{
-					"filename": "barrack_idle14.png",
-					"rotated": false,
-					"trimmed": true,
-					"sourceSize": {
-						"w": 1652,
-						"h": 1252
-					},
-					"spriteSourceSize": {
-						"x": 392,
-						"y": 303,
-						"w": 863,
-						"h": 570
-					},
-					"frame": {
-						"x": 1726,
-						"y": 1710,
-						"w": 863,
-						"h": 570
-					},
-					"anchor": {
-						"x": 0.5,
-						"y": 0.52
-					}
-				},
-				{
-					"filename": "barrack_idle15.png",
-					"rotated": false,
-					"trimmed": true,
-					"sourceSize": {
-						"w": 1652,
-						"h": 1252
-					},
-					"spriteSourceSize": {
-						"x": 392,
-						"y": 303,
-						"w": 863,
-						"h": 570
-					},
-					"frame": {
-						"x": 2589,
-						"y": 1710,
-						"w": 863,
-						"h": 570
-					},
-					"anchor": {
-						"x": 0.5,
-						"y": 0.52
-					}
-				},
-				{
-					"filename": "barrack_idle16.png",
-					"rotated": false,
-					"trimmed": true,
-					"sourceSize": {
-						"w": 1652,
-						"h": 1252
-					},
-					"spriteSourceSize": {
-						"x": 392,
-						"y": 303,
-						"w": 863,
-						"h": 570
-					},
-					"frame": {
-						"x": 0,
-						"y": 2280,
-						"w": 863,
-						"h": 570
-					},
-					"anchor": {
-						"x": 0.5,
-						"y": 0.52
-					}
-				}
-			]
-		}
-	],
-	"meta": {
-		"app": "https://www.codeandweb.com/texturepacker",
-		"version": "3.0",
-		"smartupdate": "$TexturePacker:SmartUpdate:170e6966b9992f85aff01e70ce86846e:888410a3775474e3efc5677407116bd6:d24c9670d2ffc4736f7ea76501efa2c8$"
-	}
+  "textures": [
+    {
+      "image": "barrack_idle.png",
+      "format": "RGBA8888",
+      "size": {
+        "w": 3452,
+        "h": 2850
+      },
+      "scale": 1,
+      "frames": [
+        {
+          "filename": "barrack_dist.png",
+          "rotated": false,
+          "trimmed": true,
+          "sourceSize": {
+            "w": 1652,
+            "h": 1252
+          },
+          "spriteSourceSize": {
+            "x": 392,
+            "y": 302,
+            "w": 862,
+            "h": 570
+          },
+          "frame": {
+            "x": 0,
+            "y": 0,
+            "w": 862,
+            "h": 570
+          },
+          "anchor": {
+            "x": 0.4955,
+            "y": 0.437
+          }
+        },
+        {
+          "filename": "barrack_idle1.png",
+          "rotated": false,
+          "trimmed": true,
+          "sourceSize": {
+            "w": 1652,
+            "h": 1252
+          },
+          "spriteSourceSize": {
+            "x": 392,
+            "y": 303,
+            "w": 863,
+            "h": 570
+          },
+          "frame": {
+            "x": 862,
+            "y": 0,
+            "w": 863,
+            "h": 570
+          },
+          "anchor": {
+            "x": 0.4955,
+            "y": 0.437
+          }
+        },
+        {
+          "filename": "barrack_idle2.png",
+          "rotated": false,
+          "trimmed": true,
+          "sourceSize": {
+            "w": 1652,
+            "h": 1252
+          },
+          "spriteSourceSize": {
+            "x": 392,
+            "y": 303,
+            "w": 863,
+            "h": 570
+          },
+          "frame": {
+            "x": 1725,
+            "y": 0,
+            "w": 863,
+            "h": 570
+          },
+          "anchor": {
+            "x": 0.4955,
+            "y": 0.437
+          }
+        },
+        {
+          "filename": "barrack_idle3.png",
+          "rotated": false,
+          "trimmed": true,
+          "sourceSize": {
+            "w": 1652,
+            "h": 1252
+          },
+          "spriteSourceSize": {
+            "x": 392,
+            "y": 303,
+            "w": 863,
+            "h": 570
+          },
+          "frame": {
+            "x": 2588,
+            "y": 0,
+            "w": 863,
+            "h": 570
+          },
+          "anchor": {
+            "x": 0.4955,
+            "y": 0.437
+          }
+        },
+        {
+          "filename": "barrack_idle4.png",
+          "rotated": false,
+          "trimmed": true,
+          "sourceSize": {
+            "w": 1652,
+            "h": 1252
+          },
+          "spriteSourceSize": {
+            "x": 392,
+            "y": 303,
+            "w": 863,
+            "h": 570
+          },
+          "frame": {
+            "x": 0,
+            "y": 570,
+            "w": 863,
+            "h": 570
+          },
+          "anchor": {
+            "x": 0.4955,
+            "y": 0.437
+          }
+        },
+        {
+          "filename": "barrack_idle5.png",
+          "rotated": false,
+          "trimmed": true,
+          "sourceSize": {
+            "w": 1652,
+            "h": 1252
+          },
+          "spriteSourceSize": {
+            "x": 392,
+            "y": 303,
+            "w": 863,
+            "h": 570
+          },
+          "frame": {
+            "x": 863,
+            "y": 570,
+            "w": 863,
+            "h": 570
+          },
+          "anchor": {
+            "x": 0.4955,
+            "y": 0.437
+          }
+        },
+        {
+          "filename": "barrack_idle6.png",
+          "rotated": false,
+          "trimmed": true,
+          "sourceSize": {
+            "w": 1652,
+            "h": 1252
+          },
+          "spriteSourceSize": {
+            "x": 392,
+            "y": 303,
+            "w": 863,
+            "h": 570
+          },
+          "frame": {
+            "x": 1726,
+            "y": 570,
+            "w": 863,
+            "h": 570
+          },
+          "anchor": {
+            "x": 0.4955,
+            "y": 0.437
+          }
+        },
+        {
+          "filename": "barrack_idle7.png",
+          "rotated": false,
+          "trimmed": true,
+          "sourceSize": {
+            "w": 1652,
+            "h": 1252
+          },
+          "spriteSourceSize": {
+            "x": 392,
+            "y": 303,
+            "w": 863,
+            "h": 570
+          },
+          "frame": {
+            "x": 2589,
+            "y": 570,
+            "w": 863,
+            "h": 570
+          },
+          "anchor": {
+            "x": 0.4955,
+            "y": 0.437
+          }
+        },
+        {
+          "filename": "barrack_idle8.png",
+          "rotated": false,
+          "trimmed": true,
+          "sourceSize": {
+            "w": 1652,
+            "h": 1252
+          },
+          "spriteSourceSize": {
+            "x": 392,
+            "y": 303,
+            "w": 863,
+            "h": 570
+          },
+          "frame": {
+            "x": 0,
+            "y": 1140,
+            "w": 863,
+            "h": 570
+          },
+          "anchor": {
+            "x": 0.4955,
+            "y": 0.437
+          }
+        },
+        {
+          "filename": "barrack_idle9.png",
+          "rotated": false,
+          "trimmed": true,
+          "sourceSize": {
+            "w": 1652,
+            "h": 1252
+          },
+          "spriteSourceSize": {
+            "x": 392,
+            "y": 303,
+            "w": 863,
+            "h": 570
+          },
+          "frame": {
+            "x": 863,
+            "y": 1140,
+            "w": 863,
+            "h": 570
+          },
+          "anchor": {
+            "x": 0.4955,
+            "y": 0.437
+          }
+        },
+        {
+          "filename": "barrack_idle10.png",
+          "rotated": false,
+          "trimmed": true,
+          "sourceSize": {
+            "w": 1652,
+            "h": 1252
+          },
+          "spriteSourceSize": {
+            "x": 392,
+            "y": 303,
+            "w": 863,
+            "h": 570
+          },
+          "frame": {
+            "x": 1726,
+            "y": 1140,
+            "w": 863,
+            "h": 570
+          },
+          "anchor": {
+            "x": 0.4955,
+            "y": 0.437
+          }
+        },
+        {
+          "filename": "barrack_idle11.png",
+          "rotated": false,
+          "trimmed": true,
+          "sourceSize": {
+            "w": 1652,
+            "h": 1252
+          },
+          "spriteSourceSize": {
+            "x": 392,
+            "y": 303,
+            "w": 863,
+            "h": 570
+          },
+          "frame": {
+            "x": 2589,
+            "y": 1140,
+            "w": 863,
+            "h": 570
+          },
+          "anchor": {
+            "x": 0.4955,
+            "y": 0.437
+          }
+        },
+        {
+          "filename": "barrack_idle12.png",
+          "rotated": false,
+          "trimmed": true,
+          "sourceSize": {
+            "w": 1652,
+            "h": 1252
+          },
+          "spriteSourceSize": {
+            "x": 392,
+            "y": 303,
+            "w": 863,
+            "h": 570
+          },
+          "frame": {
+            "x": 0,
+            "y": 1710,
+            "w": 863,
+            "h": 570
+          },
+          "anchor": {
+            "x": 0.4955,
+            "y": 0.437
+          }
+        },
+        {
+          "filename": "barrack_idle13.png",
+          "rotated": false,
+          "trimmed": true,
+          "sourceSize": {
+            "w": 1652,
+            "h": 1252
+          },
+          "spriteSourceSize": {
+            "x": 392,
+            "y": 303,
+            "w": 863,
+            "h": 570
+          },
+          "frame": {
+            "x": 863,
+            "y": 1710,
+            "w": 863,
+            "h": 570
+          },
+          "anchor": {
+            "x": 0.4955,
+            "y": 0.437
+          }
+        },
+        {
+          "filename": "barrack_idle14.png",
+          "rotated": false,
+          "trimmed": true,
+          "sourceSize": {
+            "w": 1652,
+            "h": 1252
+          },
+          "spriteSourceSize": {
+            "x": 392,
+            "y": 303,
+            "w": 863,
+            "h": 570
+          },
+          "frame": {
+            "x": 1726,
+            "y": 1710,
+            "w": 863,
+            "h": 570
+          },
+          "anchor": {
+            "x": 0.4955,
+            "y": 0.437
+          }
+        },
+        {
+          "filename": "barrack_idle15.png",
+          "rotated": false,
+          "trimmed": true,
+          "sourceSize": {
+            "w": 1652,
+            "h": 1252
+          },
+          "spriteSourceSize": {
+            "x": 392,
+            "y": 303,
+            "w": 863,
+            "h": 570
+          },
+          "frame": {
+            "x": 2589,
+            "y": 1710,
+            "w": 863,
+            "h": 570
+          },
+          "anchor": {
+            "x": 0.4955,
+            "y": 0.437
+          }
+        },
+        {
+          "filename": "barrack_idle16.png",
+          "rotated": false,
+          "trimmed": true,
+          "sourceSize": {
+            "w": 1652,
+            "h": 1252
+          },
+          "spriteSourceSize": {
+            "x": 392,
+            "y": 303,
+            "w": 863,
+            "h": 570
+          },
+          "frame": {
+            "x": 0,
+            "y": 2280,
+            "w": 863,
+            "h": 570
+          },
+          "anchor": {
+            "x": 0.4955,
+            "y": 0.437
+          }
+        }
+      ]
+    }
+  ],
+  "meta": {
+    "app": "https://www.codeandweb.com/texturepacker",
+    "version": "3.0",
+    "smartupdate": "$TexturePacker:SmartUpdate:170e6966b9992f85aff01e70ce86846e:888410a3775474e3efc5677407116bd6:d24c9670d2ffc4736f7ea76501efa2c8$"
+  }
 }

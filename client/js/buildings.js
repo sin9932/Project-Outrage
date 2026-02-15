@@ -171,22 +171,17 @@
       }
 
       S.atlases[kind] = atlas;
-      S.frames[kind] = PO.atlasTP.listFramesByPrefix(atlas, kind === 'construct' ? 'barrack_con_complete_' : (kind === 'distruct' ? 'barrack_distruction_' : 'barrack_idle'));
-
-      // normal atlas sometimes includes a single "barrack_dist.png" frame that is the best static idle.
+      const prefix = (kind === 'construct') ? 'barrack_const' : ((kind === 'distruct') ? 'barrack_distruction_' : 'barrack_idle');
+      S.frames[kind] = PO.atlasTP.listFramesByPrefix(atlas, prefix);
+// normal atlas sometimes includes a single "barrack_dist.png" frame that is the best static idle.
       if (kind === 'normal') {
         const dist = 'barrack_dist.png';
         if (atlas.frames && atlas.frames[dist] && !S.frames.normal.includes(dist)) {
           S.frames.normal.unshift(dist);
         }
       }
-
-      // Apply bottom-center pivot to all barrack frames
-      try {
-        PO.atlasTP.applyPivotByPrefix(atlas, 'barrack_', 0.5, 1.0);
-      } catch {}
-
-      S.ready[kind] = true;
+      // Pivot: do NOT override here. Use per-frame anchor/pivot from the TP JSON (edited via your pivot tool).
+S.ready[kind] = true;
       logOnce(`${kind}_ok`, `[${KEY}:${VER}] loaded '${kind}' atlas from ${url}`);
       return true;
     } finally {
@@ -208,30 +203,57 @@
 
   // --- animation selection ---
   function kindFor(ent) {
-    if (!ent) return 'normal';
-    if (ent.hp <= 0 || ent.alive === false || ent.dead === true) return 'distruct';
-    if (ent._constructing || ent.constructing || (typeof ent.buildProgress === 'number' && ent.buildProgress < 1)) return 'construct';
-    return 'normal';
-  }
+  if (!ent) return 'normal';
+
+  // Selling: reverse-play construct (needs game.js to keep the entity alive for a short time)
+  if (ent._selling || ent.selling || ent.isSelling || (typeof ent.sellProgress === 'number')) return 'sell';
+
+  // Destroyed: play distruct once
+  const hp = (typeof ent.hp === 'number') ? ent.hp
+           : (typeof ent.health === 'number') ? ent.health
+           : (typeof ent.HP === 'number') ? ent.HP
+           : NaN;
+  if ((Number.isFinite(hp) && hp <= 0) || ent._destroyed || ent.destroyed || ent.dead) return 'distruct';
+
+  // Constructing: play construct
+  const bp = (typeof ent.buildProgress === 'number') ? ent.buildProgress
+           : (typeof ent.progress === 'number') ? ent.progress
+           : NaN;
+  if (ent._constructing || ent.constructing || (Number.isFinite(bp) && bp < 1)) return 'construct';
+
+  return 'normal';
+}
+
 
   function pickFrame(kind, ent, state) {
-    const list = S.frames[kind] || [];
-    if (!list.length) return null;
+  // 'sell' uses construct frames but reversed
+  const baseKind = (kind === 'sell') ? 'construct' : kind;
 
-    const t = nowSec(state);
+  const frames = S.frames[baseKind] || [];
+  if (!frames.length) return null;
 
-    if (kind === 'distruct') {
-      const fps = 14;
-      if (ent && ent._barrackDeadAt == null) ent._barrackDeadAt = t;
-      const dt = Math.max(0, t - (ent ? ent._barrackDeadAt : t));
-      const idx = Math.min(list.length - 1, Math.floor(dt * fps));
-      return list[idx];
-    }
+  const fps = 12;
+  const t = nowSec(state);
 
-    const fps = kind === 'construct' ? 12 : 8;
-    const idx = Math.floor(t * fps) % list.length;
-    return list[idx];
+  // One-shot for construct/sell/distruct: clamp to last frame
+  if (baseKind === 'construct' || baseKind === 'distruct') {
+    const key = (kind === 'sell') ? '_sellAt' : (baseKind === 'construct') ? '_constructAt' : '_distructAt';
+    if (ent[key] == null) ent[key] = t;
+    const dt = Math.max(0, t - ent[key]);
+    let idx = Math.floor(dt * fps);
+    if (idx >= frames.length) idx = frames.length - 1;
+
+    // Reverse for sell
+    if (kind === 'sell') idx = (frames.length - 1) - idx;
+
+    return frames[Math.max(0, Math.min(frames.length - 1, idx))];
   }
+
+  // Normal: loop
+  const idx = Math.floor(t * fps) % frames.length;
+  return frames[idx];
+}
+
 
   function getCtxFromArgs(args) {
     for (const a of args) {
@@ -284,8 +306,14 @@
     // Start loading in the background as soon as we ever try to draw a barrack.
     if (!S.started) kickLoad();
 
-    const kind = kindFor(ent);
-    const atlas = S.atlases[kind];
+    let kind = kindFor(ent);
+
+    // If buildProgress isn't implemented yet, still show 'construct' once when it first appears.
+    const t = nowSec(state);
+    if (ent._seenAt == null) ent._seenAt = t;
+    if (kind === 'normal' && (t - ent._seenAt) < 0.9) kind = 'construct';
+const atlasKind = (kind === 'sell') ? 'construct' : kind;
+    const atlas = S.atlases[atlasKind];
     if (!atlas) return false; // let fallback box draw
 
     const frameName = pickFrame(kind, ent, state);

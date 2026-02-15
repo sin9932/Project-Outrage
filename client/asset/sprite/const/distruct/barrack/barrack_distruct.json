@@ -1,956 +1,956 @@
 {
-	"textures": [
-		{
-			"image": "barrack_distruction-0.png",
-			"format": "RGBA8888",
-			"size": {
-				"w": 3994,
-				"h": 3993
-			},
-			"scale": 1,
-			"frames": [
-				{
-					"filename": "barrack_distruction_20.png",
-					"rotated": false,
-					"trimmed": true,
-					"sourceSize": {
-						"w": 1652,
-						"h": 1252
-					},
-					"spriteSourceSize": {
-						"x": 285,
-						"y": 281,
-						"w": 1051,
-						"h": 631
-					},
-					"frame": {
-						"x": 0,
-						"y": 0,
-						"w": 1051,
-						"h": 631
-					},
-					"anchor": {
-						"x": 0.5,
-						"y": 0.52
-					}
-				},
-				{
-					"filename": "barrack_distruction_19.png",
-					"rotated": false,
-					"trimmed": true,
-					"sourceSize": {
-						"w": 1652,
-						"h": 1252
-					},
-					"spriteSourceSize": {
-						"x": 287,
-						"y": 294,
-						"w": 1050,
-						"h": 613
-					},
-					"frame": {
-						"x": 0,
-						"y": 631,
-						"w": 1050,
-						"h": 613
-					},
-					"anchor": {
-						"x": 0.5,
-						"y": 0.52
-					}
-				},
-				{
-					"filename": "barrack_distruction_21.png",
-					"rotated": false,
-					"trimmed": true,
-					"sourceSize": {
-						"w": 1652,
-						"h": 1252
-					},
-					"spriteSourceSize": {
-						"x": 284,
-						"y": 303,
-						"w": 1050,
-						"h": 613
-					},
-					"frame": {
-						"x": 1051,
-						"y": 0,
-						"w": 1050,
-						"h": 613
-					},
-					"anchor": {
-						"x": 0.5,
-						"y": 0.52
-					}
-				},
-				{
-					"filename": "barrack_distruction_22.png",
-					"rotated": false,
-					"trimmed": true,
-					"sourceSize": {
-						"w": 1652,
-						"h": 1252
-					},
-					"spriteSourceSize": {
-						"x": 283,
-						"y": 314,
-						"w": 1046,
-						"h": 605
-					},
-					"frame": {
-						"x": 0,
-						"y": 1244,
-						"w": 1046,
-						"h": 605
-					},
-					"anchor": {
-						"x": 0.5,
-						"y": 0.52
-					}
-				},
-				{
-					"filename": "barrack_distruction_23.png",
-					"rotated": false,
-					"trimmed": true,
-					"sourceSize": {
-						"w": 1652,
-						"h": 1252
-					},
-					"spriteSourceSize": {
-						"x": 283,
-						"y": 318,
-						"w": 1041,
-						"h": 601
-					},
-					"frame": {
-						"x": 2101,
-						"y": 0,
-						"w": 1041,
-						"h": 601
-					},
-					"anchor": {
-						"x": 0.5,
-						"y": 0.52
-					}
-				},
-				{
-					"filename": "barrack_distruction_1.png",
-					"rotated": false,
-					"trimmed": true,
-					"sourceSize": {
-						"w": 1652,
-						"h": 1252
-					},
-					"spriteSourceSize": {
-						"x": 398,
-						"y": 305,
-						"w": 852,
-						"h": 564
-					},
-					"frame": {
-						"x": 3142,
-						"y": 0,
-						"w": 852,
-						"h": 564
-					},
-					"anchor": {
-						"x": 0.5,
-						"y": 0.52
-					}
-				},
-				{
-					"filename": "barrack_distruction_18.png",
-					"rotated": false,
-					"trimmed": true,
-					"sourceSize": {
-						"w": 1652,
-						"h": 1252
-					},
-					"spriteSourceSize": {
-						"x": 292,
-						"y": 310,
-						"w": 1045,
-						"h": 596
-					},
-					"frame": {
-						"x": 0,
-						"y": 1849,
-						"w": 1045,
-						"h": 596
-					},
-					"anchor": {
-						"x": 0.5,
-						"y": 0.52
-					}
-				},
-				{
-					"filename": "barrack_distruction_17.png",
-					"rotated": false,
-					"trimmed": true,
-					"sourceSize": {
-						"w": 1652,
-						"h": 1252
-					},
-					"spriteSourceSize": {
-						"x": 290,
-						"y": 322,
-						"w": 1043,
-						"h": 575
-					},
-					"frame": {
-						"x": 0,
-						"y": 2445,
-						"w": 1043,
-						"h": 575
-					},
-					"anchor": {
-						"x": 0.5,
-						"y": 0.52
-					}
-				},
-				{
-					"filename": "barrack_distruction_25.png",
-					"rotated": false,
-					"trimmed": true,
-					"sourceSize": {
-						"w": 1652,
-						"h": 1252
-					},
-					"spriteSourceSize": {
-						"x": 283,
-						"y": 352,
-						"w": 1032,
-						"h": 571
-					},
-					"frame": {
-						"x": 0,
-						"y": 3020,
-						"w": 1032,
-						"h": 571
-					},
-					"anchor": {
-						"x": 0.5,
-						"y": 0.52
-					}
-				},
-				{
-					"filename": "barrack_distruction_2.png",
-					"rotated": false,
-					"trimmed": true,
-					"sourceSize": {
-						"w": 1652,
-						"h": 1252
-					},
-					"spriteSourceSize": {
-						"x": 398,
-						"y": 305,
-						"w": 852,
-						"h": 564
-					},
-					"frame": {
-						"x": 3142,
-						"y": 564,
-						"w": 852,
-						"h": 564
-					},
-					"anchor": {
-						"x": 0.5,
-						"y": 0.52
-					}
-				},
-				{
-					"filename": "barrack_distruction_32.png",
-					"rotated": false,
-					"trimmed": true,
-					"sourceSize": {
-						"w": 1652,
-						"h": 1252
-					},
-					"spriteSourceSize": {
-						"x": 348,
-						"y": 493,
-						"w": 867,
-						"h": 402
-					},
-					"frame": {
-						"x": 0,
-						"y": 3591,
-						"w": 867,
-						"h": 402
-					},
-					"anchor": {
-						"x": 0.5,
-						"y": 0.52
-					}
-				},
-				{
-					"filename": "barrack_distruction_16.png",
-					"rotated": false,
-					"trimmed": true,
-					"sourceSize": {
-						"w": 1652,
-						"h": 1252
-					},
-					"spriteSourceSize": {
-						"x": 293,
-						"y": 339,
-						"w": 1045,
-						"h": 544
-					},
-					"frame": {
-						"x": 1051,
-						"y": 613,
-						"w": 1045,
-						"h": 544
-					},
-					"anchor": {
-						"x": 0.5,
-						"y": 0.52
-					}
-				},
-				{
-					"filename": "barrack_distruction_24.png",
-					"rotated": false,
-					"trimmed": true,
-					"sourceSize": {
-						"w": 1652,
-						"h": 1252
-					},
-					"spriteSourceSize": {
-						"x": 283,
-						"y": 364,
-						"w": 1033,
-						"h": 555
-					},
-					"frame": {
-						"x": 1050,
-						"y": 1157,
-						"w": 1033,
-						"h": 555
-					},
-					"anchor": {
-						"x": 0.5,
-						"y": 0.52
-					}
-				},
-				{
-					"filename": "barrack_distruction_26.png",
-					"rotated": false,
-					"trimmed": true,
-					"sourceSize": {
-						"w": 1652,
-						"h": 1252
-					},
-					"spriteSourceSize": {
-						"x": 283,
-						"y": 310,
-						"w": 984,
-						"h": 612
-					},
-					"frame": {
-						"x": 1046,
-						"y": 1712,
-						"w": 984,
-						"h": 612
-					},
-					"anchor": {
-						"x": 0.5,
-						"y": 0.52
-					}
-				},
-				{
-					"filename": "barrack_distruction_27.png",
-					"rotated": false,
-					"trimmed": true,
-					"sourceSize": {
-						"w": 1652,
-						"h": 1252
-					},
-					"spriteSourceSize": {
-						"x": 284,
-						"y": 377,
-						"w": 975,
-						"h": 549
-					},
-					"frame": {
-						"x": 1045,
-						"y": 2324,
-						"w": 975,
-						"h": 549
-					},
-					"anchor": {
-						"x": 0.5,
-						"y": 0.52
-					}
-				},
-				{
-					"filename": "barrack_distruction_28.png",
-					"rotated": false,
-					"trimmed": true,
-					"sourceSize": {
-						"w": 1652,
-						"h": 1252
-					},
-					"spriteSourceSize": {
-						"x": 283,
-						"y": 370,
-						"w": 970,
-						"h": 559
-					},
-					"frame": {
-						"x": 1043,
-						"y": 2873,
-						"w": 970,
-						"h": 559
-					},
-					"anchor": {
-						"x": 0.5,
-						"y": 0.52
-					}
-				},
-				{
-					"filename": "barrack_distruction_30.png",
-					"rotated": false,
-					"trimmed": true,
-					"sourceSize": {
-						"w": 1652,
-						"h": 1252
-					},
-					"spriteSourceSize": {
-						"x": 284,
-						"y": 462,
-						"w": 948,
-						"h": 472
-					},
-					"frame": {
-						"x": 1032,
-						"y": 3432,
-						"w": 948,
-						"h": 472
-					},
-					"anchor": {
-						"x": 0.5,
-						"y": 0.52
-					}
-				},
-				{
-					"filename": "barrack_distruction_29.png",
-					"rotated": false,
-					"trimmed": true,
-					"sourceSize": {
-						"w": 1652,
-						"h": 1252
-					},
-					"spriteSourceSize": {
-						"x": 283,
-						"y": 353,
-						"w": 968,
-						"h": 580
-					},
-					"frame": {
-						"x": 2101,
-						"y": 601,
-						"w": 968,
-						"h": 580
-					},
-					"anchor": {
-						"x": 0.5,
-						"y": 0.52
-					}
-				},
-				{
-					"filename": "barrack_distruction_15.png",
-					"rotated": false,
-					"trimmed": true,
-					"sourceSize": {
-						"w": 1652,
-						"h": 1252
-					},
-					"spriteSourceSize": {
-						"x": 398,
-						"y": 396,
-						"w": 927,
-						"h": 467
-					},
-					"frame": {
-						"x": 2083,
-						"y": 1181,
-						"w": 927,
-						"h": 467
-					},
-					"anchor": {
-						"x": 0.5,
-						"y": 0.52
-					}
-				},
-				{
-					"filename": "barrack_distruction_31.png",
-					"rotated": false,
-					"trimmed": true,
-					"sourceSize": {
-						"w": 1652,
-						"h": 1252
-					},
-					"spriteSourceSize": {
-						"x": 289,
-						"y": 494,
-						"w": 933,
-						"h": 444
-					},
-					"frame": {
-						"x": 2083,
-						"y": 1648,
-						"w": 933,
-						"h": 444
-					},
-					"anchor": {
-						"x": 0.5,
-						"y": 0.52
-					}
-				},
-				{
-					"filename": "barrack_distruction_14.png",
-					"rotated": false,
-					"trimmed": true,
-					"sourceSize": {
-						"w": 1652,
-						"h": 1252
-					},
-					"spriteSourceSize": {
-						"x": 398,
-						"y": 396,
-						"w": 904,
-						"h": 467
-					},
-					"frame": {
-						"x": 2030,
-						"y": 2092,
-						"w": 904,
-						"h": 467
-					},
-					"anchor": {
-						"x": 0.5,
-						"y": 0.52
-					}
-				},
-				{
-					"filename": "barrack_distruction_33.png",
-					"rotated": false,
-					"trimmed": true,
-					"sourceSize": {
-						"w": 1652,
-						"h": 1252
-					},
-					"spriteSourceSize": {
-						"x": 342,
-						"y": 555,
-						"w": 873,
-						"h": 340
-					},
-					"frame": {
-						"x": 2020,
-						"y": 2559,
-						"w": 873,
-						"h": 340
-					},
-					"anchor": {
-						"x": 0.5,
-						"y": 0.52
-					}
-				},
-				{
-					"filename": "barrack_distruction_5.png",
-					"rotated": false,
-					"trimmed": true,
-					"sourceSize": {
-						"w": 1652,
-						"h": 1252
-					},
-					"spriteSourceSize": {
-						"x": 397,
-						"y": 305,
-						"w": 853,
-						"h": 564
-					},
-					"frame": {
-						"x": 2013,
-						"y": 2899,
-						"w": 853,
-						"h": 564
-					},
-					"anchor": {
-						"x": 0.5,
-						"y": 0.52
-					}
-				},
-				{
-					"filename": "barrack_distruction_11.png",
-					"rotated": false,
-					"trimmed": true,
-					"sourceSize": {
-						"w": 1652,
-						"h": 1252
-					},
-					"spriteSourceSize": {
-						"x": 398,
-						"y": 393,
-						"w": 865,
-						"h": 470
-					},
-					"frame": {
-						"x": 1980,
-						"y": 3463,
-						"w": 865,
-						"h": 470
-					},
-					"anchor": {
-						"x": 0.5,
-						"y": 0.52
-					}
-				},
-				{
-					"filename": "barrack_distruction_34.png",
-					"rotated": false,
-					"trimmed": true,
-					"sourceSize": {
-						"w": 1652,
-						"h": 1252
-					},
-					"spriteSourceSize": {
-						"x": 339,
-						"y": 681,
-						"w": 875,
-						"h": 166
-					},
-					"frame": {
-						"x": 3069,
-						"y": 1128,
-						"w": 875,
-						"h": 166
-					},
-					"anchor": {
-						"x": 0.5,
-						"y": 0.52
-					}
-				},
-				{
-					"filename": "barrack_distruction_3.png",
-					"rotated": false,
-					"trimmed": true,
-					"sourceSize": {
-						"w": 1652,
-						"h": 1252
-					},
-					"spriteSourceSize": {
-						"x": 398,
-						"y": 305,
-						"w": 852,
-						"h": 564
-					},
-					"frame": {
-						"x": 3016,
-						"y": 1294,
-						"w": 852,
-						"h": 564
-					},
-					"anchor": {
-						"x": 0.5,
-						"y": 0.52
-					}
-				},
-				{
-					"filename": "barrack_distruction_12.png",
-					"rotated": false,
-					"trimmed": true,
-					"sourceSize": {
-						"w": 1652,
-						"h": 1252
-					},
-					"spriteSourceSize": {
-						"x": 398,
-						"y": 393,
-						"w": 864,
-						"h": 470
-					},
-					"frame": {
-						"x": 3016,
-						"y": 1858,
-						"w": 864,
-						"h": 470
-					},
-					"anchor": {
-						"x": 0.5,
-						"y": 0.52
-					}
-				},
-				{
-					"filename": "barrack_distruction_13.png",
-					"rotated": false,
-					"trimmed": true,
-					"sourceSize": {
-						"w": 1652,
-						"h": 1252
-					},
-					"spriteSourceSize": {
-						"x": 398,
-						"y": 394,
-						"w": 864,
-						"h": 469
-					},
-					"frame": {
-						"x": 2934,
-						"y": 2328,
-						"w": 864,
-						"h": 469
-					},
-					"anchor": {
-						"x": 0.5,
-						"y": 0.52
-					}
-				},
-				{
-					"filename": "barrack_distruction_10.png",
-					"rotated": false,
-					"trimmed": true,
-					"sourceSize": {
-						"w": 1652,
-						"h": 1252
-					},
-					"spriteSourceSize": {
-						"x": 398,
-						"y": 392,
-						"w": 857,
-						"h": 472
-					},
-					"frame": {
-						"x": 2893,
-						"y": 2797,
-						"w": 857,
-						"h": 472
-					},
-					"anchor": {
-						"x": 0.5,
-						"y": 0.52
-					}
-				},
-				{
-					"filename": "barrack_distruction_6.png",
-					"rotated": false,
-					"trimmed": true,
-					"sourceSize": {
-						"w": 1652,
-						"h": 1252
-					},
-					"spriteSourceSize": {
-						"x": 397,
-						"y": 309,
-						"w": 853,
-						"h": 559
-					},
-					"frame": {
-						"x": 2866,
-						"y": 3269,
-						"w": 853,
-						"h": 559
-					},
-					"anchor": {
-						"x": 0.5,
-						"y": 0.52
-					}
-				},
-				{
-					"filename": "barrack_distruction_36.png",
-					"rotated": false,
-					"trimmed": true,
-					"sourceSize": {
-						"w": 1652,
-						"h": 1252
-					},
-					"spriteSourceSize": {
-						"x": 482,
-						"y": 691,
-						"w": 98,
-						"h": 90
-					},
-					"frame": {
-						"x": 867,
-						"y": 3591,
-						"w": 98,
-						"h": 90
-					},
-					"anchor": {
-						"x": 0.5,
-						"y": 0.52
-					}
-				},
-				{
-					"filename": "barrack_distruction_37.png",
-					"rotated": false,
-					"trimmed": true,
-					"sourceSize": {
-						"w": 1652,
-						"h": 1252
-					},
-					"spriteSourceSize": {
-						"x": 483,
-						"y": 695,
-						"w": 45,
-						"h": 48
-					},
-					"frame": {
-						"x": 2030,
-						"y": 1712,
-						"w": 45,
-						"h": 48
-					},
-					"anchor": {
-						"x": 0.5,
-						"y": 0.52
-					}
-				}
-			]
-		},
-		{
-			"image": "barrack_distruction-1.png",
-			"format": "RGBA8888",
-			"size": {
-				"w": 852,
-				"h": 2302
-			},
-			"scale": 1,
-			"frames": [
-				{
-					"filename": "barrack_distruction_4.png",
-					"rotated": false,
-					"trimmed": true,
-					"sourceSize": {
-						"w": 1652,
-						"h": 1252
-					},
-					"spriteSourceSize": {
-						"x": 398,
-						"y": 305,
-						"w": 852,
-						"h": 564
-					},
-					"frame": {
-						"x": 0,
-						"y": 0,
-						"w": 852,
-						"h": 564
-					},
-					"anchor": {
-						"x": 0.5,
-						"y": 0.52
-					}
-				},
-				{
-					"filename": "barrack_distruction_7.png",
-					"rotated": false,
-					"trimmed": true,
-					"sourceSize": {
-						"w": 1652,
-						"h": 1252
-					},
-					"spriteSourceSize": {
-						"x": 398,
-						"y": 317,
-						"w": 852,
-						"h": 551
-					},
-					"frame": {
-						"x": 0,
-						"y": 564,
-						"w": 852,
-						"h": 551
-					},
-					"anchor": {
-						"x": 0.5,
-						"y": 0.52
-					}
-				},
-				{
-					"filename": "barrack_distruction_8.png",
-					"rotated": false,
-					"trimmed": true,
-					"sourceSize": {
-						"w": 1652,
-						"h": 1252
-					},
-					"spriteSourceSize": {
-						"x": 398,
-						"y": 328,
-						"w": 852,
-						"h": 538
-					},
-					"frame": {
-						"x": 0,
-						"y": 1115,
-						"w": 852,
-						"h": 538
-					},
-					"anchor": {
-						"x": 0.5,
-						"y": 0.52
-					}
-				},
-				{
-					"filename": "barrack_distruction_9.png",
-					"rotated": false,
-					"trimmed": true,
-					"sourceSize": {
-						"w": 1652,
-						"h": 1252
-					},
-					"spriteSourceSize": {
-						"x": 398,
-						"y": 355,
-						"w": 852,
-						"h": 511
-					},
-					"frame": {
-						"x": 0,
-						"y": 1653,
-						"w": 852,
-						"h": 511
-					},
-					"anchor": {
-						"x": 0.5,
-						"y": 0.52
-					}
-				},
-				{
-					"filename": "barrack_distruction_35.png",
-					"rotated": false,
-					"trimmed": true,
-					"sourceSize": {
-						"w": 1652,
-						"h": 1252
-					},
-					"spriteSourceSize": {
-						"x": 483,
-						"y": 690,
-						"w": 655,
-						"h": 138
-					},
-					"frame": {
-						"x": 0,
-						"y": 2164,
-						"w": 655,
-						"h": 138
-					},
-					"anchor": {
-						"x": 0.5,
-						"y": 0.52
-					}
-				}
-			]
-		}
-	],
-	"meta": {
-		"app": "https://www.codeandweb.com/texturepacker",
-		"version": "3.0",
-		"smartupdate": "$TexturePacker:SmartUpdate:e370a7d32f29fc02ac6ce918094763b3:0826dc69da72805bbcf2b6b9927ab937:e2080d723767c7b198de4e6244b05ca0$"
-	}
+  "textures": [
+    {
+      "image": "barrack_distruction-0.png",
+      "format": "RGBA8888",
+      "size": {
+        "w": 3994,
+        "h": 3993
+      },
+      "scale": 1,
+      "frames": [
+        {
+          "filename": "barrack_distruction_20.png",
+          "rotated": false,
+          "trimmed": true,
+          "sourceSize": {
+            "w": 1652,
+            "h": 1252
+          },
+          "spriteSourceSize": {
+            "x": 285,
+            "y": 281,
+            "w": 1051,
+            "h": 631
+          },
+          "frame": {
+            "x": 0,
+            "y": 0,
+            "w": 1051,
+            "h": 631
+          },
+          "anchor": {
+            "x": 0.4955,
+            "y": 0.437
+          }
+        },
+        {
+          "filename": "barrack_distruction_19.png",
+          "rotated": false,
+          "trimmed": true,
+          "sourceSize": {
+            "w": 1652,
+            "h": 1252
+          },
+          "spriteSourceSize": {
+            "x": 287,
+            "y": 294,
+            "w": 1050,
+            "h": 613
+          },
+          "frame": {
+            "x": 0,
+            "y": 631,
+            "w": 1050,
+            "h": 613
+          },
+          "anchor": {
+            "x": 0.4955,
+            "y": 0.437
+          }
+        },
+        {
+          "filename": "barrack_distruction_21.png",
+          "rotated": false,
+          "trimmed": true,
+          "sourceSize": {
+            "w": 1652,
+            "h": 1252
+          },
+          "spriteSourceSize": {
+            "x": 284,
+            "y": 303,
+            "w": 1050,
+            "h": 613
+          },
+          "frame": {
+            "x": 1051,
+            "y": 0,
+            "w": 1050,
+            "h": 613
+          },
+          "anchor": {
+            "x": 0.4955,
+            "y": 0.437
+          }
+        },
+        {
+          "filename": "barrack_distruction_22.png",
+          "rotated": false,
+          "trimmed": true,
+          "sourceSize": {
+            "w": 1652,
+            "h": 1252
+          },
+          "spriteSourceSize": {
+            "x": 283,
+            "y": 314,
+            "w": 1046,
+            "h": 605
+          },
+          "frame": {
+            "x": 0,
+            "y": 1244,
+            "w": 1046,
+            "h": 605
+          },
+          "anchor": {
+            "x": 0.4955,
+            "y": 0.437
+          }
+        },
+        {
+          "filename": "barrack_distruction_23.png",
+          "rotated": false,
+          "trimmed": true,
+          "sourceSize": {
+            "w": 1652,
+            "h": 1252
+          },
+          "spriteSourceSize": {
+            "x": 283,
+            "y": 318,
+            "w": 1041,
+            "h": 601
+          },
+          "frame": {
+            "x": 2101,
+            "y": 0,
+            "w": 1041,
+            "h": 601
+          },
+          "anchor": {
+            "x": 0.4955,
+            "y": 0.437
+          }
+        },
+        {
+          "filename": "barrack_distruction_1.png",
+          "rotated": false,
+          "trimmed": true,
+          "sourceSize": {
+            "w": 1652,
+            "h": 1252
+          },
+          "spriteSourceSize": {
+            "x": 398,
+            "y": 305,
+            "w": 852,
+            "h": 564
+          },
+          "frame": {
+            "x": 3142,
+            "y": 0,
+            "w": 852,
+            "h": 564
+          },
+          "anchor": {
+            "x": 0.4955,
+            "y": 0.437
+          }
+        },
+        {
+          "filename": "barrack_distruction_18.png",
+          "rotated": false,
+          "trimmed": true,
+          "sourceSize": {
+            "w": 1652,
+            "h": 1252
+          },
+          "spriteSourceSize": {
+            "x": 292,
+            "y": 310,
+            "w": 1045,
+            "h": 596
+          },
+          "frame": {
+            "x": 0,
+            "y": 1849,
+            "w": 1045,
+            "h": 596
+          },
+          "anchor": {
+            "x": 0.4955,
+            "y": 0.437
+          }
+        },
+        {
+          "filename": "barrack_distruction_17.png",
+          "rotated": false,
+          "trimmed": true,
+          "sourceSize": {
+            "w": 1652,
+            "h": 1252
+          },
+          "spriteSourceSize": {
+            "x": 290,
+            "y": 322,
+            "w": 1043,
+            "h": 575
+          },
+          "frame": {
+            "x": 0,
+            "y": 2445,
+            "w": 1043,
+            "h": 575
+          },
+          "anchor": {
+            "x": 0.4955,
+            "y": 0.437
+          }
+        },
+        {
+          "filename": "barrack_distruction_25.png",
+          "rotated": false,
+          "trimmed": true,
+          "sourceSize": {
+            "w": 1652,
+            "h": 1252
+          },
+          "spriteSourceSize": {
+            "x": 283,
+            "y": 352,
+            "w": 1032,
+            "h": 571
+          },
+          "frame": {
+            "x": 0,
+            "y": 3020,
+            "w": 1032,
+            "h": 571
+          },
+          "anchor": {
+            "x": 0.4955,
+            "y": 0.437
+          }
+        },
+        {
+          "filename": "barrack_distruction_2.png",
+          "rotated": false,
+          "trimmed": true,
+          "sourceSize": {
+            "w": 1652,
+            "h": 1252
+          },
+          "spriteSourceSize": {
+            "x": 398,
+            "y": 305,
+            "w": 852,
+            "h": 564
+          },
+          "frame": {
+            "x": 3142,
+            "y": 564,
+            "w": 852,
+            "h": 564
+          },
+          "anchor": {
+            "x": 0.4955,
+            "y": 0.437
+          }
+        },
+        {
+          "filename": "barrack_distruction_32.png",
+          "rotated": false,
+          "trimmed": true,
+          "sourceSize": {
+            "w": 1652,
+            "h": 1252
+          },
+          "spriteSourceSize": {
+            "x": 348,
+            "y": 493,
+            "w": 867,
+            "h": 402
+          },
+          "frame": {
+            "x": 0,
+            "y": 3591,
+            "w": 867,
+            "h": 402
+          },
+          "anchor": {
+            "x": 0.4955,
+            "y": 0.437
+          }
+        },
+        {
+          "filename": "barrack_distruction_16.png",
+          "rotated": false,
+          "trimmed": true,
+          "sourceSize": {
+            "w": 1652,
+            "h": 1252
+          },
+          "spriteSourceSize": {
+            "x": 293,
+            "y": 339,
+            "w": 1045,
+            "h": 544
+          },
+          "frame": {
+            "x": 1051,
+            "y": 613,
+            "w": 1045,
+            "h": 544
+          },
+          "anchor": {
+            "x": 0.4955,
+            "y": 0.437
+          }
+        },
+        {
+          "filename": "barrack_distruction_24.png",
+          "rotated": false,
+          "trimmed": true,
+          "sourceSize": {
+            "w": 1652,
+            "h": 1252
+          },
+          "spriteSourceSize": {
+            "x": 283,
+            "y": 364,
+            "w": 1033,
+            "h": 555
+          },
+          "frame": {
+            "x": 1050,
+            "y": 1157,
+            "w": 1033,
+            "h": 555
+          },
+          "anchor": {
+            "x": 0.4955,
+            "y": 0.437
+          }
+        },
+        {
+          "filename": "barrack_distruction_26.png",
+          "rotated": false,
+          "trimmed": true,
+          "sourceSize": {
+            "w": 1652,
+            "h": 1252
+          },
+          "spriteSourceSize": {
+            "x": 283,
+            "y": 310,
+            "w": 984,
+            "h": 612
+          },
+          "frame": {
+            "x": 1046,
+            "y": 1712,
+            "w": 984,
+            "h": 612
+          },
+          "anchor": {
+            "x": 0.4955,
+            "y": 0.437
+          }
+        },
+        {
+          "filename": "barrack_distruction_27.png",
+          "rotated": false,
+          "trimmed": true,
+          "sourceSize": {
+            "w": 1652,
+            "h": 1252
+          },
+          "spriteSourceSize": {
+            "x": 284,
+            "y": 377,
+            "w": 975,
+            "h": 549
+          },
+          "frame": {
+            "x": 1045,
+            "y": 2324,
+            "w": 975,
+            "h": 549
+          },
+          "anchor": {
+            "x": 0.4955,
+            "y": 0.437
+          }
+        },
+        {
+          "filename": "barrack_distruction_28.png",
+          "rotated": false,
+          "trimmed": true,
+          "sourceSize": {
+            "w": 1652,
+            "h": 1252
+          },
+          "spriteSourceSize": {
+            "x": 283,
+            "y": 370,
+            "w": 970,
+            "h": 559
+          },
+          "frame": {
+            "x": 1043,
+            "y": 2873,
+            "w": 970,
+            "h": 559
+          },
+          "anchor": {
+            "x": 0.4955,
+            "y": 0.437
+          }
+        },
+        {
+          "filename": "barrack_distruction_30.png",
+          "rotated": false,
+          "trimmed": true,
+          "sourceSize": {
+            "w": 1652,
+            "h": 1252
+          },
+          "spriteSourceSize": {
+            "x": 284,
+            "y": 462,
+            "w": 948,
+            "h": 472
+          },
+          "frame": {
+            "x": 1032,
+            "y": 3432,
+            "w": 948,
+            "h": 472
+          },
+          "anchor": {
+            "x": 0.4955,
+            "y": 0.437
+          }
+        },
+        {
+          "filename": "barrack_distruction_29.png",
+          "rotated": false,
+          "trimmed": true,
+          "sourceSize": {
+            "w": 1652,
+            "h": 1252
+          },
+          "spriteSourceSize": {
+            "x": 283,
+            "y": 353,
+            "w": 968,
+            "h": 580
+          },
+          "frame": {
+            "x": 2101,
+            "y": 601,
+            "w": 968,
+            "h": 580
+          },
+          "anchor": {
+            "x": 0.4955,
+            "y": 0.437
+          }
+        },
+        {
+          "filename": "barrack_distruction_15.png",
+          "rotated": false,
+          "trimmed": true,
+          "sourceSize": {
+            "w": 1652,
+            "h": 1252
+          },
+          "spriteSourceSize": {
+            "x": 398,
+            "y": 396,
+            "w": 927,
+            "h": 467
+          },
+          "frame": {
+            "x": 2083,
+            "y": 1181,
+            "w": 927,
+            "h": 467
+          },
+          "anchor": {
+            "x": 0.4955,
+            "y": 0.437
+          }
+        },
+        {
+          "filename": "barrack_distruction_31.png",
+          "rotated": false,
+          "trimmed": true,
+          "sourceSize": {
+            "w": 1652,
+            "h": 1252
+          },
+          "spriteSourceSize": {
+            "x": 289,
+            "y": 494,
+            "w": 933,
+            "h": 444
+          },
+          "frame": {
+            "x": 2083,
+            "y": 1648,
+            "w": 933,
+            "h": 444
+          },
+          "anchor": {
+            "x": 0.4955,
+            "y": 0.437
+          }
+        },
+        {
+          "filename": "barrack_distruction_14.png",
+          "rotated": false,
+          "trimmed": true,
+          "sourceSize": {
+            "w": 1652,
+            "h": 1252
+          },
+          "spriteSourceSize": {
+            "x": 398,
+            "y": 396,
+            "w": 904,
+            "h": 467
+          },
+          "frame": {
+            "x": 2030,
+            "y": 2092,
+            "w": 904,
+            "h": 467
+          },
+          "anchor": {
+            "x": 0.4955,
+            "y": 0.437
+          }
+        },
+        {
+          "filename": "barrack_distruction_33.png",
+          "rotated": false,
+          "trimmed": true,
+          "sourceSize": {
+            "w": 1652,
+            "h": 1252
+          },
+          "spriteSourceSize": {
+            "x": 342,
+            "y": 555,
+            "w": 873,
+            "h": 340
+          },
+          "frame": {
+            "x": 2020,
+            "y": 2559,
+            "w": 873,
+            "h": 340
+          },
+          "anchor": {
+            "x": 0.4955,
+            "y": 0.437
+          }
+        },
+        {
+          "filename": "barrack_distruction_5.png",
+          "rotated": false,
+          "trimmed": true,
+          "sourceSize": {
+            "w": 1652,
+            "h": 1252
+          },
+          "spriteSourceSize": {
+            "x": 397,
+            "y": 305,
+            "w": 853,
+            "h": 564
+          },
+          "frame": {
+            "x": 2013,
+            "y": 2899,
+            "w": 853,
+            "h": 564
+          },
+          "anchor": {
+            "x": 0.4955,
+            "y": 0.437
+          }
+        },
+        {
+          "filename": "barrack_distruction_11.png",
+          "rotated": false,
+          "trimmed": true,
+          "sourceSize": {
+            "w": 1652,
+            "h": 1252
+          },
+          "spriteSourceSize": {
+            "x": 398,
+            "y": 393,
+            "w": 865,
+            "h": 470
+          },
+          "frame": {
+            "x": 1980,
+            "y": 3463,
+            "w": 865,
+            "h": 470
+          },
+          "anchor": {
+            "x": 0.4955,
+            "y": 0.437
+          }
+        },
+        {
+          "filename": "barrack_distruction_34.png",
+          "rotated": false,
+          "trimmed": true,
+          "sourceSize": {
+            "w": 1652,
+            "h": 1252
+          },
+          "spriteSourceSize": {
+            "x": 339,
+            "y": 681,
+            "w": 875,
+            "h": 166
+          },
+          "frame": {
+            "x": 3069,
+            "y": 1128,
+            "w": 875,
+            "h": 166
+          },
+          "anchor": {
+            "x": 0.4955,
+            "y": 0.437
+          }
+        },
+        {
+          "filename": "barrack_distruction_3.png",
+          "rotated": false,
+          "trimmed": true,
+          "sourceSize": {
+            "w": 1652,
+            "h": 1252
+          },
+          "spriteSourceSize": {
+            "x": 398,
+            "y": 305,
+            "w": 852,
+            "h": 564
+          },
+          "frame": {
+            "x": 3016,
+            "y": 1294,
+            "w": 852,
+            "h": 564
+          },
+          "anchor": {
+            "x": 0.4955,
+            "y": 0.437
+          }
+        },
+        {
+          "filename": "barrack_distruction_12.png",
+          "rotated": false,
+          "trimmed": true,
+          "sourceSize": {
+            "w": 1652,
+            "h": 1252
+          },
+          "spriteSourceSize": {
+            "x": 398,
+            "y": 393,
+            "w": 864,
+            "h": 470
+          },
+          "frame": {
+            "x": 3016,
+            "y": 1858,
+            "w": 864,
+            "h": 470
+          },
+          "anchor": {
+            "x": 0.4955,
+            "y": 0.437
+          }
+        },
+        {
+          "filename": "barrack_distruction_13.png",
+          "rotated": false,
+          "trimmed": true,
+          "sourceSize": {
+            "w": 1652,
+            "h": 1252
+          },
+          "spriteSourceSize": {
+            "x": 398,
+            "y": 394,
+            "w": 864,
+            "h": 469
+          },
+          "frame": {
+            "x": 2934,
+            "y": 2328,
+            "w": 864,
+            "h": 469
+          },
+          "anchor": {
+            "x": 0.4955,
+            "y": 0.437
+          }
+        },
+        {
+          "filename": "barrack_distruction_10.png",
+          "rotated": false,
+          "trimmed": true,
+          "sourceSize": {
+            "w": 1652,
+            "h": 1252
+          },
+          "spriteSourceSize": {
+            "x": 398,
+            "y": 392,
+            "w": 857,
+            "h": 472
+          },
+          "frame": {
+            "x": 2893,
+            "y": 2797,
+            "w": 857,
+            "h": 472
+          },
+          "anchor": {
+            "x": 0.4955,
+            "y": 0.437
+          }
+        },
+        {
+          "filename": "barrack_distruction_6.png",
+          "rotated": false,
+          "trimmed": true,
+          "sourceSize": {
+            "w": 1652,
+            "h": 1252
+          },
+          "spriteSourceSize": {
+            "x": 397,
+            "y": 309,
+            "w": 853,
+            "h": 559
+          },
+          "frame": {
+            "x": 2866,
+            "y": 3269,
+            "w": 853,
+            "h": 559
+          },
+          "anchor": {
+            "x": 0.4955,
+            "y": 0.437
+          }
+        },
+        {
+          "filename": "barrack_distruction_36.png",
+          "rotated": false,
+          "trimmed": true,
+          "sourceSize": {
+            "w": 1652,
+            "h": 1252
+          },
+          "spriteSourceSize": {
+            "x": 482,
+            "y": 691,
+            "w": 98,
+            "h": 90
+          },
+          "frame": {
+            "x": 867,
+            "y": 3591,
+            "w": 98,
+            "h": 90
+          },
+          "anchor": {
+            "x": 0.4955,
+            "y": 0.437
+          }
+        },
+        {
+          "filename": "barrack_distruction_37.png",
+          "rotated": false,
+          "trimmed": true,
+          "sourceSize": {
+            "w": 1652,
+            "h": 1252
+          },
+          "spriteSourceSize": {
+            "x": 483,
+            "y": 695,
+            "w": 45,
+            "h": 48
+          },
+          "frame": {
+            "x": 2030,
+            "y": 1712,
+            "w": 45,
+            "h": 48
+          },
+          "anchor": {
+            "x": 0.4955,
+            "y": 0.437
+          }
+        }
+      ]
+    },
+    {
+      "image": "barrack_distruction-1.png",
+      "format": "RGBA8888",
+      "size": {
+        "w": 852,
+        "h": 2302
+      },
+      "scale": 1,
+      "frames": [
+        {
+          "filename": "barrack_distruction_4.png",
+          "rotated": false,
+          "trimmed": true,
+          "sourceSize": {
+            "w": 1652,
+            "h": 1252
+          },
+          "spriteSourceSize": {
+            "x": 398,
+            "y": 305,
+            "w": 852,
+            "h": 564
+          },
+          "frame": {
+            "x": 0,
+            "y": 0,
+            "w": 852,
+            "h": 564
+          },
+          "anchor": {
+            "x": 0.4955,
+            "y": 0.437
+          }
+        },
+        {
+          "filename": "barrack_distruction_7.png",
+          "rotated": false,
+          "trimmed": true,
+          "sourceSize": {
+            "w": 1652,
+            "h": 1252
+          },
+          "spriteSourceSize": {
+            "x": 398,
+            "y": 317,
+            "w": 852,
+            "h": 551
+          },
+          "frame": {
+            "x": 0,
+            "y": 564,
+            "w": 852,
+            "h": 551
+          },
+          "anchor": {
+            "x": 0.4955,
+            "y": 0.437
+          }
+        },
+        {
+          "filename": "barrack_distruction_8.png",
+          "rotated": false,
+          "trimmed": true,
+          "sourceSize": {
+            "w": 1652,
+            "h": 1252
+          },
+          "spriteSourceSize": {
+            "x": 398,
+            "y": 328,
+            "w": 852,
+            "h": 538
+          },
+          "frame": {
+            "x": 0,
+            "y": 1115,
+            "w": 852,
+            "h": 538
+          },
+          "anchor": {
+            "x": 0.4955,
+            "y": 0.437
+          }
+        },
+        {
+          "filename": "barrack_distruction_9.png",
+          "rotated": false,
+          "trimmed": true,
+          "sourceSize": {
+            "w": 1652,
+            "h": 1252
+          },
+          "spriteSourceSize": {
+            "x": 398,
+            "y": 355,
+            "w": 852,
+            "h": 511
+          },
+          "frame": {
+            "x": 0,
+            "y": 1653,
+            "w": 852,
+            "h": 511
+          },
+          "anchor": {
+            "x": 0.4955,
+            "y": 0.437
+          }
+        },
+        {
+          "filename": "barrack_distruction_35.png",
+          "rotated": false,
+          "trimmed": true,
+          "sourceSize": {
+            "w": 1652,
+            "h": 1252
+          },
+          "spriteSourceSize": {
+            "x": 483,
+            "y": 690,
+            "w": 655,
+            "h": 138
+          },
+          "frame": {
+            "x": 0,
+            "y": 2164,
+            "w": 655,
+            "h": 138
+          },
+          "anchor": {
+            "x": 0.4955,
+            "y": 0.437
+          }
+        }
+      ]
+    }
+  ],
+  "meta": {
+    "app": "https://www.codeandweb.com/texturepacker",
+    "version": "3.0",
+    "smartupdate": "$TexturePacker:SmartUpdate:e370a7d32f29fc02ac6ce918094763b3:0826dc69da72805bbcf2b6b9927ab937:e2080d723767c7b198de4e6244b05ca0$"
+  }
 }
