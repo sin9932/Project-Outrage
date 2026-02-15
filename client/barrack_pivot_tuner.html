@@ -1,714 +1,1134 @@
 <!doctype html>
 <html lang="ko">
 <head>
-  <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width,initial-scale=1"/>
-  <title>Barrack Pivot Tuner v2 (match game placement)</title>
-  <style>
-    :root{color-scheme:dark;}
-    body{margin:0;display:flex;height:100vh;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;}
-    #left{width:380px;min-width:320px;max-width:460px;overflow:auto;padding:14px 14px 18px;background:#0c111a;border-right:1px solid #1f2a3a;}
-    #right{flex:1;position:relative;background:radial-gradient(ellipse at center,#101a2a 0%,#070b12 70%);}
-    h1{font-size:18px;margin:0 0 10px;}
-    .hint{opacity:.82;font-size:12px;line-height:1.45;margin:0 0 14px;}
-    .pill{display:inline-block;padding:2px 6px;border:1px solid #2b3d5d;border-radius:999px;font-size:11px;opacity:.9}
-    label{display:block;font-size:12px;opacity:.86;margin:10px 0 6px;}
-    input,button,textarea,select{width:100%;box-sizing:border-box;border:1px solid #243247;background:#0f1624;color:#e6eefc;border-radius:10px;padding:10px 10px;font-size:14px;}
-    input,select{height:38px;}
-    textarea{min-height:140px;resize:vertical;line-height:1.35;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px;}
-    button{cursor:pointer;background:#0f1b33;border-color:#2b3d5d;}
-    button:hover{filter:brightness(1.12);}
-    .row{display:flex;gap:8px;align-items:center;}
-    .row>div{flex:1;}
-    .small{height:36px;padding:8px 10px;font-size:13px;}
-    .status{white-space:pre-wrap;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px;opacity:.9;margin-top:10px;padding:10px;border:1px dashed #2b3d5d;border-radius:10px;}
-    .group{border:1px solid #1f2a3a;border-radius:12px;padding:10px;margin-top:10px;background:#0b1424;}
-    .groupTitle{font-size:12px;opacity:.9;margin:0 0 6px;}
-    .checkRow{display:flex;align-items:center;gap:10px;}
-    .checkRow input{width:auto;height:auto;}
-    .mini{font-size:11px;opacity:.75;margin:4px 0 0;}
-    canvas{width:100%;height:100%;display:block;}
-  </style>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Barrack Pivot Tuner v3 (game-matched)</title>
+<style>
+  :root {
+    --bg0:#0b0f16; --bg1:#111a2b; --panel:#0d1421; --line:rgba(255,255,255,.08);
+    --text:rgba(255,255,255,.92); --muted:rgba(255,255,255,.62);
+    --acc:#79a7ff; --warn:#ffce6a; --bad:#ff6a7a; --ok:#6cffb0;
+  }
+  html,body { height:100%; margin:0; background:linear-gradient(160deg,var(--bg0),var(--bg1)); color:var(--text); font-family:system-ui,-apple-system,Segoe UI,Roboto,Apple SD Gothic Neo,Noto Sans KR,sans-serif; }
+  #app { height:100vh; display:flex; }
+  aside {
+    width:360px; min-width:320px; max-width:420px;
+    border-right:1px solid var(--line);
+    background:linear-gradient(180deg,rgba(10,16,28,.9),rgba(10,16,28,.55));
+    padding:14px 12px; box-sizing:border-box; overflow:auto;
+  }
+  main#right { flex:1; position:relative; overflow:hidden; }
+  #cv {
+    position:absolute; inset:0;
+    display:block;
+    width:100%; height:100%;
+    z-index:1;
+  }
+  #hud {
+    position:absolute; left:12px; top:10px; z-index:3;
+    display:flex; gap:8px; align-items:center;
+    padding:6px 10px; border:1px solid var(--line);
+    border-radius:12px;
+    background:rgba(0,0,0,.28); backdrop-filter: blur(6px);
+    font-size:12px; color:var(--muted);
+    user-select:none;
+  }
+  .badge { padding:2px 8px; border-radius:999px; border:1px solid var(--line); }
+  .ok { color:var(--ok); }
+  .bad { color:var(--bad); }
+  h1 { font-size:15px; margin:0 0 10px; letter-spacing:.2px; }
+  .hint { font-size:12px; color:var(--muted); line-height:1.35; margin:0 0 10px; }
+  .card {
+    border:1px solid var(--line);
+    border-radius:14px;
+    padding:10px;
+    margin:10px 0;
+    background:rgba(255,255,255,.03);
+  }
+  .row { display:flex; gap:8px; align-items:center; }
+  label { font-size:12px; color:var(--muted); display:block; margin:6px 0 6px; }
+  input[type="text"], input[type="number"], select, textarea {
+    width:100%;
+    box-sizing:border-box;
+    background:rgba(0,0,0,.25);
+    color:var(--text);
+    border:1px solid var(--line);
+    border-radius:10px;
+    padding:8px 10px;
+    outline:none;
+  }
+  input[type="range"] { width:100%; }
+  textarea { min-height:110px; font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, "Noto Sans Mono", monospace; font-size:12px; }
+  button {
+    border:1px solid var(--line);
+    background:rgba(255,255,255,.06);
+    color:var(--text);
+    border-radius:10px;
+    padding:8px 10px;
+    cursor:pointer;
+  }
+  button:hover { background:rgba(255,255,255,.10); }
+  button.primary { border-color:rgba(121,167,255,.55); background:rgba(121,167,255,.14); }
+  button.danger { border-color:rgba(255,106,122,.55); background:rgba(255,106,122,.10); }
+  .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+  .grid3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; }
+  .tiny { font-size:11px; color:var(--muted); }
+  .pillrow { display:flex; gap:6px; flex-wrap:wrap; }
+  .pill {
+    font-size:11px; padding:4px 8px; border-radius:999px;
+    border:1px solid var(--line); color:var(--muted);
+    background:rgba(0,0,0,.22);
+  }
+  .status {
+    font-size:12px; padding:8px 10px; border-radius:12px;
+    border:1px solid var(--line); background:rgba(0,0,0,.22);
+    white-space:pre-wrap;
+  }
+  .status.ok { border-color:rgba(108,255,176,.35); }
+  .status.bad { border-color:rgba(255,106,122,.45); }
+  .warnbox {
+    font-size:12px; color:var(--warn); line-height:1.3;
+    padding:8px 10px; border-radius:12px;
+    border:1px solid rgba(255,206,106,.25);
+    background:rgba(255,206,106,.06);
+  }
+</style>
 </head>
 <body>
-  <aside id="left">
-    <h1>Pivot Tuner v2 🛠️</h1>
+<div id="app">
+  <aside>
+    <h1>Pivot Tuner v3 🧰 (게임 좌표 1:1)</h1>
     <p class="hint">
-      목적: <b>atlas_tp.js의 drawFrame 피벗 계산</b>과 <b>game.js의 isometric 좌표</b>를 그대로 따라가서, 여기서 맞춘 피벗이 게임에서도 1:1로 맞게 보기.<br/>
-      - Atlas JSON 안 <span class="pill">textures[]</span> multipack 전부 로드.<br/>
-      - 프레임 정렬: 파일명 끝 숫자(예: barrack_idle12.png).<br/>
-      - <b>Apply</b>는 메모리의 atlasData를 수정, <b>Download</b>로 패치본 JSON 저장.
+      목적: <b>game.js</b>의 좌표/카메라/베이스오프셋 계산과 동일하게 캔버스에 건물 스프라이트를 찍어서,
+      여기서 잡은 <b>anchor(x,y)</b>가 게임에서 그대로 맞도록 하는 튜너.
     </p>
 
-    <label>Atlas JSON URL</label>
-    <input id="atlasUrl" value="/asset/sprite/const/distruct/barrack/barrack_distruct.json"/>
-
-    <label>Frame prefix (예: barrack_distruction_ / barrack_con_complete_ / barrack_idle)</label>
-    <input id="prefix" value="barrack_distruction_"/>
-
-    <div class="row">
-      <div>
-        <label>FPS</label>
-        <input id="fps" type="number" value="20" min="1" max="120"/>
-      </div>
-      <div>
-        <label>Scale (게임과 맞추는 값)</label>
-        <input id="scale" type="number" value="0.14" step="0.01"/>
-      </div>
+    <div class="warnbox">
+      ⚠️ 네 스샷 Atlas URL이 <b>/consts/</b>로 돼있더라. 폴더는 <b>/const/</b>가 맞아.
+      (404면 JSON 대신 HTML이 와서 “아무것도 안 보임” 발생 가능)
     </div>
 
-    <div class="row">
-      <div>
-        <label>Pivot X (0~1)</label>
-        <input id="pivotX" type="range" min="0" max="1" step="0.0005" value="0.5"/>
+    <div class="card">
+      <label>Atlas JSON URL</label>
+      <input id="jsonUrl" type="text" value="/asset/sprite/const/distruct/barrack/barrack_distruct.json" />
+      <div class="pillrow" style="margin-top:8px;">
+        <button id="btnIdle">barrack idle</button>
+        <button id="btnConst">barrack const</button>
+        <button id="btnDist">barrack dist</button>
       </div>
-      <div>
-        <label>Pivot Y (0~1)</label>
-        <input id="pivotY" type="range" min="0" max="1" step="0.0005" value="0.5"/>
+      <div class="row" style="margin-top:8px;">
+        <button id="btnLoad" class="primary" style="flex:1;">Load</button>
+        <button id="btnReload" style="width:120px;">Reload</button>
       </div>
+      <div style="margin-top:8px;" id="loadStatus" class="status">Ready.</div>
     </div>
 
-    <div class="row">
-      <button id="btnLoad" class="small">Load</button>
-      <button id="btnPlay" class="small">Play</button>
-      <button id="btnPrev" class="small">◀</button>
-      <button id="btnNext" class="small">▶</button>
-    </div>
-
-    <div class="row" style="margin-top:8px">
-      <button id="btnApplyCur" class="small">Apply to current</button>
-      <button id="btnApplyAll" class="small">Apply to all</button>
-    </div>
-
-    <div class="row" style="margin-top:8px">
-      <button id="btnDownload" class="small">Download patched JSON</button>
-      <button id="btnCopyJS" class="small">Copy JS override</button>
-    </div>
-
-    <div class="group">
-      <div class="groupTitle">게임 좌표 모드 (isometric 1:1)</div>
-      <div class="checkRow">
-        <input id="useGame" type="checkbox" checked/>
-        <div style="font-size:13px;opacity:.92">게임 배치 방식으로 오버레이/앵커 계산</div>
+    <div class="card">
+      <div class="grid2">
+        <div>
+          <label>Set (prefix)</label>
+          <select id="prefixSel"></select>
+        </div>
+        <div>
+          <label>Frame</label>
+          <select id="frameSel"></select>
+        </div>
       </div>
-      <div class="mini">game.js 기준: TILE=128이면 ISO_X=64, ISO_Y=32 (다이아 128x64)</div>
 
-      <div class="row" style="margin-top:8px">
+      <div class="grid3" style="margin-top:10px;">
+        <div>
+          <label>FPS</label>
+          <input id="fps" type="number" min="1" max="60" step="1" value="20" />
+        </div>
+        <div>
+          <label>Scale</label>
+          <input id="scale" type="number" min="0.01" max="2" step="0.01" value="0.14" />
+        </div>
+        <div>
+          <label>Play</label>
+          <div class="row">
+            <button id="btnPlay" style="flex:1;">▶</button>
+            <button id="btnStop" style="flex:1;">■</button>
+          </div>
+        </div>
+      </div>
+
+      <label style="margin-top:10px;">Pivot X (normalized 0..1)</label>
+      <input id="px" type="range" min="0" max="1" step="0.0001" value="0.50" />
+      <div class="row">
+        <button id="pxM" style="flex:1;">X-</button>
+        <button id="pxP" style="flex:1;">X+</button>
+        <div class="tiny" id="pxVal" style="width:90px; text-align:right;">0.5000</div>
+      </div>
+
+      <label style="margin-top:10px;">Pivot Y (normalized 0..1)</label>
+      <input id="py" type="range" min="0" max="1" step="0.0001" value="0.50" />
+      <div class="row">
+        <button id="pyM" style="flex:1;">Y-</button>
+        <button id="pyP" style="flex:1;">Y+</button>
+        <div class="tiny" id="pyVal" style="width:90px; text-align:right;">0.5000</div>
+      </div>
+
+      <div class="grid2" style="margin-top:10px;">
+        <button id="btnApplyPrefix" class="primary">Apply pivot to prefix</button>
+        <button id="btnDownload">Download patched JSON</button>
+      </div>
+
+      <label style="margin-top:10px;">Copy/paste (JSON anchor)</label>
+      <textarea id="out" readonly></textarea>
+      <div class="tiny" id="debugLine"></div>
+    </div>
+
+    <div class="card">
+      <label>게임 좌표 모드</label>
+      <div class="grid3">
         <div>
           <label>TILE</label>
-          <input id="TILE" type="number" value="128" step="1"/>
+          <input id="tile" type="number" value="128" />
         </div>
         <div>
-          <label>Cam zoom</label>
-          <input id="camZoom" type="number" value="1" step="0.1"/>
+          <label>ISO_X</label>
+          <input id="isoX" type="number" value="64" />
+        </div>
+        <div>
+          <label>ISO_Y</label>
+          <input id="isoY" type="number" value="32" />
         </div>
       </div>
 
-      <div class="row">
+      <div class="grid3" style="margin-top:10px;">
         <div>
           <label>Cam tileX</label>
-          <input id="camTX" type="number" value="0" step="0.25"/>
+          <input id="camTX" type="number" value="0" />
         </div>
         <div>
           <label>Cam tileY</label>
-          <input id="camTY" type="number" value="0" step="0.25"/>
+          <input id="camTY" type="number" value="0" />
+        </div>
+        <div>
+          <label>Cam zoom</label>
+          <input id="camZoom" type="number" min="0.1" max="4" step="0.05" value="1" />
         </div>
       </div>
 
-      <div class="row">
-        <div>
-          <label>Building tx</label>
-          <input id="bTX" type="number" value="0" step="1"/>
-        </div>
-        <div>
-          <label>Building ty</label>
-          <input id="bTY" type="number" value="0" step="1"/>
-        </div>
-      </div>
-
-      <div class="row">
+      <div class="grid2" style="margin-top:10px;">
         <div>
           <label>Footprint W (tw)</label>
-          <input id="bTW" type="number" value="3" step="1" min="1"/>
+          <input id="fpW" type="number" min="1" max="8" value="3" />
         </div>
         <div>
           <label>Footprint H (th)</label>
-          <input id="bTH" type="number" value="2" step="1" min="1"/>
+          <input id="fpH" type="number" min="1" max="8" value="2" />
         </div>
       </div>
 
-      <label>Anchor mode</label>
-      <select id="anchorMode">
-        <option value="southCorner">south corner (game default)</option>
-        <option value="center">center (footprint center)</option>
-        <option value="southEdge">south edge center</option>
-        <option value="customWorld">custom world (tiles)</option>
-      </select>
-
-      <div class="row" id="customWorldRow" style="display:none">
+      <div class="grid2" style="margin-top:10px;">
         <div>
-          <label>custom world X (tiles)</label>
-          <input id="customWX" type="number" value="0" step="0.25"/>
+          <label>Building tx</label>
+          <input id="bTX" type="number" value="0" />
         </div>
         <div>
-          <label>custom world Y (tiles)</label>
-          <input id="customWY" type="number" value="0" step="0.25"/>
+          <label>Building ty</label>
+          <input id="bTY" type="number" value="0" />
         </div>
       </div>
 
-      <div class="checkRow" style="margin-top:8px">
-        <input id="showTiles" type="checkbox" checked/>
-        <div style="font-size:13px;opacity:.92">타일 그리드 표시</div>
+      <div class="grid2" style="margin-top:10px;">
+        <div>
+          <label>Anchor mode</label>
+          <select id="anchorMode">
+            <option value="center" selected>center (footprint center)</option>
+            <option value="south">south (footprint south edge)</option>
+          </select>
+        </div>
+        <div>
+          <label>BaseOffset Y ratio (game.js=0.22)</label>
+          <input id="baseYRatio" type="number" min="0" max="1" step="0.01" value="0.22" />
+        </div>
       </div>
-      <div class="checkRow" style="margin-top:6px">
-        <input id="showOutline" type="checkbox" checked/>
-        <div style="font-size:13px;opacity:.92">풋프린트 외곽선 표시</div>
+
+      <div class="grid2" style="margin-top:10px;">
+        <div class="row">
+          <input id="showGrid" type="checkbox" checked />
+          <label for="showGrid" style="margin:0;">타일 그리드 표시</label>
+        </div>
+        <div class="row">
+          <input id="showFoot" type="checkbox" checked />
+          <label for="showFoot" style="margin:0;">풋프린트 외곽선 표시</label>
+        </div>
+      </div>
+
+      <div class="grid2" style="margin-top:10px;">
+        <div class="row">
+          <input id="showAnchor" type="checkbox" checked />
+          <label for="showAnchor" style="margin:0;">앵커(찍는점) 표시</label>
+        </div>
+        <div class="row">
+          <input id="showBounds" type="checkbox" />
+          <label for="showBounds" style="margin:0;">프레임 bbox 표시</label>
+        </div>
       </div>
     </div>
 
-    <label>Copy/paste output</label>
-    <textarea id="out" spellcheck="false"></textarea>
-
-    <div id="status" class="status">Ready.</div>
   </aside>
 
   <main id="right">
     <canvas id="cv"></canvas>
+    <div id="hud">
+      <span class="badge" id="hudCanvas">canvas: ?</span>
+      <span class="badge" id="hudAtlas">atlas: -</span>
+      <span class="badge" id="hudDraw" class="ok">draw: -</span>
+    </div>
   </main>
+</div>
 
 <script>
-const $ = (id)=>document.getElementById(id);
-const cv = $('cv');
-const ctx = cv.getContext('2d');
+/* ==== atlas_tp.js (Project-Outrage) inline ==== */
+window.PO = window.PO || {};
+/* atlas_tp.js (TexturePacker) v6 + v22 back-compat
+   - Supports TP Multi (textures[] array) and TP Hash (frames:{}), plus frames[] array.
+   - Produces atlas.frames (Map) and atlas.framesByName (plain object) for compatibility.
+   - Provides drawFrame() that respects trimming and optional rotated frames.
+*/
+(() => {
+  const PO = (window.PO = window.PO || {});
+  PO.atlasTP = PO.atlasTP || {};
 
-let dpr = Math.max(1, window.devicePixelRatio || 1);
+  const VERSION = 6;
 
-function clamp01(n){ n = Number(n); if(!Number.isFinite(n)) return 0; return Math.max(0, Math.min(1, n)); }
-function numOr(id, fallback){ const el = $(id); if(!el) return fallback; const n = Number(el.value); return Number.isFinite(n) ? n : fallback; }
-function dirname(path){ const q = (path||'').split('?')[0]; const i = q.lastIndexOf('/'); return i>=0 ? q.slice(0,i+1) : ''; }
-
-function setStatus(s){ $('status').textContent = s; }
-
-function resizeCanvas(){
-  const r = $('right').getBoundingClientRect();
-  dpr = Math.max(1, window.devicePixelRatio || 1);
-  cv.width = Math.floor(r.width * dpr);
-  cv.height = Math.floor(r.height * dpr);
-  cv.style.width = r.width + 'px';
-  cv.style.height = r.height + 'px';
-  ctx.setTransform(dpr,0,0,dpr,0,0);
-}
-window.addEventListener('resize', resizeCanvas);
-
-function extractTrailingNumber(name){
-  const m = name.match(/(\d+)(?=\.png$)/i);
-  if(!m) return null;
-  return Number(m[1]);
-}
-
-let atlasData = null;
-let basePath = '';
-let textures = []; // {img, name}
-let frames = [];   // merged frames for given prefix: [{name, texIndex, frame, rotated, sourceSize, spriteSourceSize, anchor, _ref}]
-let cur = 0;
-let playing = false;
-let lastT = 0;
-
-const LS_PIVOT_KEY = 'pivotTuner_prefixToPivot_v2';
-
-function loadPersistedPivot(prefix){
-  try{
-    const raw = localStorage.getItem(LS_PIVOT_KEY);
-    if(!raw) return null;
-    const obj = JSON.parse(raw);
-    return obj && obj[prefix] ? obj[prefix] : null;
-  }catch(e){ return null; }
-}
-function persistPrefixPivot(prefix, x, y){
-  try{
-    const p = prefix.trim();
-    if(!p) return {ok:false, reason:'empty prefix'};
-    const raw = localStorage.getItem(LS_PIVOT_KEY);
-    const obj = raw ? JSON.parse(raw) : {};
-    obj[p] = {x, y};
-    localStorage.setItem(LS_PIVOT_KEY, JSON.stringify(obj));
-    return {ok:true};
-  }catch(e){ return {ok:false, reason:String(e)}; }
-}
-
-function isHTMLLikely(s){
-  if(typeof s!=='string') return false;
-  const t = s.trim().toLowerCase();
-  return t.startsWith('<!doctype') || t.startsWith('<html') || t.includes('<head') || t.includes('<body');
-}
-
-async function fetchJsonSmart(url){
-  const res = await fetch(url, {cache:'no-store'});
-  const txt = await res.text();
-  if(!res.ok) throw new Error('HTTP ' + res.status + ' ' + res.statusText);
-  if(isHTMLLikely(txt)) throw new Error('Atlas URL returned HTML (경로 404/fallback 가능성 높음)');
-  return JSON.parse(txt);
-}
-
-function loadImage(url){
-  return new Promise((resolve,reject)=>{
-    const img = new Image();
-    img.onload = ()=>resolve(img);
-    img.onerror = ()=>reject(new Error('failed to load image: ' + url));
-    img.src = url;
-  });
-}
-
-async function loadAtlas(){
-  const url = $('atlasUrl').value.trim();
-  if(!url){ setStatus('ERR: atlasUrl empty'); return; }
-  setStatus('Loading atlas JSON...');
-  atlasData = await fetchJsonSmart(url);
-  basePath = dirname(url);
-
-  // load multipack textures
-  textures = [];
-  setStatus('Loading textures...');
-  for(const tex of (atlasData.textures||[])){
-    const texName = tex.image;
-    const texUrl = texName.startsWith('http') ? texName : basePath + texName;
-    const img = await loadImage(texUrl);
-    textures.push({img, name: texName});
+  function looksLikeHTML(s) {
+    if (!s) return false;
+    const head = String(s).trimStart().slice(0, 80).toLowerCase();
+    return head.startsWith('<!doctype') || head.startsWith('<html') || head.includes('<head') || head.includes('<body');
   }
-  setStatus('Loaded textures: ' + textures.length);
 
-  rebuildFramesByPrefix(true);
-  render();
-}
+  function baseDirFromUrl(url) {
+    const q = url.split('?')[0].split('#')[0];
+    const i = q.lastIndexOf('/');
+    if (i <= 0) return '';
+    return q.slice(0, i);
+  }
 
-function rebuildFramesByPrefix(resetPivotFromSaved){
-  frames = [];
-  if(!atlasData) return;
-  const prefix = $('prefix').value.trim();
-  const list = [];
-  (atlasData.textures||[]).forEach((tex, texIndex)=>{
-    (tex.frames||[]).forEach(fr=>{
-      const name = fr.filename;
-      if(!prefix || name.startsWith(prefix)){
-        list.push({
-          name,
-          texIndex,
-          frame: fr.frame,
-          rotated: !!fr.rotated,
-          sourceSize: fr.sourceSize,
-          spriteSourceSize: fr.spriteSourceSize,
-          anchor: fr.anchor ? {x: fr.anchor.x, y: fr.anchor.y} : {x:0.5,y:0.5},
-          _ref: fr
-        });
+  function joinUrl(base, rel) {
+    if (!base) return rel;
+    if (!rel) return base;
+    const b = base.endsWith('/') ? base.slice(0, -1) : base;
+    if (rel.startsWith('/')) return b + rel;
+    return b + '/' + rel;
+  }
+
+  function isPlainObject(x) {
+    return x && typeof x === 'object' && !Array.isArray(x);
+  }
+
+  function toRect(r) {
+    if (!r) return { x: 0, y: 0, w: 0, h: 0 };
+    // TP usually uses {x,y,w,h}
+    const x = Number(r.x || 0);
+    const y = Number(r.y || 0);
+    const w = Number(r.w ?? r.width ?? 0);
+    const h = Number(r.h ?? r.height ?? 0);
+    return { x, y, w, h };
+  }
+
+  function toSize(s) {
+    if (!s) return { w: 0, h: 0 };
+    const w = Number(s.w ?? s.width ?? 0);
+    const h = Number(s.h ?? s.height ?? 0);
+    return { w, h };
+  }
+
+  function toSpriteSourceSize(ss, fallbackW, fallbackH) {
+    if (!ss) return { x: 0, y: 0, w: fallbackW, h: fallbackH };
+    const x = Number(ss.x || 0);
+    const y = Number(ss.y || 0);
+    const w = Number(ss.w ?? ss.width ?? fallbackW);
+    const h = Number(ss.h ?? ss.height ?? fallbackH);
+    return { x, y, w, h };
+  }
+
+  function normalizeFrameCommon(filename, fr, texIndex) {
+    const frame = toRect(fr.frame || fr);
+    const rotated = !!fr.rotated;
+    const trimmed = !!fr.trimmed;
+    const sourceSize = toSize(fr.sourceSize);
+    const spriteSourceSize = toSpriteSourceSize(fr.spriteSourceSize, frame.w, frame.h);
+    const pivot = fr.pivot || fr.anchor || null; // TP uses pivot, some tools use anchor
+    return {
+      name: filename,
+      texIndex,
+      frame,
+      rotated,
+      trimmed,
+      sourceSize,
+      spriteSourceSize,
+      pivot, // {x,y} normalized (0..1) in sourceSize space
+    };
+  }
+
+  function parseTP(data) {
+    // Returns { textures: [{image, frames: [frameObj]}] }
+    if (!data) throw new Error('Invalid atlas JSON (empty).');
+
+    // Multi pack: { textures:[{image, frames:[...]}] }
+    if (Array.isArray(data.textures)) {
+      const textures = data.textures.map((t) => ({
+        image: t.image,
+        frames: Array.isArray(t.frames) ? t.frames : [],
+      }));
+      return { textures };
+    }
+
+    // Hash format: { frames: {name:{frame...}, ...}, meta:{image:"x.png"} }
+    if (isPlainObject(data.frames)) {
+      const image = data.meta && data.meta.image ? data.meta.image : (data.image || null);
+      if (!image) throw new Error('TP hash atlas missing meta.image');
+      const framesArr = Object.entries(data.frames).map(([name, fr]) => {
+        const obj = Object.assign({ filename: name }, fr);
+        return obj;
+      });
+      return { textures: [{ image, frames: framesArr }] };
+    }
+
+    // Array frames format: { frames:[{filename,...}], meta:{image:"x.png"} }
+    if (Array.isArray(data.frames)) {
+      const image = data.meta && data.meta.image ? data.meta.image : (data.image || null);
+      if (!image) throw new Error('TP frames[] atlas missing meta.image');
+      return { textures: [{ image, frames: data.frames }] };
+    }
+
+    throw new Error('Unsupported atlas JSON shape (need textures[] or frames).');
+  }
+
+  function loadImage(src) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      // Safe default for canvas use; same-origin still works.
+      img.crossOrigin = 'anonymous';
+      img.decoding = 'async';
+      img.onload = () => resolve(img);
+      img.onerror = () => reject(new Error('Image load failed: ' + src));
+      img.src = src;
+    });
+  }
+
+  async function loadTPAtlasMulti(jsonUrl, baseDirOpt = null) {
+    const resp = await fetch(jsonUrl, { cache: 'no-store' });
+    const text = await resp.text();
+    if (!resp.ok) throw new Error(`Atlas JSON fetch failed: ${jsonUrl} (HTTP ${resp.status})`);
+    if (looksLikeHTML(text)) throw new Error(`Atlas URL returned HTML (likely SPA fallback): ${jsonUrl}`);
+    const trimmed = text.trimStart();
+    if (!trimmed || (trimmed[0] !== '{' && trimmed[0] !== '[')) throw new Error(`Atlas JSON is not JSON: ${jsonUrl}`);
+    let raw;
+    try { raw = JSON.parse(text); } catch (e) { throw new Error(`Invalid JSON at ${jsonUrl}: ${e.message}`); }
+
+    const parsed = parseTP(raw);
+    const baseDir = baseDirOpt || baseDirFromUrl(jsonUrl);
+
+    // Load images
+    const textures = [];
+    for (let i = 0; i < parsed.textures.length; i++) {
+      const t = parsed.textures[i];
+      if (!t.image) throw new Error(`TP atlas missing textures[${i}].image`);
+      const src = joinUrl(baseDir, t.image);
+      const img = await loadImage(src);
+      textures.push({ image: t.image, src, img });
+    }
+
+    // Frames map
+    const frames = new Map();
+    const framesByName = Object.create(null);
+
+    parsed.textures.forEach((t, texIndex) => {
+      const arr = Array.isArray(t.frames) ? t.frames : [];
+      for (const fr of arr) {
+        const filename = fr.filename || fr.name;
+        if (!filename) continue;
+        const frameObj = normalizeFrameCommon(filename, fr, texIndex);
+        frames.set(filename, frameObj);
+        framesByName[filename] = frameObj;
       }
     });
-  });
 
-  list.sort((a,b)=>{
-    const na = extractTrailingNumber(a.name);
-    const nb = extractTrailingNumber(b.name);
-    if(na!=null && nb!=null) return na-nb;
-    if(na!=null && nb==null) return -1;
-    if(na==null && nb!=null) return 1;
-    return a.name.localeCompare(b.name);
-  });
+    const atlas = {
+      version: VERSION,
+      jsonUrl,
+      baseDir,
+      textures,          // [{image, src, img}]
+      frames,            // Map(name -> frameObj)
+      framesByName,      // plain object alias
+      _rotCache: new Map()
+    };
 
-  frames = list;
-  cur = 0;
+    return atlas;
+  }
 
-  if(resetPivotFromSaved){
-    const saved = loadPersistedPivot(prefix);
-    if(saved){
-      $('pivotX').value = clamp01(saved.x);
-      $('pivotY').value = clamp01(saved.y);
+  // Alias (single-sheet is still supported by loadTPAtlasMulti)
+  async function loadTPAtlas(jsonUrl, baseDirOpt = null) {
+    return loadTPAtlasMulti(jsonUrl, baseDirOpt);
+  }
+
+  function trailingNumber(name) {
+    // Pick last run of digits before extension
+    const m = String(name).match(/(\d+)(?:\.[^./\\]+)?$/);
+    return m ? parseInt(m[1], 10) : NaN;
+  }
+
+  function listFramesByPrefix(atlas, prefix, opts = {}) {
+    const { sort = true } = opts;
+    if (!atlas || !atlas.frames) return [];
+    const out = [];
+    for (const k of atlas.frames.keys()) {
+      if (k.startsWith(prefix)) out.push(k);
     }
-  }
-  setStatus('Frames: ' + frames.length + (prefix? (' (prefix: ' + prefix + ')') : ''));
-}
-
-function buildUntrimmedCanvas(f){
-  const fullW = f.sourceSize?.w ?? f.frame.w;
-  const fullH = f.sourceSize?.h ?? f.frame.h;
-
-  const off = document.createElement('canvas');
-  off.width = fullW;
-  off.height = fullH;
-  const octx = off.getContext('2d');
-
-  const tex = textures[f.texIndex]?.img;
-  if(!tex) return {canvas:off, w:fullW, h:fullH};
-
-  const fr = f.frame;
-  const ss = f.spriteSourceSize ?? {x:0,y:0,w:fr.w,h:fr.h};
-
-  if(f.rotated){
-    // rotated frame: draw to temp, rotate into untrimmed
-    const tmp = document.createElement('canvas');
-    tmp.width = fr.h;
-    tmp.height = fr.w;
-    const tctx = tmp.getContext('2d');
-    tctx.drawImage(tex, fr.x, fr.y, fr.w, fr.h, 0, 0, fr.h, fr.w);
-
-    octx.save();
-    octx.translate(ss.x + ss.w/2, ss.y + ss.h/2);
-    octx.rotate(-Math.PI/2);
-    octx.drawImage(tmp, -ss.h/2, -ss.w/2, ss.h, ss.w);
-    octx.restore();
-  }else{
-    octx.drawImage(tex, fr.x, fr.y, fr.w, fr.h, ss.x, ss.y, fr.w, fr.h);
+    if (sort) {
+      out.sort((a, b) => {
+        const na = trailingNumber(a), nb = trailingNumber(b);
+        if (!Number.isNaN(na) && !Number.isNaN(nb)) return na - nb;
+        return a.localeCompare(b);
+      });
+    }
+    return out;
   }
 
-  return {canvas:off, w:fullW, h:fullH};
-}
+  function applyPivotByPrefix(atlas, prefix, pivot) {
+    if (!atlas || !atlas.frames) return 0;
+    let n = 0;
+    for (const [k, fr] of atlas.frames.entries()) {
+      if (!k.startsWith(prefix)) continue;
+      fr.pivot = { x: pivot.x, y: pivot.y };
+      atlas.framesByName[k] = fr;
+      n++;
+    }
+    return n;
+  }
 
-// -------- Game placement math (from game.js) --------
-function computeIsoConsts(){
-  const TILE = numOr('TILE',128);
-  const ISO_X = TILE/2;
-  const ISO_Y = TILE/4;
-  return {TILE, ISO_X, ISO_Y};
-}
-function worldToIso(wx, wy, TILE, ISO_X, ISO_Y){
-  return { x: (wx - wy) * (ISO_X / TILE), y: (wx + wy) * (ISO_Y / TILE) };
-}
-function worldToScreen(wx, wy, opt){
-  const {TILE, ISO_X, ISO_Y} = opt;
-  const iso = worldToIso(wx, wy, TILE, ISO_X, ISO_Y);
+  function getFrameBounds(atlas, frameName) {
+    const fr = atlas && atlas.frames ? atlas.frames.get(frameName) : null;
+    if (!fr) return null;
+    const sw = fr.sourceSize.w || fr.frame.w;
+    const sh = fr.sourceSize.h || fr.frame.h;
+    const px = fr.pivot ? fr.pivot.x : 0.5;
+    const py = fr.pivot ? fr.pivot.y : 0.5;
+    return {
+      sourceW: sw,
+      sourceH: sh,
+      pivotX: px,
+      pivotY: py,
+      trimX: fr.spriteSourceSize.x,
+      trimY: fr.spriteSourceSize.y,
+      trimW: fr.spriteSourceSize.w,
+      trimH: fr.spriteSourceSize.h,
+    };
+  }
 
-  // camera in tiles -> world pixels
-  const camWX = opt.camTX * TILE;
-  const camWY = opt.camTY * TILE;
-  const camIso = worldToIso(camWX, camWY, TILE, ISO_X, ISO_Y);
+  function getRotatedCanvas(atlas, fr) {
+    const key = `${fr.texIndex}:${fr.name}`;
+    if (atlas._rotCache.has(key)) return atlas._rotCache.get(key);
+    const tex = atlas.textures[fr.texIndex];
+    const img = tex.img;
+    const { x: sx, y: sy, w: sw, h: sh } = fr.frame;
+    // If rotated, TP packed the sprite rotated 90deg clockwise. Undo by rotating -90.
+    const c = document.createElement('canvas');
+    c.width = sh;
+    c.height = sw;
+    const cctx = c.getContext('2d');
+    cctx.save();
+    cctx.translate(0, c.height);
+    cctx.rotate(-Math.PI / 2);
+    cctx.drawImage(img, sx, sy, sw, sh, 0, 0, sw, sh);
+    cctx.restore();
+    atlas._rotCache.set(key, c);
+    return c;
+  }
 
-  return {
-    x: (iso.x - camIso.x) * opt.zoom + opt.baseX,
-    y: (iso.y - camIso.y) * opt.zoom + opt.baseY
-  };
-}
+  // Draw frame so that (x,y) is the pivot point in world space.
+  function drawFrame(ctx, atlas, frameName, x, y, opts = {}) {
+    if (!ctx || !atlas || !atlas.frames) return false;
+    const fr = atlas.frames.get(frameName);
+    if (!fr) return false;
 
-function drawCross(x,y, size, color){
-  ctx.save();
-  ctx.strokeStyle = color;
-  ctx.lineWidth = 1;
-  ctx.beginPath();
-  ctx.moveTo(x-size, y);
-  ctx.lineTo(x+size, y);
-  ctx.moveTo(x, y-size);
-  ctx.lineTo(x, y+size);
-  ctx.stroke();
-  ctx.restore();
-}
+    const scale = Number(opts.scale ?? 1);
+    const alpha = Number(opts.alpha ?? 1);
 
-function drawTileDiamondAt(cx, cy, TILE, zoom){
-  const w = TILE * zoom;
-  const h = (TILE/2) * zoom;
-  ctx.beginPath();
-  ctx.moveTo(cx, cy - h/2);
-  ctx.lineTo(cx + w/2, cy);
-  ctx.lineTo(cx, cy + h/2);
-  ctx.lineTo(cx - w/2, cy);
-  ctx.closePath();
-  ctx.stroke();
-}
+    const tex = atlas.textures[fr.texIndex];
+    const img = tex.img;
 
-function drawFootprintOverlay(opt){
-  const {TILE} = opt;
-  const zoom = opt.zoom;
-  const tx = opt.bTX, ty = opt.bTY, tw = opt.bTW, th = opt.bTH;
+    // Original (untrimmed) size
+    const origW = fr.sourceSize.w || (fr.rotated ? fr.frame.h : fr.frame.w);
+    const origH = fr.sourceSize.h || (fr.rotated ? fr.frame.w : fr.frame.h);
 
-  if($('showTiles').checked){
+    const pivot = opts.pivot || fr.pivot || { x: 0.5, y: 0.5 };
+    const px = pivot.x ?? 0.5;
+    const py = pivot.y ?? 0.5;
+
+    const trimX = fr.spriteSourceSize.x || 0;
+    const trimY = fr.spriteSourceSize.y || 0;
+
+    // Dest top-left for the trimmed rectangle
+    const dx = x - px * origW * scale + trimX * scale;
+    const dy = y - py * origH * scale + trimY * scale;
+
     ctx.save();
-    ctx.globalAlpha = 0.65;
-    ctx.strokeStyle = 'rgba(100,170,255,0.85)';
-    ctx.lineWidth = 1;
+    ctx.globalAlpha = ctx.globalAlpha * alpha;
 
-    for(let y=0;y<th;y++){
-      for(let x=0;x<tw;x++){
-        const wx = (tx + x + 0.5) * TILE;
-        const wy = (ty + y + 0.5) * TILE;
-        const p = worldToScreen(wx, wy, opt);
-        drawTileDiamondAt(p.x, p.y, TILE, zoom);
-      }
+    if (!fr.rotated) {
+      const { x: sx, y: sy, w: sw, h: sh } = fr.frame;
+      ctx.drawImage(img, sx, sy, sw, sh, dx, dy, sw * scale, sh * scale);
+    } else {
+      // Use cached un-rotated trimmed canvas
+      const c = getRotatedCanvas(atlas, fr);
+      ctx.drawImage(c, 0, 0, c.width, c.height, dx, dy, c.width * scale, c.height * scale);
     }
+
     ctx.restore();
+    return true;
   }
 
-  if($('showOutline').checked){
-    const nw = worldToScreen((tx)*TILE, (ty)*TILE, opt);
-    const ne = worldToScreen((tx+tw)*TILE, (ty)*TILE, opt);
-    const se = worldToScreen((tx+tw)*TILE, (ty+th)*TILE, opt);
-    const sw = worldToScreen((tx)*TILE, (ty+th)*TILE, opt);
+  // Export API
+  PO.atlasTP.version = VERSION;
+  PO.atlasTP.loadTPAtlasMulti = loadTPAtlasMulti;
+  PO.atlasTP.loadTPAtlas = loadTPAtlas;
+  PO.atlasTP.drawFrame = drawFrame;
+  PO.atlasTP.getFrameBounds = getFrameBounds;
+  PO.atlasTP.listFramesByPrefix = listFramesByPrefix;
+  PO.atlasTP.applyPivotByPrefix = applyPivotByPrefix;
 
+  // Back-compat aliases (older patches expect loadAtlasTP*)
+  PO.atlasTP.loadAtlasTP = loadTPAtlas;
+  PO.atlasTP.loadAtlasTPMulti = loadTPAtlasMulti;
+
+  console.log(`[atlas_tp:v${VERSION}] ready`);
+})();
+
+</script>
+
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+
+  const cv = $('cv');
+  const ctx = cv.getContext('2d', { alpha:true });
+
+  let dpr = Math.max(1, window.devicePixelRatio || 1);
+  let atlas = null;
+  let framesByPrefix = new Map(); // prefix -> [frameNames]
+  let curPrefix = '';
+  let curFrame = '';
+  let playing = false;
+  let tPrev = performance.now();
+  let acc = 0;
+  let frameIdx = 0;
+  let lastDrawAt = 0;
+  let lastErr = '';
+
+  function setStatus(msg, kind='ok') {
+    const el = $('loadStatus');
+    el.textContent = msg;
+    el.classList.toggle('bad', kind==='bad');
+    el.classList.toggle('ok', kind==='ok');
+  }
+
+  function setHud() {
+    const w = Math.round(cv.width / dpr);
+    const h = Math.round(cv.height / dpr);
+    $('hudCanvas').textContent = `canvas: ${w}x${h} (dpr=${dpr.toFixed(2)})`;
+    $('hudAtlas').textContent = atlas ? `atlas: ${curPrefix || '-'}` : 'atlas: -';
+    $('hudDraw').textContent = `draw: ${new Date(lastDrawAt).toLocaleTimeString()}`;
+  }
+
+  function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
+
+  function parseNum(id, def=0) {
+    const v = parseFloat($(id).value);
+    return Number.isFinite(v) ? v : def;
+  }
+
+  function resizeCanvas() {
+    const r = $('right').getBoundingClientRect();
+    const cssW = Math.max(2, Math.floor(r.width));
+    const cssH = Math.max(2, Math.floor(r.height));
+    dpr = Math.max(1, window.devicePixelRatio || 1);
+
+    const wantW = Math.floor(cssW * dpr);
+    const wantH = Math.floor(cssH * dpr);
+
+    if (cv.width !== wantW || cv.height !== wantH) {
+      cv.width = wantW;
+      cv.height = wantH;
+      cv.style.width = cssW + 'px';
+      cv.style.height = cssH + 'px';
+    }
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    setHud();
+  }
+
+  function bootResizeObservers() {
+    // 1) flex 레이아웃/DevTools dock 변화 대응
+    const ro = new ResizeObserver(() => {
+      resizeCanvas();
+      render();
+    });
+    ro.observe($('right'));
+
+    // 2) 브라우저 리사이즈 대응
+    window.addEventListener('resize', () => {
+      resizeCanvas();
+      render();
+    }, { passive:true });
+
+    // 3) 첫 페인트 이후에 한 번 더 (초기 300x150 방지)
+    requestAnimationFrame(() => {
+      resizeCanvas();
+      render();
+    });
+    setTimeout(() => {
+      resizeCanvas();
+      render();
+    }, 60);
+  }
+
+  function makePrefixesFromAtlas(atlasObj) {
+    const map = new Map();
+    const names = Array.from(atlasObj.frames.keys());
+    for (const name of names) {
+      // prefix heuristic: up to last '_' or last digit run
+      let p = name;
+      const under = name.lastIndexOf('_');
+      if (under !== -1) p = name.slice(0, under);
+      // Special: barrack_idle1.png -> barrack_idle
+      p = p.replace(/\d+\.png$/i, '.png');
+      p = p.replace(/\.png$/i, '');
+      if (!map.has(p)) map.set(p, []);
+      map.get(p).push(name);
+    }
+    for (const [k, arr] of map.entries()) {
+      arr.sort((a,b) => a.localeCompare(b, undefined, {numeric:true}));
+    }
+    return map;
+  }
+
+  function setPrefix(prefix) {
+    curPrefix = prefix;
+    const list = framesByPrefix.get(prefix) || [];
+    const sel = $('frameSel');
+    sel.innerHTML = '';
+    for (const f of list) {
+      const opt = document.createElement('option');
+      opt.value = f; opt.textContent = f;
+      sel.appendChild(opt);
+    }
+    curFrame = list[0] || '';
+    frameIdx = 0;
+    if (curFrame) sel.value = curFrame;
+    $('prefixSel').value = prefix;
+    render();
+  }
+
+  function setFrame(name) {
+    curFrame = name;
+    const list = framesByPrefix.get(curPrefix) || [];
+    frameIdx = Math.max(0, list.indexOf(name));
+    $('frameSel').value = name;
+    render();
+  }
+
+  function refreshSelectors() {
+    const pSel = $('prefixSel');
+    pSel.innerHTML = '';
+    const prefixes = Array.from(framesByPrefix.keys()).sort((a,b)=>a.localeCompare(b, undefined, {numeric:true}));
+    for (const p of prefixes) {
+      const opt = document.createElement('option');
+      opt.value = p; opt.textContent = p;
+      pSel.appendChild(opt);
+    }
+    // choose barrack first if exists
+    const prefer = prefixes.find(p => /barrack/i.test(p)) || prefixes[0] || '';
+    if (prefer) setPrefix(prefer);
+  }
+
+  async function loadAtlasFromURL(url) {
+    setStatus('Loading atlas...', 'ok');
+    lastErr = '';
+    try {
+      const a = await window.PO.atlasTP.loadTPAtlasMulti(url);
+      atlas = a;
+      framesByPrefix = makePrefixesFromAtlas(a);
+
+      refreshSelectors();
+      setStatus(`Loaded: ${a.frames.size} frames, ${a.textures.length} texture(s).`, 'ok');
+      setHud();
+    } catch (e) {
+      lastErr = String(e && e.message ? e.message : e);
+      setStatus('Load failed: ' + lastErr, 'bad');
+      console.error(e);
+      atlas = null;
+      framesByPrefix = new Map();
+      $('prefixSel').innerHTML = '';
+      $('frameSel').innerHTML = '';
+      setHud();
+    }
+  }
+
+  function getIsoConsts() {
+    return {
+      TILE: parseNum('tile', 128),
+      ISO_X: parseNum('isoX', 64),
+      ISO_Y: parseNum('isoY', 32),
+    };
+  }
+
+  function gameWorldToIso(wx, wy, iso) {
+    // game.js: isoX = (wx - wy) / TILE; isoY = (wx + wy) / TILE;
+    return {
+      x: (wx - wy) / iso.TILE,
+      y: (wx + wy) / iso.TILE
+    };
+  }
+
+  function gameWorldToScreen(wx, wy, cam, iso, baseX, baseY) {
+    // game.js:
+    // ix,iy = worldToIso(wx,wy)
+    // sx = (ix - iy) * ISO_X * zoom + baseX - cam.x*zoom
+    // sy = (ix + iy) * ISO_Y * zoom + baseY - cam.y*zoom
+    const i = gameWorldToIso(wx, wy, iso);
+    const sx = (i.x - i.y) * iso.ISO_X * cam.zoom + baseX - cam.x * cam.zoom;
+    const sy = (i.x + i.y) * iso.ISO_Y * cam.zoom + baseY - cam.y * cam.zoom;
+    return { x:sx, y:sy };
+  }
+
+  function tileAnchorToWorld(tx, ty, tw, th, mode, iso) {
+    // 타일 좌표 → 월드(px) 기준.
+    // 기준: 타일 좌상단을 (tx,ty)로 본다.
+    // center: footprint 중심
+    // south: footprint 하단 중앙
+    let ax = tx;
+    let ay = ty;
+    if (mode === 'center') {
+      ax = tx + (tw * 0.5);
+      ay = ty + (th * 0.5);
+    } else if (mode === 'south') {
+      ax = tx + (tw * 0.5);
+      ay = ty + th;
+    }
+    // world px
+    return { x: ax * iso.TILE, y: ay * iso.TILE };
+  }
+
+  function drawCross(x, y) {
     ctx.save();
-    ctx.globalAlpha = 0.9;
-    ctx.strokeStyle = 'rgba(0,255,160,0.85)';
     ctx.lineWidth = 2;
+    ctx.strokeStyle = 'rgba(121,167,255,.95)';
     ctx.beginPath();
-    ctx.moveTo(nw.x, nw.y);
-    ctx.lineTo(ne.x, ne.y);
-    ctx.lineTo(se.x, se.y);
-    ctx.lineTo(sw.x, sw.y);
-    ctx.closePath();
+    ctx.moveTo(x-14, y); ctx.lineTo(x+14, y);
+    ctx.moveTo(x, y-14); ctx.lineTo(x, y+14);
     ctx.stroke();
     ctx.restore();
   }
-}
 
-function computeAnchorScreen(opt){
-  const {TILE} = opt;
-  const tx = opt.bTX, ty = opt.bTY, tw = opt.bTW, th = opt.bTH;
-  const mode = $('anchorMode').value;
+  function drawFootprintOverlay(iso, cam) {
+    if (!$('showGrid').checked && !$('showFoot').checked) return;
 
-  let wx, wy;
-  if(mode==='center'){
-    wx = (tx + tw*0.5) * TILE;
-    wy = (ty + th*0.5) * TILE;
-  }else if(mode==='southEdge'){
-    wx = (tx + tw*0.5) * TILE;
-    wy = (ty + th) * TILE;
-  }else if(mode==='customWorld'){
-    wx = numOr('customWX',0) * TILE;
-    wy = numOr('customWY',0) * TILE;
-  }else{ // southCorner
-    wx = (tx + tw) * TILE;
-    wy = (ty + th) * TILE;
-  }
-  return worldToScreen(wx, wy, opt);
-}
+    const w = cv.width / dpr;
+    const h = cv.height / dpr;
+    const baseX = w * 0.5;
+    const baseY = h * clamp(parseNum('baseYRatio', 0.22), 0, 1);
 
-// -------- Render --------
-function render(){
-  const r = $('right').getBoundingClientRect();
-  ctx.clearRect(0,0,r.width,r.height);
+    const tw = parseNum('fpW', 3), th = parseNum('fpH', 2);
+    const tx = parseNum('bTX', 0), ty = parseNum('bTY', 0);
 
-  const baseX = r.width/2;
-  const baseY = r.height/2;
-
-  const useGame = $('useGame').checked;
-
-  let anchor = {x:baseX, y:baseY};
-  let overlayInfo = '';
-  if(useGame){
-    const {TILE, ISO_X, ISO_Y} = computeIsoConsts();
-    const camZoom = numOr('camZoom',1);
-    const camTX = numOr('camTX',0);
-    const camTY = numOr('camTY',0);
-    const bTX = numOr('bTX',0);
-    const bTY = numOr('bTY',0);
-    const bTW = numOr('bTW',3);
-    const bTH = numOr('bTH',2);
-
-    const opt = {TILE, ISO_X, ISO_Y, zoom:camZoom, camTX, camTY, baseX, baseY, bTX, bTY, bTW, bTH};
-
-    // footprint + anchor
-    drawFootprintOverlay(opt);
-    anchor = computeAnchorScreen(opt);
-
-    // draw anchor cross
-    drawCross(anchor.x, anchor.y, 10, 'rgba(255,255,255,0.9)');
-    drawCross(anchor.x, anchor.y, 20, 'rgba(255,120,0,0.7)');
-
-    overlayInfo = `TILE=${TILE} ISO_X=${ISO_X} ISO_Y=${ISO_Y} camZoom=${camZoom} camTile=(${camTX},${camTY})\n` +
-                  `bTile=(${bTX},${bTY}) footprint=(${bTW}x${bTH}) anchorMode=${$('anchorMode').value} anchorScreen=(${anchor.x.toFixed(1)},${anchor.y.toFixed(1)})`;
-  }else{
-    // legacy: center diamond footprint
-    const tileW = 128;
-    const tileH = 64;
-    const tilesX = numOr('bTW',3);
-    const tilesY = numOr('bTH',2);
+    // 그리드: 화면에 보이는 대략 범위만 그려도 되지만, 여기선 간단히 주변만
+    const showGrid = $('showGrid').checked;
+    const showFoot = $('showFoot').checked;
 
     ctx.save();
-    ctx.globalAlpha = 0.75;
-    ctx.strokeStyle = 'rgba(100,170,255,0.85)';
     ctx.lineWidth = 1;
-    for(let y=0;y<tilesY;y++){
-      for(let x=0;x<tilesX;x++){
-        const ox = (x - y) * (tileW/2);
-        const oy = (x + y) * (tileH/2);
-        ctx.beginPath();
-        ctx.moveTo(baseX + ox, baseY + oy - tileH/2);
-        ctx.lineTo(baseX + ox + tileW/2, baseY + oy);
-        ctx.lineTo(baseX + ox, baseY + oy + tileH/2);
-        ctx.lineTo(baseX + ox - tileW/2, baseY + oy);
-        ctx.closePath();
-        ctx.stroke();
+    ctx.globalAlpha = 0.9;
+
+    const range = 18; // 화면에 보이는 정도만
+    for (let y = -range; y <= range; y++) {
+      for (let x = -range; x <= range; x++) {
+        const wx = (x + cam.tileX) * iso.TILE;
+        const wy = (y + cam.tileY) * iso.TILE;
+        const p = gameWorldToScreen(wx, wy, cam, iso, baseX, baseY);
+
+        const dx = iso.ISO_X * cam.zoom;
+        const dy = iso.ISO_Y * cam.zoom;
+
+        if (showGrid) {
+          ctx.strokeStyle = 'rgba(70,160,255,.18)';
+          ctx.beginPath();
+          ctx.moveTo(p.x, p.y - dy);
+          ctx.lineTo(p.x + dx, p.y);
+          ctx.lineTo(p.x, p.y + dy);
+          ctx.lineTo(p.x - dx, p.y);
+          ctx.closePath();
+          ctx.stroke();
+        }
       }
     }
+
+    if (showFoot) {
+      // 풋프린트 외곽선만
+      ctx.strokeStyle = 'rgba(108,255,176,.65)';
+      ctx.lineWidth = 2;
+
+      // outline corners in tile coords
+      const corners = [
+        [tx, ty],
+        [tx + tw, ty],
+        [tx + tw, ty + th],
+        [tx, ty + th],
+      ];
+
+      const pts = corners.map(([cx,cy]) => {
+        const wpos = {x:cx*iso.TILE, y:cy*iso.TILE};
+        return gameWorldToScreen(wpos.x, wpos.y, cam, iso, baseX, baseY);
+      });
+
+      ctx.beginPath();
+      // diamond-ish polygon in screen using tile corners mapping (not perfect rectangle, but good for anchor)
+      // draw edges by walking corners in order
+      ctx.moveTo(pts[0].x, pts[0].y);
+      ctx.lineTo(pts[1].x, pts[1].y);
+      ctx.lineTo(pts[2].x, pts[2].y);
+      ctx.lineTo(pts[3].x, pts[3].y);
+      ctx.closePath();
+      ctx.stroke();
+    }
+
+    ctx.restore();
+  }
+
+  function render() {
+    // Ensure size is sane
+    if (cv.width < 10 || cv.height < 10) resizeCanvas();
+
+    const w = cv.width / dpr;
+    const h = cv.height / dpr;
+
+    ctx.clearRect(0, 0, w, h);
+
+    // subtle vignette
+    ctx.save();
+    const g = ctx.createRadialGradient(w*0.55, h*0.45, 40, w*0.55, h*0.45, Math.max(w,h)*0.9);
+    g.addColorStop(0, 'rgba(255,255,255,0.02)');
+    g.addColorStop(1, 'rgba(0,0,0,0.14)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0,0,w,h);
     ctx.restore();
 
-    anchor = {x:baseX, y:baseY};
-    drawCross(anchor.x, anchor.y, 10, 'rgba(255,255,255,0.9)');
-    overlayInfo = 'Legacy overlay: anchor at canvas center';
-  }
+    const iso = getIsoConsts();
+    const cam = {
+      tileX: parseNum('camTX', 0),
+      tileY: parseNum('camTY', 0),
+      x: parseNum('camTX', 0) * iso.TILE, // world px
+      y: parseNum('camTY', 0) * iso.TILE, // world px
+      zoom: parseNum('camZoom', 1),
+    };
 
-  if(!frames.length){
-    $('out').value = overlayInfo;
-    return;
-  }
+    const baseX = w * 0.5;
+    const baseY = h * clamp(parseNum('baseYRatio', 0.22), 0, 1);
 
-  const f = frames[cur];
-  const scale = numOr('scale',0.14) * (useGame ? numOr('camZoom',1) : 1);
-  const px = clamp01($('pivotX').value);
-  const py = clamp01($('pivotY').value);
+    drawFootprintOverlay(iso, cam);
 
-  const {canvas, w, h} = buildUntrimmedCanvas(f);
-  const drawW = w * scale;
-  const drawH = h * scale;
+    // draw sprite at anchor
+    if (atlas && curFrame) {
+      const tw = parseNum('fpW', 3), th = parseNum('fpH', 2);
+      const tx = parseNum('bTX', 0), ty = parseNum('bTY', 0);
+      const mode = $('anchorMode').value;
 
-  // pivot point aligns to computed anchor
-  const dx = anchor.x - (px * drawW);
-  const dy = anchor.y - (py * drawH);
+      const worldAnchor = tileAnchorToWorld(tx, ty, tw, th, mode, iso);
+      const screenAnchor = gameWorldToScreen(worldAnchor.x, worldAnchor.y, cam, iso, baseX, baseY);
 
-  // draw sprite
-  ctx.save();
-  ctx.imageSmoothingEnabled = true;
-  ctx.globalAlpha = 1;
-  ctx.drawImage(canvas, dx, dy, drawW, drawH);
-  ctx.restore();
-
-  // label
-  ctx.save();
-  ctx.fillStyle = 'rgba(230,238,252,0.95)';
-  ctx.font = '13px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace';
-  ctx.fillText(f.name, 14, 22);
-  ctx.restore();
-
-  // debug output
-  const pivotPx = (px * w);
-  const pivotPy = (py * h);
-  const tri = f.frame;
-  const ss = f.spriteSourceSize ?? {x:0,y:0,w:tri.w,h:tri.h};
-
-  $('out').value =
-    overlayInfo + '\n\n' +
-    `frame=${f.name}\n` +
-    `sourceSize=${w}x${h} pivot(norm)=(${px.toFixed(4)},${py.toFixed(4)}) pivot(px)=(${pivotPx.toFixed(1)},${pivotPy.toFixed(1)})\n` +
-    `trim(frame)=${tri.w}x${tri.h} @(${tri.x},${tri.y}) rotated=${!!f.rotated}\n` +
-    `spriteSourceSize=${ss.w}x${ss.h} @(${ss.x},${ss.y})\n` +
-    `suggest JSON anchor: {"x": ${px.toFixed(4)}, "y": ${py.toFixed(4)}}`;
-}
-
-function stepFrame(dir){
-  if(!frames.length) return;
-  cur = (cur + dir + frames.length) % frames.length;
-  render();
-}
-
-function tick(t){
-  if(!playing){ requestAnimationFrame(tick); return; }
-  const fps = Math.max(1, numOr('fps',20));
-  const dt = t - lastT;
-  const frameDur = 1000 / fps;
-  if(dt >= frameDur){
-    lastT = t;
-    stepFrame(1);
-  }
-  requestAnimationFrame(tick);
-}
-
-function applyPivotTo(names){
-  if(!atlasData) return;
-  const x = clamp01($('pivotX').value);
-  const y = clamp01($('pivotY').value);
-
-  const prefix = $('prefix').value;
-  const persist = persistPrefixPivot(prefix, x, y);
-
-  const nameSet = new Set(names);
-  let changed = 0;
-
-  (atlasData.textures||[]).forEach(tex=>{
-    (tex.frames||[]).forEach(fr=>{
-      if(nameSet.has(fr.filename)){
-        fr.anchor = {x, y};
-        changed++;
+      if ($('showAnchor').checked) {
+        drawCross(screenAnchor.x, screenAnchor.y);
       }
+
+      const sc = parseNum('scale', 0.14);
+      const pivot = {
+        x: parseNum('px', 0.5),
+        y: parseNum('py', 0.5),
+      };
+
+      // IMPORTANT: atlas_tp drawFrame expects x,y = pivot position in screen space.
+      // It will internally offset using spriteSourceSize/sourceSize.
+      window.PO.atlasTP.drawFrame(ctx, atlas, curFrame, screenAnchor.x, screenAnchor.y, {
+        scale: sc,
+        pivot,
+        debugDraw: $('showBounds').checked
+      });
+
+      // output
+      $('out').value = JSON.stringify({ x: +pivot.x.toFixed(4), y: +pivot.y.toFixed(4) });
+      $('pxVal').textContent = pivot.x.toFixed(4);
+      $('pyVal').textContent = pivot.y.toFixed(4);
+
+      const fr = atlas.frames.get(curFrame);
+      const ss = fr?.sourceSize || null;
+      const sss = fr?.spriteSourceSize || null;
+      $('debugLine').textContent =
+        `frame=${curFrame}  sourceSize=${ss?`${ss.w}x${ss.h}`:'?'}  spriteSourceSize=${sss?`x=${sss.x},y=${sss.y},w=${sss.w},h=${sss.h}`:'?'}`;
+    } else {
+      $('out').value = '';
+      $('debugLine').textContent = '';
+    }
+
+    lastDrawAt = Date.now();
+    setHud();
+  }
+
+  function tick(now) {
+    const fps = clamp(parseNum('fps', 20), 1, 60);
+    const dt = now - tPrev;
+    tPrev = now;
+    if (playing && atlas && curPrefix) {
+      acc += dt;
+      const stepMs = 1000 / fps;
+      if (acc >= stepMs) {
+        const list = framesByPrefix.get(curPrefix) || [];
+        if (list.length) {
+          frameIdx = (frameIdx + 1) % list.length;
+          curFrame = list[frameIdx];
+          $('frameSel').value = curFrame;
+        }
+        acc = 0;
+      }
+    }
+    render();
+    requestAnimationFrame(tick);
+  }
+
+  function applyPivotToPrefix() {
+    if (!atlas || !curPrefix) return;
+    const list = framesByPrefix.get(curPrefix) || [];
+    const pivot = { x: parseNum('px', 0.5), y: parseNum('py', 0.5) };
+    for (const name of list) {
+      const fr = atlas.frames.get(name);
+      if (!fr) continue;
+      fr.pivot = { x: pivot.x, y: pivot.y };
+      // also write back into original JSON-shaped fields if present
+      if (fr._rawFrame && typeof fr._rawFrame === 'object') {
+        fr._rawFrame.anchor = { x: pivot.x, y: pivot.y };
+      }
+    }
+    setStatus(`Applied pivot to prefix: ${curPrefix} (${list.length} frames)`, 'ok');
+  }
+
+  function downloadPatchedJSON() {
+    if (!atlas) return;
+    // Rebuild a TexturePacker-like JSON: we stored raw JSON in atlas._rawJson if atlas_tp kept it.
+    // atlas_tp.js doesn't keep raw, so we store a copy on load by fetching again.
+    // We'll do a safe approach: fetch current jsonUrl, patch "frames[*].anchor" for frames we touched.
+    const url = $('jsonUrl').value.trim();
+    if (!url) return;
+    (async () => {
+      try {
+        const resp = await fetch(url, { cache:'no-store' });
+        const txt = await resp.text();
+        if (window.PO.atlasTP && window.PO.atlasTP._looksLikeHTML && window.PO.atlasTP._looksLikeHTML(txt)) {
+          throw new Error('JSON URL returned HTML (404/fallback)');
+        }
+        const j = JSON.parse(txt);
+        const list = framesByPrefix.get(curPrefix) || [];
+        const pivot = { x: parseNum('px', 0.5), y: parseNum('py', 0.5) };
+        const setAnchor = (framesObj) => {
+          for (const nm of list) {
+            const fr = framesObj[nm];
+            if (fr) fr.anchor = { x:pivot.x, y:pivot.y };
+          }
+        };
+        if (j.frames) setAnchor(j.frames);
+        if (j.textures && Array.isArray(j.textures)) {
+          for (const tex of j.textures) {
+            if (tex.frames) setAnchor(tex.frames);
+          }
+        }
+        const blob = new Blob([JSON.stringify(j, null, 2)], { type:'application/json' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        const base = url.split('/').pop() || 'atlas.json';
+        a.download = base.replace(/\.json$/i,'') + '_patched.json';
+        a.click();
+        URL.revokeObjectURL(a.href);
+        setStatus('Downloaded patched JSON.', 'ok');
+      } catch (e) {
+        setStatus('Download failed: ' + String(e.message||e), 'bad');
+        console.error(e);
+      }
+    })();
+  }
+
+  // ---- wire UI ----
+  function bindUI() {
+    const bump = (id, delta) => {
+      const el = $(id);
+      el.value = String(clamp(parseNum(id, 0.5) + delta, 0, 1));
+      render();
+    };
+
+    $('btnLoad').addEventListener('click', () => loadAtlasFromURL($('jsonUrl').value.trim()));
+    $('btnReload').addEventListener('click', () => loadAtlasFromURL($('jsonUrl').value.trim()));
+
+    $('btnIdle').addEventListener('click', () => {
+      $('jsonUrl').value = '/asset/sprite/const/normal/barrack/barrack_idle.json';
     });
-  });
+    $('btnConst').addEventListener('click', () => {
+      $('jsonUrl').value = '/asset/sprite/const/const_anim/barrack/barrack_const.json';
+    });
+    $('btnDist').addEventListener('click', () => {
+      $('jsonUrl').value = '/asset/sprite/const/distruct/barrack/barrack_distruct.json';
+    });
 
-  const note = persist.ok ? ` + saved to localStorage (${LS_PIVOT_KEY})` : ` (not saved: ${persist.reason})`;
-  setStatus(`Applied pivot (${x.toFixed(4)},${y.toFixed(4)}) to ${changed} frame(s).` + note);
-}
+    $('prefixSel').addEventListener('change', (e) => setPrefix(e.target.value));
+    $('frameSel').addEventListener('change', (e) => setFrame(e.target.value));
 
-function applyCurrent(){
-  if(!frames.length) return;
-  applyPivotTo([frames[cur].name]);
-}
-function applyAll(){
-  if(!frames.length) return;
-  applyPivotTo(frames.map(f=>f.name));
-}
+    $('btnPlay').addEventListener('click', () => { playing = true; });
+    $('btnStop').addEventListener('click', () => { playing = false; });
 
-function downloadPatched(){
-  if(!atlasData) { setStatus('ERR: atlas not loaded'); return; }
-  const url = $('atlasUrl').value.trim();
-  const filename = (url.split('?')[0].split('/').pop() || 'atlas_patched.json');
-  const blob = new Blob([JSON.stringify(atlasData, null, 2)], {type:'application/json'});
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  setStatus('Downloaded patched JSON: ' + filename);
-}
+    $('px').addEventListener('input', render);
+    $('py').addEventListener('input', render);
 
-function copyJSOverride(){
-  const prefix = $('prefix').value.trim();
-  const x = clamp01($('pivotX').value);
-  const y = clamp01($('pivotY').value);
+    $('pxM').addEventListener('click', () => bump('px', -0.001));
+    $('pxP').addEventListener('click', () => bump('px', 0.001));
+    $('pyM').addEventListener('click', () => bump('py', -0.001));
+    $('pyP').addEventListener('click', () => bump('py', 0.001));
 
-  const snippet =
-`// paste into your atlas override map (prefix based)
-const PIVOT_OVERRIDES = {
-  "${prefix}": { x: ${x.toFixed(4)}, y: ${y.toFixed(4)} }
-};`;
-  navigator.clipboard.writeText(snippet).then(()=>{
-    setStatus('Copied JS override to clipboard.');
-  }).catch(()=>{
-    setStatus('ERR: clipboard write failed (브라우저 권한 확인)');
-  });
-}
+    $('btnApplyPrefix').addEventListener('click', () => { applyPivotToPrefix(); render(); });
+    $('btnDownload').addEventListener('click', downloadPatchedJSON);
 
-function toggleCustomWorld(){
-  $('customWorldRow').style.display = ($('anchorMode').value === 'customWorld') ? '' : 'none';
-}
+    // rerender on any numeric/control changes
+    const rerenderIds = ['fps','scale','tile','isoX','isoY','camTX','camTY','camZoom','fpW','fpH','bTX','bTY','anchorMode','baseYRatio','showGrid','showFoot','showAnchor','showBounds'];
+    for (const id of rerenderIds) {
+      $(id).addEventListener('input', render);
+      $(id).addEventListener('change', render);
+    }
+  }
 
-$('btnLoad').addEventListener('click', ()=>loadAtlas().catch(e=>setStatus('ERR: ' + e.message)));
-$('btnPlay').addEventListener('click', ()=>{
-  playing = !playing;
-  $('btnPlay').textContent = playing ? 'Pause' : 'Play';
-});
-$('btnPrev').addEventListener('click', ()=>stepFrame(-1));
-$('btnNext').addEventListener('click', ()=>stepFrame(1));
-$('btnApplyCur').addEventListener('click', ()=>applyCurrent());
-$('btnApplyAll').addEventListener('click', ()=>applyAll());
-$('btnDownload').addEventListener('click', ()=>downloadPatched());
-$('btnCopyJS').addEventListener('click', ()=>copyJSOverride());
+  // expose looksLikeHTML helper for download path check
+  // (atlas_tp.js does not export it, so we attach a tiny version)
+  if (!window.PO.atlasTP._looksLikeHTML) {
+    window.PO.atlasTP._looksLikeHTML = (s) => {
+      const t = String(s||'').trim().slice(0, 120).toLowerCase();
+      return t.startsWith('<!doctype') || t.startsWith('<html') || t.includes('<head') || t.includes('<body');
+    };
+  }
 
-$('prefix').addEventListener('change', ()=>{
-  rebuildFramesByPrefix(true);
-  render();
-});
+  function boot() {
+    bindUI();
+    bootResizeObservers();
+    resizeCanvas();
+    render();
+    requestAnimationFrame(tick);
+  }
 
-$('anchorMode').addEventListener('change', ()=>{
-  toggleCustomWorld();
-  render();
-});
-
-[
-  'pivotX','pivotY','fps','scale','useGame',
-  'TILE','camZoom','camTX','camTY','bTX','bTY','bTW','bTH',
-  'customWX','customWY','showTiles','showOutline'
-].forEach(id=>{
-  const el = $(id);
-  if(el) el.addEventListener('input', ()=>render());
-});
-
-resizeCanvas();
-toggleCustomWorld();
-render();
-requestAnimationFrame(tick);
+  if (document.readyState === 'loading') {
+    window.addEventListener('DOMContentLoaded', boot);
+  } else {
+    boot();
+  }
+})();
 </script>
 </body>
 </html>
