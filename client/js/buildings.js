@@ -37,7 +37,11 @@
 
   function forcePivotOnAtlas(atlas, pivot) {
     if (!atlas || !atlas.frames) return;
-    for (const fr of atlas.frames.values()) fr.pivot = pivot;
+    for (const fr of atlas.frames.values()) {
+      fr.pivot = pivot;
+      // Some tools/exports may keep this name around; harmless if unused.
+      fr.anchor = pivot;
+    }
   }
 
   function _getTeamTextureImg(atlasKey, atlas, texIndex, team) {
@@ -46,17 +50,42 @@
     const img = tex && tex.img;
     if (!img) return null;
 
-    // If palette tool isn't available yet, just return original.
-    if (typeof window._getTeamCroppedSprite !== "function") return img;
-
     const key = `${atlasKey}|${texIndex}|${team}`;
     const cached = st._teamTexCache.get(key);
     if (cached) return cached;
 
+    // Prefer the same palette swap algo as the rest of the game, if available.
+    // (It lives in game.js and is attached to window.applyTeamPaletteToImage)
+    const applyFn =
+      (typeof window.applyTeamPaletteToImage === "function" && window.applyTeamPaletteToImage) ||
+      (typeof window.replaceMagentaWithTeamColor === "function" && window.replaceMagentaWithTeamColor) ||
+      (typeof window.PO?.applyTeamPaletteToImage === "function" && window.PO.applyTeamPaletteToImage) ||
+      null;
+
+    if (!applyFn) {
+      st._teamTexCache.set(key, img);
+      return img;
+    }
+
     const w = img.naturalWidth || img.width;
     const h = img.naturalHeight || img.height;
-    const tinted = window._getTeamCroppedSprite(img, { x: 0, y: 0, w, h }, team) || img;
+    if (!w || !h) {
+      st._teamTexCache.set(key, img);
+      return img;
+    }
 
+    const acc = window.TEAM_ACCENT || { PLAYER: [48, 160, 255], ENEMY: [255, 80, 80], NEUTRAL: [200, 200, 200] };
+    const arr = (team === 0 ? acc.PLAYER : (team === 1 ? acc.ENEMY : acc.NEUTRAL)) || [255, 255, 255];
+    const teamColor = { r: arr[0] | 0, g: arr[1] | 0, b: arr[2] | 0 };
+
+    // applyTeamPaletteToImage reads width/height from the source. Canvas is safest.
+    const src = document.createElement('canvas');
+    src.width = w; src.height = h;
+    const sctx = src.getContext('2d', { willReadFrequently: true });
+    sctx.drawImage(img, 0, 0);
+
+    // Tune to match the in-game look (brighter, less muddy).
+    const tinted = applyFn(src, teamColor, { gain: 1.65, bias: 0.18, gamma: 0.78, minV: 0.42 }) || img;
     st._teamTexCache.set(key, tinted);
     return tinted;
   }

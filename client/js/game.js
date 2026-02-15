@@ -11689,14 +11689,7 @@ let rX = ent.x, rY = ent.y;
         }
       }
     }
-    // Building death ghosts (eg. barracks distruct)
-    if (window.PO && PO.buildings && typeof PO.buildings.drawGhosts === "function") {
-      PO.buildings.drawGhosts(ctx, cam, helpers, state);
-    }
 
-
-
-    
     // Repair FX (wrench animation)
     drawWrenchFx();
 
