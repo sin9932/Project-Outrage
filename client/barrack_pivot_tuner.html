@@ -1,1357 +1,880 @@
 <!doctype html>
 <html lang="ko">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Barrack Pivot Tuner v3 (game-matched)</title>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Pivot Tuner v9 (ingame match + pan/zoom)</title>
 <style>
-  :root {
-    --bg0:#0b0f16; --bg1:#111a2b; --panel:#0d1421; --line:rgba(255,255,255,.08);
-    --text:rgba(255,255,255,.92); --muted:rgba(255,255,255,.62);
-    --acc:#79a7ff; --warn:#ffce6a; --bad:#ff6a7a; --ok:#6cffb0;
+  :root{
+    --bg:#0b0f16;
+    --panel:#0f1724;
+    --panel2:#0b1220;
+    --txt:#d7e1ff;
+    --muted:#9fb0d9;
+    --line:#22304d;
+    --accent:#4fe3a0;
+    --warn:#ffcc66;
+    --err:#ff6b6b;
   }
-  html,body { height:100%; margin:0; background:linear-gradient(160deg,var(--bg0),var(--bg1)); color:var(--text); font-family:system-ui,-apple-system,Segoe UI,Roboto,Apple SD Gothic Neo,Noto Sans KR,sans-serif; }
-  #app { height:100vh; display:flex; }
-  aside {
-    width:360px; min-width:320px; max-width:420px;
-    border-right:1px solid var(--line);
-    background:linear-gradient(180deg,rgba(10,16,28,.9),rgba(10,16,28,.55));
-    padding:14px 12px; box-sizing:border-box; overflow:auto;
-  }
-  main#right { flex:1; position:relative; overflow:hidden; }
-  #cv {
-    position:absolute; inset:0;
-    display:block;
-    width:100%; height:100%;
-    z-index:1;
-  }
-  #hud {
-    position:absolute; left:12px; top:10px; z-index:3;
-    display:flex; gap:8px; align-items:center;
-    padding:6px 10px; border:1px solid var(--line);
-    border-radius:12px;
-    background:rgba(0,0,0,.28); backdrop-filter: blur(6px);
-    font-size:12px; color:var(--muted);
-    user-select:none;
-  }
-  .badge { padding:2px 8px; border-radius:999px; border:1px solid var(--line); }
-  .ok { color:var(--ok); }
-  .bad { color:var(--bad); }
-  h1 { font-size:15px; margin:0 0 10px; letter-spacing:.2px; }
-  .hint { font-size:12px; color:var(--muted); line-height:1.35; margin:0 0 10px; }
-  .card {
-    border:1px solid var(--line);
-    border-radius:14px;
-    padding:10px;
-    margin:10px 0;
-    background:rgba(255,255,255,.03);
-  }
-  .row { display:flex; gap:8px; align-items:center; }
-  label { font-size:12px; color:var(--muted); display:block; margin:6px 0 6px; }
-  input[type="text"], input[type="number"], select, textarea {
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--txt);font:13px/1.3 system-ui, -apple-system, Segoe UI, Roboto, sans-serif; height:100vh; overflow:hidden;}
+  .wrap{display:flex;height:100vh;}
+  .left{width:360px;min-width:320px;max-width:420px;background:linear-gradient(180deg,var(--panel),var(--panel2));border-right:1px solid var(--line);overflow:auto;padding:12px;}
+  .right{flex:1;position:relative;min-width:0;}
+  .row{display:flex;gap:8px;align-items:center;margin:6px 0;}
+  .col{display:flex;flex-direction:column;gap:6px;}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+  label{color:var(--muted);font-size:12px;}
+  input,select,button,textarea{
     width:100%;
-    box-sizing:border-box;
-    background:rgba(0,0,0,.25);
-    color:var(--text);
-    border:1px solid var(--line);
-    border-radius:10px;
+    background:#0b1220;
+    color:var(--txt);
+    border:1px solid #1b2946;
+    border-radius:8px;
     padding:8px 10px;
     outline:none;
   }
-  input[type="range"] { width:100%; }
-  textarea { min-height:110px; font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, "Noto Sans Mono", monospace; font-size:12px; }
-  button {
-    border:1px solid var(--line);
-    background:rgba(255,255,255,.06);
-    color:var(--text);
-    border-radius:10px;
-    padding:8px 10px;
-    cursor:pointer;
-  }
-  button:hover { background:rgba(255,255,255,.10); }
-  button.primary { border-color:rgba(121,167,255,.55); background:rgba(121,167,255,.14); }
-  button.danger { border-color:rgba(255,106,122,.55); background:rgba(255,106,122,.10); }
-  .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
-  .grid3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; }
-  .tiny { font-size:11px; color:var(--muted); }
-  .pillrow { display:flex; gap:6px; flex-wrap:wrap; }
-  .pill {
-    font-size:11px; padding:4px 8px; border-radius:999px;
-    border:1px solid var(--line); color:var(--muted);
-    background:rgba(0,0,0,.22);
-  }
-  .status {
-    font-size:12px; padding:8px 10px; border-radius:12px;
-    border:1px solid var(--line); background:rgba(0,0,0,.22);
-    white-space:pre-wrap;
-  }
-  .status.ok { border-color:rgba(108,255,176,.35); }
-  .status.bad { border-color:rgba(255,106,122,.45); }
-  .warnbox {
-    font-size:12px; color:var(--warn); line-height:1.3;
-    padding:8px 10px; border-radius:12px;
-    border:1px solid rgba(255,206,106,.25);
-    background:rgba(255,206,106,.06);
-  }
+  input[type="number"]{padding-right:6px}
+  button{cursor:pointer;background:#0e1a32;}
+  button:hover{border-color:#2a3a66}
+  button.primary{background:#112a2a;border-color:#1f6b55}
+  button.primary:hover{border-color:#3ee6a6}
+  button.warn{background:#2a1f11;border-color:#6b4a1f}
+  .chips{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0 10px;}
+  .chip{padding:6px 8px;border-radius:999px;border:1px solid #22304d;background:#0b1220;color:var(--txt);cursor:pointer;font-size:12px;}
+  .chip:hover{border-color:#3ee6a6}
+  .status{white-space:pre-wrap;padding:8px 10px;border-radius:10px;border:1px solid #1b2946;background:#0b1220;color:var(--muted);margin-top:8px;}
+  .status.err{border-color:#3b1b1b;color:#ffd0d0}
+  .status.ok{border-color:#1f6b55;color:#c9ffe9}
+  .hint{color:var(--muted);font-size:12px;margin-top:8px}
+  textarea{height:76px;resize:vertical;}
+  canvas{position:absolute;inset:0;width:100%;height:100%;display:block;}
+  .topbar{position:absolute;left:12px;top:10px;display:flex;gap:10px;align-items:center;color:var(--muted);font-size:12px;background:rgba(11,18,32,.55);padding:6px 10px;border:1px solid rgba(34,48,77,.6);border-radius:10px;backdrop-filter:blur(8px)}
+  .kbd{border:1px solid rgba(34,48,77,.8);border-bottom-color:rgba(34,48,77,.4);padding:1px 6px;border-radius:6px;color:var(--txt);font-size:11px;background:rgba(15,23,36,.35)}
+  .check{display:flex;align-items:center;gap:8px;margin:6px 0;}
+  .check input{width:auto}
+  .mini{margin-top:8px;display:none}
+  .mini.on{display:block}
+  .mini pre{margin:0;background:#0b1220;border:1px solid #1b2946;border-radius:10px;padding:8px 10px;color:var(--muted);overflow:auto;max-height:160px}
 </style>
 </head>
 <body>
-<div id="app">
-  <aside>
-    <h1>Pivot Tuner v3 🧰 (게임 좌표 1:1)</h1>
-    <p class="hint">
-      목적: <b>game.js</b>의 좌표/카메라/베이스오프셋 계산과 동일하게 캔버스에 건물 스프라이트를 찍어서,
-      여기서 잡은 <b>anchor(x,y)</b>가 게임에서 그대로 맞도록 하는 튜너.
-    </p>
+<div class="wrap">
+  <div class="left">
+    <div style="font-weight:700;font-size:14px;">Pivot Tuner v9</div>
+    <div class="hint">목표: <b>인게임 좌표계(iso 64/32, baseOffsetY=0.22)</b> 그대로 + <b>팬/줌</b>으로 큰 footprint도 보기 편하게.</div>
 
-    <div class="warnbox">
-      ⚠️ 네 스샷 Atlas URL이 <b>/consts/</b>로 돼있더라. 폴더는 <b>/const/</b>가 맞아.
-      (404면 JSON 대신 HTML이 와서 “아무것도 안 보임” 발생 가능)
-    </div>
-
-    <div class="card">
-      <label>Atlas JSON URL</label>
-      <input id="jsonUrl" type="text" value="/asset/sprite/const/distruct/barrack/barrack_distruct.json" />
-      <div class="pillrow" style="margin-top:8px;">
-        <button id="btnIdle">barrack idle</button>
-        <button id="btnConst">barrack const</button>
-        <button id="btnDist">barrack dist</button>
-      </div>
-      <div class="row" style="margin-top:8px;">
-        <button id="btnLoad" class="primary" style="flex:1;">Load</button>
-        <button id="btnReload" style="width:120px;">Reload</button>
-      </div>
-      <div style="margin-top:8px;" id="loadStatus" class="status">Ready.</div>
-    </div>
-
-    <div class="card">
-      <div class="grid2">
-        <div>
-          <label>Set (prefix)</label>
-          <select id="prefixSel"></select>
-        </div>
-        <div>
-          <label>Frame</label>
-          <select id="frameSel"></select>
-        </div>
-      </div>
-
-      <div class="grid3" style="margin-top:10px;">
-        <div>
-          <label>FPS</label>
-          <input id="fps" type="number" min="1" max="60" step="1" value="20" />
-        </div>
-        <div>
-          <label>Scale</label>
-          <input id="scale" type="number" min="0.01" max="2" step="0.01" value="0.14" />
-        </div>
-        <div>
-          <label>Play</label>
-          <div class="row">
-            <button id="btnPlay" style="flex:1;">▶</button>
-            <button id="btnStop" style="flex:1;">■</button>
-          </div>
-        </div>
-      </div>
-
-      <label style="margin-top:10px;">Pivot X (normalized 0..1)</label>
-      <input id="px" type="range" min="0" max="1" step="0.0001" value="0.50" />
-      <div class="row">
-        <button id="pxM" style="flex:1;">X-</button>
-        <button id="pxP" style="flex:1;">X+</button>
-        <div class="tiny" id="pxVal" style="width:90px; text-align:right;">0.5000</div>
-      </div>
-
-      <label style="margin-top:10px;">Pivot Y (normalized 0..1)</label>
-      <input id="py" type="range" min="0" max="1" step="0.0001" value="0.50" />
-      <div class="row">
-        <button id="pyM" style="flex:1;">Y-</button>
-        <button id="pyP" style="flex:1;">Y+</button>
-        <div class="tiny" id="pyVal" style="width:90px; text-align:right;">0.5000</div>
-      </div>
-
-      <div class="grid2" style="margin-top:10px;">
-        <button id="btnApplyPrefix" class="primary">Apply pivot to prefix</button>
-        <button id="btnDownload">Download patched JSON</button>
-      </div>
-
-      <label style="margin-top:10px;">Copy/paste (JSON anchor)</label>
-      <textarea id="out" readonly></textarea>
-      <div class="tiny" id="debugLine"></div>
-    </div>
-
-    <div class="card">
-      <label>게임 좌표 모드</label>
-      <div class="grid3">
-        <div>
-          <label>TILE</label>
-          <input id="tile" type="number" value="128" />
-        </div>
-        <div>
-          <label>ISO_X</label>
-          <input id="isoX" type="number" value="64" />
-        </div>
-        <div>
-          <label>ISO_Y</label>
-          <input id="isoY" type="number" value="32" />
-        </div>
-      </div>
-
-      <div class="grid3" style="margin-top:10px;">
-        <div>
-          <label>Cam tileX</label>
-          <input id="camTX" type="number" value="0" />
-        </div>
-        <div>
-          <label>Cam tileY</label>
-          <input id="camTY" type="number" value="0" />
-        </div>
-        <div>
-          <label>Cam zoom</label>
-          <input id="camZoom" type="number" min="0.1" max="4" step="0.05" value="1" />
-        </div>
-      </div>
-
-      <div class="grid2" style="margin-top:10px;">
-        <div>
-          <label>Footprint W (tw)</label>
-          <input id="fpW" type="number" min="1" max="8" value="3" />
-        </div>
-        <div>
-          <label>Footprint H (th)</label>
-          <input id="fpH" type="number" min="1" max="8" value="2" />
-        </div>
-      </div>
-
-      <div class="grid2" style="margin-top:6px;">
-        <div>
-          <label>Footprint Y 방향</label>
-          <select id="fpYDir">
-            <option value="ne" selected>NE (ty 감소, ↗)</option>
-            <option value="sw">SW (ty 증가, ↙)</option>
-          </select>
-        </div>
-        <div>
-          <label style="opacity:.8">설명</label>
-          <div class="small">네 게임처럼 "3×2가 동남쪽으로 길게" 보이게 하려면 NE(ty 감소)를 쓰면 됨.</div>
-        </div>
-      </div>
-
-      <div class="grid2" style="margin-top:10px;">
-        <div>
-          <label>Building tx</label>
-          <input id="bTX" type="number" value="0" />
-        </div>
-        <div>
-          <label>Building ty</label>
-          <input id="bTY" type="number" value="0" />
-        </div>
-      </div>
-
-      <div class="grid2" style="margin-top:10px;">
-        <div>
-          <label>Anchor mode</label>
-          <select id="anchorMode">
-            <option value="center" selected>center (footprint center)</option>
-            <option value="south">south (footprint south edge)</option>
-          </select>
-        </div>
-        <div>
-          <label>BaseOffset Y ratio (game.js=0.22)</label>
-          <input id="baseYRatio" type="number" min="0" max="1" step="0.01" value="0.22" />
-        </div>
-      </div>
-
-      <div class="grid2" style="margin-top:10px;">
-        <div class="row">
-          <input id="showGrid" type="checkbox" checked />
-          <label for="showGrid" style="margin:0;">타일 그리드 표시</label>
-        </div>
-        <div class="row">
-          <input id="showFoot" type="checkbox" checked />
-          <label for="showFoot" style="margin:0;">풋프린트 타일(다이아) 표시</label>
-        </div>
-      </div>
-
-      <div class="grid2" style="margin-top:10px;">
-        <div class="row">
-          <input id="showAxis" type="checkbox" checked />
-          <label for="showAxis" style="margin:0;">풋프린트 축(↘/↙) 표시</label>
-        </div>
-        <div class="row">
-          <input id="showMini" type="checkbox" checked />
-          <label for="showMini" style="margin:0;">탑다운(직사각형) 미니뷰</label>
-        </div>
-      </div>
-
-      <div id="miniWrap" style="margin-top:10px;">
-        <div class="small muted" style="margin-bottom:6px;">
-          아이소 화면에선 “직사각형 풋프린트”가 평행사변형처럼 보이는 게 정상.
-          헷갈리면 아래 미니뷰에서 3×2 같은 직사각형을 같이 봐.
-        </div>
-        <canvas id="miniCv" width="260" height="180" style="width:100%;height:auto;border:1px solid rgba(255,255,255,.08);border-radius:10px;background:rgba(0,0,0,.25)"></canvas>
-      </div>
-
-
-      <div class="grid2" style="margin-top:10px;">
-        <div class="row">
-          <input id="showAnchor" type="checkbox" checked />
-          <label for="showAnchor" style="margin:0;">앵커(찍는점) 표시</label>
-        </div>
-        <div class="row">
-          <input id="// draw mode: match in-game barracks renderer (bottom-center of frame bbox pinned to screenAnchor)
-const modeIngame = document.getElementById('modeIngame')?.checked ?? true;
-
-let drawX = screenAnchor.x;
-let drawY = screenAnchor.y;
-
-if (modeIngame) {
-  const fr = atlas.frames.get(curFrame);
-  if (fr) {
-    const f = fr.frame;                 // trimmed frame rect in texture
-    const sss = fr.spriteSourceSize;    // trimmed rect position in original source
-    const src = fr.sourceSize;          // original untrimmed source size
-
-    const px = src.w * pivot.x;
-    const py = src.h * pivot.y;
-
-    const x0 = (-px + sss.x) * scale;
-    const y0 = (-py + sss.y) * scale;
-    const x1 = x0 + f.w * scale;
-    const y1 = y0 + f.h * scale;
-
-    // bottom-center point of the rendered frame bbox, relative to pivot
-    const bcX = (x0 + x1) * 0.5;
-    const bcY = y1;
-
-    // choose pivot position so that bbox bottom-center sits on screenAnchor
-    drawX = screenAnchor.x - bcX;
-    drawY = screenAnchor.y - bcY;
-  }
-}
-
-window.PO.atlasTP.drawFrame(ctx, atlas, curFrame, drawX, drawY, { scale, pivot });" type="checkbox" />
-          <label for="showBounds" style="margin:0;">프레임 bbox 표시</label>
-        </div>
+    <div class="row" style="margin-top:10px;">
+      <div class="col" style="flex:1">
+        <label>Atlas JSON URL</label>
+        <input id="atlasUrl" placeholder="/asset/sprite/const/normal/barrack/barrack_idle.json"/>
       </div>
     </div>
 
-  </aside>
+    <div class="chips">
+      <div class="chip" id="chipIdle">barrack idle</div>
+      <div class="chip" id="chipConst">barrack const</div>
+      <div class="chip" id="chipDist">barrack dist</div>
+    </div>
 
-  <main id="right">
+    <div class="row">
+      <button id="btnLoad" class="primary">Load</button>
+      <button id="btnReload">Reload</button>
+    </div>
+
+    <div id="status" class="status">Ready.</div>
+
+    <hr style="border:0;border-top:1px solid var(--line);margin:12px 0"/>
+
+    <div class="grid2">
+      <div class="col">
+        <label>Set (prefix)</label>
+        <input id="prefix" placeholder="barrack_idle / barrack_con_complete / barrack_distruction"/>
+      </div>
+      <div class="col">
+        <label>Frame</label>
+        <select id="frameSel"></select>
+      </div>
+    </div>
+
+    <div class="grid2">
+      <div class="col">
+        <label>FPS</label>
+        <input id="fps" type="number" step="1" min="1" max="60" value="20"/>
+      </div>
+      <div class="col">
+        <label>Sprite scale (view)</label>
+        <input id="spriteScale" type="number" step="0.01" min="0.02" max="2" value="0.14"/>
+      </div>
+    </div>
+
+    <div class="row">
+      <button id="btnPlay">Play</button>
+      <button id="btnPause">Pause</button>
+      <button id="btnStep">1 Frame</button>
+    </div>
+
+    <label>Pivot X (normalized 0..1)</label>
+    <div class="grid2">
+      <button id="btnXMinus">X-</button>
+      <button id="btnXPlus">X+</button>
+    </div>
+    <input id="pivotX" type="range" min="0" max="1" step="0.0001" value="0.5"/>
+
+    <label>Pivot Y (normalized 0..1)</label>
+    <div class="grid2">
+      <button id="btnYMinus">Y-</button>
+      <button id="btnYPlus">Y+</button>
+    </div>
+    <input id="pivotY" type="range" min="0" max="1" step="0.0001" value="0.5"/>
+
+    <div class="row">
+      <button id="btnApplyPrefix" class="primary">Apply pivot to prefix</button>
+      <button id="btnDownload">Download patched JSON</button>
+    </div>
+
+    <label>Copy/paste (JSON anchor)</label>
+    <textarea id="out" readonly></textarea>
+
+    <hr style="border:0;border-top:1px solid var(--line);margin:12px 0"/>
+
+    <div style="font-weight:700;margin-bottom:6px;">Ingame coords</div>
+
+    <div class="grid2">
+      <div class="col"><label>TILE</label><input id="tile" type="number" value="110"/></div>
+      <div class="col"><label>Cam zoom (game)</label><input id="camZoom" type="number" step="0.01" value="1"/></div>
+      <div class="col"><label>Cam tileX</label><input id="camX" type="number" step="0.01" value="0"/></div>
+      <div class="col"><label>Cam tileY</label><input id="camY" type="number" step="0.01" value="0"/></div>
+    </div>
+
+    <div class="grid2">
+      <div class="col"><label>Building tx</label><input id="btx" type="number" step="1" value="0"/></div>
+      <div class="col"><label>Building ty</label><input id="bty" type="number" step="1" value="0"/></div>
+      <div class="col"><label>Footprint W (tw)</label><input id="tw" type="number" step="1" min="1" value="3"/></div>
+      <div class="col"><label>Footprint H (th)</label><input id="th" type="number" step="1" min="1" value="2"/></div>
+    </div>
+
+    <div class="grid2">
+      <div class="col">
+        <label>Anchor mode</label>
+        <select id="anchorMode">
+          <option value="center">center (footprint center)</option>
+          <option value="south">south edge center</option>
+          <option value="sw">south-west corner</option>
+        </select>
+      </div>
+      <div class="col">
+        <label>BaseOffsetY ratio</label>
+        <input id="baseYRatio" type="number" step="0.01" value="0.22"/>
+      </div>
+    </div>
+
+    <div style="font-weight:700;margin:10px 0 6px;">View (pan/zoom)</div>
+
+    <div class="grid2">
+      <div class="col"><label>View zoom</label><input id="viewZoom" type="number" step="0.05" value="1"/></div>
+      <div class="col"><label>Grid span (tiles)</label><input id="gridSpan" type="number" step="1" min="6" value="30"/></div>
+    </div>
+
+    <div class="row">
+      <button id="btnResetView">Reset view</button>
+      <button id="btnFit">Fit to footprint</button>
+    </div>
+
+    <div class="check"><input id="showGrid" type="checkbox" checked/><label for="showGrid" style="margin:0">Grid</label></div>
+    <div class="check"><input id="showFoot" type="checkbox" checked/><label for="showFoot" style="margin:0">Footprint (exact)</label></div>
+    <div class="check"><input id="showAxis" type="checkbox" checked/><label for="showAxis" style="margin:0">Axis</label></div>
+    <div class="check"><input id="showBounds" type="checkbox"/><label for="showBounds" style="margin:0">Frame bbox</label></div>
+
+    <div class="hint">
+      조작: <span class="kbd">드래그</span> 팬, <span class="kbd">휠</span> 줌, <span class="kbd">더블클릭</span> Fit.<br/>
+      ※ 인게임 1:1 확인은 <b>Cam zoom=1</b> + <b>View zoom=1</b>에서 보면 됨. (View zoom은 “보기용”)
+    </div>
+
+    <div class="mini" id="mini">
+      <div style="font-weight:700;margin:8px 0 6px;">Debug</div>
+      <pre id="dbg"></pre>
+    </div>
+  </div>
+
+  <div class="right">
+    <div class="topbar" id="topbar">
+      <span id="topInfo">canvas</span>
+      <span class="kbd">drag</span><span class="kbd">wheel</span><span class="kbd">dblclick</span>
+    </div>
     <canvas id="cv"></canvas>
-    <div id="hud">
-      <span class="badge" id="hudCanvas">canvas: ?</span>
-      <span class="badge" id="hudAtlas">atlas: -</span>
-      <span class="badge" id="hudDraw" class="ok">draw: -</span>
-    </div>
-  </main>
+  </div>
 </div>
 
 <script>
-/* ==== atlas_tp.js (Project-Outrage) inline ==== */
-window.PO = window.PO || {};
-/* atlas_tp.js (TexturePacker) v6 + v22 back-compat
-   - Supports TP Multi (textures[] array) and TP Hash (frames:{}), plus frames[] array.
-   - Produces atlas.frames (Map) and atlas.framesByName (plain object) for compatibility.
-   - Provides drawFrame() that respects trimming and optional rotated frames.
-*/
-(() => {
-  const PO = (window.PO = window.PO || {});
-  PO.atlasTP = PO.atlasTP || {};
+'use strict';
 
-  const VERSION = 6;
+// ===== helpers
+const $ = (id)=>document.getElementById(id);
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const dirname=(u)=>u.replace(/[#?].*$/,'').replace(/\/[^\/]*$/,'/') ;
 
-  function looksLikeHTML(s) {
-    if (!s) return false;
-    const head = String(s).trimStart().slice(0, 80).toLowerCase();
-    return head.startsWith('<!doctype') || head.startsWith('<html') || head.includes('<head') || head.includes('<body');
-  }
+// ===== state
+let atlasData=null;
+let basePath='';
+let textures=[];
+let frames=[]; // unified [{name, tex, rect:{x,y,w,h}, ss:{x,y,w,h}, source:{w,h}, anchor:{x,y}, rawRef}]
+let cur=0;
+let playing=false;
+let lastT=0;
 
-  function baseDirFromUrl(url) {
-    const q = url.split('?')[0].split('#')[0];
-    const i = q.lastIndexOf('/');
-    if (i <= 0) return '';
-    return q.slice(0, i);
-  }
+const cv=$('cv');
+const ctx=cv.getContext('2d');
 
-  function joinUrl(base, rel) {
-    if (!base) return rel;
-    if (!rel) return base;
-    const b = base.endsWith('/') ? base.slice(0, -1) : base;
-    if (rel.startsWith('/')) return b + rel;
-    return b + '/' + rel;
-  }
+let dpr=1;
 
-  function isPlainObject(x) {
-    return x && typeof x === 'object' && !Array.isArray(x);
-  }
+// view pan/zoom (screen space)
+let panX=0, panY=0;
+let isPanning=false;
+let panStart=null;
 
-  function toRect(r) {
-    if (!r) return { x: 0, y: 0, w: 0, h: 0 };
-    // TP usually uses {x,y,w,h}
-    const x = Number(r.x || 0);
-    const y = Number(r.y || 0);
-    const w = Number(r.w ?? r.width ?? 0);
-    const h = Number(r.h ?? r.height ?? 0);
-    return { x, y, w, h };
-  }
+// ===== canvas resize (robust)
+function resizeCanvas(){
+  const r=cv.getBoundingClientRect();
+  dpr=window.devicePixelRatio||1;
+  cv.width=Math.max(1,Math.floor(r.width*dpr));
+  cv.height=Math.max(1,Math.floor(r.height*dpr));
+}
+const ro = new ResizeObserver(()=>{ resizeCanvas(); });
+ro.observe(document.querySelector('.right'));
+window.addEventListener('resize', resizeCanvas);
+setTimeout(resizeCanvas, 0);
 
-  function toSize(s) {
-    if (!s) return { w: 0, h: 0 };
-    const w = Number(s.w ?? s.width ?? 0);
-    const h = Number(s.h ?? s.height ?? 0);
-    return { w, h };
-  }
+// ===== status
+function setStatus(msg, kind=''){
+  const el=$('status');
+  el.textContent=msg;
+  el.className='status' + (kind?(' '+kind):'');
+}
 
-  function toSpriteSourceSize(ss, fallbackW, fallbackH) {
-    if (!ss) return { x: 0, y: 0, w: fallbackW, h: fallbackH };
-    const x = Number(ss.x || 0);
-    const y = Number(ss.y || 0);
-    const w = Number(ss.w ?? ss.width ?? fallbackW);
-    const h = Number(ss.h ?? ss.height ?? fallbackH);
-    return { x, y, w, h };
-  }
-
-  function normalizeFrameCommon(filename, fr, texIndex) {
-    const frame = toRect(fr.frame || fr);
-    const rotated = !!fr.rotated;
-    const trimmed = !!fr.trimmed;
-    const sourceSize = toSize(fr.sourceSize);
-    const spriteSourceSize = toSpriteSourceSize(fr.spriteSourceSize, frame.w, frame.h);
-    const pivot = fr.pivot || fr.anchor || null; // TP uses pivot, some tools use anchor
-    return {
-      name: filename,
-      texIndex,
-      frame,
-      rotated,
-      trimmed,
-      sourceSize,
-      spriteSourceSize,
-      pivot, // {x,y} normalized (0..1) in sourceSize space
-    };
-  }
-
-  function parseTP(data) {
-    // Returns { textures: [{image, frames: [frameObj]}] }
-    if (!data) throw new Error('Invalid atlas JSON (empty).');
-
-    // Multi pack: { textures:[{image, frames:[...]}] }
-    if (Array.isArray(data.textures)) {
-      const textures = data.textures.map((t) => ({
-        image: t.image,
-        frames: Array.isArray(t.frames) ? t.frames : [],
-      }));
-      return { textures };
-    }
-
-    // Hash format: { frames: {name:{frame...}, ...}, meta:{image:"x.png"} }
-    if (isPlainObject(data.frames)) {
-      const image = data.meta && data.meta.image ? data.meta.image : (data.image || null);
-      if (!image) throw new Error('TP hash atlas missing meta.image');
-      const framesArr = Object.entries(data.frames).map(([name, fr]) => {
-        const obj = Object.assign({ filename: name }, fr);
-        return obj;
-      });
-      return { textures: [{ image, frames: framesArr }] };
-    }
-
-    // Array frames format: { frames:[{filename,...}], meta:{image:"x.png"} }
-    if (Array.isArray(data.frames)) {
-      const image = data.meta && data.meta.image ? data.meta.image : (data.image || null);
-      if (!image) throw new Error('TP frames[] atlas missing meta.image');
-      return { textures: [{ image, frames: data.frames }] };
-    }
-
-    throw new Error('Unsupported atlas JSON shape (need textures[] or frames).');
-  }
-
-  function loadImage(src) {
-    return new Promise((resolve, reject) => {
-      const img = new Image();
-      // Safe default for canvas use; same-origin still works.
-      img.crossOrigin = 'anonymous';
-      img.decoding = 'async';
-      img.onload = () => resolve(img);
-      img.onerror = () => reject(new Error('Image load failed: ' + src));
-      img.src = src;
-    });
-  }
-
-  async function loadTPAtlasMulti(jsonUrl, baseDirOpt = null) {
-    const resp = await fetch(jsonUrl, { cache: 'no-store' });
-    const text = await resp.text();
-    if (!resp.ok) throw new Error(`Atlas JSON fetch failed: ${jsonUrl} (HTTP ${resp.status})`);
-    if (looksLikeHTML(text)) throw new Error(`Atlas URL returned HTML (likely SPA fallback): ${jsonUrl}`);
-    const trimmed = text.trimStart();
-    if (!trimmed || (trimmed[0] !== '{' && trimmed[0] !== '[')) throw new Error(`Atlas JSON is not JSON: ${jsonUrl}`);
-    let raw;
-    try { raw = JSON.parse(text); } catch (e) { throw new Error(`Invalid JSON at ${jsonUrl}: ${e.message}`); }
-
-    const parsed = parseTP(raw);
-    const baseDir = baseDirOpt || baseDirFromUrl(jsonUrl);
-
-    // Load images
-    const textures = [];
-    for (let i = 0; i < parsed.textures.length; i++) {
-      const t = parsed.textures[i];
-      if (!t.image) throw new Error(`TP atlas missing textures[${i}].image`);
-      const src = joinUrl(baseDir, t.image);
-      const img = await loadImage(src);
-      textures.push({ image: t.image, src, img });
-    }
-
-    // Frames map
-    const frames = new Map();
-    const framesByName = Object.create(null);
-
-    parsed.textures.forEach((t, texIndex) => {
-      const arr = Array.isArray(t.frames) ? t.frames : [];
-      for (const fr of arr) {
-        const filename = fr.filename || fr.name;
-        if (!filename) continue;
-        const frameObj = normalizeFrameCommon(filename, fr, texIndex);
-        frames.set(filename, frameObj);
-        framesByName[filename] = frameObj;
+// ===== atlas parsing (supports textures[] or normal TP json)
+function parseTP(json){
+  let texList=[];
+  let unified=[];
+  // texturepacker multiatlas: {textures:[{image,frames:{...}}]}
+  if(Array.isArray(json.textures)){
+    texList=json.textures.map(t=>({image:t.image, frames:t.frames||{}}));
+  }else{
+    // single: {meta:{image}, frames:{...} or frames:[...]}
+    const img=json.meta?.image || json.meta?.app || null;
+    if(!img && !json.frames){ throw new Error('Unknown TP json format (no textures[], no frames)'); }
+    let framesObj = json.frames;
+    // convert frames array->object
+    if(Array.isArray(framesObj)){
+      const obj={};
+      for(const f of framesObj){
+        if(!f.filename) continue;
+        obj[f.filename]=f;
       }
-    });
-
-    const atlas = {
-      version: VERSION,
-      jsonUrl,
-      baseDir,
-      textures,          // [{image, src, img}]
-      frames,            // Map(name -> frameObj)
-      framesByName,      // plain object alias
-      _rotCache: new Map()
-    };
-
-    return atlas;
-  }
-
-  // Alias (single-sheet is still supported by loadTPAtlasMulti)
-  async function loadTPAtlas(jsonUrl, baseDirOpt = null) {
-    return loadTPAtlasMulti(jsonUrl, baseDirOpt);
-  }
-
-  function trailingNumber(name) {
-    // Pick last run of digits before extension
-    const m = String(name).match(/(\d+)(?:\.[^./\\]+)?$/);
-    return m ? parseInt(m[1], 10) : NaN;
-  }
-
-  function listFramesByPrefix(atlas, prefix, opts = {}) {
-    const { sort = true } = opts;
-    if (!atlas || !atlas.frames) return [];
-    const out = [];
-    for (const k of atlas.frames.keys()) {
-      if (k.startsWith(prefix)) out.push(k);
+      framesObj=obj;
     }
-    if (sort) {
-      out.sort((a, b) => {
-        const na = trailingNumber(a), nb = trailingNumber(b);
-        if (!Number.isNaN(na) && !Number.isNaN(nb)) return na - nb;
-        return a.localeCompare(b);
+    texList=[{image: json.meta?.image || json.meta?.Image || json.image || 'atlas.png', frames: framesObj||{}}];
+  }
+
+  // normalize frames into unified list
+  for(let ti=0; ti<texList.length; ti++){
+    const t=texList[ti];
+    const fr=t.frames||{};
+    for(const [name, data] of Object.entries(fr)){
+      const frame=data.frame || data; // frame: {x,y,w,h}
+      const ss=data.spriteSourceSize || data.spriteSource || {x:0,y:0,w:frame.w||frame.width||0,h:frame.h||frame.height||0};
+      const source=data.sourceSize || data.source || {w:data.sourceSize?.w||data.sourceSize?.width||frame.w||0,h:data.sourceSize?.h||data.sourceSize?.height||frame.h||0};
+      const w = frame.w ?? frame.width;
+      const h = frame.h ?? frame.height;
+      unified.push({
+        name,
+        tex: ti,
+        rect:{x:frame.x, y:frame.y, w, h},
+        ss:{x:ss.x||0, y:ss.y||0, w:ss.w??ss.width??w, h:ss.h??ss.height??h},
+        source:{w:source.w??source.width??(w), h:source.h??source.height??(h)},
+        rotated: !!data.rotated,
+        anchor: data.anchor ? {x:data.anchor.x, y:data.anchor.y} : {x:0.5,y:0.5},
+        rawRef: data
       });
     }
-    return out;
   }
+  // sort by trailing number if any
+  unified.sort((a,b)=>{
+    const na=a.name.match(/(\d+)(?=\D*$)/); const nb=b.name.match(/(\d+)(?=\D*$)/);
+    if(na && nb) return (parseInt(na[1])-parseInt(nb[1])) || a.name.localeCompare(b.name);
+    if(na && !nb) return -1;
+    if(!na && nb) return 1;
+    return a.name.localeCompare(b.name);
+  });
+  return {texList, unified};
+}
 
-  function applyPivotByPrefix(atlas, prefix, pivot) {
-    if (!atlas || !atlas.frames) return 0;
-    let n = 0;
-    for (const [k, fr] of atlas.frames.entries()) {
-      if (!k.startsWith(prefix)) continue;
-      fr.pivot = { x: pivot.x, y: pivot.y };
-      atlas.framesByName[k] = fr;
-      n++;
-    }
-    return n;
+async function fetchJson(url){
+  const res = await fetch(url, {cache:'no-store'});
+  const text = await res.text();
+  if(!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText}`);
+  // quick HTML detection
+  const t = text.trim();
+  if(t.startsWith('<!doctype') || t.startsWith('<html') || t.includes('<head>')){
+    throw new Error('Atlas URL returned HTML (경로 404/fallback 의심)');
   }
-
-  function getFrameBounds(atlas, frameName) {
-    const fr = atlas && atlas.frames ? atlas.frames.get(frameName) : null;
-    if (!fr) return null;
-    const sw = fr.sourceSize.w || fr.frame.w;
-    const sh = fr.sourceSize.h || fr.frame.h;
-    const px = fr.pivot ? fr.pivot.x : 0.5;
-    const py = fr.pivot ? fr.pivot.y : 0.5;
-    return {
-      sourceW: sw,
-      sourceH: sh,
-      pivotX: px,
-      pivotY: py,
-      trimX: fr.spriteSourceSize.x,
-      trimY: fr.spriteSourceSize.y,
-      trimW: fr.spriteSourceSize.w,
-      trimH: fr.spriteSourceSize.h,
-    };
+  try{
+    return JSON.parse(text);
+  }catch(e){
+    throw new Error('JSON parse fail: ' + e.message);
   }
+}
 
-  function getRotatedCanvas(atlas, fr) {
-    const key = `${fr.texIndex}:${fr.name}`;
-    if (atlas._rotCache.has(key)) return atlas._rotCache.get(key);
-    const tex = atlas.textures[fr.texIndex];
-    const img = tex.img;
-    const { x: sx, y: sy, w: sw, h: sh } = fr.frame;
-    // If rotated, TP packed the sprite rotated 90deg clockwise. Undo by rotating -90.
-    const c = document.createElement('canvas');
-    c.width = sh;
-    c.height = sw;
-    const cctx = c.getContext('2d');
-    cctx.save();
-    cctx.translate(0, c.height);
-    cctx.rotate(-Math.PI / 2);
-    cctx.drawImage(img, sx, sy, sw, sh, 0, 0, sw, sh);
-    cctx.restore();
-    atlas._rotCache.set(key, c);
-    return c;
-  }
+async function loadAtlas(){
+  try{
+    setStatus('Loading atlas JSON...');
+    const url=$('atlasUrl').value.trim();
+    if(!url){ setStatus('ERR: atlasUrl empty','err'); return; }
+    basePath = dirname(url);
 
-  // Draw frame so that (x,y) is the pivot point in world space.
-  function drawFrame(ctx, atlas, frameName, x, y, opts = {}) {
-    if (!ctx || !atlas || !atlas.frames) return false;
-    const fr = atlas.frames.get(frameName);
-    if (!fr) return false;
+    atlasData = await fetchJson(url);
 
-    const scale = Number(opts.scale ?? 1);
-    const alpha = Number(opts.alpha ?? 1);
+    // build textures list
+    const parsed = parseTP(atlasData);
 
-    const tex = atlas.textures[fr.texIndex];
-    const img = tex.img;
-
-    // Original (untrimmed) size
-    const origW = fr.sourceSize.w || (fr.rotated ? fr.frame.h : fr.frame.w);
-    const origH = fr.sourceSize.h || (fr.rotated ? fr.frame.w : fr.frame.h);
-
-    const pivot = opts.pivot || fr.pivot || { x: 0.5, y: 0.5 };
-    const px = pivot.x ?? 0.5;
-    const py = pivot.y ?? 0.5;
-
-    const trimX = fr.spriteSourceSize.x || 0;
-    const trimY = fr.spriteSourceSize.y || 0;
-
-    // Dest top-left for the trimmed rectangle
-    const dx = x - px * origW * scale + trimX * scale;
-    const dy = y - py * origH * scale + trimY * scale;
-
-    ctx.save();
-    ctx.globalAlpha = ctx.globalAlpha * alpha;
-
-    if (!fr.rotated) {
-      const { x: sx, y: sy, w: sw, h: sh } = fr.frame;
-      ctx.drawImage(img, sx, sy, sw, sh, dx, dy, sw * scale, sh * scale);
-    } else {
-      // Use cached un-rotated trimmed canvas
-      const c = getRotatedCanvas(atlas, fr);
-      ctx.drawImage(c, 0, 0, c.width, c.height, dx, dy, c.width * scale, c.height * scale);
+    // load images
+    textures = [];
+    for(let i=0;i<parsed.texList.length;i++){
+      const imgName = parsed.texList[i].image;
+      const img = new Image();
+      const p = new Promise((resolve,reject)=>{
+        img.onload=()=>resolve();
+        img.onerror=()=>reject(new Error('image load fail: ' + imgName));
+      });
+      img.src = basePath + imgName;
+      await p;
+      textures.push({img, name:imgName});
     }
 
-    ctx.restore();
-    return true;
-  }
-
-  // Export API
-  PO.atlasTP.version = VERSION;
-  PO.atlasTP.loadTPAtlasMulti = loadTPAtlasMulti;
-  PO.atlasTP.loadTPAtlas = loadTPAtlas;
-  PO.atlasTP.drawFrame = drawFrame;
-  PO.atlasTP.getFrameBounds = getFrameBounds;
-  PO.atlasTP.listFramesByPrefix = listFramesByPrefix;
-  PO.atlasTP.applyPivotByPrefix = applyPivotByPrefix;
-
-  // Back-compat aliases (older patches expect loadAtlasTP*)
-  PO.atlasTP.loadAtlasTP = loadTPAtlas;
-  PO.atlasTP.loadAtlasTPMulti = loadTPAtlasMulti;
-
-  console.log(`[atlas_tp:v${VERSION}] ready`);
-})();
-
-</script>
-
-<script>
-(() => {
-  const $ = (id) => document.getElementById(id);
-
-  const cv = $('cv');
-  const ctx = cv.getContext('2d', { alpha:true });
-
-  let dpr = Math.max(1, window.devicePixelRatio || 1);
-  let atlas = null;
-  let framesByPrefix = new Map(); // prefix -> [frameNames]
-  let curPrefix = '';
-  let curFrame = '';
-  let playing = false;
-  let tPrev = performance.now();
-  let acc = 0;
-  let frameIdx = 0;
-  let lastDrawAt = 0;
-  let lastErr = '';
-
-  function setStatus(msg, kind='ok') {
-    const el = $('loadStatus');
-    el.textContent = msg;
-    el.classList.toggle('bad', kind==='bad');
-    el.classList.toggle('ok', kind==='ok');
-  }
-
-  function setHud() {
-    const w = Math.round(cv.width / dpr);
-    const h = Math.round(cv.height / dpr);
-    $('hudCanvas').textContent = `canvas: ${w}x${h} (dpr=${dpr.toFixed(2)})`;
-    $('hudAtlas').textContent = atlas ? `atlas: ${curPrefix || '-'}` : 'atlas: -';
-    $('hudDraw').textContent = `draw: ${new Date(lastDrawAt).toLocaleTimeString()}`;
-  }
-
-  function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
-
-  function parseNum(id, def=0) {
-    const v = parseFloat($(id).value);
-    return Number.isFinite(v) ? v : def;
-  }
-
-  function resizeCanvas() {
-    const r = $('right').getBoundingClientRect();
-    const cssW = Math.max(2, Math.floor(r.width));
-    const cssH = Math.max(2, Math.floor(r.height));
-    dpr = Math.max(1, window.devicePixelRatio || 1);
-
-    const wantW = Math.floor(cssW * dpr);
-    const wantH = Math.floor(cssH * dpr);
-
-    if (cv.width !== wantW || cv.height !== wantH) {
-      cv.width = wantW;
-      cv.height = wantH;
-      cv.style.width = cssW + 'px';
-      cv.style.height = cssH + 'px';
+    frames = parsed.unified;
+    // default prefix: first frame prefix if empty
+    if(!$('prefix').value.trim() && frames.length){
+      const f0=frames[0].name;
+      const m=f0.match(/^(.*?)(\d+)?\.png$/i);
+      $('prefix').value = m ? m[1] : f0.replace(/\.png$/i,'');
     }
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    setHud();
+    rebuildFrameSelect();
+    cur=0;
+    playing=false;
+    lastT=0;
+    syncPivotFromFrame();
+    updateOutput();
+    setStatus(`Loaded: ${frames.length} frames, ${textures.length} texture(s).`,'ok');
+  }catch(e){
+    setStatus('Load failed: ' + e.message,'err');
+    console.error(e);
   }
+}
 
-  function bootResizeObservers() {
-    // 1) flex 레이아웃/DevTools dock 변화 대응
-    const ro = new ResizeObserver(() => {
-      resizeCanvas();
-      render();
-    });
-    ro.observe($('right'));
-
-    // 2) 브라우저 리사이즈 대응
-    window.addEventListener('resize', () => {
-      resizeCanvas();
-      render();
-    }, { passive:true });
-
-    // 3) 첫 페인트 이후에 한 번 더 (초기 300x150 방지)
-    requestAnimationFrame(() => {
-      resizeCanvas();
-      render();
-    });
-    setTimeout(() => {
-      resizeCanvas();
-      render();
-    }, 60);
-  }
-
-  function makePrefixesFromAtlas(atlasObj) {
-    const map = new Map();
-    const names = Array.from(atlasObj.frames.keys());
-    for (const name of names) {
-      // prefix heuristic: up to last '_' or last digit run
-      let p = name;
-      const under = name.lastIndexOf('_');
-      if (under !== -1) p = name.slice(0, under);
-      // Special: barrack_idle1.png -> barrack_idle
-      p = p.replace(/\d+\.png$/i, '.png');
-      p = p.replace(/\.png$/i, '');
-      if (!map.has(p)) map.set(p, []);
-      map.get(p).push(name);
-    }
-    for (const [k, arr] of map.entries()) {
-      arr.sort((a,b) => a.localeCompare(b, undefined, {numeric:true}));
-    }
-    return map;
-  }
-
-  function setPrefix(prefix) {
-    curPrefix = prefix;
-    const list = framesByPrefix.get(prefix) || [];
-    const sel = $('frameSel');
-    sel.innerHTML = '';
-    for (const f of list) {
-      const opt = document.createElement('option');
-      opt.value = f; opt.textContent = f;
+function rebuildFrameSelect(){
+  const prefix=$('prefix').value.trim();
+  const sel=$('frameSel');
+  sel.innerHTML='';
+  const list = frames.filter(f=>!prefix || f.name.startsWith(prefix));
+  if(!list.length && frames.length){
+    // fallback: show all
+    for(const f of frames){ 
+      const opt=document.createElement('option');
+      opt.value=f.name; opt.textContent=f.name;
       sel.appendChild(opt);
     }
-    curFrame = list[0] || '';
-    frameIdx = 0;
-    if (curFrame) sel.value = curFrame;
-    $('prefixSel').value = prefix;
-    render();
-  }
-
-  function setFrame(name) {
-    curFrame = name;
-    const list = framesByPrefix.get(curPrefix) || [];
-    frameIdx = Math.max(0, list.indexOf(name));
-    $('frameSel').value = name;
-    render();
-  }
-
-  function refreshSelectors() {
-    const pSel = $('prefixSel');
-    pSel.innerHTML = '';
-    const prefixes = Array.from(framesByPrefix.keys()).sort((a,b)=>a.localeCompare(b, undefined, {numeric:true}));
-    for (const p of prefixes) {
-      const opt = document.createElement('option');
-      opt.value = p; opt.textContent = p;
-      pSel.appendChild(opt);
-    }
-    // choose barrack first if exists
-    const prefer = prefixes.find(p => /barrack/i.test(p)) || prefixes[0] || '';
-    if (prefer) setPrefix(prefer);
-  }
-
-  async function loadAtlasFromURL(url) {
-    setStatus('Loading atlas...', 'ok');
-    lastErr = '';
-    try {
-      const a = await window.PO.atlasTP.loadTPAtlasMulti(url);
-      atlas = a;
-      framesByPrefix = makePrefixesFromAtlas(a);
-
-      refreshSelectors();
-      setStatus(`Loaded: ${a.frames.size} frames, ${a.textures.length} texture(s).`, 'ok');
-      setHud();
-    } catch (e) {
-      lastErr = String(e && e.message ? e.message : e);
-      setStatus('Load failed: ' + lastErr, 'bad');
-      console.error(e);
-      atlas = null;
-      framesByPrefix = new Map();
-      $('prefixSel').innerHTML = '';
-      $('frameSel').innerHTML = '';
-      setHud();
+  }else{
+    for(const f of list){
+      const opt=document.createElement('option');
+      opt.value=f.name; opt.textContent=f.name;
+      sel.appendChild(opt);
     }
   }
+  if(sel.options.length) sel.selectedIndex=0;
+}
 
-  function getIsoConsts() {
-    return {
-      TILE: parseNum('tile', 128),
-      ISO_X: parseNum('isoX', 64),
-      ISO_Y: parseNum('isoY', 32),
-    };
+function getCurrentFrame(){
+  const name=$('frameSel').value;
+  if(!name) return frames[cur]||null;
+  return frames.find(f=>f.name===name) || frames[cur] || null;
+}
+
+function syncPivotFromFrame(){
+  const f=getCurrentFrame();
+  if(!f) return;
+  const ax = (f.anchor && typeof f.anchor.x === 'number') ? f.anchor.x : 0.5;
+  const ay = (f.anchor && typeof f.anchor.y === 'number') ? f.anchor.y : 0.5;
+  $('pivotX').value = clamp(ax,0,1);
+  $('pivotY').value = clamp(ay,0,1);
+  updateOutput();
+}
+
+// ===== ingame mapping
+function isoParams(){
+  const TILE=+($('tile').value||128);
+  return {TILE, ISO_X:TILE/2, ISO_Y:TILE/4};
+}
+function worldToScreen(tileX, tileY, cam){
+  const {ISO_X, ISO_Y} = isoParams();
+  const x = (tileX - tileY) * ISO_X;
+  const y = (tileX + tileY) * ISO_Y;
+  return {x: x*cam.zoom, y: y*cam.zoom};
+}
+function getCam(){
+  return {
+    x: +($('camX').value||0),
+    y: +($('camY').value||0),
+    zoom: +($('camZoom').value||1)
+  };
+}
+function baseOffset(){
+  const w=cv.width/dpr, h=cv.height/dpr;
+  const baseX=w*0.5;
+  const baseY=h*(+($('baseYRatio').value||0.22));
+  return {baseX, baseY};
+}
+
+// anchor point on footprint (in tile coords)
+function anchorTile(tileX, tileY, tw, th, mode){
+  // IMPORTANT: match game logic (buildingWorldFromTileOrigin): center is at tx+tw/2, ty+th/2 in tile units.
+  if(mode==='center'){
+    return {ax: tileX + (tw/2), ay: tileY + (th/2)};
   }
-
-  function gameWorldToIso(wx, wy, iso) {
-    // game.js: isoX = (wx - wy) / TILE; isoY = (wx + wy) / TILE;
-    return {
-      x: (wx - wy) / iso.TILE,
-      y: (wx + wy) / iso.TILE
-    };
+  if(mode==='south'){
+    // bottom edge center (footprint boundary)
+    return {ax: tileX + (tw/2), ay: tileY + (th)};
   }
+  // south-west corner on boundary
+  return {ax: tileX, ay: tileY + (th)};
+}
 
-  function gameWorldToScreen(wx, wy, cam, iso, baseX, baseY) {
-    // game.js:
-    // ix,iy = worldToIso(wx,wy)
-    // sx = (ix - iy) * ISO_X * zoom + baseX - cam.x*zoom
-    // sy = (ix + iy) * ISO_Y * zoom + baseY - cam.y*zoom
-    const i = gameWorldToIso(wx, wy, iso);
-    const sx = (i.x - i.y) * iso.ISO_X * cam.zoom + baseX - cam.x * cam.zoom;
-    const sy = (i.x + i.y) * iso.ISO_Y * cam.zoom + baseY - cam.y * cam.zoom;
-    return { x:sx, y:sy };
-  }
+// ===== drawing
+function clear(){
+  ctx.setTransform(1,0,0,1,0,0);
+  ctx.clearRect(0,0,cv.width,cv.height);
+}
 
-  function tileAnchorToWorld(tx, ty, tw, th, mode, iso) {
-    // 타일 좌표 → 월드(px) 기준.
-    // 기준: 타일 좌상단을 (tx,ty)로 본다.
-    // center: footprint 중심
-    // south: footprint 하단 중앙
-    let ax = tx;
-    let ay = ty;
-    if (mode === 'center') {
-      ax = tx + (tw * 0.5);
-      ay = ty + (th * 0.5);
-    } else if (mode === 'south') {
-      ax = tx + (tw * 0.5);
-      ay = ty + th;
-    }
-    // world px
-    return { x: ax * iso.TILE, y: ay * iso.TILE };
-  }
+function drawGrid(cam, view){
+  if(!$('showGrid').checked) return;
+  const {ISO_X, ISO_Y} = isoParams();
+  const span = clamp(+$('gridSpan').value||30, 6, 200);
+  const w=cv.width/dpr, h=cv.height/dpr;
+  const {baseX, baseY} = baseOffset();
 
-  function drawCross(x, y) {
-    ctx.save();
-    ctx.lineWidth = 2;
-    ctx.strokeStyle = 'rgba(121,167,255,.95)';
-    ctx.beginPath();
-    ctx.moveTo(x-14, y); ctx.lineTo(x+14, y);
-    ctx.moveTo(x, y-14); ctx.lineTo(x, y+14);
-    ctx.stroke();
-    ctx.restore();
-  }
+  // draw around building origin (0,0) in tile coords (or around camera)
+  const cx = +($('btx').value||0);
+  const cy = +($('bty').value||0);
 
-  function drawFootprintOverlay(iso, cam) {
-    if (!$('showGrid').checked && !$('showFoot').checked) return;
+  ctx.save();
+  ctx.scale(dpr,dpr);
+  ctx.translate(view.panX + baseX, view.panY + baseY);
+  ctx.scale(view.zoom, view.zoom);
 
-    const w = cv.width / dpr;
-    const h = cv.height / dpr;
-    const baseX = w * 0.5;
-    const baseY = h * clamp(parseNum('baseYRatio', 0.22), 0, 1);
+  ctx.lineWidth = 1;
+  ctx.strokeStyle = 'rgba(74,120,170,0.18)';
 
-    const tw = parseNum('fpW', 3), th = parseNum('fpH', 2);
-    const tx = parseNum('bTX', 0), ty = parseNum('bTY', 0);
-    const yDir = ($('fpYDir') ? $('fpYDir').value : 'sw');
-    const ySign = (yDir === 'ne') ? -1 : 1; // fy 증가가 NE로 가면 -ty
+  // draw diamond grid lines (two families)
+  // We'll draw diamonds by iterating tile points
+  const halfX = ISO_X * cam.zoom;
+  const halfY = ISO_Y * cam.zoom;
 
-    // 그리드: 화면에 보이는 대략 범위만 그려도 되지만, 여기선 간단히 주변만
-    const showGrid = $('showGrid').checked;
-    const showFoot = $('showFoot').checked;
+  const startX = cx - span;
+  const endX   = cx + span;
+  const startY = cy - span;
+  const endY   = cy + span;
 
-    ctx.save();
-    ctx.lineWidth = 1;
-    ctx.globalAlpha = 0.9;
-
-    const range = 18; // 화면에 보이는 정도만
-    for (let y = -range; y <= range; y++) {
-      for (let x = -range; x <= range; x++) {
-        const wx = (x + cam.tileX) * iso.TILE;
-        const wy = (y + cam.tileY) * iso.TILE;
-        const p = gameWorldToScreen(wx, wy, cam, iso, baseX, baseY);
-
-        const dx = iso.ISO_X * cam.zoom;
-        const dy = iso.ISO_Y * cam.zoom;
-
-        if (showGrid) {
-          ctx.strokeStyle = 'rgba(70,160,255,.18)';
-          ctx.beginPath();
-          ctx.moveTo(p.x, p.y - dy);
-          ctx.lineTo(p.x + dx, p.y);
-          ctx.lineTo(p.x, p.y + dy);
-          ctx.lineTo(p.x - dx, p.y);
-          ctx.closePath();
-          ctx.stroke();
-        }
-      }
-    }
-
-    if (showFoot) {
-      // 풋프린트(요구사항 버전):
-      //  - 개별 다이아를 "흩뿌리는" 느낌 말고
-      //  - 3x2면 사용자 그림처럼 "직사각형(평행사변형) 외곽 + 내부 3x2 분할"로 보이게 그린다.
-      const dx = iso.ISO_X * cam.zoom;
-      const dy = iso.ISO_Y * cam.zoom;
-
-      // 기준점: (tx,ty) 타일의 '상단 꼭짓점'을 풋프린트 좌상단 코너로 사용
-      const c0 = gameWorldToScreen((tx) * iso.TILE, (ty) * iso.TILE, cam, iso, baseX, baseY);
-      const P0 = { x: c0.x, y: c0.y - dy };
-
-      // W축: SE(↘) , H축: SW(↙)  -> 사용자 그림의 3x2 형태
-      const eW = { x: +dx, y: +dy };   // 한 타일만큼 SE로 이동(상단 꼭짓점 기준)
-      const eH = { x: -dx, y: +dy };   // 한 타일만큼 SW로 이동(상단 꼭짓점 기준)
-
-      const P1 = { x: P0.x + eW.x * tw, y: P0.y + eW.y * tw };
-      const P2 = { x: P0.x + eH.x * th, y: P0.y + eH.y * th };
-      const P3 = { x: P1.x + eH.x * th, y: P1.y + eH.y * th };
-
-      ctx.save();
-      ctx.globalAlpha = 0.95;
-      ctx.lineWidth = 3;
-      ctx.strokeStyle = 'rgba(108,255,176,.85)';
-
-      // 외곽선
+  // draw tiles as faint diamonds (fast enough for span<=60)
+  const step = span>60 ? 2 : 1;
+  for(let ty=startY; ty<=endY; ty+=step){
+    for(let tx=startX; tx<=endX; tx+=step){
+      const p = worldToScreen((tx+0.5) - cam.x, (ty+0.5) - cam.y, cam);
+      const sx=p.x, sy=p.y;
       ctx.beginPath();
-      ctx.moveTo(P0.x, P0.y);
-      ctx.lineTo(P1.x, P1.y);
-      ctx.lineTo(P3.x, P3.y);
-      ctx.lineTo(P2.x, P2.y);
+      ctx.moveTo(sx, sy - halfY);
+      ctx.lineTo(sx + halfX, sy);
+      ctx.lineTo(sx, sy + halfY);
+      ctx.lineTo(sx - halfX, sy);
       ctx.closePath();
       ctx.stroke();
-
-      // 내부 분할선 (세로: W방향 타일 경계)
-      ctx.lineWidth = 2;
-      ctx.strokeStyle = 'rgba(108,255,176,.65)';
-      for (let i = 1; i < tw; i++) {
-        const A = { x: P0.x + eW.x * i, y: P0.y + eW.y * i };
-        const B = { x: A.x + eH.x * th, y: A.y + eH.y * th };
-        ctx.beginPath();
-        ctx.moveTo(A.x, A.y);
-        ctx.lineTo(B.x, B.y);
-        ctx.stroke();
-      }
-      // 내부 분할선 (가로: H방향 타일 경계)
-      for (let j = 1; j < th; j++) {
-        const A = { x: P0.x + eH.x * j, y: P0.y + eH.y * j };
-        const B = { x: A.x + eW.x * tw, y: A.y + eW.y * tw };
-        ctx.beginPath();
-        ctx.moveTo(A.x, A.y);
-        ctx.lineTo(B.x, B.y);
-        ctx.stroke();
-      }
-
-      ctx.restore();
-    }// 풋프린트 "직사각형" 가이드(외곽선 + 축). 아이소에서는 평행사변형으로 보이는게 정상.
-    const showAxis = $('showAxis') ? $('showAxis').checked : false;
-    if (showAxis) {
-      const pa = gameWorldToScreen((tx) * iso.TILE, (ty) * iso.TILE, cam, iso, baseX, baseY);
-      const pb = gameWorldToScreen((tx + tw) * iso.TILE, (ty) * iso.TILE, cam, iso, baseX, baseY);
-      const pc = gameWorldToScreen((tx + tw) * iso.TILE, (ty + (ySign * th)) * iso.TILE, cam, iso, baseX, baseY);
-      const pd = gameWorldToScreen((tx) * iso.TILE, (ty + (ySign * th)) * iso.TILE, cam, iso, baseX, baseY);
-
-      // outer outline
-      ctx.save();
-      ctx.strokeStyle = 'rgba(255,255,255,.22)';
-      ctx.lineWidth = 2;
-      ctx.setLineDash([8, 6]);
-      ctx.beginPath();
-      ctx.moveTo(pa.x, pa.y);
-      ctx.lineTo(pb.x, pb.y);
-      ctx.lineTo(pc.x, pc.y);
-      ctx.lineTo(pd.x, pd.y);
-      ctx.closePath();
-      ctx.stroke();
-      ctx.setLineDash([]);
-
-      // axis arrows (W: +x ↘, H: +y ↙)
-      function arrow(a, b, label) {
-        ctx.strokeStyle = 'rgba(121,167,255,.85)';
-        ctx.fillStyle = 'rgba(121,167,255,.85)';
-        ctx.lineWidth = 3;
-        ctx.beginPath();
-        ctx.moveTo(a.x, a.y);
-        ctx.lineTo(b.x, b.y);
-        ctx.stroke();
-
-        const ang = Math.atan2(b.y - a.y, b.x - a.x);
-        const ah = 10;
-        ctx.beginPath();
-        ctx.moveTo(b.x, b.y);
-        ctx.lineTo(b.x - Math.cos(ang - 0.55) * ah, b.y - Math.sin(ang - 0.55) * ah);
-        ctx.lineTo(b.x - Math.cos(ang + 0.55) * ah, b.y - Math.sin(ang + 0.55) * ah);
-        ctx.closePath();
-        ctx.fill();
-
-        const mx = (a.x + b.x) * 0.5;
-        const my = (a.y + b.y) * 0.5;
-        ctx.font = '12px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace';
-        ctx.fillStyle = 'rgba(255,255,255,.75)';
-        ctx.fillText(label, mx + 6, my - 6);
-      }
-
-      arrow(pa, pb, `W=${tw}  ↘(+x)`);
-      arrow(pa, pd, (yDir === 'ne') ? `H=${th}  ↗(ty-)` : `H=${th}  ↙(ty+)`);
-
-      // origin dot
-      ctx.fillStyle = 'rgba(255,206,106,.85)';
-      ctx.beginPath();
-      ctx.arc(pa.x, pa.y, 4, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.restore();
-    }
-
-ctx.restore();
-  }
-
-
-  function drawMiniFootprint() {
-    const wrap = $('miniWrap');
-    const mini = $('miniCv');
-    if (!wrap || !mini) return;
-
-    const on = $('showMini') ? $('showMini').checked : false;
-    wrap.style.display = on ? '' : 'none';
-    if (!on) return;
-
-    const tw = Math.max(1, parseNum('fpW', 3));
-    const th = Math.max(1, parseNum('fpH', 2));
-    const mctx = mini.getContext('2d');
-
-    // high DPI crisp
-    const mw = mini.width, mh = mini.height;
-    mctx.clearRect(0, 0, mw, mh);
-
-    const pad = 18;
-    const cell = Math.max(10, Math.floor(Math.min((mw - pad*2) / tw, (mh - pad*2) / th)));
-    const w = cell * tw;
-    const h = cell * th;
-    const ox = Math.floor((mw - w) / 2);
-    const oy = Math.floor((mh - h) / 2);
-
-    // fill rect
-    mctx.fillStyle = 'rgba(108,255,176,.10)';
-    mctx.fillRect(ox, oy, w, h);
-
-    // grid
-    mctx.strokeStyle = 'rgba(255,255,255,.18)';
-    mctx.lineWidth = 1;
-    for (let x = 0; x <= tw; x++) {
-      mctx.beginPath();
-      mctx.moveTo(ox + x * cell, oy);
-      mctx.lineTo(ox + x * cell, oy + h);
-      mctx.stroke();
-    }
-    for (let y = 0; y <= th; y++) {
-      mctx.beginPath();
-      mctx.moveTo(ox, oy + y * cell);
-      mctx.lineTo(ox + w, oy + y * cell);
-      mctx.stroke();
-    }
-
-    // outline
-    mctx.strokeStyle = 'rgba(108,255,176,.85)';
-    mctx.lineWidth = 2;
-    mctx.strokeRect(ox, oy, w, h);
-
-    // origin marker (0,0)
-    mctx.fillStyle = 'rgba(255,206,106,.90)';
-    mctx.fillRect(ox + 2, oy + 2, 8, 8);
-
-    // labels
-    mctx.font = '12px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace';
-    mctx.fillStyle = 'rgba(255,255,255,.78)';
-    mctx.fillText(`Top-down: W=${tw} →, H=${th} ↓`, 10, 16);
-    mctx.fillText(`(0,0) origin`, 10, mh - 10);
-  }
-
-  function render() {
-    // Ensure size is sane
-    if (cv.width < 10 || cv.height < 10) resizeCanvas();
-
-    const w = cv.width / dpr;
-    const h = cv.height / dpr;
-
-    ctx.clearRect(0, 0, w, h);
-
-    // subtle vignette
-    ctx.save();
-    const g = ctx.createRadialGradient(w*0.55, h*0.45, 40, w*0.55, h*0.45, Math.max(w,h)*0.9);
-    g.addColorStop(0, 'rgba(255,255,255,0.02)');
-    g.addColorStop(1, 'rgba(0,0,0,0.14)');
-    ctx.fillStyle = g;
-    ctx.fillRect(0,0,w,h);
-    ctx.restore();
-
-    const iso = getIsoConsts();
-    const cam = {
-      tileX: parseNum('camTX', 0),
-      tileY: parseNum('camTY', 0),
-      x: parseNum('camTX', 0) * iso.TILE, // world px
-      y: parseNum('camTY', 0) * iso.TILE, // world px
-      zoom: parseNum('camZoom', 1),
-    };
-
-    const baseX = w * 0.5;
-    const baseY = h * clamp(parseNum('baseYRatio', 0.22), 0, 1);
-
-    drawFootprintOverlay(iso, cam);
-    drawMiniFootprint();
-
-    // draw sprite at anchor
-    if (atlas && curFrame) {
-      const tw = parseNum('fpW', 3), th = parseNum('fpH', 2);
-      const tx = parseNum('bTX', 0), ty = parseNum('bTY', 0);
-      const mode = $('anchorMode').value;
-
-      const worldAnchor = tileAnchorToWorld(tx, ty, tw, th, mode, iso);
-      const screenAnchor = gameWorldToScreen(worldAnchor.x, worldAnchor.y, cam, iso, baseX, baseY);
-
-      if ($('showAnchor').checked) {
-        drawCross(screenAnchor.x, screenAnchor.y);
-      }
-
-      const sc = parseNum('scale', 0.14);
-      const pivot = {
-        x: parseNum('px', 0.5),
-        y: parseNum('py', 0.5),
-      };
-
-      // IMPORTANT: atlas_tp drawFrame expects x,y = pivot position in screen space.
-      // It will internally offset using spriteSourceSize/sourceSize.
-      window.PO.atlasTP.drawFrame(ctx, atlas, curFrame, screenAnchor.x, screenAnchor.y, {
-        scale: sc,
-        pivot,
-        debugDraw: $('showBounds').checked
-      });
-
-      // output
-      $('out').value = JSON.stringify({ x: +pivot.x.toFixed(4), y: +pivot.y.toFixed(4) });
-      $('pxVal').textContent = pivot.x.toFixed(4);
-      $('pyVal').textContent = pivot.y.toFixed(4);
-
-      const fr = atlas.frames.get(curFrame);
-      const ss = fr?.sourceSize || null;
-      const sss = fr?.spriteSourceSize || null;
-      $('debugLine').textContent =
-        `frame=${curFrame}  sourceSize=${ss?`${ss.w}x${ss.h}`:'?'}  spriteSourceSize=${sss?`x=${sss.x},y=${sss.y},w=${sss.w},h=${sss.h}`:'?'}`;
-    } else {
-      $('out').value = '';
-      $('debugLine').textContent = '';
-    }
-
-    lastDrawAt = Date.now();
-    setHud();
-  }
-
-  function tick(now) {
-    const fps = clamp(parseNum('fps', 20), 1, 60);
-    const dt = now - tPrev;
-    tPrev = now;
-    if (playing && atlas && curPrefix) {
-      acc += dt;
-      const stepMs = 1000 / fps;
-      if (acc >= stepMs) {
-        const list = framesByPrefix.get(curPrefix) || [];
-        if (list.length) {
-          frameIdx = (frameIdx + 1) % list.length;
-          curFrame = list[frameIdx];
-          $('frameSel').value = curFrame;
-        }
-        acc = 0;
-      }
-    }
-    render();
-    requestAnimationFrame(tick);
-  }
-
-  function applyPivotToPrefix() {
-    if (!atlas || !curPrefix) return;
-    const list = framesByPrefix.get(curPrefix) || [];
-    const pivot = { x: parseNum('px', 0.5), y: parseNum('py', 0.5) };
-    for (const name of list) {
-      const fr = atlas.frames.get(name);
-      if (!fr) continue;
-      fr.pivot = { x: pivot.x, y: pivot.y };
-      // also write back into original JSON-shaped fields if present
-      if (fr._rawFrame && typeof fr._rawFrame === 'object') {
-        fr._rawFrame.anchor = { x: pivot.x, y: pivot.y };
-      }
-    }
-    setStatus(`Applied pivot to prefix: ${curPrefix} (${list.length} frames)`, 'ok');
-  }
-
-  function downloadPatchedJSON() {
-    if (!atlas) return;
-    // Rebuild a TexturePacker-like JSON: we stored raw JSON in atlas._rawJson if atlas_tp kept it.
-    // atlas_tp.js doesn't keep raw, so we store a copy on load by fetching again.
-    // We'll do a safe approach: fetch current jsonUrl, patch "frames[*].anchor" for frames we touched.
-    const url = $('jsonUrl').value.trim();
-    if (!url) return;
-    (async () => {
-      try {
-        const resp = await fetch(url, { cache:'no-store' });
-        const txt = await resp.text();
-        if (window.PO.atlasTP && window.PO.atlasTP._looksLikeHTML && window.PO.atlasTP._looksLikeHTML(txt)) {
-          throw new Error('JSON URL returned HTML (404/fallback)');
-        }
-        const j = JSON.parse(txt);
-        const list = framesByPrefix.get(curPrefix) || [];
-        const pivot = { x: parseNum('px', 0.5), y: parseNum('py', 0.5) };
-        const setAnchor = (framesObj) => {
-          for (const nm of list) {
-            const fr = framesObj[nm];
-            if (fr) fr.anchor = { x:pivot.x, y:pivot.y };
-          }
-        };
-        if (j.frames) setAnchor(j.frames);
-        if (j.textures && Array.isArray(j.textures)) {
-          for (const tex of j.textures) {
-            if (tex.frames) setAnchor(tex.frames);
-          }
-        }
-        const blob = new Blob([JSON.stringify(j, null, 2)], { type:'application/json' });
-        const a = document.createElement('a');
-        a.href = URL.createObjectURL(blob);
-        const base = url.split('/').pop() || 'atlas.json';
-        a.download = base.replace(/\.json$/i,'') + '_patched.json';
-        a.click();
-        URL.revokeObjectURL(a.href);
-        setStatus('Downloaded patched JSON.', 'ok');
-      } catch (e) {
-        setStatus('Download failed: ' + String(e.message||e), 'bad');
-        console.error(e);
-      }
-    })();
-  }
-
-  // ---- wire UI ----
-  function bindUI() {
-    const bump = (id, delta) => {
-      const el = $(id);
-      el.value = String(clamp(parseNum(id, 0.5) + delta, 0, 1));
-      render();
-    };
-
-    $('btnLoad').addEventListener('click', () => loadAtlasFromURL($('jsonUrl').value.trim()));
-    $('btnReload').addEventListener('click', () => loadAtlasFromURL($('jsonUrl').value.trim()));
-
-    $('btnIdle').addEventListener('click', () => {
-      $('jsonUrl').value = '/asset/sprite/const/normal/barrack/barrack_idle.json';
-    });
-    $('btnConst').addEventListener('click', () => {
-      $('jsonUrl').value = '/asset/sprite/const/const_anim/barrack/barrack_const.json';
-    });
-    $('btnDist').addEventListener('click', () => {
-      $('jsonUrl').value = '/asset/sprite/const/distruct/barrack/barrack_distruct.json';
-    });
-
-    $('prefixSel').addEventListener('change', (e) => setPrefix(e.target.value));
-    $('frameSel').addEventListener('change', (e) => setFrame(e.target.value));
-
-    $('btnPlay').addEventListener('click', () => { playing = true; });
-    $('btnStop').addEventListener('click', () => { playing = false; });
-
-    $('px').addEventListener('input', render);
-    $('py').addEventListener('input', render);
-
-    $('pxM').addEventListener('click', () => bump('px', -0.001));
-    $('pxP').addEventListener('click', () => bump('px', 0.001));
-    $('pyM').addEventListener('click', () => bump('py', -0.001));
-    $('pyP').addEventListener('click', () => bump('py', 0.001));
-
-    $('btnApplyPrefix').addEventListener('click', () => { applyPivotToPrefix(); render(); });
-    $('btnDownload').addEventListener('click', downloadPatchedJSON);
-
-    // rerender on any numeric/control changes
-    const rerenderIds = [
-      'fps','scale','tile','isoX','isoY',
-      'camTX','camTY','camZoom',
-      'fpW','fpH','fpYDir',
-      'bTX','bTY',
-      'anchorMode','baseYRatio',
-      'showGrid','showFoot','showAxis','showAnchor','showBounds','showMini'
-    ];
-    for (const id of rerenderIds) {
-      $(id).addEventListener('input', render);
-      $(id).addEventListener('change', render);
     }
   }
 
-  // expose looksLikeHTML helper for download path check
-  // (atlas_tp.js does not export it, so we attach a tiny version)
-  if (!window.PO.atlasTP._looksLikeHTML) {
-    window.PO.atlasTP._looksLikeHTML = (s) => {
-      const t = String(s||'').trim().slice(0, 120).toLowerCase();
-      return t.startsWith('<!doctype') || t.startsWith('<html') || t.includes('<head') || t.includes('<body');
-    };
+  ctx.restore();
+}
+
+function drawFootprintExact(cam, view){
+  if(!$('showFoot').checked) return;
+  const tw = Math.max(1, parseInt($('tw').value||3,10));
+  const th = Math.max(1, parseInt($('th').value||2,10));
+  const tx0 = parseInt($('btx').value||0,10);
+  const ty0 = parseInt($('bty').value||0,10);
+
+  const {ISO_X, ISO_Y} = isoParams();
+  const halfX = ISO_X * cam.zoom;
+  const halfY = ISO_Y * cam.zoom;
+
+  // We want the exact "big parallelogram + 3x2 subdivisions" look.
+  // We'll draw the outline of the union of diamonds, then internal split lines.
+  // Build corner points in screen space for the footprint boundary:
+  // Using standard iso: tile corner points
+  // We'll define the topmost tile center at (tx0,ty0) and compute boundary corners as:
+  // A = top corner of tile (tx0,ty0)
+  // B = rightmost corner after tw tiles along +x: top corner of tile (tx0+tw-1, ty0) shifted to right corner
+  // C = bottom corner after tw along +x and th along +y
+  // D = leftmost corner after th along +y
+  // To make it stable and simple, we compute four boundary vertices directly:
+  // V0: top vertex of tile (tx0,ty0)
+  // V1: right vertex of tile (tx0+tw-1, ty0)
+  // V2: bottom vertex of tile (tx0+tw-1, ty0+th-1)
+  // V3: left vertex of tile (tx0, ty0+th-1)
+  const pTop = worldToScreen((tx0+0.5) - cam.x, (ty0+0.5) - cam.y, cam);
+  const pRight = worldToScreen((tx0+tw-1+0.5) - cam.x, (ty0+0.5) - cam.y, cam);
+  const pBottom = worldToScreen((tx0+tw-1+0.5) - cam.x, (ty0+th-1+0.5) - cam.y, cam);
+  const pLeft = worldToScreen((tx0+0.5) - cam.x, (ty0+th-1+0.5) - cam.y, cam);
+
+  const V0 = {x:pTop.x, y:pTop.y - halfY};
+  const V1 = {x:pRight.x + halfX, y:pRight.y};
+  const V2 = {x:pBottom.x, y:pBottom.y + halfY};
+  const V3 = {x:pLeft.x - halfX, y:pLeft.y};
+
+  ctx.save();
+  ctx.scale(dpr,dpr);
+  const {baseX, baseY} = baseOffset();
+  ctx.translate(view.panX + baseX, view.panY + baseY);
+  ctx.scale(view.zoom, view.zoom);
+
+  // outline
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = 'rgba(79,227,160,0.95)';
+  ctx.fillStyle = 'rgba(79,227,160,0.08)';
+  ctx.beginPath();
+  ctx.moveTo(V0.x, V0.y);
+  ctx.lineTo(V1.x, V1.y);
+  ctx.lineTo(V2.x, V2.y);
+  ctx.lineTo(V3.x, V3.y);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+
+  // internal split lines (tw columns, th rows) in the "projected rect" sense:
+  // We draw tw-1 lines parallel to V0->V3 (vertical-ish) and th-1 lines parallel to V0->V1 (horizontal-ish).
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = 'rgba(79,227,160,0.75)';
+
+  // column lines: split along +x direction (SE), i=1..tw-1
+  for(let i=1;i<tw;i++){
+    // line connects the i-th split on top edge (V0->V1) to corresponding split on bottom edge (V3->V2)
+    const t = i/tw;
+    const A = {x: V0.x + (V1.x - V0.x)*t, y: V0.y + (V1.y - V0.y)*t};
+    const B = {x: V3.x + (V2.x - V3.x)*t, y: V3.y + (V2.y - V3.y)*t};
+    ctx.beginPath(); ctx.moveTo(A.x,A.y); ctx.lineTo(B.x,B.y); ctx.stroke();
+  }
+  // row lines: split along +y direction (SW), j=1..th-1
+  for(let j=1;j<th;j++){
+    const t = j/th;
+    const A = {x: V0.x + (V3.x - V0.x)*t, y: V0.y + (V3.y - V0.y)*t};
+    const B = {x: V1.x + (V2.x - V1.x)*t, y: V1.y + (V2.y - V1.y)*t};
+    ctx.beginPath(); ctx.moveTo(A.x,A.y); ctx.lineTo(B.x,B.y); ctx.stroke();
   }
 
-  function boot() {
-    bindUI();
-    bootResizeObservers();
-    resizeCanvas();
-    render();
-    requestAnimationFrame(tick);
+  // axis / anchor marker
+  if($('showAxis').checked){
+    // show W (+x) and H (+y) directions like your diagram
+    ctx.lineWidth = 3;
+    // W arrow (SE)
+    const origin = {x: V0.x, y: V0.y};
+    const wEnd = {x: V0.x + (V1.x - V0.x), y: V0.y + (V1.y - V0.y)};
+    const hEnd = {x: V0.x + (V3.x - V0.x), y: V0.y + (V3.y - V0.y)};
+    ctx.strokeStyle = 'rgba(140,190,255,0.85)';
+    drawArrow(origin, wEnd, 'W='+tw+' ↘(+x)', 10);
+    drawArrow(origin, hEnd, 'H='+th+' ↙(+y)', 10);
   }
 
-  if (document.readyState === 'loading') {
-    window.addEventListener('DOMContentLoaded', boot);
-  } else {
-    boot();
+  ctx.restore();
+}
+
+function drawArrow(a,b,label,off){
+  ctx.beginPath();
+  ctx.moveTo(a.x,a.y);
+  ctx.lineTo(b.x,b.y);
+  ctx.stroke();
+  const ang=Math.atan2(b.y-a.y,b.x-a.x);
+  const hl=10;
+  ctx.beginPath();
+  ctx.moveTo(b.x,b.y);
+  ctx.lineTo(b.x - hl*Math.cos(ang-0.5), b.y - hl*Math.sin(ang-0.5));
+  ctx.lineTo(b.x - hl*Math.cos(ang+0.5), b.y - hl*Math.sin(ang+0.5));
+  ctx.closePath();
+  ctx.fillStyle='rgba(140,190,255,0.85)';
+  ctx.fill();
+  ctx.fillStyle='rgba(200,225,255,0.9)';
+  ctx.font='12px system-ui, sans-serif';
+  ctx.fillText(label, b.x + off*Math.cos(ang+Math.PI/2), b.y + off*Math.sin(ang+Math.PI/2));
+}
+
+function drawSprite(cam, view){
+  const f=getCurrentFrame();
+  if(!f || !textures[f.tex]?.img) return;
+
+  const img=textures[f.tex].img;
+  const sc=+($('spriteScale').value||0.14);
+
+  const tx0 = parseInt($('btx').value||0,10);
+  const ty0 = parseInt($('bty').value||0,10);
+  const tw = Math.max(1, parseInt($('tw').value||3,10));
+  const th = Math.max(1, parseInt($('th').value||2,10));
+  const mode = $('anchorMode').value;
+
+  // anchor point in tile coords
+  const a = anchorTile(tx0, ty0, tw, th, mode);
+  const p = worldToScreen(a.ax - cam.x, a.ay - cam.y, cam);
+
+  const {baseX, baseY} = baseOffset();
+
+  // pivot in pixels of source size
+  const px = (+$('pivotX').value||0.5) * f.source.w;
+  const py = (+$('pivotY').value||0.5) * f.source.h;
+
+  // draw position in screen space (before view transform)
+  // replicate atlas_tp typical: draw = anchorScreen - (pivot - ssOffset) * scale
+  // spriteSourceSize is the crop origin inside the original source.
+  const dx = p.x - (px - f.ss.x) * sc;
+  const dy = p.y - (py - f.ss.y) * sc;
+
+  // draw cropped region from atlas
+  const sx=f.rect.x, sy=f.rect.y, sw=f.rect.w, sh=f.rect.h;
+
+  ctx.save();
+  ctx.scale(dpr,dpr);
+  ctx.translate(view.panX + baseX, view.panY + baseY);
+  ctx.scale(view.zoom, view.zoom);
+
+  ctx.imageSmoothingEnabled=true;
+  ctx.drawImage(img, sx,sy,sw,sh, dx,dy, sw*sc, sh*sc);
+
+  if($('showBounds').checked){
+    ctx.strokeStyle='rgba(255,200,80,0.9)';
+    ctx.lineWidth=2;
+    ctx.strokeRect(dx,dy,sw*sc,sh*sc);
   }
-})();
+
+  ctx.restore();
+
+  // write debug
+  const top = $('topInfo');
+  const drawTxt = `atlas: ${$('prefix').value || '-'}  frame: ${f.name}  draw: (${dx.toFixed(1)},${dy.toFixed(1)})`;
+  top.textContent = `canvas ${Math.round(cv.width/dpr)}x${Math.round(cv.height/dpr)}  |  ${drawTxt}`;
+}
+
+function updateOutput(){
+  const x=+($('pivotX').value||0.5);
+  const y=+($('pivotY').value||0.5);
+  $('out').value = JSON.stringify({x:+x.toFixed(4), y:+y.toFixed(4)});
+}
+
+function tick(t){
+  requestAnimationFrame(tick);
+  if(!cv.width || !cv.height) return;
+  if(!atlasData || !frames.length || !textures.length){
+    clear();
+    return;
+  }
+  const cam=getCam();
+  const view={zoom:+($('viewZoom').value||1), panX, panY};
+
+  // animation
+  if(playing){
+    const fps=clamp(+($('fps').value||20),1,60);
+    if(!lastT) lastT=t;
+    const dt=t-lastT;
+    const step = 1000/fps;
+    if(dt>=step){
+      lastT=t-(dt%step);
+      // advance within prefix-filtered list if possible
+      const prefix=$('prefix').value.trim();
+      const list = frames.filter(f=>!prefix || f.name.startsWith(prefix));
+      if(list.length){
+        const curName = $('frameSel').value;
+        const idx=list.findIndex(f=>f.name===curName);
+        const next=list[(idx+1)%list.length];
+        $('frameSel').value = next.name;
+      }else{
+        cur=(cur+1)%frames.length;
+        $('frameSel').value = frames[cur].name;
+      }
+    }
+  }else{
+    lastT=0;
+  }
+
+  clear();
+  drawGrid(cam, view);
+  drawFootprintExact(cam, view);
+  drawSprite(cam, view);
+}
+
+// ===== view controls
+function resetView(){
+  panX=0; panY=0;
+  $('viewZoom').value=1;
+}
+function fitToFootprint(){
+  // compute footprint bounds in screen space and adjust pan/zoom so it fits.
+  const cam=getCam();
+  const viewZoom=+($('viewZoom').value||1);
+  const tw=Math.max(1, parseInt($('tw').value||3,10));
+  const th=Math.max(1, parseInt($('th').value||2,10));
+  const tx0=parseInt($('btx').value||0,10);
+  const ty0=parseInt($('bty').value||0,10);
+
+  const {ISO_X, ISO_Y} = isoParams();
+  const halfX = ISO_X * cam.zoom;
+  const halfY = ISO_Y * cam.zoom;
+
+  const pTop = worldToScreen((tx0+0.5) - cam.x, (ty0+0.5) - cam.y, cam);
+  const pRight = worldToScreen((tx0+tw-1+0.5) - cam.x, (ty0+0.5) - cam.y, cam);
+  const pBottom = worldToScreen((tx0+tw-1+0.5) - cam.x, (ty0+th-1+0.5) - cam.y, cam);
+  const pLeft = worldToScreen((tx0+0.5) - cam.x, (ty0+th-1+0.5) - cam.y, cam);
+
+  const V0 = {x:pTop.x, y:pTop.y - halfY};
+  const V1 = {x:pRight.x + halfX, y:pRight.y};
+  const V2 = {x:pBottom.x, y:pBottom.y + halfY};
+  const V3 = {x:pLeft.x - halfX, y:pLeft.y};
+
+  const xs=[V0.x,V1.x,V2.x,V3.x], ys=[V0.y,V1.y,V2.y,V3.y];
+  const minX=Math.min(...xs), maxX=Math.max(...xs);
+  const minY=Math.min(...ys), maxY=Math.max(...ys);
+  const bw=maxX-minX, bh=maxY-minY;
+
+  const w=cv.width/dpr, h=cv.height/dpr;
+  const pad=60;
+  const zx=(w-pad)/Math.max(1,bw);
+  const zy=(h-pad)/Math.max(1,bh);
+  const z=clamp(Math.min(zx,zy), 0.2, 4);
+  $('viewZoom').value = +z.toFixed(2);
+
+  // center footprint in view
+  const cx=(minX+maxX)/2, cy=(minY+maxY)/2;
+  // we want cx,cy to land at (0,0) after pan, because baseOffset already centers
+  panX = -cx;
+  panY = -cy;
+}
+
+// mouse interactions
+cv.addEventListener('mousedown',(e)=>{
+  isPanning=true;
+  panStart={x:e.clientX, y:e.clientY, px:panX, py:panY};
+});
+window.addEventListener('mouseup',()=>{ isPanning=false; panStart=null; });
+window.addEventListener('mousemove',(e)=>{
+  if(!isPanning||!panStart) return;
+  const dx=e.clientX-panStart.x;
+  const dy=e.clientY-panStart.y;
+  panX = panStart.px + dx;
+  panY = panStart.py + dy;
+});
+cv.addEventListener('wheel',(e)=>{
+  e.preventDefault();
+  const z=+($('viewZoom').value||1);
+  const delta = Math.sign(e.deltaY);
+  const next = clamp(z * (delta>0 ? 0.9 : 1.1), 0.1, 10);
+  $('viewZoom').value = +next.toFixed(2);
+},{passive:false});
+cv.addEventListener('dblclick', (e)=>{ fitToFootprint(); });
+
+// ===== apply & download
+function applyToPrefix(){
+  const prefix=$('prefix').value.trim();
+  if(!prefix){ setStatus('ERR: prefix empty','err'); return; }
+  const x=+($('pivotX').value||0.5);
+  const y=+($('pivotY').value||0.5);
+  let n=0;
+  for(const f of frames){
+    if(f.name.startsWith(prefix)){
+      f.anchor={x,y};
+      if(f.rawRef) f.rawRef.anchor={x,y};
+      n++;
+    }
+  }
+  setStatus(`Applied anchor {x:${x.toFixed(4)}, y:${y.toFixed(4)}} to ${n} frame(s) with prefix "${prefix}".`,'ok');
+}
+
+function downloadPatched(){
+  if(!atlasData){ setStatus('ERR: no atlas loaded','err'); return; }
+  // If original JSON used textures[], we patched rawRef anchors only; safe to stringify atlasData.
+  const blob = new Blob([JSON.stringify(atlasData, null, 2)], {type:'application/json'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  const name = ( $('prefix').value.trim() || 'atlas' ) + '_patched.json';
+  a.download=name;
+  a.click();
+  URL.revokeObjectURL(a.href);
+  setStatus('Downloaded: ' + name,'ok');
+}
+
+// ===== wiring
+$('btnLoad').addEventListener('click', loadAtlas);
+$('btnReload').addEventListener('click', loadAtlas);
+
+$('chipIdle').addEventListener('click', ()=>{
+  $('atlasUrl').value='/asset/sprite/const/normal/barrack/barrack_idle.json';
+  $('prefix').value='barrack_idle';
+});
+$('chipConst').addEventListener('click', ()=>{
+  $('atlasUrl').value='/asset/sprite/const/const_anim/barrack/barrack_const.json';
+  $('prefix').value='barrack_con_complete';
+});
+$('chipDist').addEventListener('click', ()=>{
+  $('atlasUrl').value='/asset/sprite/const/distruct/barrack/barrack_distruct.json';
+  $('prefix').value='barrack_distruction';
+});
+
+$('prefix').addEventListener('change', ()=>{ rebuildFrameSelect(); syncPivotFromFrame(); });
+$('frameSel').addEventListener('change', ()=>{ playing=false; lastT=0; syncPivotFromFrame(); });
+$('btnPlay').addEventListener('click', ()=>{ playing=true; });
+$('btnPause').addEventListener('click', ()=>{ playing=false; });
+$('btnStep').addEventListener('click', ()=>{
+  playing=false;
+  const prefix=$('prefix').value.trim();
+  const list = frames.filter(f=>!prefix || f.name.startsWith(prefix));
+  if(list.length){
+    const curName=$('frameSel').value;
+    const idx=list.findIndex(f=>f.name===curName);
+    const next=list[(idx+1)%list.length];
+    $('frameSel').value=next.name;
+  }else if(frames.length){
+    cur=(cur+1)%frames.length;
+    $('frameSel').value=frames[cur].name;
+  }
+});
+
+function nudgePivot(dx,dy){
+  const x=clamp(+( $('pivotX').value ) + dx, 0, 1);
+  const y=clamp(+( $('pivotY').value ) + dy, 0, 1);
+  $('pivotX').value=x; $('pivotY').value=y;
+  updateOutput();
+}
+$('btnXMinus').addEventListener('click', ()=>nudgePivot(-0.001,0));
+$('btnXPlus').addEventListener('click', ()=>nudgePivot(0.001,0));
+$('btnYMinus').addEventListener('click', ()=>nudgePivot(0,-0.001));
+$('btnYPlus').addEventListener('click', ()=>nudgePivot(0,0.001));
+$('pivotX').addEventListener('input', updateOutput);
+$('pivotY').addEventListener('input', updateOutput);
+
+$('btnApplyPrefix').addEventListener('click', applyToPrefix);
+$('btnDownload').addEventListener('click', downloadPatched);
+
+$('btnResetView').addEventListener('click', resetView);
+$('btnFit').addEventListener('click', fitToFootprint);
+
+// re-render on input changes
+for(const id of ['tile','camZoom','camX','camY','btx','bty','tw','th','anchorMode','baseYRatio','viewZoom','gridSpan','showGrid','showFoot','showAxis','showBounds','spriteScale']){
+  $(id).addEventListener('input', ()=>{});
+  $(id).addEventListener('change', ()=>{});
+}
+
+requestAnimationFrame(tick);
+updateOutput();
 </script>
 </body>
-</html><div class="row"><input id="modeIngame" type="checkbox" checked>
-  <label for="modeIngame" style="margin:0;">인게임 정렬(바닥중앙)</label></div>
-
+</html>
