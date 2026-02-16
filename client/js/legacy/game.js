@@ -327,7 +327,16 @@ function fitMini() {
     NEUTRAL:[170, 170, 170]
   };
 
+  // expose TEAM_ACCENT so other modules (e.g., buildings.js) share the same palette
+  try{
+    // NOTE: enemy color linking disabled (caused enemy palette to mirror player)
+    window.TEAM_ACCENT = TEAM_ACCENT;
+  }catch(_e){}
+
+
   function _teamAccentRGB(team){
+    // Dev/test: mirror factions (enemy uses player's accent)
+    if (typeof window !== "undefined" && window.LINK_ENEMY_TO_PLAYER_COLOR && team === TEAM.ENEMY) return TEAM_ACCENT.PLAYER;
     if (team === TEAM.ENEMY) return TEAM_ACCENT.ENEMY;
     if (team === TEAM.NEUTRAL) return TEAM_ACCENT.NEUTRAL;
     return TEAM_ACCENT.PLAYER;
@@ -719,7 +728,7 @@ function getBaseBuildTime(kind){
     power:    { hLevel:2, tw:2, th:2, hp:750,  vision:420, provideR: 600 },
     refinery: { hLevel:2, tw:3, th:4, hp:1000, vision:520, provideR: 650 },
     factory:  { hLevel:2, tw:3, th:4, hp:1000, vision:500, provideR: 650 },
-    barracks: { hLevel:2, tw:2, th:3, hp:500,  vision:460, provideR: 600 },
+    barracks: { hLevel:2, tw:3, th:2, hp:500,  vision:460, provideR: 600 },
     radar:    { hLevel:3, tw:2, th:2, hp:1000, vision:600, provideR: 650 },
     turret:   { hLevel:1, tw:1, th:1, hp:400,  vision:560, provideR: 0   },
     civ_oregen: { hLevel:0, tw:2, th:2, hp:999999, vision:0, provideR:0, attackable:false, selectable:false, hideUI:true }
@@ -866,6 +875,89 @@ function getBaseBuildTime(kind){
       teamColor: true // apply team palette to accent pixels
     }
   };
+  // --- Barracks (animated atlas; kind = "barracks", asset folder = "barrack") ---
+  const BARRACKS_ATLAS = {
+    idle:  { json: 'asset/sprite/const/normal/barrack/barrack_idle.json',  base: 'asset/sprite/const/normal/barrack/' },
+    build: { json: 'asset/sprite/const/const_anim/barrack/barrack_const.json', base: 'asset/sprite/const/const_anim/barrack/' },
+    die:   { json: 'asset/sprite/const/distruct/barrack/barrack_distruct.json', base: 'asset/sprite/const/distruct/barrack/' },
+    _loading: false,
+    _ready: false,
+    atlases: { idle: null, build: null, die: null },
+    frames:  { idle: null, build: null, die: null }
+  };
+
+  function _barracksSortFrames(frames){
+    if (!frames || !frames.length) return frames || [];
+    const num = (s)=>{
+      const m = String(s).match(/(\d+)(?!.*\d)/);
+      return m ? parseInt(m[1], 10) : -1;
+    };
+    return frames.slice().sort((a,b)=>{
+      const na = num(a), nb = num(b);
+      if (na !== -1 && nb !== -1 && na !== nb) return na - nb;
+      return String(a).localeCompare(String(b));
+    });
+  }
+
+  async function ensureBarracksAtlasLoaded(){
+    if (BARRACKS_ATLAS._ready || BARRACKS_ATLAS._loading) return;
+    BARRACKS_ATLAS._loading = true;
+    try{
+      const atp = (window.PO && window.PO.atlasTP) || null;
+      if (!atp || !atp.loadAtlasTPMulti || !atp.listFramesByPrefix) throw new Error('atlasTP not ready');
+
+      const loadOne = async (slotKey, def)=>{
+        try{
+          const atlas = await atp.loadAtlasTPMulti(def.json, def.base);
+          const frames = _barracksSortFrames(atp.listFramesByPrefix(atlas, ''));
+          if (!frames || frames.length === 0) throw new Error('no frames in atlas');
+          BARRACKS_ATLAS.atlases[slotKey] = atlas;
+          BARRACKS_ATLAS.frames[slotKey] = frames;
+          return true;
+        }catch(e){
+          console.warn(`[barracks] atlas load failed (${slotKey})`, def.json, e);
+          return false;
+        }
+      };
+
+      const okIdle = await loadOne('idle', BARRACKS_ATLAS.idle);
+      await loadOne('build', BARRACKS_ATLAS.build);
+      await loadOne('die', BARRACKS_ATLAS.die);
+
+      BARRACKS_ATLAS._ready = !!okIdle;
+      if (BARRACKS_ATLAS._ready) console.log('[barracks] atlases ready');
+    } finally {
+      BARRACKS_ATLAS._loading = false;
+    }
+  }
+
+  function drawBarracksSprite(ctx, ent, s){
+    const atp = (window.PO && window.PO.atlasTP) || null;
+    if (!atp || !atp.drawFrame) return false;
+    if (!BARRACKS_ATLAS._ready){
+      ensureBarracksAtlasLoaded();
+      return false;
+    }
+
+    const atlas = BARRACKS_ATLAS.atlases.idle;
+    const frames = BARRACKS_ATLAS.frames.idle;
+    if (!atlas || !frames || frames.length === 0) return false;
+
+    const fps = 8;
+    const idx = Math.floor(((performance.now() / 1000) * fps) % frames.length);
+    const frameName = frames[idx];
+
+    const b = (atp.getFrameBounds && atp.getFrameBounds(atlas, frameName)) || { x0: 0, y0: 0, x1: 0, y1: 0, w: 0, h: 0 };
+    // drawFrame() positions by the frame pivot; getFrameBounds() gives bounds relative to that pivot.
+    // Align sprite bottom-center to the building world position (isoToScreen output).
+    const dx = Math.round(s.x - (b.x0 + b.w * 0.5));
+    const dy = Math.round(s.y - b.y1);
+
+    atp.drawFrame(ctx, atlas, frameName, dx, dy, { scale: 1 });
+    return true;
+  }
+
+
   
 
   // === Sprite tuning knobs (YOU edit these) ===
@@ -880,6 +972,9 @@ function getBaseBuildTime(kind){
       offsetNudge:{ x: 94, y: -26 }
     }
   };
+
+  // expose to module-backed building sprites
+  try{ window.PO = window.PO || {}; window.PO.SPRITE_TUNE = SPRITE_TUNE; }catch(_e){}
 
   // === In-game Sprite Tuner (mouse-adjust pivot/offset/scale) ===
   // Toggle with F2. While enabled and HQ is selected:
@@ -1182,6 +1277,11 @@ function getBaseBuildTime(kind){
   }
 
   function drawBuildingSprite(ent){
+    if (ent && ent.kind === 'barracks') {
+      const s = isoToScreen(ent.x, ent.y);
+      if (drawBarracksSprite(ctx, ent, s)) return true;
+    }
+
     const cfg = BUILD_SPRITE[ent.kind];
     if (!cfg) return false;
     const img = cfg.img;
@@ -1958,6 +2058,15 @@ function getBaseBuildTime(kind){
   return c;
 }
 
+// expose team palette helpers for other modules (e.g. buildings.js)
+try{
+  window.applyTeamPaletteToImage = window.applyTeamPaletteToImage || _applyTeamPaletteToImage;
+  window.replaceMagentaWithTeamColor = window.replaceMagentaWithTeamColor || _applyTeamPaletteToImage;
+  window.PO = window.PO || {};
+  window.PO.applyTeamPaletteToImage = window.PO.applyTeamPaletteToImage || _applyTeamPaletteToImage;
+}catch(_e){}
+
+
 
 
   // The PNG contains 8 poses (idle), arranged in a 3x3 grid with the bottom-right cell empty.
@@ -2389,6 +2498,7 @@ function buildingWorldFromTileOrigin(tx,ty,tw,th){
     setBuildingOcc(b, 1);
     recomputePower();
     onBuildingPlaced(b);
+    try{ if (window.PO && PO.buildings && PO.buildings.onPlaced) PO.buildings.onPlaced(b, state); }catch(_e){}
     return b;
   }
 
@@ -4832,6 +4942,7 @@ try{
 
 
     // 3) Remove from gameplay
+    try{ if (window.PO && PO.buildings && PO.buildings.onDestroyed) PO.buildings.onDestroyed(b, state); }catch(_e){}
     b.alive = false;
     state.selection.delete(b.id);
     setBuildingOcc(b, 0);
@@ -5861,6 +5972,7 @@ const tx=tileOfX(u.x), ty=tileOfY(u.y);
               if (bl.x>=x0-8 && bl.x<=x0+b.w+8 && bl.y>=y0-8 && bl.y<=y0+b.h+8){ hit=b; break; }
             }
           }
+          }
 
           // dmg bonus: tank
           let dmg = bl.dmg;
@@ -5873,8 +5985,6 @@ const tx=tileOfX(u.x), ty=tileOfY(u.y);
           }
 
           if (hit) applyDamage(hit, dmg, bl.ownerId, bl.team);
-          }
-
 
           // impact FX: ellipse dodge + sparks
           flashes.push({x: bl.x, y: bl.y, r: 48 + Math.random()*10, life: 0.10, delay: 0});
@@ -6716,6 +6826,10 @@ if (q.paused && !debugFastProd){
 
 function sellBuilding(b){
     if (!b || !b.alive || b.civ) return;
+
+    // Prevent double-sell spam while animation is running
+    if (b.kind==="barracks" && b._barrackSelling) return;
+
     const refund = Math.floor((COST[b.kind]||0) * 0.5);
     if (b.team===TEAM.PLAYER) state.player.money += refund;
     else state.enemy.money += refund;
@@ -6723,6 +6837,28 @@ function sellBuilding(b){
     // Selling evacuates units at full HP (RA2-ish flavor).
     spawnEvacUnitsFromBuilding(b, false);
 
+    // Barracks: play "construction" animation in reverse, then remove footprint.
+    if (b.kind==="barracks"){
+      try{
+        if (window.PO && PO.buildings && PO.buildings.onSold){
+          PO.buildings.onSold(b, state);
+        }else{
+          // Fallback: if plugin missing, schedule a short delay so it doesn't insta-pop.
+          b._barrackSelling = true;
+          b._barrackSellFinalizeAt = state.t + 0.9;
+        }
+      }catch(_e){
+        b._barrackSelling = true;
+        b._barrackSellFinalizeAt = state.t + 0.9;
+      }
+
+      // Immediately unselect, but keep it alive/occupying until animation finishes.
+      state.selection.delete(b.id);
+      return;
+    }
+
+    // Default: immediate removal
+    try{ if (window.PO && PO.buildings && PO.buildings.onSold) PO.buildings.onSold(b, state); }catch(_e){}
     b.alive=false;
     state.selection.delete(b.id);
     setBuildingOcc(b,0);
@@ -9048,6 +9184,31 @@ const keys=new Set();
       return;
     }
 
+    // === Sprite tuner: cycle target kind (F3) ===
+    if (TUNER.on && (e.key === "F3" || e.code === "F3")){
+      try{
+        let kinds = [];
+        // 1) sprite-backed kinds (HQ etc)
+        kinds = kinds.concat(Object.keys(BUILD_SPRITE||{}));
+        // 2) module-backed kinds (barracks etc)
+        if (window.PO && PO.buildings && typeof PO.buildings.tunerKinds === "function"){
+          kinds = kinds.concat(PO.buildings.tunerKinds());
+        }
+        // uniq + stable
+        const seen = new Set();
+        kinds = kinds.filter(k=>{ if (!k) return false; if (seen.has(k)) return false; seen.add(k); return true; });
+        if (!kinds.length) kinds = ["hq"];
+        const cur = kinds.indexOf(TUNER.targetKind);
+        const next = kinds[(cur>=0 ? cur+1 : 0) % kinds.length];
+        TUNER.targetKind = next;
+        _updateTuneOverlay();
+        toast("TUNER TARGET: " + next);
+      }catch(_e){}
+      e.preventDefault();
+      return;
+    }
+
+
     if (TUNER.on){
       const k = (e.key||"").toLowerCase();
       if (k === "escape"){
@@ -10995,6 +11156,22 @@ function drawPathFx(){
       return prereqOk(req);
     }
 
+// If a producer type is completely gone, clear its production queue & totals.
+// (User spec: losing all producers nukes the whole category until rebuilt.)
+function resetProducerQueues(prodKind){
+  if (prodKind === "barracks"){
+    if (prodFIFO && prodFIFO.barracks) prodFIFO.barracks.length = 0;
+    for (const k of ["infantry","engineer","sniper"]) prodTotal[k] = 0;
+    state.primary.player.barracks = null;
+  } else if (prodKind === "factory"){
+    if (prodFIFO && prodFIFO.factory) prodFIFO.factory.length = 0;
+    for (const k of ["tank","harvester","ifv"]) prodTotal[k] = 0;
+    state.primary.player.factory = null;
+  }
+}
+if (!hasP("barracks")) resetProducerQueues("barracks");
+if (!hasP("factory"))  resetProducerQueues("factory");
+
     // Hide whole category tabs if their required producer buildings don't exist.
     try{
       let firstAvail = null;
@@ -11371,12 +11548,32 @@ let rX = ent.x, rY = ent.y;
         if (ent.team===TEAM.ENEMY){  fill="rgba(70,10,10,0.9)"; stroke=state.colors.enemy; }
 
         // Sprite-backed buildings (e.g., HQ / Construction Yard)
+
+
         if (BUILD_SPRITE[ent.kind]){
           // subtle ground shadow so it sits on the tiles
           drawFootprintDiamond(ent, "rgba(0,0,0,0.22)", "rgba(0,0,0,0)");
           drawBuildingSprite(ent);
+
+
+        } else if (window.PO && PO.buildings && PO.buildings.drawBuilding) {
+
+
+          const helpers = { worldToScreen, ISO_X, ISO_Y, drawFootprintDiamond };
+
+
+          const drew = PO.buildings.drawBuilding(ent, ctx, cam, helpers, state);
+
+
+          if (!drew) drawFootprintPrism(ent, fill, stroke);
+
+
         } else {
+
+
           drawFootprintPrism(ent, fill, stroke);
+
+
         }
         // Low power: powered defenses go offline visually (blink + ⚡) by overlaying the BUILDING itself.
         if (ent.kind==="turret" && POWER.turretUse>0 && isUnderPower(ent.team)){
@@ -11744,6 +11941,12 @@ ctx.fill();
     }
 
 
+    // Barracks destruction/sell animation ghosts (render below explosions/smoke)
+    try{ if (window.PO && PO.buildings && PO.buildings.drawGhosts){
+      const helpers = { worldToScreen, ISO_X, ISO_Y, drawFootprintDiamond };
+      PO.buildings.drawGhosts(ctx, cam, helpers, state);
+    }}catch(_e){}
+
     // Building destruction explosions
     drawExplosions(ctx);
 
@@ -12108,8 +12311,16 @@ for (let ty=0; ty<MAP_H; ty+=2){
 
 
     function safePlace(team, kind, nearTx, nearTy){
-      const spot=findFootprintSpotNear(kind, nearTx, nearTy, 420);
-      return addBuilding(team, kind, spot.tx, spot.ty);
+      const spot = findFootprintSpotNear(kind, nearTx, nearTy, 420);
+      if (!spot) return null;
+      const b = addBuilding(team, kind, spot.tx, spot.ty);
+      // Start-of-game buildings are already built: skip barracks build animation.
+      if (b && kind==="barracks"){
+        b._barrackNoBuildAnim = true;
+        b._barrackBuildT0 = null;
+        b._barrackBuildDone = true;
+      }
+      return b;
     }
 
     const pHQ = safePlace(TEAM.PLAYER,"hq", a.tx-2, a.ty-2);
@@ -12815,6 +13026,22 @@ function sanityCheck(){
 
     if (running && !gameOver && !pauseMenuOpen){
       state.t += dt;
+
+      // Finalize barracks selling AFTER reverse-build animation completes
+      let _needPower=false, _needElim=false;
+      for (const b of buildings){
+        if (!b || !b.alive) continue;
+        if (b.kind==="barracks" && b._barrackSelling && b._barrackSellFinalizeAt!=null && state.t >= b._barrackSellFinalizeAt){
+          b.alive = false;
+          state.selection.delete(b.id);
+          setBuildingOcc(b, 0);
+          _needPower = true;
+          _needElim  = true;
+        }
+      }
+      if (_needPower) recomputePower();
+      if (_needElim)  checkElimination();
+
       updateCamShake(dt);
       updateExp1Fxs(dt);
       updateSmoke(dt);

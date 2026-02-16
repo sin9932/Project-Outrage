@@ -7,12 +7,12 @@
   const st = PO.buildings._barracks = PO.buildings._barracks || {};
 
   // Tuned to your in-game pivot/scale screenshot
-  const BASE_SCALE = 0.14;
+  const BASE_SCALE = 0.22;
   const IDLE_FPS   = 20;
   const BUILD_FPS  = 24;
   const DEATH_FPS  = 20;
   const LOW_HP_RATIO = 0.20;
-  const FORCE_PIVOT = { x: 0.4955, y: 0.4370 }; // from your screenshot (use distruct pivot)
+  const FORCE_PIVOT = { x: 0.5000, y: 0.3300 }; // from your screenshot (use distruct pivot)
 
   st.ready = false;
   st.loading = false;
@@ -102,7 +102,7 @@
     const frame = fr.frame || { x:0, y:0, w:0, h:0 };
     const sss   = fr.spriteSourceSize || { x:0, y:0, w:frame.w, h:frame.h };
     const srcSz = fr.sourceSize || { w: sss.w, h: sss.h };
-    const pv    = fr.pivot || FORCE_PIVOT;
+    const pv    = fr.pivot || fr.anchor || FORCE_PIVOT;
 
     const dx = x - (pv.x * srcSz.w - sss.x) * scale;
     const dy = y - (pv.y * srcSz.h - sss.y) * scale;

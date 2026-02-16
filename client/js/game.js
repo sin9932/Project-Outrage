@@ -728,7 +728,7 @@ function getBaseBuildTime(kind){
     power:    { hLevel:2, tw:2, th:2, hp:750,  vision:420, provideR: 600 },
     refinery: { hLevel:2, tw:3, th:4, hp:1000, vision:520, provideR: 650 },
     factory:  { hLevel:2, tw:3, th:4, hp:1000, vision:500, provideR: 650 },
-    barracks: { hLevel:2, tw:3, th:2, hp:500,  vision:460, provideR: 600 },
+    barracks: { hLevel:2, tw:2, th:2, hp:500,  vision:460, provideR: 600 },
     radar:    { hLevel:3, tw:2, th:2, hp:1000, vision:600, provideR: 650 },
     turret:   { hLevel:1, tw:1, th:1, hp:400,  vision:560, provideR: 0   },
     civ_oregen: { hLevel:0, tw:2, th:2, hp:999999, vision:0, provideR:0, attackable:false, selectable:false, hideUI:true }

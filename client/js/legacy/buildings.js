@@ -1,372 +1,332 @@
-/* buildings.js
-   Building sprite/animation module (TexturePacker atlases).
-   Current scope: Barracks.
+/* buildings.js - Barracks renderer plugin (pivot + team palette + build anim + death ghost)
+   Drop-in: load after atlas_tp.js and before game.js
 */
-(function(){
-  "use strict";
+(() => {
   const PO = (window.PO = window.PO || {});
-  const atlasTP = PO.atlasTP;
+  PO.buildings = PO.buildings || {};
+  const st = PO.buildings._barracks = PO.buildings._barracks || {};
 
-  const MOD = {};
-  PO.buildings = MOD;
+  // Tuned to your in-game pivot/scale screenshot
+  const BASE_SCALE = 0.14;
+  const IDLE_FPS   = 20;
+  const BUILD_FPS  = 24;
+  const DEATH_FPS  = 20;
+  const LOW_HP_RATIO = 0.20;
+  const FORCE_PIVOT = { x: 0.4955, y: 0.4370 }; // from your screenshot (use distruct pivot)
 
-  const _loaded = {
-    barracks: { ready:false, loading:false, idle:null, cons:null, dest:null, idleT:null, consT:null, destT:null, err:null }
+  st.ready = false;
+  st.loading = false;
+  st.atlases = st.atlases || {};
+  st.frames  = st.frames  || {};
+  st.ghosts  = st.ghosts  || [];
+  st._teamTexCache = st._teamTexCache || new Map(); // key: `${atlasKey}|${texIndex}|${team}` => tintedImg
+
+  // --- helpers ---
+  const _numSuffix = (name) => {
+    const m = name.match(/(\d+)\.png$/);
+    return m ? parseInt(m[1], 10) : 0;
   };
 
-  const _live = new Map();
-  const _ghosts = [];
-
-
-  // Team accent recolor for TexturePacker atlases (magenta -> team accent).
-  // Uses the same heuristic as game.js: detect "magenta band" pixels and recolor by luminance.
-  const TEAM_ACCENT = (typeof window !== "undefined" && window.TEAM_ACCENT) ? window.TEAM_ACCENT : {
-    PLAYER: [80,  180, 255],  // blue-ish
-    ENEMY:  [255, 80,  90],   // red-ish
-    NEUTRAL:[140, 140, 140]
-  };
-  const TEAM_ACCENT_LUMA_GAMMA = (typeof window !== "undefined" && window.TEAM_ACCENT_LUMA_GAMMA!=null) ? window.TEAM_ACCENT_LUMA_GAMMA : 0.70;
-  const TEAM_ACCENT_LUMA_GAIN  = (typeof window !== "undefined" && window.TEAM_ACCENT_LUMA_GAIN!=null) ? window.TEAM_ACCENT_LUMA_GAIN : 1.35;
-  const TEAM_ACCENT_LUMA_BIAS  = (typeof window !== "undefined" && window.TEAM_ACCENT_LUMA_BIAS!=null) ? window.TEAM_ACCENT_LUMA_BIAS : 0.06;
-
-  function _isAccentPixel(r,g,b,a){
-    if (a < 8) return false;
-    const magentaBand = (r >= 150 && b >= 150 && g <= 140);
-    const gNotDominant = (g <= Math.min(r,b) + 35);
-    const rbPresence = (r + b) >= 160;
-    return magentaBand && gNotDominant && rbPresence;
-  }
-
-  function _applyTeamPaletteToImage(img, teamRGB){
-    const w = img.width, h = img.height;
-    const c = document.createElement("canvas"); c.width = w; c.height = h;
-    const ctx = c.getContext("2d", { willReadFrequently:true });
-    ctx.drawImage(img, 0, 0);
-    const im = ctx.getImageData(0,0,w,h);
-    const d = im.data;
-    const tr = teamRGB[0]||0, tg = teamRGB[1]||0, tb = teamRGB[2]||0;
-
-    for (let i=0;i<d.length;i+=4){
-      const r=d[i], g=d[i+1], b=d[i+2], a=d[i+3];
-      if (!_isAccentPixel(r,g,b,a)) continue;
-      const l = (0.2126*r + 0.7152*g + 0.0722*b)/255; // perceived luma
-      const l2 = Math.min(1, Math.pow(l, TEAM_ACCENT_LUMA_GAMMA) * TEAM_ACCENT_LUMA_GAIN + TEAM_ACCENT_LUMA_BIAS);
-      d[i]   = Math.max(0, Math.min(255, tr * l2));
-      d[i+1] = Math.max(0, Math.min(255, tg * l2));
-      d[i+2] = Math.max(0, Math.min(255, tb * l2));
-      // alpha preserved
-    }
-    ctx.putImageData(im,0,0);
-    // Return as an Image-like object usable in drawImage
-    return c;
-  }
-
-  function _cloneAtlasWithRecoloredTextures(atlas, teamRGB){
-    if (!atlas || !atlas.textures) return atlas;
-    // Shallow clone object and textures array; keep frames Map (frame rects identical)
-    const out = { textures: [], frames: atlas.frames };
-    for (const t of atlas.textures){
-      const nt = Object.assign({}, t);
-      if (t && t.img){
-        nt.img = _applyTeamPaletteToImage(t.img, teamRGB);
-      }
-      out.textures.push(nt);
-    }
+  function listFramesByPrefixSorted(atlas, prefix) {
+    if (!atlas || !atlas.frames) return [];
+    const out = [];
+    for (const k of atlas.frames.keys()) if (k.startsWith(prefix)) out.push(k);
+    out.sort((a,b) => _numSuffix(a) - _numSuffix(b));
     return out;
   }
 
-
-  function _numSuffix(name){
-    const m = /(\d+)(?=\.png$)/i.exec(name);
-    return m ? parseInt(m[1],10) : 0;
-  }
-  function _sorted(list){
-    return list.slice().sort((a,b)=>_numSuffix(a)-_numSuffix(b));
-  }
-
-
-  function _pickTeamAtlas(slot, mode, team){
-    const t = (team==null) ? 0 : team;
-    if (mode==="idle" && slot.idleT) return slot.idleT[t] || slot.idle;
-    if (mode==="cons" && slot.consT) return slot.consT[t] || slot.cons;
-    if (mode==="dest" && slot.destT) return slot.destT[t] || slot.dest;
-    return (mode==="cons") ? slot.cons : (mode==="dest") ? slot.dest : slot.idle;
-  }
-
-  
-// Frame name sequences are auto-detected from atlas contents to avoid hard-coded filename/count mismatches.
-let BARR = {
-  idleLoop: _sorted(Array.from({length:18}, (_,i)=>`barrack_idle${i+1}.png`)),
-  idleDamaged: ["barrack_dist.png"],
-  cons: _sorted(Array.from({length:23}, (_,i)=>`barrack_const${i+1}.png`)),
-  dest: _sorted(Array.from({length:22}, (_,i)=>`barrack_distruction${i+1}.png`)),
-};
-
-function _numSuffix(name){
-  const m = String(name).match(/(\d+)(?=\.[a-z]+$)/i) || String(name).match(/(\d+)$/);
-  return m ? parseInt(m[1],10) : 0;
-}
-function _scanSeq(atlas, patterns){
-  if (!atlas || !atlas.frames) return [];
-  const keys = Array.from(atlas.frames.keys());
-  let out = [];
-  for (const k of keys){
-    for (const re of patterns){
-      if (re.test(k)) { out.push(k); break; }
-    }
-  }
-  out.sort((a,b)=>_numSuffix(a)-_numSuffix(b));
-  return out;
-}
-function _rebuildBarrFrames(slot){
-    // TexturePacker names drift a lot (idle1 vs idle_1 vs con_complete_1, etc)
-    const frames = atlasTP.listFrames(slot.idle).concat(atlasTP.listFrames(slot.cons), slot.dest ? atlasTP.listFrames(slot.dest) : []);
-    const uniq = Array.from(new Set(frames));
-
-    const scanSeq = (rgx) => {
-      const items = uniq.filter(n => rgx.test(n));
-      items.sort((a,b)=>{
-        const na = parseInt((a.match(/(\d+)(?=\D*\.png$)/i)||[])[1]||"0",10);
-        const nb = parseInt((b.match(/(\d+)(?=\D*\.png$)/i)||[])[1]||"0",10);
-        return na-nb;
-      });
-      return items;
-    };
-    const scanOne = (rgx) => uniq.find(n => rgx.test(n)) || null;
-
-    // idle loop: barrack_idle1.png or barrack_idle_1.png
-    const idleLoop = scanSeq(/^barrack_idle_?\d+\.png$/i);
-    if (idleLoop.length) BARR.idleLoop = idleLoop;
-
-    // damaged idle: barrack_dist.png (single)
-    const dist = scanOne(/^barrack_dist\.png$/i) || scanOne(/^barrack_dist_?\d+\.png$/i);
-    if (dist) BARR.idleDamaged = [dist];
-
-    // construction:
-    // - barrack_const1.png / barrack_const_1.png
-    // - barrack_con_complete_1.png
-    // - barrack_complete_1.png
-    const consSeq =
-      scanSeq(/^barrack_(?:const|cons|construction|build)_?\d+\.png$/i)
-        .concat(scanSeq(/^barrack_(?:con_complete|concomplete|complete)_?\d+\.png$/i))
-        .filter((v,i,a)=>a.indexOf(v)===i);
-    if (consSeq.length) BARR.cons = consSeq;
-
-    // destruction:
-    // - barrack_destruction_1.png / barrack_destruction1.png
-    // - barrack_distruction_1.png (typo common)
-    // - barrack_distruct_1.png (your folder/label)
-    // - barrack_destruct_1.png
-    const destSeq =
-      scanSeq(/^barrack_(?:destruction|destroy|dest|destruct|distruction|distruct)_?\d+\.png$/i)
-        .filter((v,i,a)=>a.indexOf(v)===i);
-    if (destSeq.length) BARR.dest = destSeq;
-  }
-
-  function init(){
-    _kickLoadBarracks();
-  }
-
-  function tunerKinds(){
-    return ["hq","barracks"];
-  }
-
-  function getTunerCrop(kind){
-    if (kind !== "barracks") return null;
-    const slot = _loaded.barracks;
-    if (!slot.ready || !slot.idle) return { w:1652, h:1252 };
-    const name = BARR.idleLoop[0];
-    const sz = atlasTP.getFrameSourceSize(slot.idle, name);
-    return sz || { w:1652, h:1252 };
-  }
-
-  function _applyTune(ent, cam){
-        const t = (window.PO && window.PO.SPRITE_TUNE && window.PO.SPRITE_TUNE[ent.kind]) ? window.PO.SPRITE_TUNE[ent.kind] : null;
-    const z = (cam && typeof cam.zoom==="number") ? cam.zoom : 1;
-    const scaleMul = (t && typeof t.scaleMul==="number") ? t.scaleMul : 1.0;
-    const offX = (t && t.offsetNudge) ? (t.offsetNudge.x||0) * z : 0;
-    const offY = (t && t.offsetNudge) ? (t.offsetNudge.y||0) * z : 0;
-    const pivX = (t && t.pivotNudge) ? (t.pivotNudge.x||0) : 0;
-    const pivY = (t && t.pivotNudge) ? (t.pivotNudge.y||0) : 0;
-    return { scaleMul, offX, offY, pivX, pivY };
-  }
-
-  function _pickBarracksFrame(ent, st){
-    const ratio = (ent.hpMax>0) ? (ent.hp/ent.hpMax) : 1;
-    const damaged = (ratio <= 0.33);
-    if (st && st.mode==="cons"){
-      const idx = Math.min(BARR.cons.length-1, Math.floor(st.t / st.spf));
-      return { atlas:"cons", name:BARR.cons[idx], done:(idx===BARR.cons.length-1) };
-    }
-    if (damaged) return { atlas:"idle", name:BARR.idleDamaged[0], done:false };
-    const idx = Math.floor((st ? st.t : 0) / (st ? st.spf : 0.09)) % BARR.idleLoop.length;
-    return { atlas:"idle", name:BARR.idleLoop[idx], done:false };
-  }
-
-  function onPlaced(b){
-    if (!b || !b.id) return;
-    if (b.kind==="barracks"){
-      _kickLoadBarracks();
-      _live.set(b.id, { mode:"cons", t:0, spf:0.06 });
+  function forcePivotOnAtlas(atlas, pivot) {
+    if (!atlas || !atlas.frames) return;
+    for (const fr of atlas.frames.values()) {
+      fr.pivot = pivot;
+      // Some tools/exports may keep this name around; harmless if unused.
+      fr.anchor = pivot;
     }
   }
 
-  function onDestroyed(b){
-    if (!b) return;
-    if (b.kind==="barracks"){
-      _kickLoadBarracks();
-      _ghosts.push({
-        kind:"barracks",
-        mode:"dest",
-        t:0,
-        spf:0.05,
-        x:b.x, y:b.y,
-        tx:b.tx, ty:b.ty, tw:b.tw, th:b.th,
-        team:b.team
-      });
-      _live.delete(b.id);
+  function _getTeamTextureImg(atlasKey, atlas, texIndex, team) {
+    const texArr = atlas && atlas.textures ? atlas.textures : [];
+    const tex = texArr[texIndex] || texArr[0];
+    const img = tex && tex.img;
+    if (!img) return null;
+
+    const key = `${atlasKey}|${texIndex}|${team}`;
+    const cached = st._teamTexCache.get(key);
+    if (cached) return cached;
+
+    // Prefer the same palette swap algo as the rest of the game, if available.
+    // (It lives in game.js and is attached to window.applyTeamPaletteToImage)
+    const applyFn =
+      (typeof window.applyTeamPaletteToImage === "function" && window.applyTeamPaletteToImage) ||
+      (typeof window.replaceMagentaWithTeamColor === "function" && window.replaceMagentaWithTeamColor) ||
+      (typeof window.PO?.applyTeamPaletteToImage === "function" && window.PO.applyTeamPaletteToImage) ||
+      null;
+
+    if (!applyFn) {
+      st._teamTexCache.set(key, img);
+      return img;
     }
+
+    const w = img.naturalWidth || img.width;
+    const h = img.naturalHeight || img.height;
+    if (!w || !h) {
+      st._teamTexCache.set(key, img);
+      return img;
+    }
+
+    const acc = window.TEAM_ACCENT || { PLAYER: [48, 160, 255], ENEMY: [255, 80, 80], NEUTRAL: [200, 200, 200] };
+    const arr = (team === 0 ? acc.PLAYER : (team === 1 ? acc.ENEMY : acc.NEUTRAL)) || [255, 255, 255];
+    const teamColor = { r: arr[0] | 0, g: arr[1] | 0, b: arr[2] | 0 };
+
+    // applyTeamPaletteToImage reads width/height from the source. Canvas is safest.
+    const src = document.createElement('canvas');
+    src.width = w; src.height = h;
+    const sctx = src.getContext('2d', { willReadFrequently: true });
+    sctx.drawImage(img, 0, 0);
+
+    // Tune to match the in-game look (brighter, less muddy).
+    const tinted = applyFn(src, teamColor, { gain: 1.65, bias: 0.18, gamma: 0.78, minV: 0.42 }) || img;
+    st._teamTexCache.set(key, tinted);
+    return tinted;
   }
 
-  function onSold(b){
-    if (!b) return;
-    if (b.kind==="barracks"){
-      _kickLoadBarracks();
-      _ghosts.push({
-        kind:"barracks",
-        mode:"sell",
-        t:0,
-        spf:0.045,
-        x:b.x, y:b.y,
-        tx:b.tx, ty:b.ty, tw:b.tw, th:b.th,
-        team:b.team
-      });
-      _live.delete(b.id);
-    }
-  }
+  function drawFrameTeam(atlasKey, atlas, ctx, filename, x, y, team, scale) {
+    if (!atlas || !atlas.frames) return false;
+    const fr = atlas.frames.get(filename);
+    if (!fr) return false;
 
-  function tick(dt, state){
-    for (const [id, st] of _live){
-      st.t += dt;
-      if (st.mode==="cons"){
-        const maxT = BARR.cons.length * st.spf;
-        if (st.t >= maxT){
-          st.mode="idle";
-          st.t = 0;
-          st.spf = 0.09;
-        }
-      } else {
-        if (st.t > 9999) st.t = 0;
-      }
-    }
+    const texIndex = (fr.texIndex != null) ? fr.texIndex : 0;
+    const img = _getTeamTextureImg(atlasKey, atlas, texIndex, team);
+    if (!img) return false;
 
-    for (let i=_ghosts.length-1;i>=0;i--){
-      const g=_ghosts[i];
-      g.t += dt;
-      if (g.mode==="dest"){
-        const maxT = BARR.dest.length * g.spf;
-        if (g.t >= maxT) _ghosts.splice(i,1);
-      } else if (g.mode==="sell"){
-        const maxT = BARR.cons.length * g.spf;
-        if (g.t >= maxT) _ghosts.splice(i,1);
-      }
-    }
-  }
+    const frame = fr.frame || { x:0, y:0, w:0, h:0 };
+    const sss   = fr.spriteSourceSize || { x:0, y:0, w:frame.w, h:frame.h };
+    const srcSz = fr.sourceSize || { w: sss.w, h: sss.h };
+    const pv    = fr.pivot || FORCE_PIVOT;
 
-  function drawGhosts(ctx, cam, helpers, state){
-    const slot = _loaded.barracks;
-    if (!slot.ready) return;
-    const worldToScreen = helpers.worldToScreen;
-    const z = (cam && typeof cam.zoom==="number") ? cam.zoom : 1;
+    const dx = x - (pv.x * srcSz.w - sss.x) * scale;
+    const dy = y - (pv.y * srcSz.h - sss.y) * scale;
+    const dw = frame.w * scale;
+    const dh = frame.h * scale;
 
-    for (const g of _ghosts){
-      if (g.kind!=="barracks") continue;
-      const p = worldToScreen(g.x, g.y);
-
-      const footprintW = (g.tw + g.th) * helpers.ISO_X;
-      const baseName = BARR.idleLoop[0];
-      const sz = atlasTP.getFrameSourceSize(slot.idle, baseName) || { w:1652, h:1252 };
-      const baseScale = (footprintW / (sz.w || 1)) * z;
-
-      const tune = _applyTune({kind:"barracks"}, cam);
-      const scale = baseScale * (tune.scaleMul || 1);
-      const dx = tune.offX || 0;
-      const dy = tune.offY || 0;
-      const px = tune.pivX || 0;
-      const py = tune.pivY || 0;
-
-      let atlas=null, name=null;
-      if (g.mode==="dest"){
-        const idx = Math.min(BARR.dest.length-1, Math.floor(g.t / g.spf));
-        atlas = _pickTeamAtlas(slot,'dest', g.team); name = BARR.dest[idx];
-      } else if (g.mode==="sell"){
-        const idx = Math.min(BARR.cons.length-1, Math.floor(g.t / g.spf));
-        const rev = (BARR.cons.length-1) - idx;
-        atlas = _pickTeamAtlas(slot,'cons', g.team); name = BARR.cons[rev];
-      }
-      if (!atlas || !name) continue;
-
-      const x = p.x + dx - (px * scale);
-      const y = p.y + dy - (py * scale);
-
-      atlasTP.drawFrame(ctx, atlas, name, x, y, scale, 1);
-    }
-  }
-
-  function drawBuilding(ent, ctx, cam, helpers, state){
-    if (!ent || ent.kind!=="barracks") return false;
-    const slot = _loaded.barracks;
-    _kickLoadBarracks();
-    if (!slot.ready || !slot.idle) return false;
-
-    const worldToScreen = helpers.worldToScreen;
-    const z = (cam && typeof cam.zoom==="number") ? cam.zoom : 1;
-    const p = worldToScreen(ent.x, ent.y);
-
-    const footprintW = (ent.tw + ent.th) * helpers.ISO_X;
-    const baseName = BARR.idleLoop[0];
-    const sz = atlasTP.getFrameSourceSize(slot.idle, baseName) || { w:1652, h:1252 };
-    const baseScale = (footprintW / (sz.w || 1)) * z;
-
-    const tune = _applyTune(ent, cam);
-    const scale = baseScale * (tune.scaleMul || 1.0);
-    const dx = tune.offX || 0;
-    const dy = tune.offY || 0;
-    const px = tune.pivX || 0;
-    const py = tune.pivY || 0;
-
-    try{
-      if (helpers.drawFootprintDiamond){
-        helpers.drawFootprintDiamond(ent, "rgba(0,0,0,0.20)", "rgba(0,0,0,0)");
-      }
-    }catch(_e){}
-
-    let st = _live.get(ent.id);
-    if (!st){
-      st = { mode:"idle", t: (Math.random()*0.2), spf:0.09 };
-      _live.set(ent.id, st);
-    }
-
-    const pick = _pickBarracksFrame(ent, st);
-    const atlas = _pickTeamAtlas(slot, pick.atlas, ent.team);
-    const name = pick.name;
-
-    const x = p.x + dx - (px * scale);
-    const y = p.y + dy - (py * scale);
-
-    atlasTP.drawFrame(ctx, atlas, name, x, y, scale, 1);
+    ctx.drawImage(img, frame.x, frame.y, frame.w, frame.h, dx, dy, dw, dh);
     return true;
   }
 
-  MOD.init = init;
-  MOD.onPlaced = onPlaced;
-  MOD.onDestroyed = onDestroyed;
-  MOD.onSold = onSold;
-  MOD.tick = tick;
-  MOD.drawBuilding = drawBuilding;
-  MOD.drawGhosts = drawGhosts;
-  MOD.getTunerCrop = getTunerCrop;
-  MOD.tunerKinds = tunerKinds;
+  async function ensureAtlasesLoaded() {
+    if (st.ready || st.loading) return;
+    st.loading = true;
 
-  init();
+    const atlasTP = PO.atlasTP;
+    if (!atlasTP) {
+      console.warn("[barracks] atlasTP not loaded yet");
+      st.loading = false;
+      return;
+    }
+
+    const defs = {
+      idle: {
+        jsonUrl: "asset/sprite/const/normal/barrack/barrack_idle.json",
+        base:   "asset/sprite/const/normal/barrack/"
+      },
+      build: {
+        jsonUrl: "asset/sprite/const/const_anim/barrack/barrack_const.json",
+        base:   "asset/sprite/const/const_anim/barrack/"
+      },
+      distruct: {
+        jsonUrl: "asset/sprite/const/distruct/barrack/barrack_distruct.json",
+        base:   "asset/sprite/const/distruct/barrack/"
+      }
+    };
+
+    try {
+      const [idleA, buildA, dieA] = await Promise.all([
+        atlasTP.loadTPAtlasMulti(defs.idle.jsonUrl, defs.idle.base),
+        atlasTP.loadTPAtlasMulti(defs.build.jsonUrl, defs.build.base),
+        atlasTP.loadTPAtlasMulti(defs.distruct.jsonUrl, defs.distruct.base),
+      ]);
+
+      st.atlases.idle = idleA;
+      st.atlases.build = buildA;
+      st.atlases.distruct = dieA;
+
+      // Frames lists (numeric order)
+      const idleAll = listFramesByPrefixSorted(idleA, "barrack_idle");
+      st.frames.idleLoop = idleAll.filter(n => n !== "barrack_dist.png");
+      st.frames.idleDamage = idleA.frames.has("barrack_dist.png") ? "barrack_dist.png" : null;
+
+      st.frames.build = listFramesByPrefixSorted(buildA, "barrack_con_complete_");
+      st.frames.distruct = listFramesByPrefixSorted(dieA, "barrack_distruction_");
+
+      // Pivot: force all frames to the distruct pivot (your request)
+      // If distruct atlas has a pivot on any frame, use that; else FORCE_PIVOT.
+      let pv = FORCE_PIVOT;
+      if (st.frames.distruct.length) {
+        const f0 = dieA.frames.get(st.frames.distruct[0]);
+        if (f0 && f0.pivot) pv = f0.pivot;
+      }
+      forcePivotOnAtlas(idleA, pv);
+      forcePivotOnAtlas(buildA, pv);
+      forcePivotOnAtlas(dieA, pv);
+
+      st.ready = true;
+      console.log("[barracks] atlases ready", {
+        idle: st.frames.idleLoop.length,
+        build: st.frames.build.length,
+        distruct: st.frames.distruct.length,
+        pivot: pv
+      });
+    } catch (e) {
+      console.error("[barracks] atlas load failed", e);
+    } finally {
+      st.loading = false;
+    }
+  }
+
+  // --- public hooks ---
+  // Called when an actual building entity is created (construction finished).
+  // We use this to start timers at the correct moment (NOT first time drawn).
+  PO.buildings.onPlaced = function(b, state){
+    if (!b || b.kind!=="barracks") return;
+    const now = (state && state.t!=null) ? state.t : (performance.now()/1000);
+    b._barrackSeen = true;
+    b._barrackIdleT0 = now;
+    if (!b._barrackNoBuildAnim){
+      b._barrackBuildT0 = now;
+      b._barrackBuildDone = false;
+    }else{
+      b._barrackBuildT0 = null;
+      b._barrackBuildDone = true;
+    }
+  };
+
+  // Selling: replay build animation in reverse, then game.js removes footprint.
+  PO.buildings.onSold = function(b, state){
+    if (!b || b.kind!=="barracks") return;
+    // Ensure atlases are loading; if not ready yet, game.js will still delay a bit.
+    if (!st.ready) ensureAtlasesLoaded();
+    const now = (state && state.t!=null) ? state.t : (performance.now()/1000);
+    const n = (st.frames && st.frames.build && st.frames.build.length) ? st.frames.build.length : 17;
+    const dur = n / BUILD_FPS;
+    b._barrackSelling = true;
+    b._barrackSellT0 = now;
+    b._barrackSellFinalizeAt = now + dur;
+    // While selling, ignore build->idle state machine
+    b._barrackBuildDone = true;
+    b._barrackBuildT0 = null;
+  };
+
+  PO.buildings.onDestroyed = function(b, state){
+    // Called from game.js destroyBuilding() after removing the entity from state.
+    // We spawn a ghost that replays distruct frames at the old position.
+    // Guard: do not affect other buildings.
+    if (!b || b.kind !== "barracks") return;
+    try {
+      const now = (state && state.t!=null) ? state.t : (performance.now() / 1000);
+      st.ghosts.push({
+        x: b.x, y: b.y,
+        tw: b.tw, th: b.th,
+        team: b.team ?? 0,
+        t0: now
+      });
+    } catch (e) {
+      console.warn("[barracks] onDestroyed failed", e);
+    }
+  };
+
+  PO.buildings.drawGhosts = function(ctx, cam, helpers, state) {
+    if (!st.ready || !st.frames.distruct.length) return;
+    const now = state && state.t != null ? state.t : (performance.now() / 1000);
+    const scale = BASE_SCALE * (cam && cam.zoom ? cam.zoom : 1);
+
+    // Iterate backwards so splice is safe
+    for (let i = st.ghosts.length - 1; i >= 0; i--) {
+      const g = st.ghosts[i];
+      const dt = Math.max(0, now - g.t0);
+      const idx = Math.floor(dt * DEATH_FPS);
+
+      if (idx >= st.frames.distruct.length) {
+        st.ghosts.splice(i, 1);
+        continue;
+      }
+
+      const p = helpers.worldToScreen(g.x, g.y);
+      const dz = Math.max(g.tw, g.th) * helpers.ISO_Y * (cam && cam.zoom ? cam.zoom : 1);
+      const sx = p.x;
+      const sy = p.y - dz;
+
+      drawFrameTeam("distruct", st.atlases.distruct, ctx, st.frames.distruct[idx], sx, sy, g.team, scale);
+    }
+  };
+
+  PO.buildings.drawBuilding = function(ent, ctx, cam, helpers, state) {
+    // Only handle barracks; let default renderer do other buildings.
+    if (!ent || ent.kind !== "barracks") return false;
+
+    // Fire and forget load (first draw will show prism; next draw will show sprite)
+    if (!st.ready) {
+      ensureAtlasesLoaded();
+      return false;
+    }
+
+    const now = state && state.t != null ? state.t : (performance.now() / 1000);
+    const z = cam && cam.zoom ? cam.zoom : 1;
+    const scale = BASE_SCALE * z;
+
+    const p = helpers.worldToScreen(ent.x, ent.y);
+    const dz = Math.max(ent.tw, ent.th) * helpers.ISO_Y * z;
+    const sx = p.x;
+    const sy = p.y - dz;
+
+    const team = ent.team ?? 0;
+
+    // One-time build animation (when the building first becomes a real building)
+    // If you ever want to skip build anim for starting buildings, set ent._barrackNoBuildAnim=true in spawn.
+    if (!ent._barrackSeen) {
+      ent._barrackSeen = true;
+      ent._barrackIdleT0 = now;
+      if (!ent._barrackNoBuildAnim) ent._barrackBuildT0 = now;
+    }
+
+        // Selling (reverse of build animation)
+    if (ent._barrackSelling && st.frames.build.length){
+      const t0s = ent._barrackSellT0 != null ? ent._barrackSellT0 : (ent._barrackSellT0 = now);
+      const dtS = Math.max(0, now - t0s);
+      const idxR = (st.frames.build.length - 1) - Math.floor(dtS * BUILD_FPS);
+      if (idxR >= 0){
+        return drawFrameTeam("build", st.atlases.build, ctx, st.frames.build[idxR], sx, sy, team, scale);
+      }
+      // Done: keep returning true (draw nothing). game.js will remove footprint/alive.
+      return true;
+    }
+
+// If dead, do not draw here; ghost will play (destroyBuilding calls onDestroyed)
+    if ((ent.hp ?? 1) <= 0) return true;
+
+    // Build -> Idle state machine
+    if (ent._barrackBuildT0 != null && !ent._barrackBuildDone && st.frames.build.length) {
+      const dt = Math.max(0, now - ent._barrackBuildT0);
+      const idx = Math.floor(dt * BUILD_FPS);
+      if (idx < st.frames.build.length) {
+        return drawFrameTeam("build", st.atlases.build, ctx, st.frames.build[idx], sx, sy, team, scale);
+      }
+      ent._barrackBuildDone = true;
+      // continue to idle
+    }
+
+    // Idle loop vs damaged sprite
+    const hp = ent.hp ?? 1;
+    const hpMax = ent.hpMax ?? ent.maxHp ?? 1;
+    const ratio = hpMax > 0 ? (hp / hpMax) : 1;
+
+    if (ratio <= LOW_HP_RATIO && st.frames.idleDamage) {
+      return drawFrameTeam("idle", st.atlases.idle, ctx, st.frames.idleDamage, sx, sy, team, scale);
+    }
+
+    if (!st.frames.idleLoop.length) return false;
+    const t0 = ent._barrackIdleT0 != null ? ent._barrackIdleT0 : (ent._barrackIdleT0 = now);
+    const idx = Math.floor(Math.max(0, now - t0) * IDLE_FPS) % st.frames.idleLoop.length;
+    return drawFrameTeam("idle", st.atlases.idle, ctx, st.frames.idleLoop[idx], sx, sy, team, scale);
+  };
+
 })();
