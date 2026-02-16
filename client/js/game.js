@@ -12459,10 +12459,6 @@ function spawnStartingUnits(){
 
 
 startBtn.addEventListener("click", async () => {
-    // Boot-time asset warmup (prevents long box placeholders)
-    const _oldStartText = startBtn.textContent;
-    startBtn.disabled = true;
-    startBtn.textContent = "LOADING...";
     state.colors.player = pColorInput.value;
     state.colors.enemy  = eColorInput.value;
 
@@ -12499,13 +12495,21 @@ startBtn.addEventListener("click", async () => {
     state.player.money = START_MONEY;
     state.enemy.money  = START_MONEY;
 
-    // Preload building atlases once (barracks/power) so first draw has textures ready
-    try{
-      if (window.PO && PO.buildings && typeof PO.buildings.preload === "function"){
+
+    // Preload building atlases before starting (avoid long placeholder-box phase)
+    try {
+      if (window.PO && PO.buildings && typeof PO.buildings.preload === "function") {
+        const _oldTxt = startBtn.textContent;
+        startBtn.disabled = true;
+        startBtn.textContent = "LOADING...";
         await PO.buildings.preload();
+        startBtn.textContent = _oldTxt;
       }
-    }catch(e){
-      console.warn("[boot] preload failed", e);
+    } catch (e) {
+      console.error("[preload] building assets failed", e);
+      alert("Asset preload failed. Check DevTools Console/Network.\n" + (e && e.message ? e.message : e));
+      startBtn.disabled = false;
+      return;
     }
 
     placeStart(spawnChoice);
@@ -12514,11 +12518,7 @@ startBtn.addEventListener("click", async () => {
     // Start BGM on user gesture (autoplay-safe)
     BGM.userStart();
     running = true;
-
-    startBtn.disabled = false;
-    startBtn.textContent = _oldStartText;
   });
-
 
   let last=performance.now();
   let fpsAcc=0, fpsN=0, fpsT=0;

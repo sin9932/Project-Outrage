@@ -3,12 +3,13 @@
 */
 (() => {
   const PO = (window.PO = window.PO || {});
+  const DEBUG = false; // set true to see building/atlas logs
   PO.buildings = PO.buildings || {};
   const st = PO.buildings._barracks = PO.buildings._barracks || {};
 
   // PATCH VERSION: v3
-  st.version = "v8";
-  console.log("[buildings] barracks+power pivot patch v8 loaded");
+  st.version = "v6";
+  console.log("[buildings] barracks+power pivot patch v6 loaded");
 
 
   
@@ -168,62 +169,48 @@
   // ===== Load atlases per kind =====
   async function ensureKindLoaded(kind){
     const stKind = ST.kinds[kind];
-    if (!stKind) return null;
-    if (stKind.ready) return stKind;
-    if (stKind.loading) return stKind.loading;
-
+    if (!stKind || stKind.ready) return;
     const cfg = TYPE_CFG[kind];
     const atp = (window.PO && PO.atlasTP) || null;
-    if (!atp || !atp.loadAtlasTPMulti) return null;
+    if (!atp || !atp.loadAtlasTPMulti) return;
 
-    stKind.loading = (async ()=>{
-      try{
-        const [idleA, buildA, deathA] = await Promise.all([
-          atp.loadAtlasTPMulti(cfg.atlas.idle.json,  cfg.atlas.idle.base),
-          atp.loadAtlasTPMulti(cfg.atlas.build.json, cfg.atlas.build.base),
-          atp.loadAtlasTPMulti(cfg.atlas.death.json, cfg.atlas.death.base),
-        ]);
+    try{
+      const [idleA, buildA, deathA] = await Promise.all([
+        atp.loadAtlasTPMulti(cfg.atlas.idle.json,  cfg.atlas.idle.base),
+        atp.loadAtlasTPMulti(cfg.atlas.build.json, cfg.atlas.build.base),
+        atp.loadAtlasTPMulti(cfg.atlas.death.json, cfg.atlas.death.base),
+      ]);
 
-        stKind.atlases.idle  = idleA;
-        stKind.atlases.build = buildA;
-        stKind.atlases.death = deathA;
+      stKind.atlases.idle  = idleA;
+      stKind.atlases.build = buildA;
+      stKind.atlases.death = deathA;
 
-        stKind.frames.idle  = listFramesSmart(idleA,  cfg.prefix.idle);
-        stKind.frames.build = listFramesSmart(buildA, cfg.prefix.build);
-        stKind.frames.death = listFramesSmart(deathA, cfg.prefix.death);
+      stKind.frames.idle  = listFramesSmart(idleA,  cfg.prefix.idle);
+      stKind.frames.build = listFramesSmart(buildA, cfg.prefix.build);
+      stKind.frames.death = listFramesSmart(deathA, cfg.prefix.death);
 
-        // Split idle frames into "normal" vs "damaged" variants
-        const _isDamagedName = (n)=>/dist|distruct|destroy|wreck|ruin/i.test(String(n||""));
-        const _idleAll = stKind.frames.idle || [];
-        const _idleBad = _idleAll.filter(_isDamagedName);
-        const _idleOk  = _idleAll.filter(n=>!_isDamagedName(n));
-        stKind.frames.idleOk  = _idleOk.length ? _idleOk : _idleAll;
-        stKind.frames.idleBad = _idleBad;
-
-        stKind.ready = true;
-        if (!ST._loggedOnce) ST._loggedOnce = {};
-        if (!ST._loggedOnce[kind]) {
-          ST._loggedOnce[kind] = true;
-          console.log(`[buildings] ${kind} atlases loaded`, stKind.frames);
-        }
-        return stKind;
-      }catch(e){
-        console.warn(`[buildings] ${kind} atlas load failed`, e);
-        // allow retry next time
-        return null;
-      }finally{
-        stKind.loading = null;
-      }
-    })();
-
-    return stKind.loading;
+      // Split idle frames into "normal" vs "damaged" variants (some atlases pack both into one sheet).
+      const _isDamagedName = (n)=>/dist|distruct|destroy|wreck|ruin/i.test(String(n||""));
+      const _idleAll = stKind.frames.idle || [];
+      const _idleBad = _idleAll.filter(_isDamagedName);
+      const _idleOk  = _idleAll.filter(n=>!_isDamagedName(n));
+      stKind.frames.idleOk  = _idleOk.length ? _idleOk : _idleAll;
+      stKind.frames.idleBad = _idleBad;
+stKind.ready = true;
+      DEBUG && console.log(`[buildings] ${kind} atlases loaded`, stKind.frames);
+    }catch(e){
+      console.warn(`[buildings] ${kind} atlas load failed`, e);
+    }
   }
 
-  async function ensureAllKindsLoaded(){
-    return Promise.all([
+  let _preloadAllPromise = null;
+  function ensureAllKindsLoaded(){
+    if (_preloadAllPromise) return _preloadAllPromise;
+    _preloadAllPromise = Promise.all([
       ensureKindLoaded("barracks"),
-      ensureKindLoaded("power"),
+      ensureKindLoaded("power")
     ]);
+    return _preloadAllPromise;
   }
 
   // ===== Hooks =====
