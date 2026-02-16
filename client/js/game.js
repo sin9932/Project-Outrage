@@ -2161,7 +2161,7 @@ function ensureInfAtlases(){
 }
 
   // Scale for in-game rendering (can be tuned)
-  const INF_SPRITE_SCALE = 0.115;
+  const INF_SPRITE_SCALE = 0.12;
 
   // Sprite dir remap (fix 1-step offset reported by user)
   // Engine dir order is expected: 0=E,1=NE,2=N,3=NW,4=W,5=SW,6=S,7=SE
@@ -6828,36 +6828,40 @@ function sellBuilding(b){
     if (!b || !b.alive || b.civ) return;
 
     // Prevent double-sell spam while animation is running
-    if (b.kind==="barracks" && b._barrackSelling) return;
+    if ((b.kind==="barracks" && b._barrackSelling) || (b.kind==="power" && b._powerSelling)) return;
 
-    const refund = Math.floor((COST[b.kind]||0) * 0.5);
+const refund = Math.floor((COST[b.kind]||0) * 0.5);
     if (b.team===TEAM.PLAYER) state.player.money += refund;
     else state.enemy.money += refund;
 
     // Selling evacuates units at full HP (RA2-ish flavor).
     spawnEvacUnitsFromBuilding(b, false);
 
-    // Barracks: play "construction" animation in reverse, then remove footprint.
-    if (b.kind==="barracks"){
+    // Barracks / Power Plant: play "construction" animation in reverse, then remove footprint.
+    if (b.kind==="barracks" || b.kind==="power"){
+      const _flag = (b.kind==="barracks") ? "_barrackSelling" : "_powerSelling";
+      const _t0   = (b.kind==="barracks") ? "_barrackSellT0" : "_powerSellT0";
+      const _fin  = (b.kind==="barracks") ? "_barrackSellFinalizeAt" : "_powerSellFinalizeAt";
       try{
         if (window.PO && PO.buildings && PO.buildings.onSold){
           PO.buildings.onSold(b, state);
         }else{
           // Fallback: if plugin missing, schedule a short delay so it doesn't insta-pop.
-          b._barrackSelling = true;
-          b._barrackSellFinalizeAt = state.t + 0.9;
+          b[_flag] = true;
+          b[_t0] = state.t;
+          b[_fin] = state.t + 0.9;
         }
       }catch(_e){
-        b._barrackSelling = true;
-        b._barrackSellFinalizeAt = state.t + 0.9;
+        b[_flag] = true;
+        b[_t0] = state.t;
+        b[_fin] = state.t + 0.9;
       }
 
       // Immediately unselect, but keep it alive/occupying until animation finishes.
       state.selection.delete(b.id);
       return;
     }
-
-    // Default: immediate removal
+// Default: immediate removal
     try{ if (window.PO && PO.buildings && PO.buildings.onSold) PO.buildings.onSold(b, state); }catch(_e){}
     b.alive=false;
     state.selection.delete(b.id);
@@ -9296,15 +9300,7 @@ const keys=new Set();
     }
 
     if (e.key==="Escape" || e.key==="Esc" || e.code==="Escape" || e.keyCode===27){
-      // ESC: cancel repair/sell modes first (so you don't need to re-click buttons),
-      // otherwise toggle pause/options menu.
-      if (state.mouseMode==="repair" || state.mouseMode==="sell"){
-        const was = state.mouseMode;
-        applyMouseMode("normal");
-        toast(was==="repair" ? "수리 해제" : "매각 해제");
-        e.preventDefault();
-        return;
-      }
+      // ESC: always toggle pause/options menu
       togglePauseMenu();
       e.preventDefault();
       return;
@@ -10430,7 +10426,7 @@ function drawFootprintTiles(tx, ty, tw, th, mask, okFill, badFill, okStroke, bad
     const col = (ent.team===TEAM.PLAYER) ? "#28ff6a" : "#ff2a2a";
     const ringOpt = { alphaFill: 0.0, alphaStroke: 0.95, strokeW: 3.0 };
     // Range in world units: tweak to visually fit under infantry & vehicles.
-    const base = (ent.kind==="infantry" || ent.kind==="engineer" || ent.kind==="sniper") ? TILE*0.29 : TILE*0.37;
+    const base = (ent.kind==="infantry" || ent.kind==="engineer" || ent.kind==="sniper") ? TILE*0.26 : TILE*0.34;
     drawRangeEllipseWorld(ent.x, ent.y, base, col, ringOpt);
   }
 
@@ -11723,8 +11719,8 @@ let rX = ent.x, rY = ent.y;
           }
         }
         ctx.restore();
-        // Segmented HP blocks under unit (only when selected)
-        if (state.selection && state.selection.has(ent.id)) drawUnitHpBlocks(ent, p);
+        // Segmented HP blocks under unit
+        drawUnitHpBlocks(ent, p);
 
         if (ent.grp) drawGroupBadge(p.x + ent.r*0.85, p.y - ent.r*0.85, ent.grp);
 
@@ -13040,6 +13036,13 @@ function sanityCheck(){
       for (const b of buildings){
         if (!b || !b.alive) continue;
         if (b.kind==="barracks" && b._barrackSelling && b._barrackSellFinalizeAt!=null && state.t >= b._barrackSellFinalizeAt){
+          b.alive = false;
+          state.selection.delete(b.id);
+          setBuildingOcc(b, 0);
+          _needPower = true;
+          _needElim  = true;
+        }
+        if (b.kind==="power" && b._powerSelling && b._powerSellFinalizeAt!=null && state.t >= b._powerSellFinalizeAt){
           b.alive = false;
           state.selection.delete(b.id);
           setBuildingOcc(b, 0);

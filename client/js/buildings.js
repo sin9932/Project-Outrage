@@ -7,8 +7,8 @@
   const st = PO.buildings._barracks = PO.buildings._barracks || {};
 
   // PATCH VERSION: v3
-  st.version = "v3";
-  console.log("[buildings] barracks pivot patch v4 loaded");
+  st.version = "v6";
+  console.log("[buildings] barracks+power pivot patch v6 loaded");
 
 
   
@@ -29,13 +29,15 @@
       },
       prefix: { idle: "barrack_idle", build: "barrack_const", death: "barrack_distruction" },
       entKey: { buildT0: "_barrackBuildT0", buildDone: "_barrackBuildDone" }
+    ,
+      sellKey: { flag: "_barrackSelling", t0: "_barrackSellT0", finalizeAt: "_barrackSellFinalizeAt" }
     },
 
     power: {
       baseScale: 0.25,
       forcePivot: { x: 0.4889, y: 0.5048 },
       fps: { idle: 20, build: 24, death: 20 },
-      lowHpRatio: 0.20,
+      lowHpRatio: 0.30,
       atlas: {
         idle:  { json: "asset/sprite/const/normal/power/power_idle.json",        base: "asset/sprite/const/normal/power/" },
         build: { json: "asset/sprite/const/const_anim/power/power_const.json",   base: "asset/sprite/const/const_anim/power/" },
@@ -43,6 +45,8 @@
       },
       prefix: { idle: "power_idle", build: "power_const", death: "power_distruction" },
       entKey: { buildT0: "_powerBuildT0", buildDone: "_powerBuildDone" }
+    ,
+      sellKey: { flag: "_powerSelling", t0: "_powerSellT0", finalizeAt: "_powerSellFinalizeAt" }
     }
   };
 
@@ -52,7 +56,7 @@
       kind,
       ready: false,
       atlases: { idle:null, build:null, death:null },
-      frames:  { idle:[],   build:[],   death:[] },
+      frames:  { idle:[], build:[], death:[], idleOk:[], idleBad:[] },
       // per-kind team texture cache: key -> canvas/image
       teamTexCache: new Map(),
     };
@@ -184,7 +188,14 @@
       stKind.frames.build = listFramesSmart(buildA, cfg.prefix.build);
       stKind.frames.death = listFramesSmart(deathA, cfg.prefix.death);
 
-      stKind.ready = true;
+      // Split idle frames into "normal" vs "damaged" variants (some atlases pack both into one sheet).
+      const _isDamagedName = (n)=>/dist|distruct|destroy|wreck|ruin/i.test(String(n||""));
+      const _idleAll = stKind.frames.idle || [];
+      const _idleBad = _idleAll.filter(_isDamagedName);
+      const _idleOk  = _idleAll.filter(n=>!_isDamagedName(n));
+      stKind.frames.idleOk  = _idleOk.length ? _idleOk : _idleAll;
+      stKind.frames.idleBad = _idleBad;
+stKind.ready = true;
       console.log(`[buildings] ${kind} atlases loaded`, stKind.frames);
     }catch(e){
       console.warn(`[buildings] ${kind} atlas load failed`, e);
@@ -204,6 +215,35 @@
     b[ek.buildT0] = now;
     b[ek.buildDone] = false;
   };
+
+  // Selling: play build animation in reverse, then let game.js remove it when finalizeAt hits.
+  PO.buildings.onSold = function(b, state){
+    if (!b || !TYPE_CFG[b.kind]) return;
+    ensureAllKindsLoaded();
+
+    const cfg = TYPE_CFG[b.kind];
+    const stKind = ST.kinds[b.kind];
+    const now = (state && state.t!=null) ? state.t : (performance.now()/1000);
+
+    const sk = cfg.sellKey || {};
+    const flag = sk.flag || ("_" + b.kind + "Selling");
+    const t0   = sk.t0   || ("_" + b.kind + "SellT0");
+    const fin  = sk.finalizeAt || ("_" + b.kind + "SellFinalizeAt");
+
+    // duration based on build frames (fallback 0.9s)
+    const n = (stKind && stKind.frames && stKind.frames.build && stKind.frames.build.length) ? stKind.frames.build.length : 0;
+    const dur = (n>0) ? (n / (cfg.fps.build || 24)) : 0.9;
+
+    b[flag] = true;
+    b[t0] = now;
+    b[fin] = now + dur;
+
+    // Freeze build state so it doesn't restart
+    const ek = cfg.entKey;
+    if (ek && ek.buildT0)   b[ek.buildT0] = null;
+    if (ek && ek.buildDone) b[ek.buildDone] = true;
+  };
+
 
   PO.buildings.onDestroyed = function(b, state){
     if (!b || !TYPE_CFG[b.kind]) return;
@@ -276,6 +316,18 @@
     // If dead, do not draw here; ghost will play.
     if ((ent.hp ?? 1) <= 0) return true;
 
+    // Selling: reverse-play the build animation (like barracks), then game.js will delete it at finalizeAt.
+    const sk = cfg.sellKey || {};
+    if (sk.flag && ent[sk.flag] && stKind.frames.build.length){
+      const t0 = (sk.t0 && ent[sk.t0]!=null) ? ent[sk.t0] : now;
+      if (sk.t0 && ent[sk.t0]==null) ent[sk.t0] = t0;
+      const dt = Math.max(0, now - t0);
+      const idxF = Math.floor(dt * (cfg.fps.build || 24));
+      const rev = (stKind.frames.build.length - 1) - idxF;
+      const clamped = Math.max(0, Math.min(stKind.frames.build.length - 1, rev));
+      return drawFrameTeam(ent.kind, "build", stKind.atlases.build, ctx, stKind.frames.build[clamped], sx, sy, team, scale, state);
+    }
+
     // Build -> Idle
     const ek = cfg.entKey;
     if (ent[ek.buildT0] != null && !ent[ek.buildDone] && stKind.frames.build.length){
@@ -287,13 +339,21 @@
       ent[ek.buildDone] = true;
     }
 
-    // Low HP: optionally show last idle frame (or same idle) – keep simple
-    const frames = stKind.frames.idle;
-    if (!frames.length) return false;
+    // Idle: choose normal vs damaged variant based on HP ratio (e.g. power packs idle+dist into one sheet)
+    const maxHp = (ent.maxHp ?? ent.maxHP ?? ent.hpMax ?? ent.hp_max ?? ent.hp ?? 1);
+    const hpNow = (ent.hp ?? maxHp);
+    const hpRatio = (maxHp>0) ? (hpNow / maxHp) : 1;
 
-    const idx = Math.floor(now * cfg.fps.idle) % frames.length;
+    const useDamaged = (hpRatio < cfg.lowHpRatio) && (stKind.frames.idleBad && stKind.frames.idleBad.length);
+    const frames = useDamaged
+      ? stKind.frames.idleBad
+      : ((stKind.frames.idleOk && stKind.frames.idleOk.length) ? stKind.frames.idleOk : stKind.frames.idle);
+
+    if (!frames || !frames.length) return false;
+
+    const idx = (frames.length <= 1) ? 0 : (Math.floor(now * (cfg.fps.idle || 1)) % frames.length);
     return drawFrameTeam(ent.kind, "idle", stKind.atlases.idle, ctx, frames[idx], sx, sy, team, scale, state);
-  };
+};
 
   console.log("[buildings] barracks+power pivot patch v5 loaded");
 })();
