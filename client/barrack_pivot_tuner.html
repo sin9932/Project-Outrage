@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
-<title>Pivot Tuner v16 (ingame exact)</title>
+<title>Pivot Tuner v17 (ingame exact)</title>
 <style>
   :root{
     --bg:#0b0f16;
@@ -60,7 +60,7 @@
 <body>
 <div class="wrap">
   <div class="left">
-    <div style="font-weight:700;font-size:14px;">Pivot Tuner v16</div>
+    <div style="font-weight:700;font-size:14px;">Pivot Tuner v17</div>
     <div class="hint">
       목표: <b>인게임 buildings.js 수식 그대로</b>로 렌더링해서, 여기서 잡은 <b>pivot 값이 인게임 타일맵과 1:1</b>로 맞게.
       <br/>핵심: JSON은 <b>anchor가 아니라 pivot</b>을 써야 인게임에 먹는다.
@@ -266,22 +266,34 @@ function setStatus(msg, kind=''){
 }
 
 // ===== atlas parsing (TexturePacker JSON: single or textures[])
+function normalizeFrames(frames){
+  if(!frames) return {};
+  // TexturePacker can output frames as either an object(map) or an array([{filename,...}])
+  if(Array.isArray(frames)){
+    const obj={};
+    for(const f of frames){
+      if(!f) continue;
+      const name = f.filename || f.name || f.key;
+      if(!name) continue;
+      obj[name]=f;
+    }
+    return obj;
+  }
+  return frames;
+}
+
+// ===== atlas parsing (TexturePacker JSON: single OR multi-texture, frames as object OR array)
 function parseTP(json){
   let texList=[];
   if(Array.isArray(json.textures)){
-    texList=json.textures.map(t=>({image:t.image, frames:t.frames||{}}));
+    texList=json.textures.map(t=>{
+      const image = t.image || t.meta?.image || t.meta?.imageName || json.meta?.image || 'atlas.png';
+      return {image, frames: normalizeFrames(t.frames) || {}};
+    });
   }else{
     const img = json.meta?.image || json.image || json.meta?.imageName || 'atlas.png';
-    let framesObj = json.frames;
-    if(Array.isArray(framesObj)){
-      const obj={};
-      for(const f of framesObj){
-        if(!f.filename) continue;
-        obj[f.filename]=f;
-      }
-      framesObj=obj;
-    }
-    texList=[{image: img, frames: framesObj||{}}];
+    const framesObj = normalizeFrames(json.frames) || {};
+    texList=[{image: img, frames: framesObj}];
   }
 
   const unified=[];
@@ -292,7 +304,7 @@ function parseTP(json){
       const w = frame.w ?? frame.width ?? 0;
       const h = frame.h ?? frame.height ?? 0;
 
-      const sss = data.spriteSourceSize || data.spriteSourceSize || {x:0,y:0,w, h};
+      const sss = data.spriteSourceSize || {x:0,y:0,w, h};
       const src = data.sourceSize || {w: (sss.w ?? sss.width ?? w), h: (sss.h ?? sss.height ?? h)};
 
       // IMPORTANT: game uses fr.pivot (not anchor). We still read anchor if pivot missing.
@@ -647,7 +659,7 @@ function drawSprite(cam, view){
   ctx.restore();
 
   $('topInfo').textContent =
-    `frame: ${f.name} | baseScale=${baseScaleNum.toFixed(3)} | view=${state.viewZoom.toFixed(2)} | dz=${dz.toFixed(1)} | draw=(${dxF.toFixed(1)},${dyF.toFixed(1)})`;
+    `frame: ${f.name} | baseScale=${baseScaleNum.toFixed(3)} | view=${view.zoom.toFixed(2)} | dz=${dz.toFixed(1)} | draw=(${dxF.toFixed(1)},${dyF.toFixed(1)})`;
 }
 
 // ===== loop
@@ -811,7 +823,7 @@ $('chipConst').addEventListener('click', ()=>{
   $('prefix').value='barrack_con_complete';
 });
 $('chipDist').addEventListener('click', ()=>{
-  $('atlasUrl').value='asset/sprite/const/distruct/barrack/barrack_distruct.json';
+  $('atlasUrl').value='asset/sprite/const/distruct/barrack/barrack_distruction.json';
   $('prefix').value='barrack_distruction';
 });
 
