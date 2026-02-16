@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
-<title>Pivot Tuner v17 (ingame exact)</title>
+<title>Pivot Tuner v16 (ingame exact)</title>
 <style>
   :root{
     --bg:#0b0f16;
@@ -55,12 +55,17 @@
   .check input{width:auto}
   hr{border:0;border-top:1px solid var(--line);margin:12px 0}
   a{color:#9ee0ff}
+
+  .danger{border-color:rgba(255,107,107,.65); color:#ffd0d0;}
+  .chip{display:flex;align-items:center;justify-content:space-between;gap:10px;}
+  .chipX{opacity:.75; font-weight:700; padding:0 2px;}
+  .chipX:hover{opacity:1; color:var(--err);}
 </style>
 </head>
 <body>
 <div class="wrap">
   <div class="left">
-    <div style="font-weight:700;font-size:14px;">Pivot Tuner v17</div>
+    <div style="font-weight:700;font-size:14px;">Pivot Tuner v16</div>
     <div class="hint">
       목표: <b>인게임 buildings.js 수식 그대로</b>로 렌더링해서, 여기서 잡은 <b>pivot 값이 인게임 타일맵과 1:1</b>로 맞게.
       <br/>핵심: JSON은 <b>anchor가 아니라 pivot</b>을 써야 인게임에 먹는다.
@@ -74,10 +79,25 @@
       </div>
     </div>
 
-    <div class="chips">
-      <div class="chip" id="chipIdle">barrack idle</div>
-      <div class="chip" id="chipConst">barrack const</div>
-      <div class="chip" id="chipDist">barrack dist</div>
+    
+    <div class="row" style="margin-top:10px;">
+      <div class="col" style="flex:1">
+        <label>Path helper (auto)</label>
+        <div class="grid3">
+          <input id="assetRoot" placeholder="asset/sprite" value="asset/sprite"/>
+          <input id="folderHint" placeholder="const/normal/barrack  | unit/tank/harvester"/>
+          <button id="btnBuildUrl">Build URL</button>
+        </div>
+        <div class="hint">- prefix가 있으면: {root}/{folder}/{prefix}.json
+- folder 비우고 Build 누르면(건물용): prefix로 const/normal|const_anim|distruct 추측해서 채움</div>
+        <div class="grid3" style="margin-top:6px;">
+          <input id="presetName" placeholder="Preset name (optional)"/>
+          <button id="btnSavePreset">Save preset</button>
+          <button id="btnClearPresets" class="danger">Clear</button>
+        </div>
+        <div class="hint">저장된 프리셋 클릭 = 즉시 로드. × 클릭 = 삭제. (브라우저 localStorage에 저장됨)</div>
+        <div class="chips" id="presetChips"></div>
+      </div>
     </div>
 
     <div class="row">
@@ -266,34 +286,22 @@ function setStatus(msg, kind=''){
 }
 
 // ===== atlas parsing (TexturePacker JSON: single or textures[])
-function normalizeFrames(frames){
-  if(!frames) return {};
-  // TexturePacker can output frames as either an object(map) or an array([{filename,...}])
-  if(Array.isArray(frames)){
-    const obj={};
-    for(const f of frames){
-      if(!f) continue;
-      const name = f.filename || f.name || f.key;
-      if(!name) continue;
-      obj[name]=f;
-    }
-    return obj;
-  }
-  return frames;
-}
-
-// ===== atlas parsing (TexturePacker JSON: single OR multi-texture, frames as object OR array)
 function parseTP(json){
   let texList=[];
   if(Array.isArray(json.textures)){
-    texList=json.textures.map(t=>{
-      const image = t.image || t.meta?.image || t.meta?.imageName || json.meta?.image || 'atlas.png';
-      return {image, frames: normalizeFrames(t.frames) || {}};
-    });
+    texList=json.textures.map(t=>({image:t.image, frames:t.frames||{}}));
   }else{
     const img = json.meta?.image || json.image || json.meta?.imageName || 'atlas.png';
-    const framesObj = normalizeFrames(json.frames) || {};
-    texList=[{image: img, frames: framesObj}];
+    let framesObj = json.frames;
+    if(Array.isArray(framesObj)){
+      const obj={};
+      for(const f of framesObj){
+        if(!f.filename) continue;
+        obj[f.filename]=f;
+      }
+      framesObj=obj;
+    }
+    texList=[{image: img, frames: framesObj||{}}];
   }
 
   const unified=[];
@@ -304,7 +312,7 @@ function parseTP(json){
       const w = frame.w ?? frame.width ?? 0;
       const h = frame.h ?? frame.height ?? 0;
 
-      const sss = data.spriteSourceSize || {x:0,y:0,w, h};
+      const sss = data.spriteSourceSize || data.spriteSourceSize || {x:0,y:0,w, h};
       const src = data.sourceSize || {w: (sss.w ?? sss.width ?? w), h: (sss.h ?? sss.height ?? h)};
 
       // IMPORTANT: game uses fr.pivot (not anchor). We still read anchor if pivot missing.
@@ -389,6 +397,7 @@ async function loadAtlas(){
     syncPivotFromFrame();
     updateOutput();
     setStatus(`Loaded: ${frames.length} frames, ${textures.length} texture(s).`,'ok');
+  try{ rememberPaths(); }catch(e){}
   }catch(e){
     setStatus('Load failed: ' + e.message,'err');
     console.error(e);
@@ -659,7 +668,7 @@ function drawSprite(cam, view){
   ctx.restore();
 
   $('topInfo').textContent =
-    `frame: ${f.name} | baseScale=${baseScaleNum.toFixed(3)} | view=${view.zoom.toFixed(2)} | dz=${dz.toFixed(1)} | draw=(${dxF.toFixed(1)},${dyF.toFixed(1)})`;
+    `frame: ${f.name} | baseScale=${baseScaleNum.toFixed(3)} | view=${state.viewZoom.toFixed(2)} | dz=${dz.toFixed(1)} | draw=(${dxF.toFixed(1)},${dyF.toFixed(1)})`;
 }
 
 // ===== loop
@@ -814,18 +823,182 @@ function downloadPatched(){
 $('btnLoad').addEventListener('click', loadAtlas);
 $('btnReload').addEventListener('click', loadAtlas);
 
-$('chipIdle').addEventListener('click', ()=>{
-  $('atlasUrl').value='asset/sprite/const/normal/barrack/barrack_idle.json';
-  $('prefix').value='barrack_idle';
+// ===== presets (v18)
+const LS_KEY = 'pivot_tuner_v18';
+function loadLS(){
+  try{ return JSON.parse(localStorage.getItem(LS_KEY) || '{}'); }catch(e){ return {}; }
+}
+function saveLS(obj){ localStorage.setItem(LS_KEY, JSON.stringify(obj)); }
+
+function normJoin(...parts){
+  return parts
+    .filter(Boolean)
+    .map(s=>String(s).trim().replace(/(^\/+|\/+$)/g,''))
+    .filter(s=>s.length)
+    .join('/');
+}
+function guessFolderFromPrefix(prefix){
+  const p = (prefix||'').toLowerCase();
+  const base = (prefix||'').split('_')[0] || 'atlas';
+  if (p.includes('distruct') || p.includes('destruct') || p.includes('destroy')) return `const/distruct/${base}`;
+  if (p.includes('const') || p.includes('con_') || p.includes('build') || p.includes('complete')) return `const/const_anim/${base}`;
+  if (p.includes('idle')) return `const/normal/${base}`;
+  return `const/normal/${base}`;
+}
+
+let LS = loadLS();
+$('assetRoot').value = LS.assetRoot || 'asset/sprite';
+$('folderHint').value = LS.folderHint || '';
+$('presetName').value = '';
+
+function getPresets(){
+  const arr = Array.isArray(LS.presets) ? LS.presets : [];
+  return arr.slice(0, 64);
+}
+function setPresets(arr){
+  LS.presets = arr.slice(0, 64);
+  saveLS(LS);
+}
+function renderPresets(){
+  const box = $('presetChips');
+  box.innerHTML = '';
+  const presets = getPresets();
+  // default presets (only if empty)
+  if (presets.length === 0){
+    setPresets([
+      {name:'barrack idle', url:'asset/sprite/const/normal/barrack/barrack_idle.json', prefix:'barrack_idle'},
+      {name:'barrack const', url:'asset/sprite/const/const_anim/barrack/barrack_const.json', prefix:'barrack_con_complete'},
+      {name:'barrack dist', url:'asset/sprite/const/distruct/barrack/barrack_distruct.json', prefix:'barrack_distruction'},
+    ]);
+    LS = loadLS();
+  }
+  for (let i=0;i<getPresets().length;i++){
+    const pr = getPresets()[i];
+    const d = document.createElement('div');
+    d.className='chip';
+    d.dataset.i = String(i);
+    const s1=document.createElement('span');
+    s1.textContent = (pr.name||pr.prefix||'preset');
+    const s2=document.createElement('span');
+    s2.className='chipX';
+    s2.title='delete';
+    s2.textContent='×';
+    d.appendChild(s1);
+    d.appendChild(s2);
+    box.appendChild(d);
+  }
+}
+$('presetChips').addEventListener('click', (ev)=>{
+  const chip = ev.target.closest('.chip');
+  if(!chip) return;
+  const i = Number(chip.dataset.i);
+  const presets = getPresets();
+  if(!Number.isFinite(i) || !presets[i]) return;
+
+  if(ev.target.classList.contains('chipX')){
+    presets.splice(i,1);
+    setPresets(presets);
+    LS = loadLS();
+    renderPresets();
+    setStatus('Preset deleted','ok');
+    return;
+  }
+  const pr = presets[i];
+  $('atlasUrl').value = pr.url || '';
+  $('prefix').value = pr.prefix || '';
+  // remember map
+  rememberPaths();
+  loadAtlas();
 });
-$('chipConst').addEventListener('click', ()=>{
-  $('atlasUrl').value='asset/sprite/const/const_anim/barrack/barrack_const.json';
-  $('prefix').value='barrack_con_complete';
+
+function rememberPaths(){
+  LS.assetRoot = $('assetRoot').value.trim() || 'asset/sprite';
+  LS.folderHint = $('folderHint').value.trim();
+  // prefix -> url map
+  LS.map = LS.map || {};
+  const p = $('prefix').value.trim();
+  const u = $('atlasUrl').value.trim();
+  if(p && u) LS.map[p] = u;
+  saveLS(LS);
+}
+
+function tryAutofillUrlFromPrefix(){
+  const p = $('prefix').value.trim();
+  if(!p) return;
+  LS = loadLS();
+  const map = LS.map || {};
+  if(map[p]){
+    $('atlasUrl').value = map[p];
+    return;
+  }
+  // if url empty, build from template
+  if(!$('atlasUrl').value.trim()){
+    const root = ($('assetRoot').value.trim() || 'asset/sprite');
+    let folder = $('folderHint').value.trim();
+    if(!folder) folder = guessFolderFromPrefix(p);
+    $('folderHint').value = folder;
+    $('atlasUrl').value = normJoin(root, folder, `${p}.json`);
+  }
+}
+
+$('btnBuildUrl').addEventListener('click', ()=>{
+  const p = $('prefix').value.trim();
+  if(!p){ setStatus('prefix 먼저 입력해','err'); return; }
+  const root = ($('assetRoot').value.trim() || 'asset/sprite');
+  let folder = $('folderHint').value.trim();
+  if(!folder){
+    folder = guessFolderFromPrefix(p);
+    $('folderHint').value = folder;
+  }
+  $('atlasUrl').value = normJoin(root, folder, `${p}.json`);
+  rememberPaths();
+  setStatus('Built URL','ok');
 });
-$('chipDist').addEventListener('click', ()=>{
-  $('atlasUrl').value='asset/sprite/const/distruct/barrack/barrack_distruction.json';
-  $('prefix').value='barrack_distruction';
+
+$('btnSavePreset').addEventListener('click', ()=>{
+  const p = $('prefix').value.trim();
+  const u = $('atlasUrl').value.trim();
+  if(!p || !u){ setStatus('prefix/url 둘 다 필요','err'); return; }
+  const name = ($('presetName').value.trim() || p);
+  const presets = getPresets();
+  // upsert by name
+  const idx = presets.findIndex(x=> (x.name||'') === name);
+  const item = {name, url:u, prefix:p};
+  if(idx>=0) presets[idx]=item; else presets.unshift(item);
+  setPresets(presets);
+  LS = loadLS();
+  rememberPaths();
+  renderPresets();
+  setStatus('Saved preset: ' + name,'ok');
 });
+
+$('btnClearPresets').addEventListener('click', ()=>{
+  if(!confirm('프리셋 전부 삭제?')) return;
+  LS = loadLS();
+  LS.presets = [];
+  LS.map = {};
+  saveLS(LS);
+  renderPresets();
+  setStatus('Cleared presets','ok');
+});
+
+$('prefix').addEventListener('input', ()=>{
+  // lightweight autofill
+  tryAutofillUrlFromPrefix();
+});
+renderPresets();
+
+// query param support: ?atlas=...&prefix=...
+try{
+  const qp = new URLSearchParams(location.search);
+  const qAtlas = qp.get('atlas');
+  const qPrefix = qp.get('prefix');
+  if(qAtlas) $('atlasUrl').value = qAtlas;
+  if(qPrefix) $('prefix').value = qPrefix;
+  if(qAtlas || qPrefix){
+    tryAutofillUrlFromPrefix();
+  }
+}catch(e){}
 
 $('prefix').addEventListener('change', ()=>{ rebuildFrameSelect(); syncPivotFromFrame(); });
 $('frameSel').addEventListener('change', ()=>{ playing=false; lastT=0; syncPivotFromFrame(); });
