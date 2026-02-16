@@ -7,13 +7,7 @@
   const PO = (window.PO = window.PO || {});
   PO.atlasTP = PO.atlasTP || {};
 
-  const VERSION = 9;
-
-  // v9: caching + parallel image load (prevents repeated network/decode on every ensure call)
-  const _atlasPromiseCache = new Map();   // jsonUrl -> Promise<atlas>
-  const _jsonTextCache     = new Map();   // jsonUrl -> Promise<string>
-  const _imagePromiseCache = new Map();   // imgUrl  -> Promise<HTMLImageElement>
-
+  const VERSION = 6;
 
   function looksLikeHTML(s) {
     if (!s) return false;
@@ -120,94 +114,66 @@
   }
 
   function loadImage(src) {
-    if (_imagePromiseCache.has(src)) return _imagePromiseCache.get(src);
-
-    const p = new Promise((resolve, reject) => {
+    return new Promise((resolve, reject) => {
       const img = new Image();
       // Safe default for canvas use; same-origin still works.
       img.crossOrigin = 'anonymous';
       img.decoding = 'async';
-      img.onload = async () => {
-        try {
-          // decode() helps avoid first-draw jank on large PNGs
-          if (img.decode) await img.decode().catch(() => {});
-        } finally {
-          resolve(img);
-        }
-      };
+      img.onload = () => resolve(img);
       img.onerror = () => reject(new Error('Image load failed: ' + src));
       img.src = src;
     });
-
-    _imagePromiseCache.set(src, p);
-    p.catch(() => _imagePromiseCache.delete(src));
-    return p;
   }
 
-  async function fetchJsonText(url) {
-    if (_jsonTextCache.has(url)) return _jsonTextCache.get(url);
+  async function loadTPAtlasMulti(jsonUrl, baseDirOpt = null) {
+    const resp = await fetch(jsonUrl, { cache: 'no-store' });
+    const text = await resp.text();
+    if (!resp.ok) throw new Error(`Atlas JSON fetch failed: ${jsonUrl} (HTTP ${resp.status})`);
+    if (looksLikeHTML(text)) throw new Error(`Atlas URL returned HTML (likely SPA fallback): ${jsonUrl}`);
+    const trimmed = text.trimStart();
+    if (!trimmed || (trimmed[0] !== '{' && trimmed[0] !== '[')) throw new Error(`Atlas JSON is not JSON: ${jsonUrl}`);
+    let raw;
+    try { raw = JSON.parse(text); } catch (e) { throw new Error(`Invalid JSON at ${jsonUrl}: ${e.message}`); }
 
-    const p = (async () => {
-      const resp = await fetch(url, { cache: 'force-cache' });
-      const text = await resp.text();
-      if (!resp.ok) {
-        throw new Error(`Atlas JSON fetch failed (${resp.status}): ${url}`);
+    const parsed = parseTP(raw);
+    const baseDir = baseDirOpt || baseDirFromUrl(jsonUrl);
+
+    // Load images
+    const textures = [];
+    for (let i = 0; i < parsed.textures.length; i++) {
+      const t = parsed.textures[i];
+      if (!t.image) throw new Error(`TP atlas missing textures[${i}].image`);
+      const src = joinUrl(baseDir, t.image);
+      const img = await loadImage(src);
+      textures.push({ image: t.image, src, img });
+    }
+
+    // Frames map
+    const frames = new Map();
+    const framesByName = Object.create(null);
+
+    parsed.textures.forEach((t, texIndex) => {
+      const arr = Array.isArray(t.frames) ? t.frames : [];
+      for (const fr of arr) {
+        const filename = fr.filename || fr.name;
+        if (!filename) continue;
+        const frameObj = normalizeFrameCommon(filename, fr, texIndex);
+        frames.set(filename, frameObj);
+        framesByName[filename] = frameObj;
       }
-      if (looksLikeHTML(text)) {
-        throw new Error(`Atlas JSON looked like HTML (CORS/404 page?): ${url}`);
-      }
-      return text;
-    })();
+    });
 
-    _jsonTextCache.set(url, p);
-    p.catch(() => _jsonTextCache.delete(url));
-    return p;
-  }
+    const atlas = {
+      version: VERSION,
+      jsonUrl,
+      baseDir,
+      textures,          // [{image, src, img}]
+      frames,            // Map(name -> frameObj)
+      framesByName,      // plain object alias
+      _rotCache: new Map()
+    };
 
-
-  async function loadTPAtlasMulti(jsonUrl, baseDirOpt=null) {
-    // Cache by jsonUrl. If you need different baseDir for same json, pass a unique query string.
-    if (_atlasPromiseCache.has(jsonUrl)) return _atlasPromiseCache.get(jsonUrl);
-
-    const p = (async () => {
-      const baseDir = baseDirOpt != null ? baseDirOpt : baseDirFromUrl(jsonUrl);
-
-      const text = await fetchJsonText(jsonUrl);
-      // fetchJsonText already checks resp.ok + looksLikeHTML, but keep explicit for safety
-      if (looksLikeHTML(text)) throw new Error('Atlas JSON looked like HTML (bad path/CORS?): ' + jsonUrl);
-
-      const parsed = parseTP(text);
-
-      // Load all texture images in parallel (huge speedup on first boot)
-      const textures = await Promise.all(parsed.textures.map(async (t) => {
-        const imgUrl = joinUrl(baseDir, t.image);
-        const img = await loadImage(imgUrl);
-        return { image: img, imageUrl: imgUrl, meta: t, frames: t.frames };
-      }));
-
-      // Flatten frames into a Map for quick lookup
-      const atlas = {
-        url: jsonUrl,
-        baseDir,
-        textures,
-        frames: new Map(),
-        frameList: []
-      };
-
-      for (const tex of textures) {
-        for (const f of tex.frames) {
-          // global unique key inside atlas: "frameName"
-          atlas.frames.set(f.name, { texture: tex, frame: f });
-          atlas.frameList.push(f.name);
-        }
-      }
-
-      return atlas;
-    })();
-
-    _atlasPromiseCache.set(jsonUrl, p);
-    p.catch(() => _atlasPromiseCache.delete(jsonUrl));
-    return p;
+    return atlas;
   }
 
   // Alias (single-sheet is still supported by loadTPAtlasMulti)
