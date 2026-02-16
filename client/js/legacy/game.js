@@ -728,7 +728,7 @@ function getBaseBuildTime(kind){
     power:    { hLevel:2, tw:2, th:2, hp:750,  vision:420, provideR: 600 },
     refinery: { hLevel:2, tw:3, th:4, hp:1000, vision:520, provideR: 650 },
     factory:  { hLevel:2, tw:3, th:4, hp:1000, vision:500, provideR: 650 },
-    barracks: { hLevel:2, tw:3, th:2, hp:500,  vision:460, provideR: 600 },
+    barracks: { hLevel:2, tw:2, th:2, hp:500,  vision:460, provideR: 600 },
     radar:    { hLevel:3, tw:2, th:2, hp:1000, vision:600, provideR: 650 },
     turret:   { hLevel:1, tw:1, th:1, hp:400,  vision:560, provideR: 0   },
     civ_oregen: { hLevel:0, tw:2, th:2, hp:999999, vision:0, provideR:0, attackable:false, selectable:false, hideUI:true }
@@ -6828,36 +6828,40 @@ function sellBuilding(b){
     if (!b || !b.alive || b.civ) return;
 
     // Prevent double-sell spam while animation is running
-    if (b.kind==="barracks" && b._barrackSelling) return;
+    if ((b.kind==="barracks" && b._barrackSelling) || (b.kind==="power" && b._powerSelling)) return;
 
-    const refund = Math.floor((COST[b.kind]||0) * 0.5);
+const refund = Math.floor((COST[b.kind]||0) * 0.5);
     if (b.team===TEAM.PLAYER) state.player.money += refund;
     else state.enemy.money += refund;
 
     // Selling evacuates units at full HP (RA2-ish flavor).
     spawnEvacUnitsFromBuilding(b, false);
 
-    // Barracks: play "construction" animation in reverse, then remove footprint.
-    if (b.kind==="barracks"){
+    // Barracks / Power Plant: play "construction" animation in reverse, then remove footprint.
+    if (b.kind==="barracks" || b.kind==="power"){
+      const _flag = (b.kind==="barracks") ? "_barrackSelling" : "_powerSelling";
+      const _t0   = (b.kind==="barracks") ? "_barrackSellT0" : "_powerSellT0";
+      const _fin  = (b.kind==="barracks") ? "_barrackSellFinalizeAt" : "_powerSellFinalizeAt";
       try{
         if (window.PO && PO.buildings && PO.buildings.onSold){
           PO.buildings.onSold(b, state);
         }else{
           // Fallback: if plugin missing, schedule a short delay so it doesn't insta-pop.
-          b._barrackSelling = true;
-          b._barrackSellFinalizeAt = state.t + 0.9;
+          b[_flag] = true;
+          b[_t0] = state.t;
+          b[_fin] = state.t + 0.9;
         }
       }catch(_e){
-        b._barrackSelling = true;
-        b._barrackSellFinalizeAt = state.t + 0.9;
+        b[_flag] = true;
+        b[_t0] = state.t;
+        b[_fin] = state.t + 0.9;
       }
 
       // Immediately unselect, but keep it alive/occupying until animation finishes.
       state.selection.delete(b.id);
       return;
     }
-
-    // Default: immediate removal
+// Default: immediate removal
     try{ if (window.PO && PO.buildings && PO.buildings.onSold) PO.buildings.onSold(b, state); }catch(_e){}
     b.alive=false;
     state.selection.delete(b.id);
@@ -13032,6 +13036,13 @@ function sanityCheck(){
       for (const b of buildings){
         if (!b || !b.alive) continue;
         if (b.kind==="barracks" && b._barrackSelling && b._barrackSellFinalizeAt!=null && state.t >= b._barrackSellFinalizeAt){
+          b.alive = false;
+          state.selection.delete(b.id);
+          setBuildingOcc(b, 0);
+          _needPower = true;
+          _needElim  = true;
+        }
+        if (b.kind==="power" && b._powerSelling && b._powerSellFinalizeAt!=null && state.t >= b._powerSellFinalizeAt){
           b.alive = false;
           state.selection.delete(b.id);
           setBuildingOcc(b, 0);

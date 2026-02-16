@@ -12458,7 +12458,11 @@ function spawnStartingUnits(){
 }
 
 
-startBtn.addEventListener("click", () => {
+startBtn.addEventListener("click", async () => {
+    // Boot-time asset warmup (prevents long box placeholders)
+    const _oldStartText = startBtn.textContent;
+    startBtn.disabled = true;
+    startBtn.textContent = "LOADING...";
     state.colors.player = pColorInput.value;
     state.colors.enemy  = eColorInput.value;
 
@@ -12495,13 +12499,26 @@ startBtn.addEventListener("click", () => {
     state.player.money = START_MONEY;
     state.enemy.money  = START_MONEY;
 
+    // Preload building atlases once (barracks/power) so first draw has textures ready
+    try{
+      if (window.PO && PO.buildings && typeof PO.buildings.preload === "function"){
+        await PO.buildings.preload();
+      }
+    }catch(e){
+      console.warn("[boot] preload failed", e);
+    }
+
     placeStart(spawnChoice);
     spawnStartingUnits();
     pregame.style.display = "none";
     // Start BGM on user gesture (autoplay-safe)
     BGM.userStart();
     running = true;
+
+    startBtn.disabled = false;
+    startBtn.textContent = _oldStartText;
   });
+
 
   let last=performance.now();
   let fpsAcc=0, fpsN=0, fpsT=0;

@@ -7,7 +7,12 @@
   const PO = (window.PO = window.PO || {});
   PO.atlasTP = PO.atlasTP || {};
 
-  const VERSION = 6;
+  const VERSION = 8;
+
+  // Promise caches to prevent duplicate network/image loads when loaders are called repeatedly (eg. per-frame ensure* calls)
+  const _atlasPromiseCache = new Map();   // key: jsonUrl -> Promise<atlas>
+  const _jsonTextCache     = new Map();   // key: jsonUrl -> Promise<string>
+  const _imagePromiseCache = new Map();   // key: imageSrc -> Promise<HTMLImageElement>
 
   function looksLikeHTML(s) {
     if (!s) return false;
@@ -114,41 +119,56 @@
   }
 
   function loadImage(src) {
-    return new Promise((resolve, reject) => {
+    // cache per-image src to avoid spawning N Image() objects for same URL
+    if (_imagePromiseCache.has(src)) return _imagePromiseCache.get(src);
+    const p = new Promise((resolve, reject) => {
       const img = new Image();
       // Safe default for canvas use; same-origin still works.
       img.crossOrigin = 'anonymous';
-      img.decoding = 'async';
       img.onload = () => resolve(img);
-      img.onerror = () => reject(new Error('Image load failed: ' + src));
+      img.onerror = (e) => reject(new Error(`Image load failed: ${src}`));
       img.src = src;
     });
+    _imagePromiseCache.set(src, p);
+    p.catch(() => _imagePromiseCache.delete(src));
+    return p;
   }
 
-  async function loadTPAtlasMulti(jsonUrl, baseDirOpt = null) {
-    const resp = await fetch(jsonUrl, { cache: 'no-store' });
-    const text = await resp.text();
-    if (!resp.ok) throw new Error(`Atlas JSON fetch failed: ${jsonUrl} (HTTP ${resp.status})`);
-    if (looksLikeHTML(text)) throw new Error(`Atlas URL returned HTML (likely SPA fallback): ${jsonUrl}`);
-    const trimmed = text.trimStart();
-    if (!trimmed || (trimmed[0] !== '{' && trimmed[0] !== '[')) throw new Error(`Atlas JSON is not JSON: ${jsonUrl}`);
+  
+  async function fetchJsonText(url){
+    if (_jsonTextCache.has(url)) return _jsonTextCache.get(url);
+    const p = (async ()=>{
+      const resp = await fetch(url, { cache: 'default' });
+      const text = await resp.text();
+      if (!resp.ok) throw new Error(`Atlas JSON fetch failed: ${url} (HTTP ${resp.status})`);
+      if (looksLikeHTML(text)) throw new Error(`Atlas URL returned HTML (likely SPA fallback): ${url}`);
+      const trimmed = text.trimStart();
+      if (!trimmed || (trimmed[0] !== '{' && trimmed[0] !== '[')) throw new Error(`Atlas JSON is not JSON: ${url}`);
+      return text;
+    })();
+    _jsonTextCache.set(url, p);
+    p.catch(()=>_jsonTextCache.delete(url));
+    return p;
+  }
+
+async function loadTPAtlasMulti(jsonUrl, baseDirOpt = null) {
+    if (_atlasPromiseCache.has(jsonUrl)) return _atlasPromiseCache.get(jsonUrl);
+    const p = (async () => {
+const text = await fetchJsonText(jsonUrl);
     let raw;
     try { raw = JSON.parse(text); } catch (e) { throw new Error(`Invalid JSON at ${jsonUrl}: ${e.message}`); }
 
     const parsed = parseTP(raw);
     const baseDir = baseDirOpt || baseDirFromUrl(jsonUrl);
 
-    // Load images
-    const textures = [];
-    for (let i = 0; i < parsed.textures.length; i++) {
-      const t = parsed.textures[i];
+    // Load images (parallel)
+    const textures = await Promise.all(parsed.textures.map(async (t, i) => {
       if (!t.image) throw new Error(`TP atlas missing textures[${i}].image`);
       const src = joinUrl(baseDir, t.image);
       const img = await loadImage(src);
-      textures.push({ image: t.image, src, img });
-    }
-
-    // Frames map
+      return { image: t.image, src, img };
+    }));
+// Frames map
     const frames = new Map();
     const framesByName = Object.create(null);
 
@@ -311,5 +331,14 @@
   PO.atlasTP.loadAtlasTP = loadTPAtlas;
   PO.atlasTP.loadAtlasTPMulti = loadTPAtlasMulti;
 
-  console.log(`[atlas_tp:v${VERSION}] ready`);
-})();
+  console.log(`[atlas_tp:v${VERSION}] ready (cache on)`);
+    })();
+
+    _atlasPromiseCache.set(jsonUrl, p);
+    try {
+      return await p;
+    } catch (e) {
+      _atlasPromiseCache.delete(jsonUrl);
+      throw e;
+    }
+  })();
