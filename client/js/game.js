@@ -9296,7 +9296,15 @@ const keys=new Set();
     }
 
     if (e.key==="Escape" || e.key==="Esc" || e.code==="Escape" || e.keyCode===27){
-      // ESC: always toggle pause/options menu
+      // ESC: cancel repair/sell modes first (so you don't need to re-click buttons),
+      // otherwise toggle pause/options menu.
+      if (state.mouseMode==="repair" || state.mouseMode==="sell"){
+        const was = state.mouseMode;
+        applyMouseMode("normal");
+        toast(was==="repair" ? "수리 해제" : "매각 해제");
+        e.preventDefault();
+        return;
+      }
       togglePauseMenu();
       e.preventDefault();
       return;
