@@ -1,895 +1,1035 @@
 {
-	"textures": [
-		{
-			"image": "power_distruction.png",
-			"format": "RGBA8888",
-			"size": {
-				"w": 3832,
-				"h": 4997
-			},
-			"scale": 1,
-			"frames": [
-				{
-					"filename": "power_distruction_21.png",
-					"rotated": false,
-					"trimmed": true,
-					"sourceSize": {
-						"w": 1652,
-						"h": 1252
-					},
-					"spriteSourceSize": {
-						"x": 333,
-						"y": 337,
-						"w": 973,
-						"h": 578
-					},
-					"frame": {
-						"x": 0,
-						"y": 0,
-						"w": 973,
-						"h": 578
-					},
-					"anchor": {
-						"x": 0.5,
-						"y": 0.53
-					}
-				},
-				{
-					"filename": "power_distruction_20.png",
-					"rotated": false,
-					"trimmed": true,
-					"sourceSize": {
-						"w": 1652,
-						"h": 1252
-					},
-					"spriteSourceSize": {
-						"x": 333,
-						"y": 344,
-						"w": 972,
-						"h": 572
-					},
-					"frame": {
-						"x": 973,
-						"y": 0,
-						"w": 972,
-						"h": 572
-					},
-					"anchor": {
-						"x": 0.5,
-						"y": 0.53
-					}
-				},
-				{
-					"filename": "power_distruction_19.png",
-					"rotated": false,
-					"trimmed": true,
-					"sourceSize": {
-						"w": 1652,
-						"h": 1252
-					},
-					"spriteSourceSize": {
-						"x": 335,
-						"y": 307,
-						"w": 968,
-						"h": 610
-					},
-					"frame": {
-						"x": 1945,
-						"y": 0,
-						"w": 968,
-						"h": 610
-					},
-					"anchor": {
-						"x": 0.5,
-						"y": 0.53
-					}
-				},
-				{
-					"filename": "power_distruction_26.png",
-					"rotated": false,
-					"trimmed": true,
-					"sourceSize": {
-						"w": 1652,
-						"h": 1252
-					},
-					"spriteSourceSize": {
-						"x": 357,
-						"y": 406,
-						"w": 919,
-						"h": 491
-					},
-					"frame": {
-						"x": 2913,
-						"y": 0,
-						"w": 919,
-						"h": 491
-					},
-					"anchor": {
-						"x": 0.5,
-						"y": 0.53
-					}
-				},
-				{
-					"filename": "power_distruction_22.png",
-					"rotated": false,
-					"trimmed": true,
-					"sourceSize": {
-						"w": 1652,
-						"h": 1252
-					},
-					"spriteSourceSize": {
-						"x": 335,
-						"y": 330,
-						"w": 966,
-						"h": 582
-					},
-					"frame": {
-						"x": 973,
-						"y": 572,
-						"w": 966,
-						"h": 582
-					},
-					"anchor": {
-						"x": 0.5,
-						"y": 0.53
-					}
-				},
-				{
-					"filename": "power_distruction_15.png",
-					"rotated": false,
-					"trimmed": true,
-					"sourceSize": {
-						"w": 1652,
-						"h": 1252
-					},
-					"spriteSourceSize": {
-						"x": 352,
-						"y": 187,
-						"w": 909,
-						"h": 732
-					},
-					"frame": {
-						"x": 2913,
-						"y": 491,
-						"w": 909,
-						"h": 732
-					},
-					"anchor": {
-						"x": 0.5,
-						"y": 0.53
-					}
-				},
-				{
-					"filename": "power_distruction_18.png",
-					"rotated": false,
-					"trimmed": true,
-					"sourceSize": {
-						"w": 1652,
-						"h": 1252
-					},
-					"spriteSourceSize": {
-						"x": 338,
-						"y": 267,
-						"w": 957,
-						"h": 651
-					},
-					"frame": {
-						"x": 0,
-						"y": 578,
-						"w": 957,
-						"h": 651
-					},
-					"anchor": {
-						"x": 0.5,
-						"y": 0.53
-					}
-				},
-				{
-					"filename": "power_distruction_23.png",
-					"rotated": false,
-					"trimmed": true,
-					"sourceSize": {
-						"w": 1652,
-						"h": 1252
-					},
-					"spriteSourceSize": {
-						"x": 345,
-						"y": 352,
-						"w": 954,
-						"h": 557
-					},
-					"frame": {
-						"x": 1939,
-						"y": 610,
-						"w": 954,
-						"h": 557
-					},
-					"anchor": {
-						"x": 0.5,
-						"y": 0.53
-					}
-				},
-				{
-					"filename": "power_distruction_24.png",
-					"rotated": false,
-					"trimmed": true,
-					"sourceSize": {
-						"w": 1652,
-						"h": 1252
-					},
-					"spriteSourceSize": {
-						"x": 347,
-						"y": 408,
-						"w": 941,
-						"h": 494
-					},
-					"frame": {
-						"x": 957,
-						"y": 1154,
-						"w": 941,
-						"h": 494
-					},
-					"anchor": {
-						"x": 0.5,
-						"y": 0.53
-					}
-				},
-				{
-					"filename": "power_distruction_17.png",
-					"rotated": false,
-					"trimmed": true,
-					"sourceSize": {
-						"w": 1652,
-						"h": 1252
-					},
-					"spriteSourceSize": {
-						"x": 344,
-						"y": 226,
-						"w": 939,
-						"h": 694
-					},
-					"frame": {
-						"x": 0,
-						"y": 1229,
-						"w": 939,
-						"h": 694
-					},
-					"anchor": {
-						"x": 0.5,
-						"y": 0.53
-					}
-				},
-				{
-					"filename": "power_distruction_25.png",
-					"rotated": false,
-					"trimmed": true,
-					"sourceSize": {
-						"w": 1652,
-						"h": 1252
-					},
-					"spriteSourceSize": {
-						"x": 351,
-						"y": 414,
-						"w": 927,
-						"h": 485
-					},
-					"frame": {
-						"x": 1898,
-						"y": 1167,
-						"w": 927,
-						"h": 485
-					},
-					"anchor": {
-						"x": 0.5,
-						"y": 0.53
-					}
-				},
-				{
-					"filename": "power_distruction_16.png",
-					"rotated": false,
-					"trimmed": true,
-					"sourceSize": {
-						"w": 1652,
-						"h": 1252
-					},
-					"spriteSourceSize": {
-						"x": 348,
-						"y": 199,
-						"w": 923,
-						"h": 721
-					},
-					"frame": {
-						"x": 939,
-						"y": 1648,
-						"w": 923,
-						"h": 721
-					},
-					"anchor": {
-						"x": 0.5,
-						"y": 0.53
-					}
-				},
-				{
-					"filename": "power_distruction_27.png",
-					"rotated": false,
-					"trimmed": true,
-					"sourceSize": {
-						"w": 1652,
-						"h": 1252
-					},
-					"spriteSourceSize": {
-						"x": 377,
-						"y": 393,
-						"w": 897,
-						"h": 499
-					},
-					"frame": {
-						"x": 0,
-						"y": 1923,
-						"w": 897,
-						"h": 499
-					},
-					"anchor": {
-						"x": 0.5,
-						"y": 0.53
-					}
-				},
-				{
-					"filename": "power_distruction_14.png",
-					"rotated": false,
-					"trimmed": true,
-					"sourceSize": {
-						"w": 1652,
-						"h": 1252
-					},
-					"spriteSourceSize": {
-						"x": 355,
-						"y": 185,
-						"w": 885,
-						"h": 733
-					},
-					"frame": {
-						"x": 2825,
-						"y": 1223,
-						"w": 885,
-						"h": 733
-					},
-					"anchor": {
-						"x": 0.5,
-						"y": 0.53
-					}
-				},
-				{
-					"filename": "power_distruction_28.png",
-					"rotated": false,
-					"trimmed": true,
-					"sourceSize": {
-						"w": 1652,
-						"h": 1252
-					},
-					"spriteSourceSize": {
-						"x": 377,
-						"y": 432,
-						"w": 884,
-						"h": 459
-					},
-					"frame": {
-						"x": 1862,
-						"y": 1652,
-						"w": 884,
-						"h": 459
-					},
-					"anchor": {
-						"x": 0.5,
-						"y": 0.53
-					}
-				},
-				{
-					"filename": "power_distruction_13.png",
-					"rotated": false,
-					"trimmed": true,
-					"sourceSize": {
-						"w": 1652,
-						"h": 1252
-					},
-					"spriteSourceSize": {
-						"x": 359,
-						"y": 183,
-						"w": 881,
-						"h": 734
-					},
-					"frame": {
-						"x": 2746,
-						"y": 1956,
-						"w": 881,
-						"h": 734
-					},
-					"anchor": {
-						"x": 0.5,
-						"y": 0.53
-					}
-				},
-				{
-					"filename": "power_distruction_12.png",
-					"rotated": false,
-					"trimmed": true,
-					"sourceSize": {
-						"w": 1652,
-						"h": 1252
-					},
-					"spriteSourceSize": {
-						"x": 367,
-						"y": 182,
-						"w": 873,
-						"h": 732
-					},
-					"frame": {
-						"x": 1862,
-						"y": 2111,
-						"w": 873,
-						"h": 732
-					},
-					"anchor": {
-						"x": 0.5,
-						"y": 0.53
-					}
-				},
-				{
-					"filename": "power_distruction_11.png",
-					"rotated": false,
-					"trimmed": true,
-					"sourceSize": {
-						"w": 1652,
-						"h": 1252
-					},
-					"spriteSourceSize": {
-						"x": 377,
-						"y": 183,
-						"w": 863,
-						"h": 727
-					},
-					"frame": {
-						"x": 897,
-						"y": 2369,
-						"w": 863,
-						"h": 727
-					},
-					"anchor": {
-						"x": 0.5,
-						"y": 0.53
-					}
-				},
-				{
-					"filename": "power_distruction_10.png",
-					"rotated": false,
-					"trimmed": true,
-					"sourceSize": {
-						"w": 1652,
-						"h": 1252
-					},
-					"spriteSourceSize": {
-						"x": 377,
-						"y": 182,
-						"w": 863,
-						"h": 720
-					},
-					"frame": {
-						"x": 0,
-						"y": 2422,
-						"w": 863,
-						"h": 720
-					},
-					"anchor": {
-						"x": 0.5,
-						"y": 0.53
-					}
-				},
-				{
-					"filename": "power_distruction_1.png",
-					"rotated": false,
-					"trimmed": true,
-					"sourceSize": {
-						"w": 1652,
-						"h": 1252
-					},
-					"spriteSourceSize": {
-						"x": 377,
-						"y": 183,
-						"w": 863,
-						"h": 718
-					},
-					"frame": {
-						"x": 2735,
-						"y": 2690,
-						"w": 863,
-						"h": 718
-					},
-					"anchor": {
-						"x": 0.5,
-						"y": 0.53
-					}
-				},
-				{
-					"filename": "power_distruction_2.png",
-					"rotated": false,
-					"trimmed": true,
-					"sourceSize": {
-						"w": 1652,
-						"h": 1252
-					},
-					"spriteSourceSize": {
-						"x": 377,
-						"y": 183,
-						"w": 863,
-						"h": 718
-					},
-					"frame": {
-						"x": 1760,
-						"y": 2843,
-						"w": 863,
-						"h": 718
-					},
-					"anchor": {
-						"x": 0.5,
-						"y": 0.53
-					}
-				},
-				{
-					"filename": "power_distruction_3.png",
-					"rotated": false,
-					"trimmed": true,
-					"sourceSize": {
-						"w": 1652,
-						"h": 1252
-					},
-					"spriteSourceSize": {
-						"x": 377,
-						"y": 183,
-						"w": 863,
-						"h": 718
-					},
-					"frame": {
-						"x": 863,
-						"y": 3096,
-						"w": 863,
-						"h": 718
-					},
-					"anchor": {
-						"x": 0.5,
-						"y": 0.53
-					}
-				},
-				{
-					"filename": "power_distruction_4.png",
-					"rotated": false,
-					"trimmed": true,
-					"sourceSize": {
-						"w": 1652,
-						"h": 1252
-					},
-					"spriteSourceSize": {
-						"x": 377,
-						"y": 183,
-						"w": 863,
-						"h": 718
-					},
-					"frame": {
-						"x": 0,
-						"y": 3142,
-						"w": 863,
-						"h": 718
-					},
-					"anchor": {
-						"x": 0.5,
-						"y": 0.53
-					}
-				},
-				{
-					"filename": "power_distruction_5.png",
-					"rotated": false,
-					"trimmed": true,
-					"sourceSize": {
-						"w": 1652,
-						"h": 1252
-					},
-					"spriteSourceSize": {
-						"x": 377,
-						"y": 183,
-						"w": 863,
-						"h": 718
-					},
-					"frame": {
-						"x": 2623,
-						"y": 3408,
-						"w": 863,
-						"h": 718
-					},
-					"anchor": {
-						"x": 0.5,
-						"y": 0.53
-					}
-				},
-				{
-					"filename": "power_distruction_6.png",
-					"rotated": false,
-					"trimmed": true,
-					"sourceSize": {
-						"w": 1652,
-						"h": 1252
-					},
-					"spriteSourceSize": {
-						"x": 377,
-						"y": 183,
-						"w": 863,
-						"h": 718
-					},
-					"frame": {
-						"x": 1726,
-						"y": 3561,
-						"w": 863,
-						"h": 718
-					},
-					"anchor": {
-						"x": 0.5,
-						"y": 0.53
-					}
-				},
-				{
-					"filename": "power_distruction_7.png",
-					"rotated": false,
-					"trimmed": true,
-					"sourceSize": {
-						"w": 1652,
-						"h": 1252
-					},
-					"spriteSourceSize": {
-						"x": 377,
-						"y": 183,
-						"w": 863,
-						"h": 718
-					},
-					"frame": {
-						"x": 863,
-						"y": 3814,
-						"w": 863,
-						"h": 718
-					},
-					"anchor": {
-						"x": 0.5,
-						"y": 0.53
-					}
-				},
-				{
-					"filename": "power_distruction_8.png",
-					"rotated": false,
-					"trimmed": true,
-					"sourceSize": {
-						"w": 1652,
-						"h": 1252
-					},
-					"spriteSourceSize": {
-						"x": 377,
-						"y": 183,
-						"w": 863,
-						"h": 718
-					},
-					"frame": {
-						"x": 0,
-						"y": 3860,
-						"w": 863,
-						"h": 718
-					},
-					"anchor": {
-						"x": 0.5,
-						"y": 0.53
-					}
-				},
-				{
-					"filename": "power_distruction_9.png",
-					"rotated": false,
-					"trimmed": true,
-					"sourceSize": {
-						"w": 1652,
-						"h": 1252
-					},
-					"spriteSourceSize": {
-						"x": 377,
-						"y": 183,
-						"w": 863,
-						"h": 718
-					},
-					"frame": {
-						"x": 1726,
-						"y": 4279,
-						"w": 863,
-						"h": 718
-					},
-					"anchor": {
-						"x": 0.5,
-						"y": 0.53
-					}
-				},
-				{
-					"filename": "power_distruction_29.png",
-					"rotated": false,
-					"trimmed": true,
-					"sourceSize": {
-						"w": 1652,
-						"h": 1252
-					},
-					"spriteSourceSize": {
-						"x": 377,
-						"y": 476,
-						"w": 852,
-						"h": 414
-					},
-					"frame": {
-						"x": 0,
-						"y": 4578,
-						"w": 852,
-						"h": 414
-					},
-					"anchor": {
-						"x": 0.5,
-						"y": 0.53
-					}
-				},
-				{
-					"filename": "power_distruction_30.png",
-					"rotated": false,
-					"trimmed": true,
-					"sourceSize": {
-						"w": 1652,
-						"h": 1252
-					},
-					"spriteSourceSize": {
-						"x": 377,
-						"y": 490,
-						"w": 845,
-						"h": 398
-					},
-					"frame": {
-						"x": 863,
-						"y": 4532,
-						"w": 845,
-						"h": 398
-					},
-					"anchor": {
-						"x": 0.5,
-						"y": 0.53
-					}
-				},
-				{
-					"filename": "power_distruction_35.png",
-					"rotated": false,
-					"trimmed": true,
-					"sourceSize": {
-						"w": 1652,
-						"h": 1252
-					},
-					"spriteSourceSize": {
-						"x": 510,
-						"y": 652,
-						"w": 274,
-						"h": 154
-					},
-					"frame": {
-						"x": 3486,
-						"y": 3408,
-						"w": 274,
-						"h": 154
-					},
-					"anchor": {
-						"x": 0.5,
-						"y": 0.53
-					}
-				},
-				{
-					"filename": "power_distruction_31.png",
-					"rotated": false,
-					"trimmed": true,
-					"sourceSize": {
-						"w": 1652,
-						"h": 1252
-					},
-					"spriteSourceSize": {
-						"x": 377,
-						"y": 509,
-						"w": 839,
-						"h": 381
-					},
-					"frame": {
-						"x": 2589,
-						"y": 4126,
-						"w": 839,
-						"h": 381
-					},
-					"anchor": {
-						"x": 0.5,
-						"y": 0.53
-					}
-				},
-				{
-					"filename": "power_distruction_32.png",
-					"rotated": false,
-					"trimmed": true,
-					"sourceSize": {
-						"w": 1652,
-						"h": 1252
-					},
-					"spriteSourceSize": {
-						"x": 377,
-						"y": 585,
-						"w": 679,
-						"h": 297
-					},
-					"frame": {
-						"x": 2589,
-						"y": 4507,
-						"w": 679,
-						"h": 297
-					},
-					"anchor": {
-						"x": 0.5,
-						"y": 0.53
-					}
-				},
-				{
-					"filename": "power_distruction_33.png",
-					"rotated": false,
-					"trimmed": true,
-					"sourceSize": {
-						"w": 1652,
-						"h": 1252
-					},
-					"spriteSourceSize": {
-						"x": 385,
-						"y": 595,
-						"w": 558,
-						"h": 271
-					},
-					"frame": {
-						"x": 3268,
-						"y": 4507,
-						"w": 558,
-						"h": 271
-					},
-					"anchor": {
-						"x": 0.5,
-						"y": 0.53
-					}
-				},
-				{
-					"filename": "power_distruction_34.png",
-					"rotated": false,
-					"trimmed": true,
-					"sourceSize": {
-						"w": 1652,
-						"h": 1252
-					},
-					"spriteSourceSize": {
-						"x": 441,
-						"y": 624,
-						"w": 417,
-						"h": 210
-					},
-					"frame": {
-						"x": 3268,
-						"y": 4778,
-						"w": 417,
-						"h": 210
-					},
-					"anchor": {
-						"x": 0.5,
-						"y": 0.53
-					}
-				}
-			]
-		}
-	],
-	"meta": {
-		"app": "https://www.codeandweb.com/texturepacker",
-		"version": "3.0",
-		"smartupdate": "$TexturePacker:SmartUpdate:a0277983d63dac2157aceefcffbca144:1214cf58203d1431a2f6ee9702008f44:de0ab8e661f7fea0afda9d624a8c8ec0$"
-	}
+  "textures": [
+    {
+      "image": "power_distruction.png",
+      "format": "RGBA8888",
+      "size": {
+        "w": 3832,
+        "h": 4997
+      },
+      "scale": 1,
+      "frames": [
+        {
+          "filename": "power_distruction_21.png",
+          "rotated": false,
+          "trimmed": true,
+          "sourceSize": {
+            "w": 1652,
+            "h": 1252
+          },
+          "spriteSourceSize": {
+            "x": 333,
+            "y": 337,
+            "w": 973,
+            "h": 578
+          },
+          "frame": {
+            "x": 0,
+            "y": 0,
+            "w": 973,
+            "h": 578
+          },
+          "anchor": {
+            "x": 0.4889,
+            "y": 0.5048
+          },
+          "pivot": {
+            "x": 0.4889,
+            "y": 0.5048
+          }
+        },
+        {
+          "filename": "power_distruction_20.png",
+          "rotated": false,
+          "trimmed": true,
+          "sourceSize": {
+            "w": 1652,
+            "h": 1252
+          },
+          "spriteSourceSize": {
+            "x": 333,
+            "y": 344,
+            "w": 972,
+            "h": 572
+          },
+          "frame": {
+            "x": 973,
+            "y": 0,
+            "w": 972,
+            "h": 572
+          },
+          "anchor": {
+            "x": 0.4889,
+            "y": 0.5048
+          },
+          "pivot": {
+            "x": 0.4889,
+            "y": 0.5048
+          }
+        },
+        {
+          "filename": "power_distruction_19.png",
+          "rotated": false,
+          "trimmed": true,
+          "sourceSize": {
+            "w": 1652,
+            "h": 1252
+          },
+          "spriteSourceSize": {
+            "x": 335,
+            "y": 307,
+            "w": 968,
+            "h": 610
+          },
+          "frame": {
+            "x": 1945,
+            "y": 0,
+            "w": 968,
+            "h": 610
+          },
+          "anchor": {
+            "x": 0.4889,
+            "y": 0.5048
+          },
+          "pivot": {
+            "x": 0.4889,
+            "y": 0.5048
+          }
+        },
+        {
+          "filename": "power_distruction_26.png",
+          "rotated": false,
+          "trimmed": true,
+          "sourceSize": {
+            "w": 1652,
+            "h": 1252
+          },
+          "spriteSourceSize": {
+            "x": 357,
+            "y": 406,
+            "w": 919,
+            "h": 491
+          },
+          "frame": {
+            "x": 2913,
+            "y": 0,
+            "w": 919,
+            "h": 491
+          },
+          "anchor": {
+            "x": 0.4889,
+            "y": 0.5048
+          },
+          "pivot": {
+            "x": 0.4889,
+            "y": 0.5048
+          }
+        },
+        {
+          "filename": "power_distruction_22.png",
+          "rotated": false,
+          "trimmed": true,
+          "sourceSize": {
+            "w": 1652,
+            "h": 1252
+          },
+          "spriteSourceSize": {
+            "x": 335,
+            "y": 330,
+            "w": 966,
+            "h": 582
+          },
+          "frame": {
+            "x": 973,
+            "y": 572,
+            "w": 966,
+            "h": 582
+          },
+          "anchor": {
+            "x": 0.4889,
+            "y": 0.5048
+          },
+          "pivot": {
+            "x": 0.4889,
+            "y": 0.5048
+          }
+        },
+        {
+          "filename": "power_distruction_15.png",
+          "rotated": false,
+          "trimmed": true,
+          "sourceSize": {
+            "w": 1652,
+            "h": 1252
+          },
+          "spriteSourceSize": {
+            "x": 352,
+            "y": 187,
+            "w": 909,
+            "h": 732
+          },
+          "frame": {
+            "x": 2913,
+            "y": 491,
+            "w": 909,
+            "h": 732
+          },
+          "anchor": {
+            "x": 0.4889,
+            "y": 0.5048
+          },
+          "pivot": {
+            "x": 0.4889,
+            "y": 0.5048
+          }
+        },
+        {
+          "filename": "power_distruction_18.png",
+          "rotated": false,
+          "trimmed": true,
+          "sourceSize": {
+            "w": 1652,
+            "h": 1252
+          },
+          "spriteSourceSize": {
+            "x": 338,
+            "y": 267,
+            "w": 957,
+            "h": 651
+          },
+          "frame": {
+            "x": 0,
+            "y": 578,
+            "w": 957,
+            "h": 651
+          },
+          "anchor": {
+            "x": 0.4889,
+            "y": 0.5048
+          },
+          "pivot": {
+            "x": 0.4889,
+            "y": 0.5048
+          }
+        },
+        {
+          "filename": "power_distruction_23.png",
+          "rotated": false,
+          "trimmed": true,
+          "sourceSize": {
+            "w": 1652,
+            "h": 1252
+          },
+          "spriteSourceSize": {
+            "x": 345,
+            "y": 352,
+            "w": 954,
+            "h": 557
+          },
+          "frame": {
+            "x": 1939,
+            "y": 610,
+            "w": 954,
+            "h": 557
+          },
+          "anchor": {
+            "x": 0.4889,
+            "y": 0.5048
+          },
+          "pivot": {
+            "x": 0.4889,
+            "y": 0.5048
+          }
+        },
+        {
+          "filename": "power_distruction_24.png",
+          "rotated": false,
+          "trimmed": true,
+          "sourceSize": {
+            "w": 1652,
+            "h": 1252
+          },
+          "spriteSourceSize": {
+            "x": 347,
+            "y": 408,
+            "w": 941,
+            "h": 494
+          },
+          "frame": {
+            "x": 957,
+            "y": 1154,
+            "w": 941,
+            "h": 494
+          },
+          "anchor": {
+            "x": 0.4889,
+            "y": 0.5048
+          },
+          "pivot": {
+            "x": 0.4889,
+            "y": 0.5048
+          }
+        },
+        {
+          "filename": "power_distruction_17.png",
+          "rotated": false,
+          "trimmed": true,
+          "sourceSize": {
+            "w": 1652,
+            "h": 1252
+          },
+          "spriteSourceSize": {
+            "x": 344,
+            "y": 226,
+            "w": 939,
+            "h": 694
+          },
+          "frame": {
+            "x": 0,
+            "y": 1229,
+            "w": 939,
+            "h": 694
+          },
+          "anchor": {
+            "x": 0.4889,
+            "y": 0.5048
+          },
+          "pivot": {
+            "x": 0.4889,
+            "y": 0.5048
+          }
+        },
+        {
+          "filename": "power_distruction_25.png",
+          "rotated": false,
+          "trimmed": true,
+          "sourceSize": {
+            "w": 1652,
+            "h": 1252
+          },
+          "spriteSourceSize": {
+            "x": 351,
+            "y": 414,
+            "w": 927,
+            "h": 485
+          },
+          "frame": {
+            "x": 1898,
+            "y": 1167,
+            "w": 927,
+            "h": 485
+          },
+          "anchor": {
+            "x": 0.4889,
+            "y": 0.5048
+          },
+          "pivot": {
+            "x": 0.4889,
+            "y": 0.5048
+          }
+        },
+        {
+          "filename": "power_distruction_16.png",
+          "rotated": false,
+          "trimmed": true,
+          "sourceSize": {
+            "w": 1652,
+            "h": 1252
+          },
+          "spriteSourceSize": {
+            "x": 348,
+            "y": 199,
+            "w": 923,
+            "h": 721
+          },
+          "frame": {
+            "x": 939,
+            "y": 1648,
+            "w": 923,
+            "h": 721
+          },
+          "anchor": {
+            "x": 0.4889,
+            "y": 0.5048
+          },
+          "pivot": {
+            "x": 0.4889,
+            "y": 0.5048
+          }
+        },
+        {
+          "filename": "power_distruction_27.png",
+          "rotated": false,
+          "trimmed": true,
+          "sourceSize": {
+            "w": 1652,
+            "h": 1252
+          },
+          "spriteSourceSize": {
+            "x": 377,
+            "y": 393,
+            "w": 897,
+            "h": 499
+          },
+          "frame": {
+            "x": 0,
+            "y": 1923,
+            "w": 897,
+            "h": 499
+          },
+          "anchor": {
+            "x": 0.4889,
+            "y": 0.5048
+          },
+          "pivot": {
+            "x": 0.4889,
+            "y": 0.5048
+          }
+        },
+        {
+          "filename": "power_distruction_14.png",
+          "rotated": false,
+          "trimmed": true,
+          "sourceSize": {
+            "w": 1652,
+            "h": 1252
+          },
+          "spriteSourceSize": {
+            "x": 355,
+            "y": 185,
+            "w": 885,
+            "h": 733
+          },
+          "frame": {
+            "x": 2825,
+            "y": 1223,
+            "w": 885,
+            "h": 733
+          },
+          "anchor": {
+            "x": 0.4889,
+            "y": 0.5048
+          },
+          "pivot": {
+            "x": 0.4889,
+            "y": 0.5048
+          }
+        },
+        {
+          "filename": "power_distruction_28.png",
+          "rotated": false,
+          "trimmed": true,
+          "sourceSize": {
+            "w": 1652,
+            "h": 1252
+          },
+          "spriteSourceSize": {
+            "x": 377,
+            "y": 432,
+            "w": 884,
+            "h": 459
+          },
+          "frame": {
+            "x": 1862,
+            "y": 1652,
+            "w": 884,
+            "h": 459
+          },
+          "anchor": {
+            "x": 0.4889,
+            "y": 0.5048
+          },
+          "pivot": {
+            "x": 0.4889,
+            "y": 0.5048
+          }
+        },
+        {
+          "filename": "power_distruction_13.png",
+          "rotated": false,
+          "trimmed": true,
+          "sourceSize": {
+            "w": 1652,
+            "h": 1252
+          },
+          "spriteSourceSize": {
+            "x": 359,
+            "y": 183,
+            "w": 881,
+            "h": 734
+          },
+          "frame": {
+            "x": 2746,
+            "y": 1956,
+            "w": 881,
+            "h": 734
+          },
+          "anchor": {
+            "x": 0.4889,
+            "y": 0.5048
+          },
+          "pivot": {
+            "x": 0.4889,
+            "y": 0.5048
+          }
+        },
+        {
+          "filename": "power_distruction_12.png",
+          "rotated": false,
+          "trimmed": true,
+          "sourceSize": {
+            "w": 1652,
+            "h": 1252
+          },
+          "spriteSourceSize": {
+            "x": 367,
+            "y": 182,
+            "w": 873,
+            "h": 732
+          },
+          "frame": {
+            "x": 1862,
+            "y": 2111,
+            "w": 873,
+            "h": 732
+          },
+          "anchor": {
+            "x": 0.4889,
+            "y": 0.5048
+          },
+          "pivot": {
+            "x": 0.4889,
+            "y": 0.5048
+          }
+        },
+        {
+          "filename": "power_distruction_11.png",
+          "rotated": false,
+          "trimmed": true,
+          "sourceSize": {
+            "w": 1652,
+            "h": 1252
+          },
+          "spriteSourceSize": {
+            "x": 377,
+            "y": 183,
+            "w": 863,
+            "h": 727
+          },
+          "frame": {
+            "x": 897,
+            "y": 2369,
+            "w": 863,
+            "h": 727
+          },
+          "anchor": {
+            "x": 0.4889,
+            "y": 0.5048
+          },
+          "pivot": {
+            "x": 0.4889,
+            "y": 0.5048
+          }
+        },
+        {
+          "filename": "power_distruction_10.png",
+          "rotated": false,
+          "trimmed": true,
+          "sourceSize": {
+            "w": 1652,
+            "h": 1252
+          },
+          "spriteSourceSize": {
+            "x": 377,
+            "y": 182,
+            "w": 863,
+            "h": 720
+          },
+          "frame": {
+            "x": 0,
+            "y": 2422,
+            "w": 863,
+            "h": 720
+          },
+          "anchor": {
+            "x": 0.4889,
+            "y": 0.5048
+          },
+          "pivot": {
+            "x": 0.4889,
+            "y": 0.5048
+          }
+        },
+        {
+          "filename": "power_distruction_1.png",
+          "rotated": false,
+          "trimmed": true,
+          "sourceSize": {
+            "w": 1652,
+            "h": 1252
+          },
+          "spriteSourceSize": {
+            "x": 377,
+            "y": 183,
+            "w": 863,
+            "h": 718
+          },
+          "frame": {
+            "x": 2735,
+            "y": 2690,
+            "w": 863,
+            "h": 718
+          },
+          "anchor": {
+            "x": 0.4889,
+            "y": 0.5048
+          },
+          "pivot": {
+            "x": 0.4889,
+            "y": 0.5048
+          }
+        },
+        {
+          "filename": "power_distruction_2.png",
+          "rotated": false,
+          "trimmed": true,
+          "sourceSize": {
+            "w": 1652,
+            "h": 1252
+          },
+          "spriteSourceSize": {
+            "x": 377,
+            "y": 183,
+            "w": 863,
+            "h": 718
+          },
+          "frame": {
+            "x": 1760,
+            "y": 2843,
+            "w": 863,
+            "h": 718
+          },
+          "anchor": {
+            "x": 0.4889,
+            "y": 0.5048
+          },
+          "pivot": {
+            "x": 0.4889,
+            "y": 0.5048
+          }
+        },
+        {
+          "filename": "power_distruction_3.png",
+          "rotated": false,
+          "trimmed": true,
+          "sourceSize": {
+            "w": 1652,
+            "h": 1252
+          },
+          "spriteSourceSize": {
+            "x": 377,
+            "y": 183,
+            "w": 863,
+            "h": 718
+          },
+          "frame": {
+            "x": 863,
+            "y": 3096,
+            "w": 863,
+            "h": 718
+          },
+          "anchor": {
+            "x": 0.4889,
+            "y": 0.5048
+          },
+          "pivot": {
+            "x": 0.4889,
+            "y": 0.5048
+          }
+        },
+        {
+          "filename": "power_distruction_4.png",
+          "rotated": false,
+          "trimmed": true,
+          "sourceSize": {
+            "w": 1652,
+            "h": 1252
+          },
+          "spriteSourceSize": {
+            "x": 377,
+            "y": 183,
+            "w": 863,
+            "h": 718
+          },
+          "frame": {
+            "x": 0,
+            "y": 3142,
+            "w": 863,
+            "h": 718
+          },
+          "anchor": {
+            "x": 0.4889,
+            "y": 0.5048
+          },
+          "pivot": {
+            "x": 0.4889,
+            "y": 0.5048
+          }
+        },
+        {
+          "filename": "power_distruction_5.png",
+          "rotated": false,
+          "trimmed": true,
+          "sourceSize": {
+            "w": 1652,
+            "h": 1252
+          },
+          "spriteSourceSize": {
+            "x": 377,
+            "y": 183,
+            "w": 863,
+            "h": 718
+          },
+          "frame": {
+            "x": 2623,
+            "y": 3408,
+            "w": 863,
+            "h": 718
+          },
+          "anchor": {
+            "x": 0.4889,
+            "y": 0.5048
+          },
+          "pivot": {
+            "x": 0.4889,
+            "y": 0.5048
+          }
+        },
+        {
+          "filename": "power_distruction_6.png",
+          "rotated": false,
+          "trimmed": true,
+          "sourceSize": {
+            "w": 1652,
+            "h": 1252
+          },
+          "spriteSourceSize": {
+            "x": 377,
+            "y": 183,
+            "w": 863,
+            "h": 718
+          },
+          "frame": {
+            "x": 1726,
+            "y": 3561,
+            "w": 863,
+            "h": 718
+          },
+          "anchor": {
+            "x": 0.4889,
+            "y": 0.5048
+          },
+          "pivot": {
+            "x": 0.4889,
+            "y": 0.5048
+          }
+        },
+        {
+          "filename": "power_distruction_7.png",
+          "rotated": false,
+          "trimmed": true,
+          "sourceSize": {
+            "w": 1652,
+            "h": 1252
+          },
+          "spriteSourceSize": {
+            "x": 377,
+            "y": 183,
+            "w": 863,
+            "h": 718
+          },
+          "frame": {
+            "x": 863,
+            "y": 3814,
+            "w": 863,
+            "h": 718
+          },
+          "anchor": {
+            "x": 0.4889,
+            "y": 0.5048
+          },
+          "pivot": {
+            "x": 0.4889,
+            "y": 0.5048
+          }
+        },
+        {
+          "filename": "power_distruction_8.png",
+          "rotated": false,
+          "trimmed": true,
+          "sourceSize": {
+            "w": 1652,
+            "h": 1252
+          },
+          "spriteSourceSize": {
+            "x": 377,
+            "y": 183,
+            "w": 863,
+            "h": 718
+          },
+          "frame": {
+            "x": 0,
+            "y": 3860,
+            "w": 863,
+            "h": 718
+          },
+          "anchor": {
+            "x": 0.4889,
+            "y": 0.5048
+          },
+          "pivot": {
+            "x": 0.4889,
+            "y": 0.5048
+          }
+        },
+        {
+          "filename": "power_distruction_9.png",
+          "rotated": false,
+          "trimmed": true,
+          "sourceSize": {
+            "w": 1652,
+            "h": 1252
+          },
+          "spriteSourceSize": {
+            "x": 377,
+            "y": 183,
+            "w": 863,
+            "h": 718
+          },
+          "frame": {
+            "x": 1726,
+            "y": 4279,
+            "w": 863,
+            "h": 718
+          },
+          "anchor": {
+            "x": 0.4889,
+            "y": 0.5048
+          },
+          "pivot": {
+            "x": 0.4889,
+            "y": 0.5048
+          }
+        },
+        {
+          "filename": "power_distruction_29.png",
+          "rotated": false,
+          "trimmed": true,
+          "sourceSize": {
+            "w": 1652,
+            "h": 1252
+          },
+          "spriteSourceSize": {
+            "x": 377,
+            "y": 476,
+            "w": 852,
+            "h": 414
+          },
+          "frame": {
+            "x": 0,
+            "y": 4578,
+            "w": 852,
+            "h": 414
+          },
+          "anchor": {
+            "x": 0.4889,
+            "y": 0.5048
+          },
+          "pivot": {
+            "x": 0.4889,
+            "y": 0.5048
+          }
+        },
+        {
+          "filename": "power_distruction_30.png",
+          "rotated": false,
+          "trimmed": true,
+          "sourceSize": {
+            "w": 1652,
+            "h": 1252
+          },
+          "spriteSourceSize": {
+            "x": 377,
+            "y": 490,
+            "w": 845,
+            "h": 398
+          },
+          "frame": {
+            "x": 863,
+            "y": 4532,
+            "w": 845,
+            "h": 398
+          },
+          "anchor": {
+            "x": 0.4889,
+            "y": 0.5048
+          },
+          "pivot": {
+            "x": 0.4889,
+            "y": 0.5048
+          }
+        },
+        {
+          "filename": "power_distruction_35.png",
+          "rotated": false,
+          "trimmed": true,
+          "sourceSize": {
+            "w": 1652,
+            "h": 1252
+          },
+          "spriteSourceSize": {
+            "x": 510,
+            "y": 652,
+            "w": 274,
+            "h": 154
+          },
+          "frame": {
+            "x": 3486,
+            "y": 3408,
+            "w": 274,
+            "h": 154
+          },
+          "anchor": {
+            "x": 0.4889,
+            "y": 0.5048
+          },
+          "pivot": {
+            "x": 0.4889,
+            "y": 0.5048
+          }
+        },
+        {
+          "filename": "power_distruction_31.png",
+          "rotated": false,
+          "trimmed": true,
+          "sourceSize": {
+            "w": 1652,
+            "h": 1252
+          },
+          "spriteSourceSize": {
+            "x": 377,
+            "y": 509,
+            "w": 839,
+            "h": 381
+          },
+          "frame": {
+            "x": 2589,
+            "y": 4126,
+            "w": 839,
+            "h": 381
+          },
+          "anchor": {
+            "x": 0.4889,
+            "y": 0.5048
+          },
+          "pivot": {
+            "x": 0.4889,
+            "y": 0.5048
+          }
+        },
+        {
+          "filename": "power_distruction_32.png",
+          "rotated": false,
+          "trimmed": true,
+          "sourceSize": {
+            "w": 1652,
+            "h": 1252
+          },
+          "spriteSourceSize": {
+            "x": 377,
+            "y": 585,
+            "w": 679,
+            "h": 297
+          },
+          "frame": {
+            "x": 2589,
+            "y": 4507,
+            "w": 679,
+            "h": 297
+          },
+          "anchor": {
+            "x": 0.4889,
+            "y": 0.5048
+          },
+          "pivot": {
+            "x": 0.4889,
+            "y": 0.5048
+          }
+        },
+        {
+          "filename": "power_distruction_33.png",
+          "rotated": false,
+          "trimmed": true,
+          "sourceSize": {
+            "w": 1652,
+            "h": 1252
+          },
+          "spriteSourceSize": {
+            "x": 385,
+            "y": 595,
+            "w": 558,
+            "h": 271
+          },
+          "frame": {
+            "x": 3268,
+            "y": 4507,
+            "w": 558,
+            "h": 271
+          },
+          "anchor": {
+            "x": 0.4889,
+            "y": 0.5048
+          },
+          "pivot": {
+            "x": 0.4889,
+            "y": 0.5048
+          }
+        },
+        {
+          "filename": "power_distruction_34.png",
+          "rotated": false,
+          "trimmed": true,
+          "sourceSize": {
+            "w": 1652,
+            "h": 1252
+          },
+          "spriteSourceSize": {
+            "x": 441,
+            "y": 624,
+            "w": 417,
+            "h": 210
+          },
+          "frame": {
+            "x": 3268,
+            "y": 4778,
+            "w": 417,
+            "h": 210
+          },
+          "anchor": {
+            "x": 0.4889,
+            "y": 0.5048
+          },
+          "pivot": {
+            "x": 0.4889,
+            "y": 0.5048
+          }
+        }
+      ]
+    }
+  ],
+  "meta": {
+    "app": "https://www.codeandweb.com/texturepacker",
+    "version": "3.0",
+    "smartupdate": "$TexturePacker:SmartUpdate:a0277983d63dac2157aceefcffbca144:1214cf58203d1431a2f6ee9702008f44:de0ab8e661f7fea0afda9d624a8c8ec0$"
+  }
 }
