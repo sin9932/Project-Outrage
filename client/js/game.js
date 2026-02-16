@@ -1111,9 +1111,11 @@ function getBaseBuildTime(kind){
 
   // === Team palette swap cache (for building sprites) ===
   // Team-color brightness tuning (higher = brighter team stripes).
-  const TEAM_ACCENT_LUMA_GAIN = 1.35; // try 1.15~1.60
-  const TEAM_ACCENT_LUMA_BIAS = 0.10; // try 0.00~0.20
-  const TEAM_ACCENT_LUMA_GAMMA = 0.80; // <1 brightens midtones; 1 = linear
+  const TEAM_ACCENT_LUMA_GAIN = 1.65; // try 1.15~1.60
+  const TEAM_ACCENT_LUMA_BIAS = 0.18; // try 0.00~0.20
+  const TEAM_ACCENT_LUMA_GAMMA = 0.78; // <1 brightens midtones; 1 = linear
+
+  const TEAM_ACCENT_LUMA_MINV = 0.42; // floor brightness for AA edges
   // Recolors only "neon magenta" accent pixels into team color.
   const _teamSpriteCache = new Map(); // key -> canvas
 
@@ -1258,7 +1260,12 @@ function getBaseBuildTime(kind){
         // brightness keeps shading; luma is stable for highlights
         const l = (0.2126*r + 0.7152*g + 0.0722*b) / 255;
         // brighten team accents so they pop like unit stripes
-        const l2 = Math.min(1, Math.pow(l, TEAM_ACCENT_LUMA_GAMMA) * TEAM_ACCENT_LUMA_GAIN + TEAM_ACCENT_LUMA_BIAS);
+        const max = Math.max(r, g, b), min = Math.min(r, g, b);
+        const sat = (max === 0) ? 0 : (max - min) / max;
+        let l2 = (Math.pow(l, TEAM_ACCENT_LUMA_GAMMA) * TEAM_ACCENT_LUMA_GAIN) + TEAM_ACCENT_LUMA_BIAS;
+        // if it's strongly saturated magenta, don't let it look muddy after recolor
+        if (sat > 0.45) l2 = Math.max(l2, 0.65);
+        l2 = Math.max(TEAM_ACCENT_LUMA_MINV, Math.min(1, l2));
         d[i]   = Math.max(0, Math.min(255, tr * l2));
         d[i+1] = Math.max(0, Math.min(255, tg * l2));
         d[i+2] = Math.max(0, Math.min(255, tb * l2));
