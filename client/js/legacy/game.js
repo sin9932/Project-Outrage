@@ -32,7 +32,8 @@ ${e.filename}:${e.lineno}:${e.colno}
   const ctx = canvas.getContext("2d");
   const mmCanvas = document.getElementById("mmc");
   const mmCtx = mmCanvas.getContext("2d");
-  const $ = (id) => document.getElementById(id);
+  const OU = (typeof window!=='undefined' && window.OU) ? window.OU : {};
+  const $ = (OU.$ || ((id) => document.getElementById(id)));
 
   const uiMoney = $("money");
   const uiPower = $("power");
@@ -343,9 +344,10 @@ function fitMini() {
   }
 // Debug option: disable fog-of-war rendering & logic (show whole map)
   let fogEnabled = true;
-  const clamp = (v,a,b)=>Math.max(a,Math.min(b,v));
-  const dist2 = (ax,ay,bx,by)=>{ const dx=ax-bx, dy=ay-by; return dx*dx+dy*dy; };
-  const rnd = (a,b)=> a + Math.random()*(b-a);
+  // Shared helpers (safe to extract)
+  const clamp = (OU.clamp || ((v,a,b)=>Math.max(a,Math.min(b,v))));
+  const dist2 = (OU.dist2 || ((ax,ay,bx,by)=>{ const dx=ax-bx, dy=ay-by; return dx*dx+dy*dy; }));
+  const rnd   = (OU.rnd   || ((a,b)=> a + Math.random()*(b-a)));
 
 
   // ===== ENEMY AGGRESSION / ANTI-CLUSTER HELPERS =====
@@ -12458,7 +12460,7 @@ function spawnStartingUnits(){
 }
 
 
-startBtn.addEventListener("click", () => {
+startBtn.addEventListener("click", async () => {
     state.colors.player = pColorInput.value;
     state.colors.enemy  = eColorInput.value;
 
@@ -12494,6 +12496,23 @@ startBtn.addEventListener("click", () => {
     START_MONEY = startMoney;
     state.player.money = START_MONEY;
     state.enemy.money  = START_MONEY;
+
+
+    // Preload building atlases before starting (avoid long placeholder-box phase)
+    try {
+      if (window.PO && PO.buildings && typeof PO.buildings.preload === "function") {
+        const _oldTxt = startBtn.textContent;
+        startBtn.disabled = true;
+        startBtn.textContent = "LOADING...";
+        await PO.buildings.preload();
+        startBtn.textContent = _oldTxt;
+      }
+    } catch (e) {
+      console.error("[preload] building assets failed", e);
+      alert("Asset preload failed. Check DevTools Console/Network.\n" + (e && e.message ? e.message : e));
+      startBtn.disabled = false;
+      return;
+    }
 
     placeStart(spawnChoice);
     spawnStartingUnits();

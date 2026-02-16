@@ -3,6 +3,7 @@
 */
 (() => {
   const PO = (window.PO = window.PO || {});
+  const DEBUG = false; // set true to see building/atlas logs
   PO.buildings = PO.buildings || {};
   const st = PO.buildings._barracks = PO.buildings._barracks || {};
 
@@ -79,13 +80,13 @@
 
   function listFramesSmart(atlas, prefix){
     if (!atlas || !atlas.frames) return [];
-    const all = Array.from(atlas.frames.keys());
+    const all = Array.from(atlas.frames.keys()).filter(n => typeof n === 'string');
     if (!all.length) return [];
 
     let arr = all;
     if (prefix) {
-      const hasPref = all.some(n => n.startsWith(prefix));
-      if (hasPref) arr = all.filter(n => n.startsWith(prefix));
+      const hasPref = all.some(n => typeof n === 'string' && n.startsWith(prefix));
+      if (hasPref) arr = all.filter(n => typeof n === 'string' && n.startsWith(prefix));
     }
 
     arr.sort((a,b)=>{
@@ -196,15 +197,20 @@
       stKind.frames.idleOk  = _idleOk.length ? _idleOk : _idleAll;
       stKind.frames.idleBad = _idleBad;
 stKind.ready = true;
-      console.log(`[buildings] ${kind} atlases loaded`, stKind.frames);
+      DEBUG && console.log(`[buildings] ${kind} atlases loaded`, stKind.frames);
     }catch(e){
       console.warn(`[buildings] ${kind} atlas load failed`, e);
     }
   }
 
+  let _preloadAllPromise = null;
   function ensureAllKindsLoaded(){
-    ensureKindLoaded("barracks");
-    ensureKindLoaded("power");
+    if (_preloadAllPromise) return _preloadAllPromise;
+    _preloadAllPromise = Promise.all([
+      ensureKindLoaded("barracks"),
+      ensureKindLoaded("power")
+    ]);
+    return _preloadAllPromise;
   }
 
   // ===== Hooks =====
@@ -355,5 +361,8 @@ stKind.ready = true;
     return drawFrameTeam(ent.kind, "idle", stKind.atlases.idle, ctx, frames[idx], sx, sy, team, scale, state);
 };
 
-  console.log("[buildings] barracks+power pivot patch v5 loaded");
+  console.log("[buildings] barracks+power pivot patch v8 loaded");
+  // Expose preload for boot-time asset warmup
+  PO.buildings.preload = ensureAllKindsLoaded;
+
 })();
