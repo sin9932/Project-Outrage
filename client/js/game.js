@@ -2161,7 +2161,7 @@ function ensureInfAtlases(){
 }
 
   // Scale for in-game rendering (can be tuned)
-  const INF_SPRITE_SCALE = 0.12;
+  const INF_SPRITE_SCALE = 0.115;
 
   // Sprite dir remap (fix 1-step offset reported by user)
   // Engine dir order is expected: 0=E,1=NE,2=N,3=NW,4=W,5=SW,6=S,7=SE
@@ -10422,7 +10422,7 @@ function drawFootprintTiles(tx, ty, tw, th, mask, okFill, badFill, okStroke, bad
     const col = (ent.team===TEAM.PLAYER) ? "#28ff6a" : "#ff2a2a";
     const ringOpt = { alphaFill: 0.0, alphaStroke: 0.95, strokeW: 3.0 };
     // Range in world units: tweak to visually fit under infantry & vehicles.
-    const base = (ent.kind==="infantry" || ent.kind==="engineer" || ent.kind==="sniper") ? TILE*0.26 : TILE*0.34;
+    const base = (ent.kind==="infantry" || ent.kind==="engineer" || ent.kind==="sniper") ? TILE*0.29 : TILE*0.37;
     drawRangeEllipseWorld(ent.x, ent.y, base, col, ringOpt);
   }
 
@@ -11601,10 +11601,7 @@ let rX = ent.x, rY = ent.y;
         const showHp = (state.selection && state.selection.has(ent.id)) || (state.hover && state.hover.entId===ent.id);
         if (showHp) drawBuildingHpBlocks(ent);
 
-        {
-        const _hasArt = (ent.kind==="barracks") || (typeof BUILD_SPRITE!=="undefined" && BUILD_SPRITE && BUILD_SPRITE[ent.kind]);
-        if (!_hasArt) drawLabel(`${NAME_KO[ent.kind]||ent.kind}`, p.x, yy-14);
-      }
+        drawLabel(`${NAME_KO[ent.kind]||ent.kind}`, p.x, yy-14);
         if (ent.grp) drawGroupBadge(p.x + ISO_X*(ent.tw*0.55), yy-14, ent.grp);
 
         if (state.selection.has(ent.id)){
@@ -11718,8 +11715,8 @@ let rX = ent.x, rY = ent.y;
           }
         }
         ctx.restore();
-        // Segmented HP blocks under unit
-        drawUnitHpBlocks(ent, p);
+        // Segmented HP blocks under unit (only when selected)
+        if (state.selection && state.selection.has(ent.id)) drawUnitHpBlocks(ent, p);
 
         if (ent.grp) drawGroupBadge(p.x + ent.r*0.85, p.y - ent.r*0.85, ent.grp);
 
