@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
-<title>Pivot Tuner v14 (ingame exact: world cam + DZ + pivot)</title>
+<title>Pivot Tuner v16 (ingame exact)</title>
 <style>
   :root{
     --bg:#0b0f16;
@@ -60,7 +60,7 @@
 <body>
 <div class="wrap">
   <div class="left">
-    <div style="font-weight:700;font-size:14px;">Pivot Tuner v14</div>
+    <div style="font-weight:700;font-size:14px;">Pivot Tuner v16</div>
     <div class="hint">
       목표: <b>인게임 buildings.js 수식 그대로</b>로 렌더링해서, 여기서 잡은 <b>pivot 값이 인게임 타일맵과 1:1</b>로 맞게.
       <br/>핵심: JSON은 <b>anchor가 아니라 pivot</b>을 써야 인게임에 먹는다.
@@ -107,7 +107,7 @@
       </div>
       <div class="col">
         <label>BASE_SCALE (game)</label>
-        <input id="baseScale" type="number" step="0.01" min="0.02" max="2" value="0.22"/>
+        <input id="baseScale" type="number" step="0.01" min="0.02" max="2" value="0.14"/>
       </div>
     </div>
 
@@ -223,6 +223,12 @@
 // ===== helpers
 const $ = (id)=>document.getElementById(id);
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const num = (id, fallback)=>{
+  const el=$(id);
+  const v = el? parseFloat(el.value): NaN;
+  return Number.isFinite(v) ? v : fallback;
+};
+
 
 // ===== state
 let atlasData=null;
@@ -599,9 +605,11 @@ function drawSprite(cam, view){
 
   const {ISO_Y} = isoParams();
   const useDZ = $('useDZ').checked;
-  const dz = useDZ ? (Math.max(tw,th) * ISO_Y * (baseScale * cam.zoom)) : 0; // BASE_SCALE undefined fix
+  const baseScaleNum = (()=>{ const v=parseFloat($("baseScale").value); return Number.isFinite(v) && v>0 ? v : 0.22; })();
+  let dz = useDZ ? (Math.max(tw,th) * ISO_Y * (baseScaleNum * cam.zoom)) : 0;
+  if (!Number.isFinite(dz)) dz = 0;
 
-  const scale = (+($('baseScale').value||0.22)) * cam.zoom;
+  const scale = baseScaleNum * cam.zoom;
 
   const pvx = (+$('pivotX').value||0.5);
   const pvy = (+$('pivotY').value||0.5);
@@ -616,6 +624,9 @@ function drawSprite(cam, view){
   // EXACT match to buildings.js drawFrameTeam:
   const dx = sx - (pvx * src.w - sss.x) * scale;
   const dy = sy - (pvy * src.h - sss.y) * scale;
+  // Guard against NaN/Infinity so sprite never silently disappears
+  const dxF = Number.isFinite(dx) ? dx : 0;
+  const dyF = Number.isFinite(dy) ? dy : 0;
   const dw = frame.w * scale;
   const dh = frame.h * scale;
 
@@ -636,7 +647,7 @@ function drawSprite(cam, view){
   ctx.restore();
 
   $('topInfo').textContent =
-    `frame: ${f.name} | scale=${scale.toFixed(3)} | dz=${dz.toFixed(1)} | draw=(${dx.toFixed(1)},${dy.toFixed(1)})`;
+    `frame: ${f.name} | baseScale=${baseScaleNum.toFixed(3)} | view=${state.viewZoom.toFixed(2)} | dz=${dz.toFixed(1)} | draw=(${dxF.toFixed(1)},${dyF.toFixed(1)})`;
 }
 
 // ===== loop
