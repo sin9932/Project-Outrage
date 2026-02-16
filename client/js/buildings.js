@@ -7,12 +7,12 @@
   const st = PO.buildings._barracks = PO.buildings._barracks || {};
 
   // Tuned to your in-game pivot/scale screenshot
-  const BASE_SCALE = 0.22; // <-- tuned (matches pivot tuner v13)
+  const BASE_SCALE = 0.22;
   const IDLE_FPS   = 20;
   const BUILD_FPS  = 24;
   const DEATH_FPS  = 20;
   const LOW_HP_RATIO = 0.20;
-  const FORCE_PIVOT = { x: 0.4954, y: 0.3262 }; // <-- from pivot tuner v13 // from your screenshot (use distruct pivot)
+  const FORCE_PIVOT = { x: 0.4954, y: 0.3262 }; // from pivot tuner v13 (ingame exact)
 
   st.ready = false;
   st.loading = false;
@@ -102,7 +102,7 @@
     const frame = fr.frame || { x:0, y:0, w:0, h:0 };
     const sss   = fr.spriteSourceSize || { x:0, y:0, w:frame.w, h:frame.h };
     const srcSz = fr.sourceSize || { w: sss.w, h: sss.h };
-    const pv    = FORCE_PIVOT;
+    const pv    = fr.pivot || FORCE_PIVOT;
 
     const dx = x - (pv.x * srcSz.w - sss.x) * scale;
     const dy = y - (pv.y * srcSz.h - sss.y) * scale;
@@ -158,9 +158,8 @@
       st.frames.build = listFramesByPrefixSorted(buildA, "barrack_con_complete_");
       st.frames.distruct = listFramesByPrefixSorted(dieA, "barrack_distruction_");
 
-      // Pivot: force all frames to the distruct pivot (your request)
-      // If distruct atlas has a pivot on any frame, use that; else FORCE_PIVOT.
-      const pv = FORCE_PIVOT; // always force the tuned pivot onto ALL barracks frames
+      // Pivot: force ALL barracks atlases to the exact pivot from the Pivot Tuner
+      const pv = FORCE_PIVOT;
       forcePivotOnAtlas(idleA, pv);
       forcePivotOnAtlas(buildA, pv);
       forcePivotOnAtlas(dieA, pv);
@@ -247,7 +246,8 @@
       }
 
       const p = helpers.worldToScreen(g.x, g.y);
-      const dz = Math.max(g.tw, g.th) * helpers.ISO_Y * (BASE_SCALE * (cam && cam.zoom ? cam.zoom : 1));
+      const z = (cam && cam.zoom ? cam.zoom : 1);
+      const dz = Math.max(g.tw, g.th) * helpers.ISO_Y * (BASE_SCALE * z);
       const sx = p.x;
       const sy = p.y - dz;
 
@@ -270,7 +270,7 @@
     const scale = BASE_SCALE * z;
 
     const p = helpers.worldToScreen(ent.x, ent.y);
-    const dz = Math.max(ent.tw, ent.th) * helpers.ISO_Y * scale; // match in-game formula (scaled by sprite scale)
+    const dz = Math.max(ent.tw, ent.th) * helpers.ISO_Y * (BASE_SCALE * z);
     const sx = p.x;
     const sy = p.y - dz;
 
