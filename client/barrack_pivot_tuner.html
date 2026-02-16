@@ -67,7 +67,8 @@
     <div class="row" style="margin-top:10px;">
       <div class="col" style="flex:1">
         <label>Atlas JSON URL</label>
-        <input id="atlasUrl" placeholder="/asset/sprite/const/normal/barrack/barrack_idle.json"/>
+        <input id="atlasUrl" placeholder="asset/sprite/const/normal/barrack/barrack_idle.json"/>
+        <div class="hint" id="resolvedLinks">Resolved URLs will appear here after Load.</div>
       </div>
     </div>
 
@@ -328,11 +329,17 @@ async function fetchJson(url){
 async function loadAtlas(){
   try{
     setStatus('Loading atlas JSON...');
-    const url=$('atlasUrl').value.trim();
-    if(!url){ setStatus('ERR: atlasUrl empty','err'); return; }
-    basePath = dirname(url);
+    const input=$('atlasUrl').value.trim();
+    if(!input){ setStatus('ERR: atlasUrl empty','err'); return; }
 
-    atlasData = await fetchJson(url);
+    // Resolve relative URLs against current page (works on subpaths like /Project-Outrage/)
+    const atlasUrl = new URL(input, location.href).toString();
+
+    // Show resolved links immediately
+    $('resolvedLinks').innerHTML =
+      `Atlas: <a href="${atlasUrl}" target="_blank" rel="noopener">open</a><br><span style="opacity:.9">${atlasUrl}</span>`;
+
+    atlasData = await fetchJson(atlasUrl);
 
     // build textures list
     const parsed = parseTP(atlasData);
@@ -346,10 +353,18 @@ async function loadAtlas(){
         img.onload=()=>resolve();
         img.onerror=()=>reject(new Error('image load fail: ' + imgName));
       });
-      img.src = basePath + imgName;
+      const imgUrl = new URL(imgName, atlasUrl).toString();
+      img.src = imgUrl;
       await p;
       textures.push({img, name:imgName});
     }
+
+    // List resolved texture URLs
+    const texLinks = parsed.texList.map(t => {
+      const u = new URL(t.image, atlasUrl).toString();
+      return `Texture: <a href="${u}" target="_blank" rel="noopener">open</a><br><span style="opacity:.9">${u}</span>`;
+    }).join('<br>');
+    $('resolvedLinks').innerHTML += '<br>' + texLinks;
 
     frames = parsed.unified;
     // default prefix: first frame prefix if empty
@@ -842,15 +857,15 @@ $('btnLoad').addEventListener('click', loadAtlas);
 $('btnReload').addEventListener('click', loadAtlas);
 
 $('chipIdle').addEventListener('click', ()=>{
-  $('atlasUrl').value='/asset/sprite/const/normal/barrack/barrack_idle.json';
+  $('atlasUrl').value='asset/sprite/const/normal/barrack/barrack_idle.json';
   $('prefix').value='barrack_idle';
 });
 $('chipConst').addEventListener('click', ()=>{
-  $('atlasUrl').value='/asset/sprite/const/const_anim/barrack/barrack_const.json';
+  $('atlasUrl').value='asset/sprite/const/const_anim/barrack/barrack_const.json';
   $('prefix').value='barrack_con_complete';
 });
 $('chipDist').addEventListener('click', ()=>{
-  $('atlasUrl').value='/asset/sprite/const/distruct/barrack/barrack_distruct.json';
+  $('atlasUrl').value='asset/sprite/const/distruct/barrack/barrack_distruct.json';
   $('prefix').value='barrack_distruction';
 });
 
