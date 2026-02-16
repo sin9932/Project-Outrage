@@ -414,8 +414,18 @@ function isoParams(){
   const TILE=+($('tile').value||128);
   return {TILE, ISO_X:TILE/2, ISO_Y:TILE/4};
 }
-function worldToScreen(tileX, tileY, cam){
-  const {ISO_X, ISO_Y} = isoParams();
+function worldToIso(wx, wy){
+  const {TILE, ISO_X, ISO_Y} = isoParams();
+  // Match game.js: worldToIso(wx,wy) = { x:(wx-wy)*(ISO_X/TILE), y:(wx+wy)*(ISO_Y/TILE) }
+  return { x: (wx - wy) * (ISO_X / TILE), y: (wx + wy) * (ISO_Y / TILE) };
+}
+// Screen coords relative to baseOffset(), matching game.js worldToScreen() minus base.
+function worldToScreen(wx, wy, cam){
+  const iso = worldToIso(wx, wy);
+  const camIso = worldToIso(cam.x, cam.y);
+  return { x: (iso.x - camIso.x) * cam.zoom, y: (iso.y - camIso.y) * cam.zoom };
+}
+= isoParams();
   const x = (tileX - tileY) * ISO_X;
   const y = (tileX + tileY) * ISO_Y;
   return {x: x*cam.zoom, y: y*cam.zoom};
@@ -487,7 +497,7 @@ function drawGrid(cam, view){
   const step = span>60 ? 2 : 1;
   for(let ty=startY; ty<=endY; ty+=step){
     for(let tx=startX; tx<=endX; tx+=step){
-      const p = worldToScreen((tx+0.5) - cam.x, (ty+0.5) - cam.y, cam);
+      const p = worldToScreen((tx+0.5)*TILE, (ty+0.5)*TILE, cam);
       const sx=p.x, sy=p.y;
       ctx.beginPath();
       ctx.moveTo(sx, sy - halfY);
@@ -527,10 +537,10 @@ function drawFootprintExact(cam, view){
   // V1: right vertex of tile (tx0+tw-1, ty0)
   // V2: bottom vertex of tile (tx0+tw-1, ty0+th-1)
   // V3: left vertex of tile (tx0, ty0+th-1)
-  const pTop = worldToScreen((tx0+0.5) - cam.x, (ty0+0.5) - cam.y, cam);
-  const pRight = worldToScreen((tx0+tw-1+0.5) - cam.x, (ty0+0.5) - cam.y, cam);
-  const pBottom = worldToScreen((tx0+tw-1+0.5) - cam.x, (ty0+th-1+0.5) - cam.y, cam);
-  const pLeft = worldToScreen((tx0+0.5) - cam.x, (ty0+th-1+0.5) - cam.y, cam);
+  const pTop = worldToScreen((tx0+0.5)*TILE, (ty0+0.5)*TILE, cam);
+  const pRight = worldToScreen((tx0+tw-1+0.5)*TILE, (ty0+0.5)*TILE, cam);
+  const pBottom = worldToScreen((tx0+tw-1+0.5)*TILE, (ty0+th-1+0.5)*TILE, cam);
+  const pLeft = worldToScreen((tx0+0.5)*TILE, (ty0+th-1+0.5)*TILE, cam);
 
   const V0 = {x:pTop.x, y:pTop.y - halfY};
   const V1 = {x:pRight.x + halfX, y:pRight.y};
@@ -627,7 +637,7 @@ function drawSprite(cam, view){
 
   // anchor point in tile coords
   const a = anchorTile(tx0, ty0, tw, th, mode);
-  const p = worldToScreen(a.ax - cam.x, a.ay - cam.y, cam);
+  const p = worldToScreen((a.ax)*TILE, (a.ay)*TILE, cam);
 
   const {baseX, baseY} = baseOffset();
 
@@ -676,6 +686,7 @@ function tick(t){
   requestAnimationFrame(tick);
   if(!cv.width || !cv.height) return;
   const cam=getCam();
+  const {TILE} = isoParams();
   const view={zoom:+($('viewZoom').value||1), panX, panY};
   clear();
   // Always draw grid/footprint even before atlas is loaded (so you can see the stage).
@@ -734,6 +745,7 @@ function resetView(){
 function fitToFootprint(){
   // compute footprint bounds in screen space and adjust pan/zoom so it fits.
   const cam=getCam();
+  const {TILE} = isoParams();
   const viewZoom=+($('viewZoom').value||1);
   const tw=Math.max(1, parseInt($('tw').value||3,10));
   const th=Math.max(1, parseInt($('th').value||2,10));
@@ -744,10 +756,10 @@ function fitToFootprint(){
   const halfX = ISO_X * cam.zoom;
   const halfY = ISO_Y * cam.zoom;
 
-  const pTop = worldToScreen((tx0+0.5) - cam.x, (ty0+0.5) - cam.y, cam);
-  const pRight = worldToScreen((tx0+tw-1+0.5) - cam.x, (ty0+0.5) - cam.y, cam);
-  const pBottom = worldToScreen((tx0+tw-1+0.5) - cam.x, (ty0+th-1+0.5) - cam.y, cam);
-  const pLeft = worldToScreen((tx0+0.5) - cam.x, (ty0+th-1+0.5) - cam.y, cam);
+  const pTop = worldToScreen((tx0+0.5)*TILE, (ty0+0.5)*TILE, cam);
+  const pRight = worldToScreen((tx0+tw-1+0.5)*TILE, (ty0+0.5)*TILE, cam);
+  const pBottom = worldToScreen((tx0+tw-1+0.5)*TILE, (ty0+th-1+0.5)*TILE, cam);
+  const pLeft = worldToScreen((tx0+0.5)*TILE, (ty0+th-1+0.5)*TILE, cam);
 
   const V0 = {x:pTop.x, y:pTop.y - halfY};
   const V1 = {x:pRight.x + halfX, y:pRight.y};
