@@ -104,7 +104,7 @@
       </div>
       <div class="col">
         <label>Sprite scale (view)</label>
-        <input id="spriteScale" type="number" step="0.01" min="0.02" max="2" value="0.22"/>
+        <input id="spriteScale" type="number" step="0.01" min="0.02" max="2" value="0.14"/>
       </div>
     </div>
 
@@ -126,12 +126,11 @@
       <button id="btnYMinus">Y-</button>
       <button id="btnYPlus">Y+</button>
     </div>
-    <input id="pivotY" type="range" min="0" max="1" step="0.0001" value="0.33"/>
+    <input id="pivotY" type="range" min="0" max="1" step="0.0001" value="0.5"/>
 
     <div class="row">
       <button id="btnApplyPrefix" class="primary">Apply pivot to prefix</button>
       <button id="btnDownload">Download patched JSON</button>
-      <button id="btnBatch" class="primary">Batch apply+download (all 3)</button>
     </div>
 
     <label>Copy/paste (JSON anchor)</label>
@@ -144,14 +143,14 @@
     <div class="grid2">
       <div class="col"><label>TILE</label><input id="tile" type="number" value="110"/></div>
       <div class="col"><label>Cam zoom (game)</label><input id="camZoom" type="number" step="0.01" value="1"/></div>
-      <div class="col"><label>Cam tileX</label><input id="camX" type="number" step="0.01" value="0"/></div>
-      <div class="col"><label>Cam tileY</label><input id="camY" type="number" step="0.01" value="0"/></div>
+      <div class="col"><label>Cam x (world px)</label><input id="camX" type="number" step="0.01" value="0"/></div>
+      <div class="col"><label>Cam y (world px)</label><input id="camY" type="number" step="0.01" value="0"/></div>
     </div>
 
     <div class="grid2">
       <div class="col"><label>Building tx</label><input id="btx" type="number" step="1" value="0"/></div>
       <div class="col"><label>Building ty</label><input id="bty" type="number" step="1" value="0"/></div>
-      <div class="col"><label>Footprint W (tw)</label><input id="tw" type="number" step="1" min="1" value="2"/></div>
+      <div class="col"><label>Footprint W (tw)</label><input id="tw" type="number" step="1" min="1" value="3"/></div>
       <div class="col"><label>Footprint H (th)</label><input id="th" type="number" step="1" min="1" value="2"/></div>
     </div>
 
@@ -163,6 +162,13 @@
           <option value="south">south edge center</option>
           <option value="sw">south-west corner</option>
         </select>
+      </div>
+      <div class="col">
+        <label>Ingame DZ (barracks)</label>
+        <label style="display:flex;align-items:center;gap:8px;margin-top:6px;">
+          <input id="useDz" type="checkbox" checked />
+          <span style="font-size:12px;opacity:0.85;">p.y -= max(tw,th) * ISO_Y * cam.zoom</span>
+        </label>
       </div>
       <div class="col">
         <label>BaseOffsetY ratio</label>
@@ -415,11 +421,18 @@ function isoParams(){
   const TILE=+($('tile').value||128);
   return {TILE, ISO_X:TILE/2, ISO_Y:TILE/4};
 }
-function worldToScreen(tileX, tileY, cam){
-  const {ISO_X, ISO_Y} = isoParams();
-  const x = (tileX - tileY) * ISO_X;
-  const y = (tileX + tileY) * ISO_Y;
-  return {x: x*cam.zoom, y: y*cam.zoom};
+function worldToIso(wx, wy){
+  const TILE = +($('tile').value||110);
+  return {x:(wx - wy)/TILE, y:(wx + wy)/TILE};
+}
+function worldToScreen(wx, wy, cam){
+  const {ISO_X, ISO_Y, TILE} = isoParams();
+  const iso = worldToIso(wx, wy);
+  const camIso = worldToIso(cam.x, cam.y);
+  return {
+    x: (iso.x - camIso.x) * ISO_X * cam.zoom,
+    y: (iso.y - camIso.y) * ISO_Y * cam.zoom
+  };
 }
 function getCam(){
   return {
@@ -457,7 +470,7 @@ function clear(){
 
 function drawGrid(cam, view){
   if(!$('showGrid').checked) return;
-  const {ISO_X, ISO_Y} = isoParams();
+  const {ISO_X, ISO_Y, TILE} = isoParams();
   const span = clamp(+$('gridSpan').value||30, 6, 200);
   const w=cv.width/dpr, h=cv.height/dpr;
   const {baseX, baseY} = baseOffset();
@@ -488,7 +501,7 @@ function drawGrid(cam, view){
   const step = span>60 ? 2 : 1;
   for(let ty=startY; ty<=endY; ty+=step){
     for(let tx=startX; tx<=endX; tx+=step){
-      const p = worldToScreen((tx+0.5) - cam.x, (ty+0.5) - cam.y, cam);
+      const p = worldToScreen((tx+0.5)*TILE, (ty+0.5)*TILE, cam);
       const sx=p.x, sy=p.y;
       ctx.beginPath();
       ctx.moveTo(sx, sy - halfY);
@@ -510,7 +523,7 @@ function drawFootprintExact(cam, view){
   const tx0 = parseInt($('btx').value||0,10);
   const ty0 = parseInt($('bty').value||0,10);
 
-  const {ISO_X, ISO_Y} = isoParams();
+  const {ISO_X, ISO_Y, TILE} = isoParams();
   const halfX = ISO_X * cam.zoom;
   const halfY = ISO_Y * cam.zoom;
 
@@ -528,10 +541,10 @@ function drawFootprintExact(cam, view){
   // V1: right vertex of tile (tx0+tw-1, ty0)
   // V2: bottom vertex of tile (tx0+tw-1, ty0+th-1)
   // V3: left vertex of tile (tx0, ty0+th-1)
-  const pTop = worldToScreen((tx0+0.5) - cam.x, (ty0+0.5) - cam.y, cam);
-  const pRight = worldToScreen((tx0+tw-1+0.5) - cam.x, (ty0+0.5) - cam.y, cam);
-  const pBottom = worldToScreen((tx0+tw-1+0.5) - cam.x, (ty0+th-1+0.5) - cam.y, cam);
-  const pLeft = worldToScreen((tx0+0.5) - cam.x, (ty0+th-1+0.5) - cam.y, cam);
+  const pTop = worldToScreen((tx0+0.5)*TILE, (ty0+0.5)*TILE, cam);
+  const pRight = worldToScreen((tx0+tw-1+0.5)*TILE, (ty0+0.5)*TILE, cam);
+  const pBottom = worldToScreen((tx0+tw-1+0.5)*TILE, (ty0+th-1+0.5)*TILE, cam);
+  const pLeft = worldToScreen((tx0+0.5)*TILE, (ty0+th-1+0.5)*TILE, cam);
 
   const V0 = {x:pTop.x, y:pTop.y - halfY};
   const V1 = {x:pRight.x + halfX, y:pRight.y};
@@ -618,7 +631,7 @@ function drawSprite(cam, view){
   if(!f || !textures[f.tex]?.img) return;
 
   const img=textures[f.tex].img;
-  const sc=+($('spriteScale').value||0.14);
+  const baseScale=+($('spriteScale').value||0.14);
 
   const tx0 = parseInt($('btx').value||0,10);
   const ty0 = parseInt($('bty').value||0,10);
@@ -628,7 +641,11 @@ function drawSprite(cam, view){
 
   // anchor point in tile coords
   const a = anchorTile(tx0, ty0, tw, th, mode);
-  const p = worldToScreen(a.ax - cam.x, a.ay - cam.y, cam);
+  const p = worldToScreen((a.ax)*TILE, (a.ay)*TILE, cam);
+  if ($('useDz') && $('useDz').checked) {
+    const dz = Math.max(tw, th) * ISO_Y * cam.zoom;
+    p.y -= dz;
+  }
 
   const {baseX, baseY} = baseOffset();
 
@@ -681,6 +698,7 @@ function tick(t){
     return;
   }
   const cam=getCam();
+  const sc = baseScale * cam.zoom;
   const view={zoom:+($('viewZoom').value||1), panX, panY};
 
   // animation
@@ -728,14 +746,14 @@ function fitToFootprint(){
   const tx0=parseInt($('btx').value||0,10);
   const ty0=parseInt($('bty').value||0,10);
 
-  const {ISO_X, ISO_Y} = isoParams();
+  const {ISO_X, ISO_Y, TILE} = isoParams();
   const halfX = ISO_X * cam.zoom;
   const halfY = ISO_Y * cam.zoom;
 
-  const pTop = worldToScreen((tx0+0.5) - cam.x, (ty0+0.5) - cam.y, cam);
-  const pRight = worldToScreen((tx0+tw-1+0.5) - cam.x, (ty0+0.5) - cam.y, cam);
-  const pBottom = worldToScreen((tx0+tw-1+0.5) - cam.x, (ty0+th-1+0.5) - cam.y, cam);
-  const pLeft = worldToScreen((tx0+0.5) - cam.x, (ty0+th-1+0.5) - cam.y, cam);
+  const pTop = worldToScreen((tx0+0.5)*TILE, (ty0+0.5)*TILE, cam);
+  const pRight = worldToScreen((tx0+tw-1+0.5)*TILE, (ty0+0.5)*TILE, cam);
+  const pBottom = worldToScreen((tx0+tw-1+0.5)*TILE, (ty0+th-1+0.5)*TILE, cam);
+  const pLeft = worldToScreen((tx0+0.5)*TILE, (ty0+th-1+0.5)*TILE, cam);
 
   const V0 = {x:pTop.x, y:pTop.y - halfY};
   const V1 = {x:pRight.x + halfX, y:pRight.y};
@@ -813,39 +831,6 @@ function downloadPatched(){
   setStatus('Downloaded: ' + name,'ok');
 }
 
-// ===== batch (all 3 barrack json)
-async function batchApplyDownloadAll(){
-  const x=+($('pivotX').value||0.5);
-  const y=+($('pivotY').value||0.5);
-
-  const presets = [
-    { url:'/asset/sprite/const/normal/barrack/barrack_idle.json', prefix:'barrack_idle' },
-    { url:'/asset/sprite/const/const_anim/barrack/barrack_const.json', prefix:'barrack_con_complete' },
-    { url:'/asset/sprite/const/distruct/barrack/barrack_distruct.json', prefix:'barrack_distruction' }
-  ];
-
-  const prevUrl = $('atlasUrl').value;
-  const prevPrefix = $('prefix').value;
-
-  for(const p of presets){
-    $('atlasUrl').value = p.url;
-    $('prefix').value = p.prefix;
-    await loadAtlas();
-    $('pivotX').value = String(x);
-    $('pivotY').value = String(y);
-    updateOutput();
-    applyToPrefix();
-    // Trigger a download for this json
-    downloadPatched();
-    // Small spacing helps browsers that throttle downloads
-    await new Promise(r=>setTimeout(r, 220));
-  }
-
-  $('atlasUrl').value = prevUrl;
-  $('prefix').value = prevPrefix;
-  setStatus('Batch complete: downloaded 3 patched JSON files.','ok');
-}
-
 // ===== wiring
 $('btnLoad').addEventListener('click', loadAtlas);
 $('btnReload').addEventListener('click', loadAtlas);
@@ -897,7 +882,6 @@ $('pivotY').addEventListener('input', updateOutput);
 
 $('btnApplyPrefix').addEventListener('click', applyToPrefix);
 $('btnDownload').addEventListener('click', downloadPatched);
-$('btnBatch').addEventListener('click', batchApplyDownloadAll);
 
 $('btnResetView').addEventListener('click', resetView);
 $('btnFit').addEventListener('click', fitToFootprint);
