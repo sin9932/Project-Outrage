@@ -1,3 +1,5 @@
+// BUILDINGS_PATCH_TEST_564
+
 /* buildings.js - Barracks renderer plugin (pivot + team palette + build anim + death ghost)
    Drop-in: load after atlas_tp.js and before game.js
 */
