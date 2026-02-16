@@ -190,7 +190,7 @@
       const textures = await Promise.all(parsed.textures.map(async (t) => {
         const imgUrl = joinUrl(baseDir, t.image);
         const img = await loadImage(imgUrl);
-        return { image: img, imageUrl: imgUrl, meta: t, frames: t.frames };
+        return { img: img, image: img, imageUrl: imgUrl, meta: t, frames: t.frames };
       }));
 
       // Flatten frames into a Map for quick lookup
@@ -198,19 +198,27 @@
         url: jsonUrl,
         baseDir,
         textures,
+        // Optional single-sheet convenience (some callers expect atlas.img)
+        img: (textures[0] && textures[0].img) ? textures[0].img : null,
         frames: new Map(),
-        frameList: []
+        framesByName: {},
+        frameList: [],
+        _rotCache: new Map()
       };
 
-      for (const tex of textures) {
-        for (const f of tex.frames) {
-          // global unique key inside atlas: "frameName"
-          atlas.frames.set(f.name, { texture: tex, frame: f });
-          atlas.frameList.push(f.name);
+      for (let texIndex = 0; texIndex < textures.length; texIndex++) {
+        const tex = textures[texIndex];
+        const framesArr = Array.isArray(tex.frames) ? tex.frames : [];
+        for (const f of framesArr) {
+          const filename = (f && (f.filename || f.name)) ? (f.filename || f.name) : null;
+          if (!filename) continue;
+          const fr = normalizeFrameCommon(filename, f, texIndex);
+          atlas.frames.set(fr.name, fr);
+          atlas.framesByName[fr.name] = fr;
+          atlas.frameList.push(fr.name);
         }
       }
-
-      return atlas;
+return atlas;
     })();
 
     _atlasPromiseCache.set(jsonUrl, p);
@@ -234,7 +242,7 @@
     if (!atlas || !atlas.frames) return [];
     const out = [];
     for (const k of atlas.frames.keys()) {
-      if (k.startsWith(prefix)) out.push(k);
+      if (typeof k === 'string' && k.startsWith(prefix)) out.push(k);
     }
     if (sort) {
       out.sort((a, b) => {
@@ -250,9 +258,9 @@
     if (!atlas || !atlas.frames) return 0;
     let n = 0;
     for (const [k, fr] of atlas.frames.entries()) {
-      if (!k.startsWith(prefix)) continue;
+      if (typeof k !== 'string' || !k.startsWith(prefix)) continue;
       fr.pivot = { x: pivot.x, y: pivot.y };
-      atlas.framesByName[k] = fr;
+      (atlas.framesByName || (atlas.framesByName = {}))[k] = fr;
       n++;
     }
     return n;
@@ -279,6 +287,7 @@
 
   function getRotatedCanvas(atlas, fr) {
     const key = `${fr.texIndex}:${fr.name}`;
+    atlas._rotCache = atlas._rotCache || new Map();
     if (atlas._rotCache.has(key)) return atlas._rotCache.get(key);
     const tex = atlas.textures[fr.texIndex];
     const img = tex.img;

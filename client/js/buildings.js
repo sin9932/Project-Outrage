@@ -80,13 +80,13 @@
 
   function listFramesSmart(atlas, prefix){
     if (!atlas || !atlas.frames) return [];
-    const all = Array.from(atlas.frames.keys());
+    const all = Array.from(atlas.frames.keys()).filter(n => typeof n === 'string');
     if (!all.length) return [];
 
     let arr = all;
     if (prefix) {
-      const hasPref = all.some(n => n.startsWith(prefix));
-      if (hasPref) arr = all.filter(n => n.startsWith(prefix));
+      const hasPref = all.some(n => typeof n === 'string' && n.startsWith(prefix));
+      if (hasPref) arr = all.filter(n => typeof n === 'string' && n.startsWith(prefix));
     }
 
     arr.sort((a,b)=>{
