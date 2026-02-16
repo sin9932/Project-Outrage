@@ -12458,7 +12458,7 @@ function spawnStartingUnits(){
 }
 
 
-startBtn.addEventListener("click", () => {
+startBtn.addEventListener("click", async () => {
     state.colors.player = pColorInput.value;
     state.colors.enemy  = eColorInput.value;
 
@@ -12494,6 +12494,23 @@ startBtn.addEventListener("click", () => {
     START_MONEY = startMoney;
     state.player.money = START_MONEY;
     state.enemy.money  = START_MONEY;
+
+
+    // Preload building atlases before starting (avoid long placeholder-box phase)
+    try {
+      if (window.PO && PO.buildings && typeof PO.buildings.preload === "function") {
+        const _oldTxt = startBtn.textContent;
+        startBtn.disabled = true;
+        startBtn.textContent = "LOADING...";
+        await PO.buildings.preload();
+        startBtn.textContent = _oldTxt;
+      }
+    } catch (e) {
+      console.error("[preload] building assets failed", e);
+      alert("Asset preload failed. Check DevTools Console/Network.\n" + (e && e.message ? e.message : e));
+      startBtn.disabled = false;
+      return;
+    }
 
     placeStart(spawnChoice);
     spawnStartingUnits();
