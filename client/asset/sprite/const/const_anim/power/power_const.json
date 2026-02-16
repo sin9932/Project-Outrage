@@ -1,0 +1,345 @@
+{
+	"textures": [
+		{
+			"image": "power_const.png",
+			"format": "RGBA8888",
+			"size": {
+				"w": 1738,
+				"h": 3619
+			},
+			"scale": 1,
+			"frames": [
+				{
+					"filename": "power_con_complete_8.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 1652,
+						"h": 1252
+					},
+					"spriteSourceSize": {
+						"x": 374,
+						"y": 181,
+						"w": 867,
+						"h": 710
+					},
+					"frame": {
+						"x": 1,
+						"y": 1,
+						"w": 867,
+						"h": 710
+					},
+					"anchor": {
+						"x": 0.5,
+						"y": 0.53
+					}
+				},
+				{
+					"filename": "power_con_complete_9.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 1652,
+						"h": 1252
+					},
+					"spriteSourceSize": {
+						"x": 374,
+						"y": 181,
+						"w": 867,
+						"h": 710
+					},
+					"frame": {
+						"x": 870,
+						"y": 1,
+						"w": 867,
+						"h": 710
+					},
+					"anchor": {
+						"x": 0.5,
+						"y": 0.53
+					}
+				},
+				{
+					"filename": "power_con_complete_10.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 1652,
+						"h": 1252
+					},
+					"spriteSourceSize": {
+						"x": 374,
+						"y": 181,
+						"w": 867,
+						"h": 710
+					},
+					"frame": {
+						"x": 1,
+						"y": 713,
+						"w": 867,
+						"h": 710
+					},
+					"anchor": {
+						"x": 0.5,
+						"y": 0.53
+					}
+				},
+				{
+					"filename": "power_con_complete_11.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 1652,
+						"h": 1252
+					},
+					"spriteSourceSize": {
+						"x": 374,
+						"y": 181,
+						"w": 867,
+						"h": 710
+					},
+					"frame": {
+						"x": 870,
+						"y": 713,
+						"w": 867,
+						"h": 710
+					},
+					"anchor": {
+						"x": 0.5,
+						"y": 0.53
+					}
+				},
+				{
+					"filename": "power_con_complete_12.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 1652,
+						"h": 1252
+					},
+					"spriteSourceSize": {
+						"x": 374,
+						"y": 181,
+						"w": 867,
+						"h": 710
+					},
+					"frame": {
+						"x": 1,
+						"y": 1425,
+						"w": 867,
+						"h": 710
+					},
+					"anchor": {
+						"x": 0.5,
+						"y": 0.53
+					}
+				},
+				{
+					"filename": "power_con_complete_13.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 1652,
+						"h": 1252
+					},
+					"spriteSourceSize": {
+						"x": 374,
+						"y": 181,
+						"w": 867,
+						"h": 710
+					},
+					"frame": {
+						"x": 870,
+						"y": 1425,
+						"w": 867,
+						"h": 710
+					},
+					"anchor": {
+						"x": 0.5,
+						"y": 0.53
+					}
+				},
+				{
+					"filename": "power_con_complete_7.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 1652,
+						"h": 1252
+					},
+					"spriteSourceSize": {
+						"x": 374,
+						"y": 214,
+						"w": 867,
+						"h": 677
+					},
+					"frame": {
+						"x": 1,
+						"y": 2137,
+						"w": 867,
+						"h": 677
+					},
+					"anchor": {
+						"x": 0.5,
+						"y": 0.53
+					}
+				},
+				{
+					"filename": "power_con_complete_6.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 1652,
+						"h": 1252
+					},
+					"spriteSourceSize": {
+						"x": 374,
+						"y": 303,
+						"w": 867,
+						"h": 588
+					},
+					"frame": {
+						"x": 870,
+						"y": 2137,
+						"w": 867,
+						"h": 588
+					},
+					"anchor": {
+						"x": 0.5,
+						"y": 0.53
+					}
+				},
+				{
+					"filename": "power_con_complete_5.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 1652,
+						"h": 1252
+					},
+					"spriteSourceSize": {
+						"x": 375,
+						"y": 366,
+						"w": 866,
+						"h": 524
+					},
+					"frame": {
+						"x": 1,
+						"y": 2816,
+						"w": 866,
+						"h": 524
+					},
+					"anchor": {
+						"x": 0.5,
+						"y": 0.53
+					}
+				},
+				{
+					"filename": "power_con_complete_4.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 1652,
+						"h": 1252
+					},
+					"spriteSourceSize": {
+						"x": 378,
+						"y": 459,
+						"w": 861,
+						"h": 445
+					},
+					"frame": {
+						"x": 870,
+						"y": 2727,
+						"w": 861,
+						"h": 445
+					},
+					"anchor": {
+						"x": 0.5,
+						"y": 0.53
+					}
+				},
+				{
+					"filename": "power_con_complete_3.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 1652,
+						"h": 1252
+					},
+					"spriteSourceSize": {
+						"x": 399,
+						"y": 464,
+						"w": 836,
+						"h": 423
+					},
+					"frame": {
+						"x": 869,
+						"y": 3174,
+						"w": 836,
+						"h": 423
+					},
+					"anchor": {
+						"x": 0.5,
+						"y": 0.53
+					}
+				},
+				{
+					"filename": "power_con_complete_2.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 1652,
+						"h": 1252
+					},
+					"spriteSourceSize": {
+						"x": 635,
+						"y": 476,
+						"w": 528,
+						"h": 276
+					},
+					"frame": {
+						"x": 1,
+						"y": 3342,
+						"w": 528,
+						"h": 276
+					},
+					"anchor": {
+						"x": 0.5,
+						"y": 0.53
+					}
+				},
+				{
+					"filename": "power_con_complete_1.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 1652,
+						"h": 1252
+					},
+					"spriteSourceSize": {
+						"x": 854,
+						"y": 602,
+						"w": 160,
+						"h": 106
+					},
+					"frame": {
+						"x": 531,
+						"y": 3342,
+						"w": 160,
+						"h": 106
+					},
+					"anchor": {
+						"x": 0.5,
+						"y": 0.53
+					}
+				}
+			]
+		}
+	],
+	"meta": {
+		"app": "https://www.codeandweb.com/texturepacker",
+		"version": "3.0",
+		"smartupdate": "$TexturePacker:SmartUpdate:31d241ded2785de161949638becd13ed:4d5deb8875581b71b287768978b8d8ea:b6930522e8143ba36f61001af75869b4$"
+	}
+}
