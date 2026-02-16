@@ -143,8 +143,8 @@
     <div class="grid2">
       <div class="col"><label>TILE</label><input id="tile" type="number" value="110"/></div>
       <div class="col"><label>Cam zoom (game)</label><input id="camZoom" type="number" step="0.01" value="1"/></div>
-      <div class="col"><label>Cam x (world px)</label><input id="camX" type="number" step="0.01" value="0"/></div>
-      <div class="col"><label>Cam y (world px)</label><input id="camY" type="number" step="0.01" value="0"/></div>
+      <div class="col"><label>Cam tileX</label><input id="camX" type="number" step="0.01" value="0"/></div>
+      <div class="col"><label>Cam tileY</label><input id="camY" type="number" step="0.01" value="0"/></div>
     </div>
 
     <div class="grid2">
@@ -162,13 +162,6 @@
           <option value="south">south edge center</option>
           <option value="sw">south-west corner</option>
         </select>
-      </div>
-      <div class="col">
-        <label>Ingame DZ (barracks)</label>
-        <label style="display:flex;align-items:center;gap:8px;margin-top:6px;">
-          <input id="useDz" type="checkbox" checked />
-          <span style="font-size:12px;opacity:0.85;">p.y -= max(tw,th) * ISO_Y * cam.zoom</span>
-        </label>
       </div>
       <div class="col">
         <label>BaseOffsetY ratio</label>
@@ -268,7 +261,7 @@ function parseTP(json){
     texList=json.textures.map(t=>({image:t.image, frames:t.frames||{}}));
   }else{
     // single: {meta:{image}, frames:{...} or frames:[...]}
-    const img=json.meta?.image || json.meta?.app || null;
+    const img = json.meta?.image || json.image || json.meta?.imageName || null;
     if(!img && !json.frames){ throw new Error('Unknown TP json format (no textures[], no frames)'); }
     let framesObj = json.frames;
     // convert frames array->object
@@ -421,18 +414,11 @@ function isoParams(){
   const TILE=+($('tile').value||128);
   return {TILE, ISO_X:TILE/2, ISO_Y:TILE/4};
 }
-function worldToIso(wx, wy){
-  const TILE = +($('tile').value||110);
-  return {x:(wx - wy)/TILE, y:(wx + wy)/TILE};
-}
-function worldToScreen(wx, wy, cam){
-  const {ISO_X, ISO_Y, TILE} = isoParams();
-  const iso = worldToIso(wx, wy);
-  const camIso = worldToIso(cam.x, cam.y);
-  return {
-    x: (iso.x - camIso.x) * ISO_X * cam.zoom,
-    y: (iso.y - camIso.y) * ISO_Y * cam.zoom
-  };
+function worldToScreen(tileX, tileY, cam){
+  const {ISO_X, ISO_Y} = isoParams();
+  const x = (tileX - tileY) * ISO_X;
+  const y = (tileX + tileY) * ISO_Y;
+  return {x: x*cam.zoom, y: y*cam.zoom};
 }
 function getCam(){
   return {
@@ -470,7 +456,7 @@ function clear(){
 
 function drawGrid(cam, view){
   if(!$('showGrid').checked) return;
-  const {ISO_X, ISO_Y, TILE} = isoParams();
+  const {ISO_X, ISO_Y} = isoParams();
   const span = clamp(+$('gridSpan').value||30, 6, 200);
   const w=cv.width/dpr, h=cv.height/dpr;
   const {baseX, baseY} = baseOffset();
@@ -501,7 +487,7 @@ function drawGrid(cam, view){
   const step = span>60 ? 2 : 1;
   for(let ty=startY; ty<=endY; ty+=step){
     for(let tx=startX; tx<=endX; tx+=step){
-      const p = worldToScreen((tx+0.5)*TILE, (ty+0.5)*TILE, cam);
+      const p = worldToScreen((tx+0.5) - cam.x, (ty+0.5) - cam.y, cam);
       const sx=p.x, sy=p.y;
       ctx.beginPath();
       ctx.moveTo(sx, sy - halfY);
@@ -523,7 +509,7 @@ function drawFootprintExact(cam, view){
   const tx0 = parseInt($('btx').value||0,10);
   const ty0 = parseInt($('bty').value||0,10);
 
-  const {ISO_X, ISO_Y, TILE} = isoParams();
+  const {ISO_X, ISO_Y} = isoParams();
   const halfX = ISO_X * cam.zoom;
   const halfY = ISO_Y * cam.zoom;
 
@@ -541,10 +527,10 @@ function drawFootprintExact(cam, view){
   // V1: right vertex of tile (tx0+tw-1, ty0)
   // V2: bottom vertex of tile (tx0+tw-1, ty0+th-1)
   // V3: left vertex of tile (tx0, ty0+th-1)
-  const pTop = worldToScreen((tx0+0.5)*TILE, (ty0+0.5)*TILE, cam);
-  const pRight = worldToScreen((tx0+tw-1+0.5)*TILE, (ty0+0.5)*TILE, cam);
-  const pBottom = worldToScreen((tx0+tw-1+0.5)*TILE, (ty0+th-1+0.5)*TILE, cam);
-  const pLeft = worldToScreen((tx0+0.5)*TILE, (ty0+th-1+0.5)*TILE, cam);
+  const pTop = worldToScreen((tx0+0.5) - cam.x, (ty0+0.5) - cam.y, cam);
+  const pRight = worldToScreen((tx0+tw-1+0.5) - cam.x, (ty0+0.5) - cam.y, cam);
+  const pBottom = worldToScreen((tx0+tw-1+0.5) - cam.x, (ty0+th-1+0.5) - cam.y, cam);
+  const pLeft = worldToScreen((tx0+0.5) - cam.x, (ty0+th-1+0.5) - cam.y, cam);
 
   const V0 = {x:pTop.x, y:pTop.y - halfY};
   const V1 = {x:pRight.x + halfX, y:pRight.y};
@@ -631,7 +617,7 @@ function drawSprite(cam, view){
   if(!f || !textures[f.tex]?.img) return;
 
   const img=textures[f.tex].img;
-  const baseScale=+($('spriteScale').value||0.14);
+  const sc=+($('spriteScale').value||0.14);
 
   const tx0 = parseInt($('btx').value||0,10);
   const ty0 = parseInt($('bty').value||0,10);
@@ -641,11 +627,7 @@ function drawSprite(cam, view){
 
   // anchor point in tile coords
   const a = anchorTile(tx0, ty0, tw, th, mode);
-  const p = worldToScreen((a.ax)*TILE, (a.ay)*TILE, cam);
-  if ($('useDz') && $('useDz').checked) {
-    const dz = Math.max(tw, th) * ISO_Y * cam.zoom;
-    p.y -= dz;
-  }
+  const p = worldToScreen(a.ax - cam.x, a.ay - cam.y, cam);
 
   const {baseX, baseY} = baseOffset();
 
@@ -693,14 +675,26 @@ function updateOutput(){
 function tick(t){
   requestAnimationFrame(tick);
   if(!cv.width || !cv.height) return;
-  if(!atlasData || !frames.length || !textures.length){
-    clear();
+  const cam=getCam();
+  const view={zoom:+($('viewZoom').value||1), panX, panY};
+  clear();
+  // Always draw grid/footprint even before atlas is loaded (so you can see the stage).
+  drawGrid(cam, view);
+  drawFootprintExact(cam, view);
+  if(!atlasData || !frames.length){
+    ctx.save(); ctx.scale(dpr,dpr);
+    ctx.fillStyle='rgba(255,255,255,0.85)'; ctx.font='14px system-ui, sans-serif';
+    ctx.fillText('No atlas loaded. Set Atlas JSON URL and press Load.', 18, 28);
+    ctx.restore();
     return;
   }
-  const cam=getCam();
-  const sc = baseScale * cam.zoom;
-  const view={zoom:+($('viewZoom').value||1), panX, panY};
-
+  if(!textures.length){
+    ctx.save(); ctx.scale(dpr,dpr);
+    ctx.fillStyle='rgba(255,150,150,0.9)'; ctx.font='14px system-ui, sans-serif';
+    ctx.fillText('Atlas JSON loaded, but texture image failed to load. Check meta.image path.', 18, 28);
+    ctx.restore();
+    return;
+  }
   // animation
   if(playing){
     const fps=clamp(+($('fps').value||20),1,60);
@@ -746,14 +740,14 @@ function fitToFootprint(){
   const tx0=parseInt($('btx').value||0,10);
   const ty0=parseInt($('bty').value||0,10);
 
-  const {ISO_X, ISO_Y, TILE} = isoParams();
+  const {ISO_X, ISO_Y} = isoParams();
   const halfX = ISO_X * cam.zoom;
   const halfY = ISO_Y * cam.zoom;
 
-  const pTop = worldToScreen((tx0+0.5)*TILE, (ty0+0.5)*TILE, cam);
-  const pRight = worldToScreen((tx0+tw-1+0.5)*TILE, (ty0+0.5)*TILE, cam);
-  const pBottom = worldToScreen((tx0+tw-1+0.5)*TILE, (ty0+th-1+0.5)*TILE, cam);
-  const pLeft = worldToScreen((tx0+0.5)*TILE, (ty0+th-1+0.5)*TILE, cam);
+  const pTop = worldToScreen((tx0+0.5) - cam.x, (ty0+0.5) - cam.y, cam);
+  const pRight = worldToScreen((tx0+tw-1+0.5) - cam.x, (ty0+0.5) - cam.y, cam);
+  const pBottom = worldToScreen((tx0+tw-1+0.5) - cam.x, (ty0+th-1+0.5) - cam.y, cam);
+  const pLeft = worldToScreen((tx0+0.5) - cam.x, (ty0+th-1+0.5) - cam.y, cam);
 
   const V0 = {x:pTop.x, y:pTop.y - halfY};
   const V1 = {x:pRight.x + halfX, y:pRight.y};
