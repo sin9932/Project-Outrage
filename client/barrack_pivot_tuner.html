@@ -263,7 +263,21 @@ function setStatus(msg, kind=''){
 function parseTP(json){
   let texList=[];
   if(Array.isArray(json.textures)){
-    texList=json.textures.map(t=>({image:t.image, frames:t.frames||{}}));
+    // TexturePacker "multi texture" format.
+    // Note: frames can be either an object-hash or an array with "filename".
+    texList=json.textures.map(t=>{
+      let frames=t.frames||{};
+      if(Array.isArray(frames)){
+        const obj={};
+        for(const f of frames){
+          const k=f?.filename || f?.name;
+          if(!k) continue;
+          obj[k]=f;
+        }
+        frames=obj;
+      }
+      return { image: t.image, frames };
+    });
   }else{
     const img = json.meta?.image || json.image || json.meta?.imageName || 'atlas.png';
     let framesObj = json.frames;
@@ -349,7 +363,7 @@ async function loadAtlas(){
       const img = new Image();
       const p = new Promise((resolve,reject)=>{
         img.onload=()=>resolve();
-        img.onerror=()=>reject(new Error('image load fail: ' + t.image));
+        img.onerror=()=>reject(new Error('image load fail: ' + (t.image||'(no image)') + '\nresolved: ' + (img.src||'(no src)')));
       });
       img.src = imgUrl;
       await p;
@@ -370,6 +384,9 @@ async function loadAtlas(){
     rebuildFrameSelect();
     syncPivotFromFrame();
     updateOutput();
+    // Common "loaded but nothing is visible" pitfall: view is panned/zoomed away known-good center.
+    // Auto reset & fit so the first frame is guaranteed to be on-screen.
+    try{ resetView(); fitToFootprint(); }catch(_){/* ignore */}
     setStatus(`Loaded: ${frames.length} frames, ${textures.length} texture(s).`,'ok');
   }catch(e){
     setStatus('Load failed: ' + e.message,'err');
