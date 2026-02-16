@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
-<title>Pivot Tuner v9 (ingame match + pan/zoom)</title>
+<title>Pivot Tuner v13 (ingame exact: world cam + DZ + pivot)</title>
 <style>
   :root{
     --bg:#0b0f16;
@@ -19,11 +19,12 @@
   *{box-sizing:border-box}
   body{margin:0;background:var(--bg);color:var(--txt);font:13px/1.3 system-ui, -apple-system, Segoe UI, Roboto, sans-serif; height:100vh; overflow:hidden;}
   .wrap{display:flex;height:100vh;}
-  .left{width:360px;min-width:320px;max-width:420px;background:linear-gradient(180deg,var(--panel),var(--panel2));border-right:1px solid var(--line);overflow:auto;padding:12px;}
+  .left{width:360px;min-width:320px;max-width:460px;background:linear-gradient(180deg,var(--panel),var(--panel2));border-right:1px solid var(--line);overflow:auto;padding:12px;}
   .right{flex:1;position:relative;min-width:0;}
   .row{display:flex;gap:8px;align-items:center;margin:6px 0;}
   .col{display:flex;flex-direction:column;gap:6px;}
   .grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+  .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;}
   label{color:var(--muted);font-size:12px;}
   input,select,button,textarea{
     width:100%;
@@ -39,9 +40,8 @@
   button:hover{border-color:#2a3a66}
   button.primary{background:#112a2a;border-color:#1f6b55}
   button.primary:hover{border-color:#3ee6a6}
-  button.warn{background:#2a1f11;border-color:#6b4a1f}
   .chips{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0 10px;}
-  .chip{padding:6px 8px;border-radius:999px;border:1px solid #22304d;background:#0b1220;color:var(--txt);cursor:pointer;font-size:12px;}
+  .chip{padding:6px 8px;border-radius:999px;border:1px solid #22304d;background:#0b1220;color:var(--txt);cursor:pointer;font-size:12px; user-select:none;}
   .chip:hover{border-color:#3ee6a6}
   .status{white-space:pre-wrap;padding:8px 10px;border-radius:10px;border:1px solid #1b2946;background:#0b1220;color:var(--muted);margin-top:8px;}
   .status.err{border-color:#3b1b1b;color:#ffd0d0}
@@ -49,20 +49,22 @@
   .hint{color:var(--muted);font-size:12px;margin-top:8px}
   textarea{height:76px;resize:vertical;}
   canvas{position:absolute;inset:0;width:100%;height:100%;display:block;}
-  .topbar{position:absolute;left:12px;top:10px;display:flex;gap:10px;align-items:center;color:var(--muted);font-size:12px;background:rgba(11,18,32,.55);padding:6px 10px;border:1px solid rgba(34,48,77,.6);border-radius:10px;backdrop-filter:blur(8px)}
+  .topbar{position:absolute;left:12px;top:10px;display:flex;gap:10px;align-items:center;color:var(--muted);font-size:12px;background:rgba(11,18,32,.55);padding:6px 10px;border:1px solid rgba(34,48,77,.6);border-radius:10px;backdrop-filter:blur(8px); pointer-events:none;}
   .kbd{border:1px solid rgba(34,48,77,.8);border-bottom-color:rgba(34,48,77,.4);padding:1px 6px;border-radius:6px;color:var(--txt);font-size:11px;background:rgba(15,23,36,.35)}
   .check{display:flex;align-items:center;gap:8px;margin:6px 0;}
   .check input{width:auto}
-  .mini{margin-top:8px;display:none}
-  .mini.on{display:block}
-  .mini pre{margin:0;background:#0b1220;border:1px solid #1b2946;border-radius:10px;padding:8px 10px;color:var(--muted);overflow:auto;max-height:160px}
+  hr{border:0;border-top:1px solid var(--line);margin:12px 0}
+  a{color:#9ee0ff}
 </style>
 </head>
 <body>
 <div class="wrap">
   <div class="left">
-    <div style="font-weight:700;font-size:14px;">Pivot Tuner v9</div>
-    <div class="hint">목표: <b>인게임 좌표계(iso 64/32, baseOffsetY=0.22)</b> 그대로 + <b>팬/줌</b>으로 큰 footprint도 보기 편하게.</div>
+    <div style="font-weight:700;font-size:14px;">Pivot Tuner v13</div>
+    <div class="hint">
+      목표: <b>인게임 buildings.js 수식 그대로</b>로 렌더링해서, 여기서 잡은 <b>pivot 값이 인게임 타일맵과 1:1</b>로 맞게.
+      <br/>핵심: JSON은 <b>anchor가 아니라 pivot</b>을 써야 인게임에 먹는다.
+    </div>
 
     <div class="row" style="margin-top:10px;">
       <div class="col" style="flex:1">
@@ -85,7 +87,7 @@
 
     <div id="status" class="status">Ready.</div>
 
-    <hr style="border:0;border-top:1px solid var(--line);margin:12px 0"/>
+    <hr/>
 
     <div class="grid2">
       <div class="col">
@@ -104,8 +106,8 @@
         <input id="fps" type="number" step="1" min="1" max="60" value="20"/>
       </div>
       <div class="col">
-        <label>Sprite scale (view)</label>
-        <input id="spriteScale" type="number" step="0.01" min="0.02" max="2" value="0.14"/>
+        <label>BASE_SCALE (game)</label>
+        <input id="baseScale" type="number" step="0.01" min="0.02" max="2" value="0.14"/>
       </div>
     </div>
 
@@ -115,14 +117,14 @@
       <button id="btnStep">1 Frame</button>
     </div>
 
-    <label>Pivot X (normalized 0..1)</label>
+    <label>Pivot X (0..1)</label>
     <div class="grid2">
       <button id="btnXMinus">X-</button>
       <button id="btnXPlus">X+</button>
     </div>
     <input id="pivotX" type="range" min="0" max="1" step="0.0001" value="0.5"/>
 
-    <label>Pivot Y (normalized 0..1)</label>
+    <label>Pivot Y (0..1)</label>
     <div class="grid2">
       <button id="btnYMinus">Y-</button>
       <button id="btnYPlus">Y+</button>
@@ -131,27 +133,37 @@
 
     <div class="row">
       <button id="btnApplyPrefix" class="primary">Apply pivot to prefix</button>
-      <button id="btnDownload">Download patched JSON</button>
+      <button id="btnApplyAll">Apply pivot to ALL</button>
+    </div>
+    <div class="row">
+      <button id="btnDownload" class="primary">Download patched JSON</button>
+      <button id="btnBatch3">Batch apply+download (idle/const/dist)</button>
     </div>
 
-    <label>Copy/paste (JSON anchor)</label>
+    <label>Copy/paste (JSON pivot)</label>
     <textarea id="out" readonly></textarea>
 
-    <hr style="border:0;border-top:1px solid var(--line);margin:12px 0"/>
+    <hr/>
 
-    <div style="font-weight:700;margin-bottom:6px;">Ingame coords</div>
+    <div style="font-weight:700;margin-bottom:6px;">Ingame coords (match)</div>
 
     <div class="grid2">
-      <div class="col"><label>TILE</label><input id="tile" type="number" value="110"/></div>
+      <div class="col"><label>TILE (px)</label><input id="tile" type="number" value="110"/></div>
       <div class="col"><label>Cam zoom (game)</label><input id="camZoom" type="number" step="0.01" value="1"/></div>
-      <div class="col"><label>Cam tileX</label><input id="camX" type="number" step="0.01" value="0"/></div>
-      <div class="col"><label>Cam tileY</label><input id="camY" type="number" step="0.01" value="0"/></div>
     </div>
 
     <div class="grid2">
-      <div class="col"><label>Building tx</label><input id="btx" type="number" step="1" value="0"/></div>
-      <div class="col"><label>Building ty</label><input id="bty" type="number" step="1" value="0"/></div>
-      <div class="col"><label>Footprint W (tw)</label><input id="tw" type="number" step="1" min="1" value="3"/></div>
+      <div class="col"><label>Cam worldX (px)</label><input id="camX" type="number" step="1" value="0"/></div>
+      <div class="col"><label>Cam worldY (px)</label><input id="camY" type="number" step="1" value="0"/></div>
+    </div>
+
+    <div class="grid2">
+      <div class="col"><label>Building tileX (origin)</label><input id="btx" type="number" step="1" value="0"/></div>
+      <div class="col"><label>Building tileY (origin)</label><input id="bty" type="number" step="1" value="0"/></div>
+    </div>
+
+    <div class="grid2">
+      <div class="col"><label>Footprint W (tw)</label><input id="tw" type="number" step="1" min="1" value="2"/></div>
       <div class="col"><label>Footprint H (th)</label><input id="th" type="number" step="1" min="1" value="2"/></div>
     </div>
 
@@ -159,7 +171,7 @@
       <div class="col">
         <label>Anchor mode</label>
         <select id="anchorMode">
-          <option value="center">center (footprint center)</option>
+          <option value="center">center (ingame default)</option>
           <option value="south">south edge center</option>
           <option value="sw">south-west corner</option>
         </select>
@@ -169,6 +181,13 @@
         <input id="baseYRatio" type="number" step="0.01" value="0.22"/>
       </div>
     </div>
+
+    <div class="check">
+      <input id="useDZ" type="checkbox" checked/>
+      <label for="useDZ" style="margin:0">Use DZ (barracks): sy = worldToScreenY - max(tw,th)*ISO_Y*cam.zoom</label>
+    </div>
+
+    <hr/>
 
     <div style="font-weight:700;margin:10px 0 6px;">View (pan/zoom)</div>
 
@@ -188,13 +207,8 @@
     <div class="check"><input id="showBounds" type="checkbox"/><label for="showBounds" style="margin:0">Frame bbox</label></div>
 
     <div class="hint">
-      조작: <span class="kbd">드래그</span> 팬, <span class="kbd">휠</span> 줌, <span class="kbd">더블클릭</span> Fit.<br/>
-      ※ 인게임 1:1 확인은 <b>Cam zoom=1</b> + <b>View zoom=1</b>에서 보면 됨. (View zoom은 “보기용”)
-    </div>
-
-    <div class="mini" id="mini">
-      <div style="font-weight:700;margin:8px 0 6px;">Debug</div>
-      <pre id="dbg"></pre>
+      조작: <span class="kbd">드래그</span> 팬, <span class="kbd">휠</span> 줌, <span class="kbd">더블클릭</span> Fit.
+      <br/>인게임 1:1 확인은 <b>Cam zoom=1</b>, <b>View zoom=1</b>, <b>pan=0</b>에서.
     </div>
   </div>
 
@@ -213,20 +227,16 @@
 // ===== helpers
 const $ = (id)=>document.getElementById(id);
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
-const dirname=(u)=>u.replace(/[#?].*$/,'').replace(/\/[^\/]*$/,'/') ;
 
 // ===== state
 let atlasData=null;
-let basePath='';
-let textures=[];
-let frames=[]; // unified [{name, tex, rect:{x,y,w,h}, ss:{x,y,w,h}, source:{w,h}, anchor:{x,y}, rawRef}]
-let cur=0;
+let textures=[]; // [{img,name}]
+let frames=[];   // unified [{name, tex, rect, sss, source, pivot, rawRef}]
 let playing=false;
 let lastT=0;
 
 const cv=$('cv');
-const ctx=cv.getContext('2d');
-
+const ctx=cv.getContext('2d', {alpha:true});
 let dpr=1;
 
 // view pan/zoom (screen space)
@@ -253,19 +263,14 @@ function setStatus(msg, kind=''){
   el.className='status' + (kind?(' '+kind):'');
 }
 
-// ===== atlas parsing (supports textures[] or normal TP json)
+// ===== atlas parsing (TexturePacker JSON: single or textures[])
 function parseTP(json){
   let texList=[];
-  let unified=[];
-  // texturepacker multiatlas: {textures:[{image,frames:{...}}]}
   if(Array.isArray(json.textures)){
     texList=json.textures.map(t=>({image:t.image, frames:t.frames||{}}));
   }else{
-    // single: {meta:{image}, frames:{...} or frames:[...]}
-    const img = json.meta?.image || json.image || json.meta?.imageName || null;
-    if(!img && !json.frames){ throw new Error('Unknown TP json format (no textures[], no frames)'); }
+    const img = json.meta?.image || json.image || json.meta?.imageName || 'atlas.png';
     let framesObj = json.frames;
-    // convert frames array->object
     if(Array.isArray(framesObj)){
       const obj={};
       for(const f of framesObj){
@@ -274,39 +279,45 @@ function parseTP(json){
       }
       framesObj=obj;
     }
-    texList=[{image: json.meta?.image || json.meta?.Image || json.image || 'atlas.png', frames: framesObj||{}}];
+    texList=[{image: img, frames: framesObj||{}}];
   }
 
-  // normalize frames into unified list
+  const unified=[];
   for(let ti=0; ti<texList.length; ti++){
-    const t=texList[ti];
-    const fr=t.frames||{};
+    const fr=texList[ti].frames||{};
     for(const [name, data] of Object.entries(fr)){
-      const frame=data.frame || data; // frame: {x,y,w,h}
-      const ss=data.spriteSourceSize || data.spriteSource || {x:0,y:0,w:frame.w||frame.width||0,h:frame.h||frame.height||0};
-      const source=data.sourceSize || data.source || {w:data.sourceSize?.w||data.sourceSize?.width||frame.w||0,h:data.sourceSize?.h||data.sourceSize?.height||frame.h||0};
-      const w = frame.w ?? frame.width;
-      const h = frame.h ?? frame.height;
+      const frame=data.frame || data; // {x,y,w,h}
+      const w = frame.w ?? frame.width ?? 0;
+      const h = frame.h ?? frame.height ?? 0;
+
+      const sss = data.spriteSourceSize || data.spriteSourceSize || {x:0,y:0,w, h};
+      const src = data.sourceSize || {w: (sss.w ?? sss.width ?? w), h: (sss.h ?? sss.height ?? h)};
+
+      // IMPORTANT: game uses fr.pivot (not anchor). We still read anchor if pivot missing.
+      const pv = data.pivot || data.anchor || {x:0.5,y:0.5};
+
       unified.push({
         name,
         tex: ti,
-        rect:{x:frame.x, y:frame.y, w, h},
-        ss:{x:ss.x||0, y:ss.y||0, w:ss.w??ss.width??w, h:ss.h??ss.height??h},
-        source:{w:source.w??source.width??(w), h:source.h??source.height??(h)},
-        rotated: !!data.rotated,
-        anchor: data.anchor ? {x:data.anchor.x, y:data.anchor.y} : {x:0.5,y:0.5},
+        rect:{x:frame.x||0, y:frame.y||0, w, h},
+        sss:{x:sss.x||0, y:sss.y||0, w:(sss.w??sss.width??w), h:(sss.h??sss.height??h)},
+        source:{w:(src.w??src.width??w), h:(src.h??src.height??h)},
+        pivot:{x: clamp(pv.x ?? 0.5, 0, 1), y: clamp(pv.y ?? 0.5, 0, 1)},
         rawRef: data
       });
     }
   }
+
   // sort by trailing number if any
   unified.sort((a,b)=>{
-    const na=a.name.match(/(\d+)(?=\D*$)/); const nb=b.name.match(/(\d+)(?=\D*$)/);
-    if(na && nb) return (parseInt(na[1])-parseInt(nb[1])) || a.name.localeCompare(b.name);
+    const na=a.name.match(/(\d+)(?=\D*$)/);
+    const nb=b.name.match(/(\d+)(?=\D*$)/);
+    if(na && nb) return (parseInt(na[1],10)-parseInt(nb[1],10)) || a.name.localeCompare(b.name);
     if(na && !nb) return -1;
     if(!na && nb) return 1;
     return a.name.localeCompare(b.name);
   });
+
   return {texList, unified};
 }
 
@@ -314,16 +325,12 @@ async function fetchJson(url){
   const res = await fetch(url, {cache:'no-store'});
   const text = await res.text();
   if(!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText}`);
-  // quick HTML detection
   const t = text.trim();
   if(t.startsWith('<!doctype') || t.startsWith('<html') || t.includes('<head>')){
-    throw new Error('Atlas URL returned HTML (경로 404/fallback 의심)');
+    throw new Error('Atlas URL returned HTML (404/fallback 의심)');
   }
-  try{
-    return JSON.parse(text);
-  }catch(e){
-    throw new Error('JSON parse fail: ' + e.message);
-  }
+  try{ return JSON.parse(text); }
+  catch(e){ throw new Error('JSON parse fail: ' + e.message); }
 }
 
 async function loadAtlas(){
@@ -332,51 +339,39 @@ async function loadAtlas(){
     const input=$('atlasUrl').value.trim();
     if(!input){ setStatus('ERR: atlasUrl empty','err'); return; }
 
-    // Resolve relative URLs against current page (works on subpaths like /Project-Outrage/)
     const atlasUrl = new URL(input, location.href).toString();
-
-    // Show resolved links immediately
     $('resolvedLinks').innerHTML =
       `Atlas: <a href="${atlasUrl}" target="_blank" rel="noopener">open</a><br><span style="opacity:.9">${atlasUrl}</span>`;
 
     atlasData = await fetchJson(atlasUrl);
-
-    // build textures list
     const parsed = parseTP(atlasData);
 
-    // load images
-    textures = [];
-    for(let i=0;i<parsed.texList.length;i++){
-      const imgName = parsed.texList[i].image;
+    // load textures
+    textures=[];
+    for(const t of parsed.texList){
+      const imgUrl = new URL(t.image, atlasUrl).toString();
       const img = new Image();
       const p = new Promise((resolve,reject)=>{
         img.onload=()=>resolve();
-        img.onerror=()=>reject(new Error('image load fail: ' + imgName));
+        img.onerror=()=>reject(new Error('image load fail: ' + t.image));
       });
-      const imgUrl = new URL(imgName, atlasUrl).toString();
       img.src = imgUrl;
       await p;
-      textures.push({img, name:imgName});
+      textures.push({img, name:t.image, url:imgUrl});
     }
 
-    // List resolved texture URLs
-    const texLinks = parsed.texList.map(t => {
-      const u = new URL(t.image, atlasUrl).toString();
-      return `Texture: <a href="${u}" target="_blank" rel="noopener">open</a><br><span style="opacity:.9">${u}</span>`;
-    }).join('<br>');
+    const texLinks = textures.map(t => `Texture: <a href="${t.url}" target="_blank" rel="noopener">open</a><br><span style="opacity:.9">${t.url}</span>`).join('<br>');
     $('resolvedLinks').innerHTML += '<br>' + texLinks;
 
     frames = parsed.unified;
-    // default prefix: first frame prefix if empty
+
     if(!$('prefix').value.trim() && frames.length){
       const f0=frames[0].name;
       const m=f0.match(/^(.*?)(\d+)?\.png$/i);
       $('prefix').value = m ? m[1] : f0.replace(/\.png$/i,'');
     }
+
     rebuildFrameSelect();
-    cur=0;
-    playing=false;
-    lastT=0;
     syncPivotFromFrame();
     updateOutput();
     setStatus(`Loaded: ${frames.length} frames, ${textures.length} texture(s).`,'ok');
@@ -391,238 +386,83 @@ function rebuildFrameSelect(){
   const sel=$('frameSel');
   sel.innerHTML='';
   const list = frames.filter(f=>!prefix || f.name.startsWith(prefix));
-  if(!list.length && frames.length){
-    // fallback: show all
-    for(const f of frames){ 
-      const opt=document.createElement('option');
-      opt.value=f.name; opt.textContent=f.name;
-      sel.appendChild(opt);
-    }
-  }else{
-    for(const f of list){
-      const opt=document.createElement('option');
-      opt.value=f.name; opt.textContent=f.name;
-      sel.appendChild(opt);
-    }
+  const use = list.length ? list : frames;
+  for(const f of use){
+    const opt=document.createElement('option');
+    opt.value=f.name; opt.textContent=f.name;
+    sel.appendChild(opt);
   }
   if(sel.options.length) sel.selectedIndex=0;
 }
 
 function getCurrentFrame(){
   const name=$('frameSel').value;
-  if(!name) return frames[cur]||null;
-  return frames.find(f=>f.name===name) || frames[cur] || null;
+  if(!name) return frames[0]||null;
+  return frames.find(f=>f.name===name) || frames[0] || null;
 }
 
 function syncPivotFromFrame(){
   const f=getCurrentFrame();
   if(!f) return;
-  const ax = (f.anchor && typeof f.anchor.x === 'number') ? f.anchor.x : 0.5;
-  const ay = (f.anchor && typeof f.anchor.y === 'number') ? f.anchor.y : 0.5;
-  $('pivotX').value = clamp(ax,0,1);
-  $('pivotY').value = clamp(ay,0,1);
+  $('pivotX').value = clamp(f.pivot?.x ?? 0.5, 0, 1);
+  $('pivotY').value = clamp(f.pivot?.y ?? 0.5, 0, 1);
   updateOutput();
 }
 
-// ===== ingame mapping
+function updateOutput(){
+  const x=+($('pivotX').value||0.5);
+  const y=+($('pivotY').value||0.5);
+  $('out').value = JSON.stringify({x:+x.toFixed(4), y:+y.toFixed(4)});
+}
+
+// ===== ingame math (matches game.js + buildings.js)
 function isoParams(){
-  const TILE=+($('tile').value||128);
+  const TILE=+($('tile').value||110);
   return {TILE, ISO_X:TILE/2, ISO_Y:TILE/4};
 }
 function worldToIso(wx, wy){
   const {TILE, ISO_X, ISO_Y} = isoParams();
-  // Match game.js: worldToIso(wx,wy) = { x:(wx-wy)*(ISO_X/TILE), y:(wx+wy)*(ISO_Y/TILE) }
   return { x: (wx - wy) * (ISO_X / TILE), y: (wx + wy) * (ISO_Y / TILE) };
 }
-// Screen coords relative to baseOffset(), matching game.js worldToScreen() minus base.
-function worldToScreen(wx, wy, cam){
+// relative screen coords WITHOUT baseOffset (baseOffset applied in render transform)
+function worldToScreenRel(wx, wy, cam){
   const iso = worldToIso(wx, wy);
   const camIso = worldToIso(cam.x, cam.y);
   return { x: (iso.x - camIso.x) * cam.zoom, y: (iso.y - camIso.y) * cam.zoom };
 }
-= isoParams();
-  const x = (tileX - tileY) * ISO_X;
-  const y = (tileX + tileY) * ISO_Y;
-  return {x: x*cam.zoom, y: y*cam.zoom};
-}
 function getCam(){
-  return {
-    x: +($('camX').value||0),
-    y: +($('camY').value||0),
-    zoom: +($('camZoom').value||1)
-  };
+  return { x:+($('camX').value||0), y:+($('camY').value||0), zoom:+($('camZoom').value||1) };
 }
 function baseOffset(){
   const w=cv.width/dpr, h=cv.height/dpr;
-  const baseX=w*0.5;
-  const baseY=h*(+($('baseYRatio').value||0.22));
-  return {baseX, baseY};
+  return {baseX:w*0.5, baseY:h*(+($('baseYRatio').value||0.22))};
 }
-
-// anchor point on footprint (in tile coords)
-function anchorTile(tileX, tileY, tw, th, mode){
-  // IMPORTANT: match game logic (buildingWorldFromTileOrigin): center is at tx+tw/2, ty+th/2 in tile units.
+function buildingWorldFromTileOrigin(tx,ty,tw,th){
+  const {TILE}=isoParams();
+  const w=tw*TILE, h=th*TILE;
+  return { cx:(tx*TILE + w/2), cy:(ty*TILE + h/2), w, h };
+}
+function anchorWorldFromTileOrigin(tx,ty,tw,th,mode){
+  const {TILE}=isoParams();
   if(mode==='center'){
-    return {ax: tileX + (tw/2), ay: tileY + (th/2)};
+    const b=buildingWorldFromTileOrigin(tx,ty,tw,th);
+    return {wx:b.cx, wy:b.cy};
   }
   if(mode==='south'){
-    // bottom edge center (footprint boundary)
-    return {ax: tileX + (tw/2), ay: tileY + (th)};
+    // bottom edge center of footprint boundary
+    return {wx:(tx + tw/2)*TILE, wy:(ty + th)*TILE};
   }
-  // south-west corner on boundary
-  return {ax: tileX, ay: tileY + (th)};
+  // south-west corner boundary
+  return {wx:(tx)*TILE, wy:(ty + th)*TILE};
 }
 
-// ===== drawing
+// ===== drawing helpers
 function clear(){
   ctx.setTransform(1,0,0,1,0,0);
   ctx.clearRect(0,0,cv.width,cv.height);
 }
-
-function drawGrid(cam, view){
-  if(!$('showGrid').checked) return;
-  const {ISO_X, ISO_Y} = isoParams();
-  const span = clamp(+$('gridSpan').value||30, 6, 200);
-  const w=cv.width/dpr, h=cv.height/dpr;
-  const {baseX, baseY} = baseOffset();
-
-  // draw around building origin (0,0) in tile coords (or around camera)
-  const cx = +($('btx').value||0);
-  const cy = +($('bty').value||0);
-
-  ctx.save();
-  ctx.scale(dpr,dpr);
-  ctx.translate(view.panX + baseX, view.panY + baseY);
-  ctx.scale(view.zoom, view.zoom);
-
-  ctx.lineWidth = 1;
-  ctx.strokeStyle = 'rgba(74,120,170,0.18)';
-
-  // draw diamond grid lines (two families)
-  // We'll draw diamonds by iterating tile points
-  const halfX = ISO_X * cam.zoom;
-  const halfY = ISO_Y * cam.zoom;
-
-  const startX = cx - span;
-  const endX   = cx + span;
-  const startY = cy - span;
-  const endY   = cy + span;
-
-  // draw tiles as faint diamonds (fast enough for span<=60)
-  const step = span>60 ? 2 : 1;
-  for(let ty=startY; ty<=endY; ty+=step){
-    for(let tx=startX; tx<=endX; tx+=step){
-      const p = worldToScreen((tx+0.5)*TILE, (ty+0.5)*TILE, cam);
-      const sx=p.x, sy=p.y;
-      ctx.beginPath();
-      ctx.moveTo(sx, sy - halfY);
-      ctx.lineTo(sx + halfX, sy);
-      ctx.lineTo(sx, sy + halfY);
-      ctx.lineTo(sx - halfX, sy);
-      ctx.closePath();
-      ctx.stroke();
-    }
-  }
-
-  ctx.restore();
-}
-
-function drawFootprintExact(cam, view){
-  if(!$('showFoot').checked) return;
-  const tw = Math.max(1, parseInt($('tw').value||3,10));
-  const th = Math.max(1, parseInt($('th').value||2,10));
-  const tx0 = parseInt($('btx').value||0,10);
-  const ty0 = parseInt($('bty').value||0,10);
-
-  const {ISO_X, ISO_Y} = isoParams();
-  const halfX = ISO_X * cam.zoom;
-  const halfY = ISO_Y * cam.zoom;
-
-  // We want the exact "big parallelogram + 3x2 subdivisions" look.
-  // We'll draw the outline of the union of diamonds, then internal split lines.
-  // Build corner points in screen space for the footprint boundary:
-  // Using standard iso: tile corner points
-  // We'll define the topmost tile center at (tx0,ty0) and compute boundary corners as:
-  // A = top corner of tile (tx0,ty0)
-  // B = rightmost corner after tw tiles along +x: top corner of tile (tx0+tw-1, ty0) shifted to right corner
-  // C = bottom corner after tw along +x and th along +y
-  // D = leftmost corner after th along +y
-  // To make it stable and simple, we compute four boundary vertices directly:
-  // V0: top vertex of tile (tx0,ty0)
-  // V1: right vertex of tile (tx0+tw-1, ty0)
-  // V2: bottom vertex of tile (tx0+tw-1, ty0+th-1)
-  // V3: left vertex of tile (tx0, ty0+th-1)
-  const pTop = worldToScreen((tx0+0.5)*TILE, (ty0+0.5)*TILE, cam);
-  const pRight = worldToScreen((tx0+tw-1+0.5)*TILE, (ty0+0.5)*TILE, cam);
-  const pBottom = worldToScreen((tx0+tw-1+0.5)*TILE, (ty0+th-1+0.5)*TILE, cam);
-  const pLeft = worldToScreen((tx0+0.5)*TILE, (ty0+th-1+0.5)*TILE, cam);
-
-  const V0 = {x:pTop.x, y:pTop.y - halfY};
-  const V1 = {x:pRight.x + halfX, y:pRight.y};
-  const V2 = {x:pBottom.x, y:pBottom.y + halfY};
-  const V3 = {x:pLeft.x - halfX, y:pLeft.y};
-
-  ctx.save();
-  ctx.scale(dpr,dpr);
-  const {baseX, baseY} = baseOffset();
-  ctx.translate(view.panX + baseX, view.panY + baseY);
-  ctx.scale(view.zoom, view.zoom);
-
-  // outline
-  ctx.lineWidth = 2;
-  ctx.strokeStyle = 'rgba(79,227,160,0.95)';
-  ctx.fillStyle = 'rgba(79,227,160,0.08)';
-  ctx.beginPath();
-  ctx.moveTo(V0.x, V0.y);
-  ctx.lineTo(V1.x, V1.y);
-  ctx.lineTo(V2.x, V2.y);
-  ctx.lineTo(V3.x, V3.y);
-  ctx.closePath();
-  ctx.fill();
-  ctx.stroke();
-
-  // internal split lines (tw columns, th rows) in the "projected rect" sense:
-  // We draw tw-1 lines parallel to V0->V3 (vertical-ish) and th-1 lines parallel to V0->V1 (horizontal-ish).
-  ctx.lineWidth = 2;
-  ctx.strokeStyle = 'rgba(79,227,160,0.75)';
-
-  // column lines: split along +x direction (SE), i=1..tw-1
-  for(let i=1;i<tw;i++){
-    // line connects the i-th split on top edge (V0->V1) to corresponding split on bottom edge (V3->V2)
-    const t = i/tw;
-    const A = {x: V0.x + (V1.x - V0.x)*t, y: V0.y + (V1.y - V0.y)*t};
-    const B = {x: V3.x + (V2.x - V3.x)*t, y: V3.y + (V2.y - V3.y)*t};
-    ctx.beginPath(); ctx.moveTo(A.x,A.y); ctx.lineTo(B.x,B.y); ctx.stroke();
-  }
-  // row lines: split along +y direction (SW), j=1..th-1
-  for(let j=1;j<th;j++){
-    const t = j/th;
-    const A = {x: V0.x + (V3.x - V0.x)*t, y: V0.y + (V3.y - V0.y)*t};
-    const B = {x: V1.x + (V2.x - V1.x)*t, y: V1.y + (V2.y - V1.y)*t};
-    ctx.beginPath(); ctx.moveTo(A.x,A.y); ctx.lineTo(B.x,B.y); ctx.stroke();
-  }
-
-  // axis / anchor marker
-  if($('showAxis').checked){
-    // show W (+x) and H (+y) directions like your diagram
-    ctx.lineWidth = 3;
-    // W arrow (SE)
-    const origin = {x: V0.x, y: V0.y};
-    const wEnd = {x: V0.x + (V1.x - V0.x), y: V0.y + (V1.y - V0.y)};
-    const hEnd = {x: V0.x + (V3.x - V0.x), y: V0.y + (V3.y - V0.y)};
-    ctx.strokeStyle = 'rgba(140,190,255,0.85)';
-    drawArrow(origin, wEnd, 'W='+tw+' ↘(+x)', 10);
-    drawArrow(origin, hEnd, 'H='+th+' ↙(+y)', 10);
-  }
-
-  ctx.restore();
-}
-
 function drawArrow(a,b,label,off){
-  ctx.beginPath();
-  ctx.moveTo(a.x,a.y);
-  ctx.lineTo(b.x,b.y);
-  ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke();
   const ang=Math.atan2(b.y-a.y,b.x-a.x);
   const hl=10;
   ctx.beginPath();
@@ -637,76 +477,205 @@ function drawArrow(a,b,label,off){
   ctx.fillText(label, b.x + off*Math.cos(ang+Math.PI/2), b.y + off*Math.sin(ang+Math.PI/2));
 }
 
-function drawSprite(cam, view){
-  const f=getCurrentFrame();
-  if(!f || !textures[f.tex]?.img) return;
-
-  const img=textures[f.tex].img;
-  const sc=+($('spriteScale').value||0.14);
-
-  const tx0 = parseInt($('btx').value||0,10);
-  const ty0 = parseInt($('bty').value||0,10);
-  const tw = Math.max(1, parseInt($('tw').value||3,10));
-  const th = Math.max(1, parseInt($('th').value||2,10));
-  const mode = $('anchorMode').value;
-
-  // anchor point in tile coords
-  const a = anchorTile(tx0, ty0, tw, th, mode);
-  const p = worldToScreen((a.ax)*TILE, (a.ay)*TILE, cam);
-
-  const {baseX, baseY} = baseOffset();
-
-  // pivot in pixels of source size
-  const px = (+$('pivotX').value||0.5) * f.source.w;
-  const py = (+$('pivotY').value||0.5) * f.source.h;
-
-  // draw position in screen space (before view transform)
-  // replicate atlas_tp typical: draw = anchorScreen - (pivot - ssOffset) * scale
-  // spriteSourceSize is the crop origin inside the original source.
-  const dx = p.x - (px - f.ss.x) * sc;
-  const dy = p.y - (py - f.ss.y) * sc;
-
-  // draw cropped region from atlas
-  const sx=f.rect.x, sy=f.rect.y, sw=f.rect.w, sh=f.rect.h;
+function drawGrid(cam, view){
+  if(!$('showGrid').checked) return;
+  const {TILE, ISO_X, ISO_Y} = isoParams();
+  const span = clamp(+$('gridSpan').value||30, 6, 200);
+  const tx0 = +($('btx').value||0);
+  const ty0 = +($('bty').value||0);
 
   ctx.save();
   ctx.scale(dpr,dpr);
-  ctx.translate(view.panX + baseX, view.panY + baseY);
+  const {baseX, baseY}=baseOffset();
+  ctx.translate(baseX + view.panX, baseY + view.panY);
+  ctx.scale(view.zoom, view.zoom);
+
+  ctx.lineWidth = 1;
+  ctx.strokeStyle = 'rgba(74,120,170,0.18)';
+
+  const halfX = ISO_X * cam.zoom;
+  const halfY = ISO_Y * cam.zoom;
+
+  const startX = tx0 - span, endX = tx0 + span;
+  const startY = ty0 - span, endY = ty0 + span;
+  const step = span>60 ? 2 : 1;
+
+  for(let ty=startY; ty<=endY; ty+=step){
+    for(let tx=startX; tx<=endX; tx+=step){
+      const p = worldToScreenRel((tx+0.5)*TILE, (ty+0.5)*TILE, cam);
+      ctx.beginPath();
+      ctx.moveTo(p.x, p.y - halfY);
+      ctx.lineTo(p.x + halfX, p.y);
+      ctx.lineTo(p.x, p.y + halfY);
+      ctx.lineTo(p.x - halfX, p.y);
+      ctx.closePath();
+      ctx.stroke();
+    }
+  }
+
+  ctx.restore();
+}
+
+function drawFootprintExact(cam, view){
+  if(!$('showFoot').checked) return;
+  const {TILE, ISO_X, ISO_Y} = isoParams();
+  const tw = Math.max(1, parseInt($('tw').value||2,10));
+  const th = Math.max(1, parseInt($('th').value||2,10));
+  const tx0 = parseInt($('btx').value||0,10);
+  const ty0 = parseInt($('bty').value||0,10);
+
+  const halfX = ISO_X * cam.zoom;
+  const halfY = ISO_Y * cam.zoom;
+
+  const pTop    = worldToScreenRel((tx0+0.5)*TILE, (ty0+0.5)*TILE, cam);
+  const pRight  = worldToScreenRel((tx0+tw-1+0.5)*TILE, (ty0+0.5)*TILE, cam);
+  const pBottom = worldToScreenRel((tx0+tw-1+0.5)*TILE, (ty0+th-1+0.5)*TILE, cam);
+  const pLeft   = worldToScreenRel((tx0+0.5)*TILE, (ty0+th-1+0.5)*TILE, cam);
+
+  const V0 = {x:pTop.x,    y:pTop.y - halfY};
+  const V1 = {x:pRight.x + halfX, y:pRight.y};
+  const V2 = {x:pBottom.x, y:pBottom.y + halfY};
+  const V3 = {x:pLeft.x - halfX, y:pLeft.y};
+
+  ctx.save();
+  ctx.scale(dpr,dpr);
+  const {baseX, baseY}=baseOffset();
+  ctx.translate(baseX + view.panX, baseY + view.panY);
+  ctx.scale(view.zoom, view.zoom);
+
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = 'rgba(79,227,160,0.95)';
+  ctx.fillStyle = 'rgba(79,227,160,0.08)';
+  ctx.beginPath();
+  ctx.moveTo(V0.x, V0.y);
+  ctx.lineTo(V1.x, V1.y);
+  ctx.lineTo(V2.x, V2.y);
+  ctx.lineTo(V3.x, V3.y);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+
+  // internal splits
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = 'rgba(79,227,160,0.75)';
+  for(let i=1;i<tw;i++){
+    const t=i/tw;
+    const A={x:V0.x+(V1.x-V0.x)*t, y:V0.y+(V1.y-V0.y)*t};
+    const B={x:V3.x+(V2.x-V3.x)*t, y:V3.y+(V2.y-V3.y)*t};
+    ctx.beginPath(); ctx.moveTo(A.x,A.y); ctx.lineTo(B.x,B.y); ctx.stroke();
+  }
+  for(let j=1;j<th;j++){
+    const t=j/th;
+    const A={x:V0.x+(V3.x-V0.x)*t, y:V0.y+(V3.y-V0.y)*t};
+    const B={x:V1.x+(V2.x-V1.x)*t, y:V1.y+(V2.y-V1.y)*t};
+    ctx.beginPath(); ctx.moveTo(A.x,A.y); ctx.lineTo(B.x,B.y); ctx.stroke();
+  }
+
+  if($('showAxis').checked){
+    ctx.lineWidth=3;
+    const origin={x:V0.x,y:V0.y};
+    const wEnd={x:V1.x,y:V1.y};
+    const hEnd={x:V3.x,y:V3.y};
+    ctx.strokeStyle='rgba(140,190,255,0.85)';
+    drawArrow(origin,wEnd,'W='+tw+' ↘(+x)',10);
+    drawArrow(origin,hEnd,'H='+th+' ↙(+y)',10);
+  }
+
+  ctx.restore();
+}
+
+function drawSprite(cam, view){
+  const f=getCurrentFrame();
+  if(!f) return;
+  if(!atlasData || !textures.length) return;
+
+  const img = textures[f.tex]?.img;
+  if(!img) return;
+
+  const tx0 = parseInt($('btx').value||0,10);
+  const ty0 = parseInt($('bty').value||0,10);
+  const tw = Math.max(1, parseInt($('tw').value||2,10));
+  const th = Math.max(1, parseInt($('th').value||2,10));
+  const mode = $('anchorMode').value;
+
+  const anchor = anchorWorldFromTileOrigin(tx0,ty0,tw,th,mode);
+  const p = worldToScreenRel(anchor.wx, anchor.wy, cam);
+
+  const {ISO_Y} = isoParams();
+  const useDZ = $('useDZ').checked;
+  const dz = useDZ ? (Math.max(tw,th) * ISO_Y * cam.zoom) : 0;
+
+  const scale = (+($('baseScale').value||0.14)) * cam.zoom;
+
+  const pvx = (+$('pivotX').value||0.5);
+  const pvy = (+$('pivotY').value||0.5);
+
+  const frame = f.rect;
+  const sss   = f.sss;
+  const src   = f.source;
+
+  const sx = p.x;
+  const sy = p.y - dz;
+
+  // EXACT match to buildings.js drawFrameTeam:
+  const dx = sx - (pvx * src.w - sss.x) * scale;
+  const dy = sy - (pvy * src.h - sss.y) * scale;
+  const dw = frame.w * scale;
+  const dh = frame.h * scale;
+
+  ctx.save();
+  ctx.scale(dpr,dpr);
+  const {baseX, baseY}=baseOffset();
+  ctx.translate(baseX + view.panX, baseY + view.panY);
   ctx.scale(view.zoom, view.zoom);
 
   ctx.imageSmoothingEnabled=true;
-  ctx.drawImage(img, sx,sy,sw,sh, dx,dy, sw*sc, sh*sc);
+  ctx.drawImage(img, frame.x, frame.y, frame.w, frame.h, dx, dy, dw, dh);
 
   if($('showBounds').checked){
     ctx.strokeStyle='rgba(255,200,80,0.9)';
     ctx.lineWidth=2;
-    ctx.strokeRect(dx,dy,sw*sc,sh*sc);
+    ctx.strokeRect(dx,dy,dw,dh);
   }
-
   ctx.restore();
 
-  // write debug
-  const top = $('topInfo');
-  const drawTxt = `atlas: ${$('prefix').value || '-'}  frame: ${f.name}  draw: (${dx.toFixed(1)},${dy.toFixed(1)})`;
-  top.textContent = `canvas ${Math.round(cv.width/dpr)}x${Math.round(cv.height/dpr)}  |  ${drawTxt}`;
+  $('topInfo').textContent =
+    `frame: ${f.name} | scale=${scale.toFixed(3)} | dz=${dz.toFixed(1)} | draw=(${dx.toFixed(1)},${dy.toFixed(1)})`;
 }
 
-function updateOutput(){
-  const x=+($('pivotX').value||0.5);
-  const y=+($('pivotY').value||0.5);
-  $('out').value = JSON.stringify({x:+x.toFixed(4), y:+y.toFixed(4)});
-}
-
+// ===== loop
 function tick(t){
   requestAnimationFrame(tick);
   if(!cv.width || !cv.height) return;
+
   const cam=getCam();
-  const {TILE} = isoParams();
   const view={zoom:+($('viewZoom').value||1), panX, panY};
+
+  // animation advance
+  if(playing && frames.length){
+    const fps=clamp(+($('fps').value||20),1,60);
+    if(!lastT) lastT=t;
+    const dt=t-lastT;
+    const step=1000/fps;
+    if(dt>=step){
+      lastT=t-(dt%step);
+      const prefix=$('prefix').value.trim();
+      const list = frames.filter(fr=>!prefix || fr.name.startsWith(prefix));
+      const use=list.length?list:frames;
+      const curName=$('frameSel').value;
+      let idx=use.findIndex(fr=>fr.name===curName);
+      idx = (idx<0?0:idx);
+      const next=use[(idx+1)%use.length];
+      $('frameSel').value=next.name;
+    }
+  }else{
+    lastT=0;
+  }
+
   clear();
-  // Always draw grid/footprint even before atlas is loaded (so you can see the stage).
   drawGrid(cam, view);
   drawFootprintExact(cam, view);
+
   if(!atlasData || !frames.length){
     ctx.save(); ctx.scale(dpr,dpr);
     ctx.fillStyle='rgba(255,255,255,0.85)'; ctx.font='14px system-ui, sans-serif';
@@ -717,38 +686,11 @@ function tick(t){
   if(!textures.length){
     ctx.save(); ctx.scale(dpr,dpr);
     ctx.fillStyle='rgba(255,150,150,0.9)'; ctx.font='14px system-ui, sans-serif';
-    ctx.fillText('Atlas JSON loaded, but texture image failed to load. Check meta.image path.', 18, 28);
+    ctx.fillText('Atlas JSON loaded, but texture image failed. Check meta.image path.', 18, 28);
     ctx.restore();
     return;
   }
-  // animation
-  if(playing){
-    const fps=clamp(+($('fps').value||20),1,60);
-    if(!lastT) lastT=t;
-    const dt=t-lastT;
-    const step = 1000/fps;
-    if(dt>=step){
-      lastT=t-(dt%step);
-      // advance within prefix-filtered list if possible
-      const prefix=$('prefix').value.trim();
-      const list = frames.filter(f=>!prefix || f.name.startsWith(prefix));
-      if(list.length){
-        const curName = $('frameSel').value;
-        const idx=list.findIndex(f=>f.name===curName);
-        const next=list[(idx+1)%list.length];
-        $('frameSel').value = next.name;
-      }else{
-        cur=(cur+1)%frames.length;
-        $('frameSel').value = frames[cur].name;
-      }
-    }
-  }else{
-    lastT=0;
-  }
 
-  clear();
-  drawGrid(cam, view);
-  drawFootprintExact(cam, view);
   drawSprite(cam, view);
 }
 
@@ -758,28 +700,24 @@ function resetView(){
   $('viewZoom').value=1;
 }
 function fitToFootprint(){
-  // compute footprint bounds in screen space and adjust pan/zoom so it fits.
   const cam=getCam();
-  const {TILE} = isoParams();
-  const viewZoom=+($('viewZoom').value||1);
-  const tw=Math.max(1, parseInt($('tw').value||3,10));
+  const {TILE, ISO_X, ISO_Y} = isoParams();
+  const tw=Math.max(1, parseInt($('tw').value||2,10));
   const th=Math.max(1, parseInt($('th').value||2,10));
   const tx0=parseInt($('btx').value||0,10);
   const ty0=parseInt($('bty').value||0,10);
 
-  const {ISO_X, ISO_Y} = isoParams();
-  const halfX = ISO_X * cam.zoom;
-  const halfY = ISO_Y * cam.zoom;
+  const halfX=ISO_X*cam.zoom, halfY=ISO_Y*cam.zoom;
 
-  const pTop = worldToScreen((tx0+0.5)*TILE, (ty0+0.5)*TILE, cam);
-  const pRight = worldToScreen((tx0+tw-1+0.5)*TILE, (ty0+0.5)*TILE, cam);
-  const pBottom = worldToScreen((tx0+tw-1+0.5)*TILE, (ty0+th-1+0.5)*TILE, cam);
-  const pLeft = worldToScreen((tx0+0.5)*TILE, (ty0+th-1+0.5)*TILE, cam);
+  const pTop    = worldToScreenRel((tx0+0.5)*TILE, (ty0+0.5)*TILE, cam);
+  const pRight  = worldToScreenRel((tx0+tw-1+0.5)*TILE, (ty0+0.5)*TILE, cam);
+  const pBottom = worldToScreenRel((tx0+tw-1+0.5)*TILE, (ty0+th-1+0.5)*TILE, cam);
+  const pLeft   = worldToScreenRel((tx0+0.5)*TILE, (ty0+th-1+0.5)*TILE, cam);
 
-  const V0 = {x:pTop.x, y:pTop.y - halfY};
-  const V1 = {x:pRight.x + halfX, y:pRight.y};
-  const V2 = {x:pBottom.x, y:pBottom.y + halfY};
-  const V3 = {x:pLeft.x - halfX, y:pLeft.y};
+  const V0={x:pTop.x, y:pTop.y-halfY};
+  const V1={x:pRight.x+halfX, y:pRight.y};
+  const V2={x:pBottom.x, y:pBottom.y+halfY};
+  const V3={x:pLeft.x-halfX, y:pLeft.y};
 
   const xs=[V0.x,V1.x,V2.x,V3.x], ys=[V0.y,V1.y,V2.y,V3.y];
   const minX=Math.min(...xs), maxX=Math.max(...xs);
@@ -790,14 +728,11 @@ function fitToFootprint(){
   const pad=60;
   const zx=(w-pad)/Math.max(1,bw);
   const zy=(h-pad)/Math.max(1,bh);
-  const z=clamp(Math.min(zx,zy), 0.2, 4);
-  $('viewZoom').value = +z.toFixed(2);
+  const z=clamp(Math.min(zx,zy), 0.2, 6);
+  $('viewZoom').value=+z.toFixed(2);
 
-  // center footprint in view
   const cx=(minX+maxX)/2, cy=(minY+maxY)/2;
-  // we want cx,cy to land at (0,0) after pan, because baseOffset already centers
-  panX = -cx;
-  panY = -cy;
+  panX=-cx; panY=-cy;
 }
 
 // mouse interactions
@@ -808,40 +743,120 @@ cv.addEventListener('mousedown',(e)=>{
 window.addEventListener('mouseup',()=>{ isPanning=false; panStart=null; });
 window.addEventListener('mousemove',(e)=>{
   if(!isPanning||!panStart) return;
-  const dx=e.clientX-panStart.x;
-  const dy=e.clientY-panStart.y;
-  panX = panStart.px + dx;
-  panY = panStart.py + dy;
+  panX = panStart.px + (e.clientX-panStart.x);
+  panY = panStart.py + (e.clientY-panStart.y);
 });
 cv.addEventListener('wheel',(e)=>{
   e.preventDefault();
   const z=+($('viewZoom').value||1);
-  const delta = Math.sign(e.deltaY);
-  const next = clamp(z * (delta>0 ? 0.9 : 1.1), 0.1, 10);
-  $('viewZoom').value = +next.toFixed(2);
+  const delta=Math.sign(e.deltaY);
+  const next=clamp(z*(delta>0?0.9:1.1), 0.1, 20);
+  $('viewZoom').value=+next.toFixed(2);
 },{passive:false});
-cv.addEventListener('dblclick', (e)=>{ fitToFootprint(); });
+cv.addEventListener('dblclick', ()=>fitToFootprint());
 
 // ===== apply & download
 function applyToPrefix(){
   const prefix=$('prefix').value.trim();
-  if(!prefix){ setStatus('ERR: prefix empty','err'); return; }
+  if(!atlasData){ setStatus('ERR: no atlas loaded','err'); return; }
+
   const x=+($('pivotX').value||0.5);
   const y=+($('pivotY').value||0.5);
+
   let n=0;
   for(const f of frames){
-    if(f.name.startsWith(prefix)){
-      f.anchor={x,y};
-      if(f.rawRef) f.rawRef.anchor={x,y};
+    if(!prefix || f.name.startsWith(prefix)){
+      f.pivot={x,y};
+      if(f.rawRef){
+        f.rawRef.pivot={x,y};
+        if(f.rawRef.anchor) f.rawRef.anchor={x,y};
+      }
       n++;
     }
   }
-  setStatus(`Applied anchor {x:${x.toFixed(4)}, y:${y.toFixed(4)}} to ${n} frame(s) with prefix "${prefix}".`,'ok');
+  if(prefix){
+    setStatus(`Applied pivot {x:${x.toFixed(4)}, y:${y.toFixed(4)}} to ${n} frame(s) with prefix "${prefix}".`,'ok');
+  }else{
+    setStatus(`Applied pivot {x:${x.toFixed(4)}, y:${y.toFixed(4)}} to ALL ${n} frame(s) (prefix empty).`,'ok');
+  }
+}
+
+function applyToAll(){
+  // same as prefix empty but explicit button
+  $('prefix').value = '';
+  rebuildFrameSelect();
+  applyToPrefix();
+}
+
+async function batchApplyDownload3(){
+  try{
+    const x=+($('pivotX').value||0.5);
+    const y=+($('pivotY').value||0.5);
+
+    // URLs (editable by user if needed)
+    const urls = [
+      {label:'idle', url:'asset/sprite/const/normal/barrack/barrack_idle.json'},
+      {label:'const', url:'asset/sprite/const/const_anim/barrack/barrack_const.json'},
+      {label:'dist', url:'asset/sprite/const/destruct/barrack/barrack_distruction.json'},
+    ];
+
+    setStatus('Batch: loading 3 atlases...', '');
+    for(const item of urls){
+      const atlasUrl = new URL(item.url, location.href).toString();
+      const json = await fetchJson(atlasUrl);
+
+      // apply pivot to ALL frames in this json (TexturePacker single or textures[])
+      const applyPivotToJson = (j)=>{
+        const applyFrameObj = (fo)=>{
+          if(!fo) return;
+          for(const k of Object.keys(fo)){
+            const fr = fo[k];
+            if(fr && typeof fr === 'object'){
+              fr.pivot = {x,y};
+              if(fr.anchor) fr.anchor = {x,y};
+            }
+          }
+        };
+        if(Array.isArray(j.textures)){
+          for(const t of j.textures){
+            applyFrameObj(t.frames);
+          }
+        }else{
+          // frames might be array in some exports
+          if(Array.isArray(j.frames)){
+            for(const fr of j.frames){
+              if(fr && typeof fr === 'object'){
+                fr.pivot={x,y};
+                if(fr.anchor) fr.anchor={x,y};
+              }
+            }
+          }else{
+            applyFrameObj(j.frames);
+          }
+        }
+      };
+      applyPivotToJson(json);
+
+      const blob = new Blob([JSON.stringify(json, null, 2)], {type:'application/json'});
+      const a=document.createElement('a');
+      a.href=URL.createObjectURL(blob);
+      a.download = `barrack_${item.label}_patched.json`;
+      a.click();
+      URL.revokeObjectURL(a.href);
+
+      setStatus(`Batch: downloaded ${a.download}`, 'ok');
+      // tiny delay to keep browsers happy
+      await new Promise(r=>setTimeout(r, 200));
+    }
+    setStatus('Batch: done (3 files downloaded).', 'ok');
+  }catch(e){
+    setStatus('Batch failed: ' + e.message, 'err');
+    console.error(e);
+  }
 }
 
 function downloadPatched(){
   if(!atlasData){ setStatus('ERR: no atlas loaded','err'); return; }
-  // If original JSON used textures[], we patched rawRef anchors only; safe to stringify atlasData.
   const blob = new Blob([JSON.stringify(atlasData, null, 2)], {type:'application/json'});
   const a=document.createElement('a');
   a.href=URL.createObjectURL(blob);
@@ -865,27 +880,26 @@ $('chipConst').addEventListener('click', ()=>{
   $('prefix').value='barrack_con_complete';
 });
 $('chipDist').addEventListener('click', ()=>{
-  $('atlasUrl').value='asset/sprite/const/distruct/barrack/barrack_distruct.json';
+  $('atlasUrl').value='asset/sprite/const/destruct/barrack/barrack_distruction.json';
   $('prefix').value='barrack_distruction';
 });
 
 $('prefix').addEventListener('change', ()=>{ rebuildFrameSelect(); syncPivotFromFrame(); });
 $('frameSel').addEventListener('change', ()=>{ playing=false; lastT=0; syncPivotFromFrame(); });
+
 $('btnPlay').addEventListener('click', ()=>{ playing=true; });
 $('btnPause').addEventListener('click', ()=>{ playing=false; });
 $('btnStep').addEventListener('click', ()=>{
   playing=false;
   const prefix=$('prefix').value.trim();
-  const list = frames.filter(f=>!prefix || f.name.startsWith(prefix));
-  if(list.length){
-    const curName=$('frameSel').value;
-    const idx=list.findIndex(f=>f.name===curName);
-    const next=list[(idx+1)%list.length];
-    $('frameSel').value=next.name;
-  }else if(frames.length){
-    cur=(cur+1)%frames.length;
-    $('frameSel').value=frames[cur].name;
-  }
+  const list = frames.filter(fr=>!prefix || fr.name.startsWith(prefix));
+  const use=list.length?list:frames;
+  if(!use.length) return;
+  const curName=$('frameSel').value;
+  let idx=use.findIndex(fr=>fr.name===curName);
+  idx=(idx<0?0:idx);
+  const next=use[(idx+1)%use.length];
+  $('frameSel').value=next.name;
 });
 
 function nudgePivot(dx,dy){
@@ -898,20 +912,17 @@ $('btnXMinus').addEventListener('click', ()=>nudgePivot(-0.001,0));
 $('btnXPlus').addEventListener('click', ()=>nudgePivot(0.001,0));
 $('btnYMinus').addEventListener('click', ()=>nudgePivot(0,-0.001));
 $('btnYPlus').addEventListener('click', ()=>nudgePivot(0,0.001));
+
 $('pivotX').addEventListener('input', updateOutput);
 $('pivotY').addEventListener('input', updateOutput);
 
 $('btnApplyPrefix').addEventListener('click', applyToPrefix);
+$('btnApplyAll').addEventListener('click', applyToAll);
 $('btnDownload').addEventListener('click', downloadPatched);
+$('btnBatch3').addEventListener('click', batchApplyDownload3);
 
 $('btnResetView').addEventListener('click', resetView);
 $('btnFit').addEventListener('click', fitToFootprint);
-
-// re-render on input changes
-for(const id of ['tile','camZoom','camX','camY','btx','bty','tw','th','anchorMode','baseYRatio','viewZoom','gridSpan','showGrid','showFoot','showAxis','showBounds','spriteScale']){
-  $(id).addEventListener('input', ()=>{});
-  $(id).addEventListener('change', ()=>{});
-}
 
 requestAnimationFrame(tick);
 updateOutput();
