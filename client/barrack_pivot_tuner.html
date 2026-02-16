@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
-<title>Pivot Tuner v13 (ingame exact: world cam + DZ + pivot)</title>
+<title>Pivot Tuner v14 (ingame exact: world cam + DZ + pivot)</title>
 <style>
   :root{
     --bg:#0b0f16;
@@ -60,7 +60,7 @@
 <body>
 <div class="wrap">
   <div class="left">
-    <div style="font-weight:700;font-size:14px;">Pivot Tuner v13</div>
+    <div style="font-weight:700;font-size:14px;">Pivot Tuner v14</div>
     <div class="hint">
       목표: <b>인게임 buildings.js 수식 그대로</b>로 렌더링해서, 여기서 잡은 <b>pivot 값이 인게임 타일맵과 1:1</b>로 맞게.
       <br/>핵심: JSON은 <b>anchor가 아니라 pivot</b>을 써야 인게임에 먹는다.
@@ -133,11 +133,7 @@
 
     <div class="row">
       <button id="btnApplyPrefix" class="primary">Apply pivot to prefix</button>
-      <button id="btnApplyAll">Apply pivot to ALL</button>
-    </div>
-    <div class="row">
-      <button id="btnDownload" class="primary">Download patched JSON</button>
-      <button id="btnBatch3">Batch apply+download (idle/const/dist)</button>
+      <button id="btnDownload">Download patched JSON</button>
     </div>
 
     <label>Copy/paste (JSON pivot)</label>
@@ -184,7 +180,7 @@
 
     <div class="check">
       <input id="useDZ" type="checkbox" checked/>
-      <label for="useDZ" style="margin:0">Use DZ (barracks): sy = worldToScreenY - max(tw,th)*ISO_Y*cam.zoom</label>
+      <label for="useDZ" style="margin:0">Use DZ (barracks): sy = worldToScreenY - max(tw,th)*ISO_Y*(BASE_SCALE*cam.zoom)</label>
     </div>
 
     <hr/>
@@ -603,7 +599,7 @@ function drawSprite(cam, view){
 
   const {ISO_Y} = isoParams();
   const useDZ = $('useDZ').checked;
-  const dz = useDZ ? (Math.max(tw,th) * ISO_Y * cam.zoom) : 0;
+  const dz = useDZ ? (Math.max(tw,th) * ISO_Y * (BASE_SCALE * cam.zoom)) : 0;
 
   const scale = (+($('baseScale').value||0.14)) * cam.zoom;
 
@@ -758,6 +754,7 @@ cv.addEventListener('dblclick', ()=>fitToFootprint());
 // ===== apply & download
 function applyToPrefix(){
   const prefix=$('prefix').value.trim();
+  if(!prefix){ setStatus('ERR: prefix empty','err'); return; }
   if(!atlasData){ setStatus('ERR: no atlas loaded','err'); return; }
 
   const x=+($('pivotX').value||0.5);
@@ -765,94 +762,17 @@ function applyToPrefix(){
 
   let n=0;
   for(const f of frames){
-    if(!prefix || f.name.startsWith(prefix)){
+    if(f.name.startsWith(prefix)){
       f.pivot={x,y};
       if(f.rawRef){
+        // write pivot (and also keep anchor in sync if the json used anchor earlier)
         f.rawRef.pivot={x,y};
         if(f.rawRef.anchor) f.rawRef.anchor={x,y};
       }
       n++;
     }
   }
-  if(prefix){
-    setStatus(`Applied pivot {x:${x.toFixed(4)}, y:${y.toFixed(4)}} to ${n} frame(s) with prefix "${prefix}".`,'ok');
-  }else{
-    setStatus(`Applied pivot {x:${x.toFixed(4)}, y:${y.toFixed(4)}} to ALL ${n} frame(s) (prefix empty).`,'ok');
-  }
-}
-
-function applyToAll(){
-  // same as prefix empty but explicit button
-  $('prefix').value = '';
-  rebuildFrameSelect();
-  applyToPrefix();
-}
-
-async function batchApplyDownload3(){
-  try{
-    const x=+($('pivotX').value||0.5);
-    const y=+($('pivotY').value||0.5);
-
-    // URLs (editable by user if needed)
-    const urls = [
-      {label:'idle', url:'asset/sprite/const/normal/barrack/barrack_idle.json'},
-      {label:'const', url:'asset/sprite/const/const_anim/barrack/barrack_const.json'},
-      {label:'dist', url:'asset/sprite/const/destruct/barrack/barrack_distruction.json'},
-    ];
-
-    setStatus('Batch: loading 3 atlases...', '');
-    for(const item of urls){
-      const atlasUrl = new URL(item.url, location.href).toString();
-      const json = await fetchJson(atlasUrl);
-
-      // apply pivot to ALL frames in this json (TexturePacker single or textures[])
-      const applyPivotToJson = (j)=>{
-        const applyFrameObj = (fo)=>{
-          if(!fo) return;
-          for(const k of Object.keys(fo)){
-            const fr = fo[k];
-            if(fr && typeof fr === 'object'){
-              fr.pivot = {x,y};
-              if(fr.anchor) fr.anchor = {x,y};
-            }
-          }
-        };
-        if(Array.isArray(j.textures)){
-          for(const t of j.textures){
-            applyFrameObj(t.frames);
-          }
-        }else{
-          // frames might be array in some exports
-          if(Array.isArray(j.frames)){
-            for(const fr of j.frames){
-              if(fr && typeof fr === 'object'){
-                fr.pivot={x,y};
-                if(fr.anchor) fr.anchor={x,y};
-              }
-            }
-          }else{
-            applyFrameObj(j.frames);
-          }
-        }
-      };
-      applyPivotToJson(json);
-
-      const blob = new Blob([JSON.stringify(json, null, 2)], {type:'application/json'});
-      const a=document.createElement('a');
-      a.href=URL.createObjectURL(blob);
-      a.download = `barrack_${item.label}_patched.json`;
-      a.click();
-      URL.revokeObjectURL(a.href);
-
-      setStatus(`Batch: downloaded ${a.download}`, 'ok');
-      // tiny delay to keep browsers happy
-      await new Promise(r=>setTimeout(r, 200));
-    }
-    setStatus('Batch: done (3 files downloaded).', 'ok');
-  }catch(e){
-    setStatus('Batch failed: ' + e.message, 'err');
-    console.error(e);
-  }
+  setStatus(`Applied pivot {x:${x.toFixed(4)}, y:${y.toFixed(4)}} to ${n} frame(s) with prefix "${prefix}".`,'ok');
 }
 
 function downloadPatched(){
@@ -880,7 +800,7 @@ $('chipConst').addEventListener('click', ()=>{
   $('prefix').value='barrack_con_complete';
 });
 $('chipDist').addEventListener('click', ()=>{
-  $('atlasUrl').value='asset/sprite/const/destruct/barrack/barrack_distruction.json';
+  $('atlasUrl').value='asset/sprite/const/distruct/barrack/barrack_distruct.json';
   $('prefix').value='barrack_distruction';
 });
 
@@ -917,9 +837,7 @@ $('pivotX').addEventListener('input', updateOutput);
 $('pivotY').addEventListener('input', updateOutput);
 
 $('btnApplyPrefix').addEventListener('click', applyToPrefix);
-$('btnApplyAll').addEventListener('click', applyToAll);
 $('btnDownload').addEventListener('click', downloadPatched);
-$('btnBatch3').addEventListener('click', batchApplyDownload3);
 
 $('btnResetView').addEventListener('click', resetView);
 $('btnFit').addEventListener('click', fitToFootprint);
