@@ -1,5 +1,3 @@
-// BUILDINGS_PATCH_TEST_564
-
 /* buildings.js - Barracks renderer plugin (pivot + team palette + build anim + death ghost)
    Drop-in: load after atlas_tp.js and before game.js
 */
@@ -8,13 +6,20 @@
   PO.buildings = PO.buildings || {};
   const st = PO.buildings._barracks = PO.buildings._barracks || {};
 
+  // PATCH VERSION: v3
+  st.version = "v3";
+  console.log("[buildings] barracks pivot patch v3 loaded");
+
+
   // Tuned to your in-game pivot/scale screenshot
   const BASE_SCALE = 0.22;
   const IDLE_FPS   = 20;
   const BUILD_FPS  = 24;
   const DEATH_FPS  = 20;
   const LOW_HP_RATIO = 0.20;
-  const FORCE_PIVOT = { x: 0.4954, y: 0.3262 }; // from pivot tuner v13 (ingame exact)
+  const FORCE_PIVOT = { x: 0.4954, y: 0.3262 };
+  console.log("[buildings] BASE_SCALE=", BASE_SCALE, "FORCE_PIVOT=", FORCE_PIVOT);
+ // from pivot tuner v13 (ingame exact)
 
   st.ready = false;
   st.loading = false;
