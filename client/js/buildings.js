@@ -7,7 +7,7 @@
   const st = PO.buildings._barracks = PO.buildings._barracks || {};
 
   // PATCH VERSION: v3
-  st.version = "v3";
+  st.version = "v17_pivot";
   console.log("[buildings] barracks pivot patch v4 loaded");
 
 
@@ -17,9 +17,9 @@
   const BUILD_FPS  = 24;
   const DEATH_FPS  = 20;
   const LOW_HP_RATIO = 0.20;
-  const FORCE_PIVOT = { x: 0.4969, y: 0.3302 };
+  const FORCE_PIVOT = { x: 0.5000, y: 0.4850 };
   console.log("[buildings] BASE_SCALE=", BASE_SCALE, "FORCE_PIVOT=", FORCE_PIVOT);
- // from pivot tuner v13 (ingame exact)
+ // from pivot tuner v17 (ingame exact)
 
   st.ready = false;
   st.loading = false;
