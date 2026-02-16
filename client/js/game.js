@@ -9178,7 +9178,20 @@ const keys=new Set();
         return;
       }
     }
-    // === Sprite tuner hotkeys (F2) ===
+    
+    // Escape: cancel repair/sell cursor modes
+    if (e.key === "Escape" || e.key === "Esc" || e.code === "Escape" || e.keyCode === 27){
+      const tag = (e.target && e.target.tagName) ? String(e.target.tagName).toUpperCase() : "";
+      const isTyping = (tag==="INPUT" || tag==="TEXTAREA" || (e.target && e.target.isContentEditable));
+      if (!isTyping && state && state.mouseMode && state.mouseMode !== "normal"){
+        applyMouseMode("normal");
+        toast("모드 취소");
+        e.preventDefault();
+        return;
+      }
+    }
+
+// === Sprite tuner hotkeys (F2) ===
     if (e.key === "F2" || e.code === "F2"){
       TUNER.on = !TUNER.on;
       TUNER.dragging = false;
@@ -10426,7 +10439,7 @@ function drawFootprintTiles(tx, ty, tw, th, mask, okFill, badFill, okStroke, bad
     const col = (ent.team===TEAM.PLAYER) ? "#28ff6a" : "#ff2a2a";
     const ringOpt = { alphaFill: 0.0, alphaStroke: 0.95, strokeW: 3.0 };
     // Range in world units: tweak to visually fit under infantry & vehicles.
-    const base = (ent.kind==="infantry" || ent.kind==="engineer" || ent.kind==="sniper") ? TILE*0.26 : TILE*0.34;
+    const base = (((ent.kind==="infantry" || ent.kind==="engineer" || ent.kind==="sniper") ? TILE*0.26 : TILE*0.34) * 1.25);
     drawRangeEllipseWorld(ent.x, ent.y, base, col, ringOpt);
   }
 
@@ -11080,7 +11093,7 @@ function drawPathFx(){
         pay = 0;
         q.paid = costTotal;
       } else {
-        state.player.money -= pay;
+        teamWallet.money -= pay;
         q.paid = (q.paid||0) + pay;
       }
       q.t += delta;
@@ -11719,8 +11732,9 @@ let rX = ent.x, rY = ent.y;
           }
         }
         ctx.restore();
-        // Segmented HP blocks under unit
-        drawUnitHpBlocks(ent, p);
+        // Segmented HP blocks under unit (show only when hovered or selected)
+        const showHp = (state.selection && state.selection.has(ent.id)) || (state.hover && state.hover.entId===ent.id);
+        if (showHp) drawUnitHpBlocks(ent, p);
 
         if (ent.grp) drawGroupBadge(p.x + ent.r*0.85, p.y - ent.r*0.85, ent.grp);
 
