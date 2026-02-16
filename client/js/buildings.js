@@ -8,7 +8,7 @@
 
   // PATCH VERSION: v3
   st.version = "v3";
-  console.log("[buildings] barracks pivot patch v3 loaded");
+  console.log("[buildings] barracks pivot patch v4 loaded");
 
 
   // Tuned to your in-game pivot/scale screenshot
@@ -17,7 +17,7 @@
   const BUILD_FPS  = 24;
   const DEATH_FPS  = 20;
   const LOW_HP_RATIO = 0.20;
-  const FORCE_PIVOT = { x: 0.4954, y: 0.3262 };
+  const FORCE_PIVOT = { x: 0.4969, y: 0.3302 };
   console.log("[buildings] BASE_SCALE=", BASE_SCALE, "FORCE_PIVOT=", FORCE_PIVOT);
  // from pivot tuner v13 (ingame exact)
 
