@@ -3,7 +3,6 @@
 */
 (() => {
   const PO = (window.PO = window.PO || {});
-  const DEBUG = false; // set true to see building/atlas logs
   PO.buildings = PO.buildings || {};
   const st = PO.buildings._barracks = PO.buildings._barracks || {};
 
@@ -197,20 +196,15 @@
       stKind.frames.idleOk  = _idleOk.length ? _idleOk : _idleAll;
       stKind.frames.idleBad = _idleBad;
 stKind.ready = true;
-      DEBUG && console.log(`[buildings] ${kind} atlases loaded`, stKind.frames);
+      console.log(`[buildings] ${kind} atlases loaded`, stKind.frames);
     }catch(e){
       console.warn(`[buildings] ${kind} atlas load failed`, e);
     }
   }
 
-  let _preloadAllPromise = null;
   function ensureAllKindsLoaded(){
-    if (_preloadAllPromise) return _preloadAllPromise;
-    _preloadAllPromise = Promise.all([
-      ensureKindLoaded("barracks"),
-      ensureKindLoaded("power")
-    ]);
-    return _preloadAllPromise;
+    ensureKindLoaded("barracks");
+    ensureKindLoaded("power");
   }
 
   // ===== Hooks =====
@@ -361,8 +355,5 @@ stKind.ready = true;
     return drawFrameTeam(ent.kind, "idle", stKind.atlases.idle, ctx, frames[idx], sx, sy, team, scale, state);
 };
 
-  console.log("[buildings] barracks+power pivot patch v8 loaded");
-  // Expose preload for boot-time asset warmup
-  PO.buildings.preload = ensureAllKindsLoaded;
-
+  console.log("[buildings] barracks+power pivot patch v5 loaded");
 })();
