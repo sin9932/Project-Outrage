@@ -329,7 +329,7 @@ function fitMini() {
 
   // expose TEAM_ACCENT so other modules (e.g., buildings.js) share the same palette
   try{
-    if (typeof window !== "undefined" && window.LINK_ENEMY_TO_PLAYER_COLOR) TEAM_ACCENT.ENEMY = TEAM_ACCENT.PLAYER;
+    // NOTE: enemy color linking disabled (caused enemy palette to mirror player)
     window.TEAM_ACCENT = TEAM_ACCENT;
   }catch(_e){}
 
@@ -728,7 +728,7 @@ function getBaseBuildTime(kind){
     power:    { hLevel:2, tw:2, th:2, hp:750,  vision:420, provideR: 600 },
     refinery: { hLevel:2, tw:3, th:4, hp:1000, vision:520, provideR: 650 },
     factory:  { hLevel:2, tw:3, th:4, hp:1000, vision:500, provideR: 650 },
-    barracks: { hLevel:2, tw:2, th:2, hp:500,  vision:460, provideR: 600 },
+    barracks: { hLevel:2, tw:3, th:2, hp:500,  vision:460, provideR: 600 },
     radar:    { hLevel:3, tw:2, th:2, hp:1000, vision:600, provideR: 650 },
     turret:   { hLevel:1, tw:1, th:1, hp:400,  vision:560, provideR: 0   },
     civ_oregen: { hLevel:0, tw:2, th:2, hp:999999, vision:0, provideR:0, attackable:false, selectable:false, hideUI:true }
@@ -2498,7 +2498,7 @@ function buildingWorldFromTileOrigin(tx,ty,tw,th){
     setBuildingOcc(b, 1);
     recomputePower();
     onBuildingPlaced(b);
-    try{ if (window.PO && PO.buildings && PO.buildings.onPlaced) PO.buildings.onPlaced(b); }catch(_e){}
+    try{ if (window.PO && PO.buildings && PO.buildings.onPlaced) PO.buildings.onPlaced(b, state); }catch(_e){}
     return b;
   }
 
@@ -4942,7 +4942,7 @@ try{
 
 
     // 3) Remove from gameplay
-    try{ if (window.PO && PO.buildings && PO.buildings.onDestroyed) PO.buildings.onDestroyed(b); }catch(_e){}
+    try{ if (window.PO && PO.buildings && PO.buildings.onDestroyed) PO.buildings.onDestroyed(b, state); }catch(_e){}
     b.alive = false;
     state.selection.delete(b.id);
     setBuildingOcc(b, 0);
@@ -5972,6 +5972,7 @@ const tx=tileOfX(u.x), ty=tileOfY(u.y);
               if (bl.x>=x0-8 && bl.x<=x0+b.w+8 && bl.y>=y0-8 && bl.y<=y0+b.h+8){ hit=b; break; }
             }
           }
+          }
 
           // dmg bonus: tank
           let dmg = bl.dmg;
@@ -5984,8 +5985,6 @@ const tx=tileOfX(u.x), ty=tileOfY(u.y);
           }
 
           if (hit) applyDamage(hit, dmg, bl.ownerId, bl.team);
-          }
-
 
           // impact FX: ellipse dodge + sparks
           flashes.push({x: bl.x, y: bl.y, r: 48 + Math.random()*10, life: 0.10, delay: 0});
@@ -6827,6 +6826,10 @@ if (q.paused && !debugFastProd){
 
 function sellBuilding(b){
     if (!b || !b.alive || b.civ) return;
+
+    // Prevent double-sell spam while animation is running
+    if (b.kind==="barracks" && b._barrackSelling) return;
+
     const refund = Math.floor((COST[b.kind]||0) * 0.5);
     if (b.team===TEAM.PLAYER) state.player.money += refund;
     else state.enemy.money += refund;
@@ -6834,7 +6837,28 @@ function sellBuilding(b){
     // Selling evacuates units at full HP (RA2-ish flavor).
     spawnEvacUnitsFromBuilding(b, false);
 
-    try{ if (window.PO && PO.buildings && PO.buildings.onSold) PO.buildings.onSold(b); }catch(_e){}
+    // Barracks: play "construction" animation in reverse, then remove footprint.
+    if (b.kind==="barracks"){
+      try{
+        if (window.PO && PO.buildings && PO.buildings.onSold){
+          PO.buildings.onSold(b, state);
+        }else{
+          // Fallback: if plugin missing, schedule a short delay so it doesn't insta-pop.
+          b._barrackSelling = true;
+          b._barrackSellFinalizeAt = state.t + 0.9;
+        }
+      }catch(_e){
+        b._barrackSelling = true;
+        b._barrackSellFinalizeAt = state.t + 0.9;
+      }
+
+      // Immediately unselect, but keep it alive/occupying until animation finishes.
+      state.selection.delete(b.id);
+      return;
+    }
+
+    // Default: immediate removal
+    try{ if (window.PO && PO.buildings && PO.buildings.onSold) PO.buildings.onSold(b, state); }catch(_e){}
     b.alive=false;
     state.selection.delete(b.id);
     setBuildingOcc(b,0);
@@ -11132,6 +11156,22 @@ function drawPathFx(){
       return prereqOk(req);
     }
 
+// If a producer type is completely gone, clear its production queue & totals.
+// (User spec: losing all producers nukes the whole category until rebuilt.)
+function resetProducerQueues(prodKind){
+  if (prodKind === "barracks"){
+    if (prodFIFO && prodFIFO.barracks) prodFIFO.barracks.length = 0;
+    for (const k of ["infantry","engineer","sniper"]) prodTotal[k] = 0;
+    state.primary.player.barracks = null;
+  } else if (prodKind === "factory"){
+    if (prodFIFO && prodFIFO.factory) prodFIFO.factory.length = 0;
+    for (const k of ["tank","harvester","ifv"]) prodTotal[k] = 0;
+    state.primary.player.factory = null;
+  }
+}
+if (!hasP("barracks")) resetProducerQueues("barracks");
+if (!hasP("factory"))  resetProducerQueues("factory");
+
     // Hide whole category tabs if their required producer buildings don't exist.
     try{
       let firstAvail = null;
@@ -12271,8 +12311,16 @@ for (let ty=0; ty<MAP_H; ty+=2){
 
 
     function safePlace(team, kind, nearTx, nearTy){
-      const spot=findFootprintSpotNear(kind, nearTx, nearTy, 420);
-      return addBuilding(team, kind, spot.tx, spot.ty);
+      const spot = findFootprintSpotNear(kind, nearTx, nearTy, 420);
+      if (!spot) return null;
+      const b = addBuilding(team, kind, spot.tx, spot.ty);
+      // Start-of-game buildings are already built: skip barracks build animation.
+      if (b && kind==="barracks"){
+        b._barrackNoBuildAnim = true;
+        b._barrackBuildT0 = null;
+        b._barrackBuildDone = true;
+      }
+      return b;
     }
 
     const pHQ = safePlace(TEAM.PLAYER,"hq", a.tx-2, a.ty-2);
@@ -12978,6 +13026,22 @@ function sanityCheck(){
 
     if (running && !gameOver && !pauseMenuOpen){
       state.t += dt;
+
+      // Finalize barracks selling AFTER reverse-build animation completes
+      let _needPower=false, _needElim=false;
+      for (const b of buildings){
+        if (!b || !b.alive) continue;
+        if (b.kind==="barracks" && b._barrackSelling && b._barrackSellFinalizeAt!=null && state.t >= b._barrackSellFinalizeAt){
+          b.alive = false;
+          state.selection.delete(b.id);
+          setBuildingOcc(b, 0);
+          _needPower = true;
+          _needElim  = true;
+        }
+      }
+      if (_needPower) recomputePower();
+      if (_needElim)  checkElimination();
+
       updateCamShake(dt);
       updateExp1Fxs(dt);
       updateSmoke(dt);
