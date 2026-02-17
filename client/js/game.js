@@ -11133,13 +11133,20 @@ function drawPathFx(){
       return (state.player.money||0) >= cost;
     }
 
+
+    function costOfBuild(kind){
+      return (COST && (COST[kind] ?? 0)) || 0;
+    }
+    function costOfUnit(kind){
+      return (COST && (COST[kind] ?? 0)) || 0;
+    }
     const clamp01 = (v)=>clamp(v,0,1);
 
     // 탭 노출 조건(탭 자체를 아예 숨길지 / 잠글지)
     const tech = {
       tabProducer:{
         main:["hq"],
-        def:["hq"],
+        def:["hq","barracks"],
         inf:["barracks"],
         veh:["factory"],
       }
@@ -11149,11 +11156,11 @@ function drawPathFx(){
     // NOTE: 여기서는 '클릭 시 토스트로 막는' 조건도 같이 prereq로 올려버림(레이더=정제소 필요 등)
     const buildPrereq = {
       power:["hq"],
-      refinery:["hq"],
-      barracks:["hq"],
-      factory:["hq","refinery"],   // refinery 없으면 공장도 안 보이게
-      radar:["hq","factory","refinery"],
-      turret:["hq"],
+      refinery:["hq","power"],
+      barracks:["hq","refinery"],
+      factory:["hq","barracks"],
+      radar:["hq","factory"],
+      turret:["hq","barracks"],
     };
     const unitPrereq = {
       infantry:["barracks"],
@@ -11161,7 +11168,7 @@ function drawPathFx(){
       sniper:["barracks","radar"],
       tank:["factory"],
       harvester:["factory","refinery"],
-      ifv:["factory","radar"],     // 상급 유닛 예시: 레이더 필요
+      ifv:["factory","radar"],
     };
 
     // --- production progress overlay (버튼 위에 덮는 방식, 배경 아이콘/텍스트 유지) ---
