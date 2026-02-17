@@ -11237,8 +11237,17 @@ if (!hasP("factory"))  resetProducerQueues("factory");
       let ready = false;
 
       if (lane && lane.queue && lane.queue.kind === k){
-        const c = lane.queue.cost || 1;
-        pct = clamp((lane.queue.paid||0) / c, 0, 1);
+        // Building progress: prefer time-based (t/tNeed) and fallback to paid/cost if present.
+        const cost = (lane.queue.cost ?? (COST[k]||0)) || 0;
+        const denom = Math.max(1, cost);
+        const pctPaid = clamp(((lane.queue.paid||0) / denom), 0, 1);
+
+        const tNeed = lane.queue.tNeed || 0;
+        const pctTime = (tNeed > 0) ? clamp(((lane.queue.t||0) / tNeed), 0, 1) : 0;
+
+        pct = Math.max(pctTime, pctPaid);
+        // If paused, keep a tiny sliver so user sees it's the active item.
+        if ((lane.queue.paused || lane.queue.autoPaused) && pct <= 0) pct = 0.02;
       } else if (lane && lane.ready === k){
         pct = 1; ready = true;
       }
