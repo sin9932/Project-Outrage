@@ -503,8 +503,15 @@ function ensureBadge(btn){
           prog.style.pointerEvents = "none";
           prog.style.zIndex = "0";
           prog.style.borderRadius = "inherit";
+          prog.style.background = "linear-gradient(90deg, rgba(70,170,110,0.92), rgba(70,170,110,0.62))";
+          prog.style.color = "transparent";
+          prog.style.fontSize = "0px";
+          prog.textContent = "";
           btn.insertBefore(prog, btn.firstChild);
         }
+        // Ensure no text leaks into progress overlay
+        prog.textContent = "";
+
 
         // Label
         let lbl = btn.querySelector(":scope > .lbl");
@@ -585,6 +592,7 @@ function ensureBadge(btn){
         if (Array.isArray(buildings)){
           for (const b of buildings){
             if (!b || b.kind !== it.producer) continue;
+            if (!alivePlayerBuilding(b)) continue;
             if (!b.buildQ || b.buildQ.length === 0) continue;
 
             const q = b.buildQ[0];
