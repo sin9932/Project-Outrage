@@ -60,6 +60,18 @@
 <script src="./js/ou_economy.js?v=eco3" defer></script>
 
 <script src="./js/game.js?v=g_ui7" defer></script>
+
+<style id="ou-ui-hotfix">
+  /* Hotfix: remove unexpected dotted/blue outlines on production/build icons */
+  #panelMain button, #panelDef button, #panelInf button, #panelVeh button,
+  #tabs button, #actions button {
+    outline: none !important;
+  }
+  #panelMain button, #panelDef button, #panelInf button, #panelVeh button {
+    border-style: solid !important;
+  }
+</style>
+
 </head>
 <body>
 <div id="wrap">

@@ -243,22 +243,26 @@ function ensureBadge(btn){
     }
 
     function refreshPrimaryBuildingBadgesUI(env){
-      env = env || {};
-      const { state } = env;
-      if (!state || !state.primary || !state.primary.player) return;
+  // User requested: no [주요] primary badges on production icons.
+  // Keep the function for compatibility, but hide badges unless explicitly enabled.
+  const show = !!(env && env.showPrimaryBadges);
+  const badgeBar = (env && env.badgeBar) || r.badgeBar;
+  const badgeFac = (env && env.badgeFac) || r.badgeFac;
 
-      const barId = state.primary.player.barracks;
-      const facId = state.primary.player.factory;
+  if (badgeBar) badgeBar.style.display = show ? "" : "none";
+  if (badgeFac) badgeFac.style.display = show ? "" : "none";
+  if (!show) return;
 
-      const hasBar = (barId != null && barId !== -1);
-      const hasFac = (facId != null && facId !== -1);
+  // If enabled later, keep previous behavior (simple on/off based on primary building existence).
+  const state = (env && env.state) || window.state;
+  const buildings = (env && env.buildings) || window.buildings;
 
-      const barEl = r.badgeBar || document.getElementById("badgeBar");
-      const facEl = r.badgeFac || document.getElementById("badgeFac");
+  const hasBarracks = !!(buildings && buildings.some && buildings.some(b => b && b.kind === "barracks" && b.team === state.team && !b.dead));
+  const hasFactory  = !!(buildings && buildings.some && buildings.some(b => b && b.kind === "factory"  && b.team === state.team && !b.dead));
 
-      if (barEl) barEl.style.display = hasBar ? "inline-block" : "none";
-      if (facEl) facEl.style.display = hasFac ? "inline-block" : "none";
-    }
+  if (badgeBar) badgeBar.style.display = hasBarracks ? "" : "none";
+  if (badgeFac) badgeFac.style.display = hasFactory ? "" : "none";
+}
 
     function updateProdBars(env){
       env = env || {};
