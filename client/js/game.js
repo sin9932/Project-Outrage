@@ -11183,6 +11183,49 @@ if (!hasP("factory"))  resetProducerQueues("factory");
     };
     const laneOf = (k)=> (k==="turret") ? "def" : "main";
 
+    // Button progress overlay (robust: does not depend on CSS background)
+    function ensureBtnProg(btn){
+      if (!btn) return null;
+      // keep existing positioning if any, but ensure we can place overlay
+      if (!btn.style.position) btn.style.position = "relative";
+      btn.style.overflow = "hidden";
+      let p = btn.querySelector(":scope > span.ouProg");
+      if (!p){
+        p = document.createElement("span");
+        p.className = "ouProg";
+        p.style.position = "absolute";
+        p.style.left = "0";
+        p.style.top = "0";
+        p.style.bottom = "0";
+        p.style.width = "0%";
+        p.style.background = "rgba(90,220,140,0.45)";
+        p.style.pointerEvents = "none";
+        p.style.zIndex = "1";
+        btn.insertBefore(p, btn.firstChild);
+      }
+      // push other element-children above overlay so text stays readable
+      for (const ch of btn.children){
+        if (ch === p) continue;
+        if (ch && ch.style){
+          if (!ch.style.position) ch.style.position = "relative";
+          ch.style.zIndex = "2";
+        }
+      }
+      return p;
+    }
+    function setBtnProg(btn, pct){
+      const p = ensureBtnProg(btn);
+      if (!p) return;
+      if (pct > 0){
+        p.style.display = "block";
+        const w = Math.max(2, Math.floor(pct * 100)); // show something even at 0%
+        p.style.width = `${w}%`;
+      } else {
+        p.style.display = "none";
+        p.style.width = "0%";
+      }
+    }
+
     for (const [k, btn] of Object.entries(buildBtns)){
       if (!btn) continue;
       const show = prereqOk(tech.buildPrereq[k]);
@@ -11200,23 +11243,10 @@ if (!hasP("factory"))  resetProducerQueues("factory");
         pct = 1; ready = true;
       }
 
-      ensurePlainLabel(btn);
-      const prog = ensureProg(btn);
-      if (prog){
-        if (pct>0){
-          prog.style.display = "";
-          prog.style.width = `${Math.floor(pct*100)}%`;
-          prog.style.background = "rgba(90,220,140,0.55)";
-        } else {
-          prog.style.display = "none";
-          prog.style.width = "0%";
-        }
-      }
-      // Let stylesheet drive the base look; we only overlay progress.
-      btn.style.background = "";
-      btn.style.backgroundBlendMode = "";
-
-      btn.style.outline = ready ? "2px solid rgba(90,220,140,0.75)" : "";
+      const inProg = (lane && ((lane.queue && lane.queue.kind === k) || (lane.ready === k)));
+      const showPct = inProg ? Math.max(pct, 0.02) : 0;
+      setBtnProg(btn, showPct);
+btn.style.outline = ready ? "2px solid rgba(90,220,140,0.75)" : "";
     }
     // Unit buttons: stable label + badge count + progress fill (never overwrite innerHTML/textContent)
     const unitBtns = {
@@ -11227,79 +11257,26 @@ if (!hasP("factory"))  resetProducerQueues("factory");
       harvester:{btn: btnHar, label:"굴착기"},
       ifv:      {btn: btnIFV, label:"IFV"},
     };
-    // Button progress overlay (restores legacy "build delay gauge" on buttons)
-    const ensureBtnProgStyle = ()=>{
-      if (document.getElementById("ou-btn-prog-style")) return;
-      const st = document.createElement("style");
-      st.id = "ou-btn-prog-style";
-      st.textContent = `
-        #ui button{ position: relative; overflow: hidden; }
-        #ui button .ouProg{ position:absolute; left:0; top:0; bottom:0; width:0%; pointer-events:none; background: rgba(90,220,140,0.30); z-index:0; }
-        #ui button .lbl, #ui button .badge{ position:relative; z-index:1; }
-      `;
-      document.head.appendChild(st);
-    };
-
-    const ensureProg = (btn)=>{
-      if (!btn) return null;
-      ensureBtnProgStyle();
-      if (!btn.__ouProg){
-        let p = btn.querySelector(":scope > .ouProg") || btn.querySelector(".ouProg");
-        if (!p){
-          p = document.createElement("span");
-          p.className = "ouProg";
-          btn.insertBefore(p, btn.firstChild);
-        }
-        btn.__ouProg = p;
-      } else if (!btn.__ouProg.parentNode){
-        btn.insertBefore(btn.__ouProg, btn.firstChild);
-      }
-      return btn.__ouProg;
-    };
-
-    // Build buttons are plain text nodes in HTML; wrap into .lbl once so text stays above overlay.
-    const ensurePlainLabel = (btn)=>{
-      if (!btn) return;
-      if (btn.querySelector(":scope > .lbl")) return;
-      let labelText = "";
-      for (const n of Array.from(btn.childNodes)){
-        if (n.nodeType === 3 && n.textContent.trim()){
-          labelText = n.textContent.trim();
-          break;
-        }
-      }
-      if (!labelText) labelText = btn.textContent.trim();
-      for (const n of Array.from(btn.childNodes)){
-        if (n.nodeType === 3) btn.removeChild(n);
-      }
-      const lbl = document.createElement("span");
-      lbl.className = "lbl";
-      lbl.textContent = labelText;
-      btn.insertBefore(lbl, btn.firstChild);
-    };
-
     const ensureLabel = (btn, label)=>{
       if (!btn) return;
-
-      const prog = ensureProg(btn);
-
       // Keep a dedicated label span + badge span. Remove raw text nodes to avoid duplicate labels.
       let lbl = btn.querySelector(".lbl");
       if (!lbl){
         lbl = document.createElement("span");
         lbl.className = "lbl";
       }
+      lbl.textContent = label;
+
       let badge = btn.querySelector(".badge");
       if (!badge){
         badge = document.createElement("span");
         badge.className = "badge";
+        badge.textContent = "0";
+        badge.style.display = "none";
       }
 
-      lbl.textContent = label;
-
-      // Rebuild children in stable order: [progress overlay][label][badge]
+      // Rebuild children in stable order: [label][badge]
       while (btn.firstChild) btn.removeChild(btn.firstChild);
-      if (prog) btn.appendChild(prog);
       btn.appendChild(lbl);
       btn.appendChild(badge);
     };
@@ -11326,20 +11303,10 @@ if (!hasP("factory"))  resetProducerQueues("factory");
         const pct = clamp((q.paid||0) / c, 0, 1);
         if (pct > bestPct) bestPct = pct;
       }
-      const prog = ensureProg(btn);
-      if (prog){
-        if (bestPct>=0){
-          prog.style.display = "";
-          prog.style.width = `${Math.floor(bestPct*100)}%`;
-          prog.style.background = "rgba(90,220,140,0.22)";
-        } else {
-          prog.style.display = "none";
-          prog.style.width = "0%";
-        }
-      }
-      btn.style.background = "";
-      btn.style.backgroundBlendMode = "";
-    }
+
+      const showPct = (bestPct>=0) ? Math.max(bestPct, 0.02) : 0;
+      setBtnProg(btn, showPct);
+}
 
 
     updateProdBars();
