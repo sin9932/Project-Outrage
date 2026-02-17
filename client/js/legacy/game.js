@@ -6678,7 +6678,7 @@ if (q.paused && !debugFastProd){
       const payRate = costTotal / tNeed; // credits per second at 1x speed
 
       const want = dt * speed;                  // seconds of progress we WANT
-      const canByMoney = debugFastProd ? want : ((payRate<=0) ? want : (teamWallet.money / payRate)); // seconds we CAN afford
+      const canByMoney = debugFastProd ? want : ((payRate<=0) ? want : (state.player.money / payRate)); // seconds we CAN afford
       const delta = Math.min(want, canByMoney);
 
       // If we can't afford progress now, force-pause. Must be resumed manually via left-click.
@@ -6691,7 +6691,7 @@ if (q.paused && !debugFastProd){
         if (want <= 0){
           continue;
         }
-        if (payRate>0 && (teamWallet.money / payRate) <= 0){
+        if (payRate>0 && (state.player.money / payRate) <= 0){
           q.paused = true;
           q.autoPaused = true;
           if (!q._autoToast && b.team===TEAM.PLAYER){ q._autoToast=true; toast("대기"); }
@@ -6704,7 +6704,7 @@ if (q.paused && !debugFastProd){
         pay = 0;
         q.paid = costTotal;
       } else {
-        teamWallet.money -= pay;
+        state.player.money -= pay;
         q.paid = (q.paid||0) + pay;
       }
 
@@ -9164,7 +9164,7 @@ const threat = aiThreatNearBase();
 const keys=new Set();
   // DEBUG: Delete key toggles building-destruction click mode (any team)
   let DEBUG_KILL_BUILDINGS = false;
-  window.addEventListener("keydown",(e)=>{
+  const _ou_onKeyDown = (e)=>{
     // Pause menu: block gameplay hotkeys while open
     if (pauseMenuOpen){
       const inOverlay = (e.target && (e.target.closest && e.target.closest("#pauseOverlay")));
@@ -9178,20 +9178,7 @@ const keys=new Set();
         return;
       }
     }
-    
-    // Escape: cancel repair/sell cursor modes
-    if (e.key === "Escape" || e.key === "Esc" || e.code === "Escape" || e.keyCode === 27){
-      const tag = (e.target && e.target.tagName) ? String(e.target.tagName).toUpperCase() : "";
-      const isTyping = (tag==="INPUT" || tag==="TEXTAREA" || (e.target && e.target.isContentEditable));
-      if (!isTyping && state && state.mouseMode && state.mouseMode !== "normal"){
-        applyMouseMode("normal");
-        toast("모드 취소");
-        e.preventDefault();
-        return;
-      }
-    }
-
-// === Sprite tuner hotkeys (F2) ===
+    // === Sprite tuner hotkeys (F2) ===
     if (e.key === "F2" || e.code === "F2"){
       TUNER.on = !TUNER.on;
       TUNER.dragging = false;
@@ -9336,8 +9323,16 @@ const keys=new Set();
     if (k==="s") stopUnits();
     if (k==="x") scatterUnits();
     if (k==="a") selectSameType();
-  });
-  window.addEventListener("keyup",(e)=>keys.delete(e.key.toLowerCase()));
+  };
+  const _ou_onKeyUp = (e)=>keys.delete(e.key.toLowerCase());
+  // Keyboard event wiring extracted (refactor stage2)
+  if (window.OUInput && typeof window.OUInput.installKeyboard === "function"){
+    window.OUInput.installKeyboard({ onKeyDown: _ou_onKeyDown, onKeyUp: _ou_onKeyUp });
+  } else {
+    window.addEventListener("keydown", _ou_onKeyDown);
+    window.addEventListener("keyup", _ou_onKeyUp);
+  }
+
   canvas.addEventListener("contextmenu",(e)=>e.preventDefault());
 
   canvas.addEventListener("mousedown",(e)=>{
@@ -10439,7 +10434,7 @@ function drawFootprintTiles(tx, ty, tw, th, mask, okFill, badFill, okStroke, bad
     const col = (ent.team===TEAM.PLAYER) ? "#28ff6a" : "#ff2a2a";
     const ringOpt = { alphaFill: 0.0, alphaStroke: 0.95, strokeW: 3.0 };
     // Range in world units: tweak to visually fit under infantry & vehicles.
-    const base = (((ent.kind==="infantry" || ent.kind==="engineer" || ent.kind==="sniper") ? TILE*0.26 : TILE*0.34) * 1.25);
+    const base = (ent.kind==="infantry" || ent.kind==="engineer" || ent.kind==="sniper") ? TILE*0.26 : TILE*0.34;
     drawRangeEllipseWorld(ent.x, ent.y, base, col, ringOpt);
   }
 
@@ -11093,7 +11088,7 @@ function drawPathFx(){
         pay = 0;
         q.paid = costTotal;
       } else {
-        teamWallet.money -= pay;
+        state.player.money -= pay;
         q.paid = (q.paid||0) + pay;
       }
       q.t += delta;
@@ -11732,9 +11727,8 @@ let rX = ent.x, rY = ent.y;
           }
         }
         ctx.restore();
-        // Segmented HP blocks under unit (show only when hovered or selected)
-        const showHp = (state.selection && state.selection.has(ent.id)) || (state.hover && state.hover.entId===ent.id);
-        if (showHp) drawUnitHpBlocks(ent, p);
+        // Segmented HP blocks under unit
+        drawUnitHpBlocks(ent, p);
 
         if (ent.grp) drawGroupBadge(p.x + ent.r*0.85, p.y - ent.r*0.85, ent.grp);
 
