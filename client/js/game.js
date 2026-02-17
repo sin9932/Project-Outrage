@@ -9871,6 +9871,34 @@ if (state.selection.size>0 && inMap(tx,ty) && ore[idx(tx,ty)]>0){
   }
 
   
+  // --- Build placement helpers (v5) ---
+  function labelOf(k){
+    try { return (NAME_KO && NAME_KO[k]) ? NAME_KO[k] : String(k); }
+    catch(_e){ return String(k); }
+  }
+  function enterBuildPlacement(kind, laneKey, fromAuto){
+    if (!kind) return;
+    state.build.active = true;
+    state.build.kind = kind;
+    state.build.lane = laneKey || null;
+
+    // Prevent accidental immediate placement from the same click.
+    state.suppressClickUntil = state.t + 0.10;
+
+    // Force a visible ghost immediately even if mouse is still over UI.
+    const px = (state.hover && state.hover.px) ? state.hover.px : canvas.width*0.5;
+    const py = (state.hover && state.hover.py) ? state.hover.py : canvas.height*0.5;
+    const w = screenToWorld(px, py);
+    state.hover.wx = w.x; state.hover.wy = w.y;
+    state.hover.px = px; state.hover.py = py;
+
+    const label = labelOf(kind);
+    toast(fromAuto
+      ? `완료: ${label} 배치 (좌클릭 배치 / 우클릭 취소)`
+      : `배치 모드: ${label} (좌클릭 배치 / 우클릭 취소)`);
+  }
+
+
   function setBuild(kind){
     if (!kind) return;
 
@@ -9902,15 +9930,7 @@ if (state.selection.size>0 && inMap(tx,ty) && ore[idx(tx,ty)]>0){
 
     // If this lane has a READY of the same kind, enter placement mode.
     if (lane.ready === kind){
-      state.build.active = true;
-      state.build.kind = kind;
-      state.build.lane = laneKey;
-      // Prevent accidental immediate placement from the click that opened placement.
-      state.suppressClickUntil = state.t + 0.10;
-    // force a visible ghost immediately even if mouse is still over UI
-    const w = screenToWorld(canvas.width*0.5, canvas.height*0.5);
-    state.hover.wx = w.x; state.hover.wy = w.y;
-    toast(`배치 모드: ${labelOf(kind)} (좌클릭 배치 / 우클릭·ESC 취소)`);
+      enterBuildPlacement(kind, laneKey, false);
       return;
     }
 
@@ -9939,28 +9959,69 @@ function cancelBuild(){
   btnRad.onclick=()=>{ if(!hasBuilding(TEAM.PLAYER,"refinery")){ toast("레이더는 정제소가 필요함"); return; } setBuild("radar"); };
 
   // Right-click on the currently building item: 1st = pause(대기, no spending), 2nd = cancel + refund spent cost.
+
+  // Right-click build buttons:
+  //  - If building now (front of lane.queue): 1st = pause(대기), 2nd(while paused) = cancel + refund paid
+  //  - If READY: cancel READY + refund full cost
+  //  - If reserved in FIFO: remove one reservation
+  //  - If currently placing this kind: cancel placement (keeps READY)
   function attachLaneRClick(btn, laneKey, kind){
     if (!btn) return;
     btn.addEventListener("contextmenu", (ev)=>{
       ev.preventDefault();
       const lane = state.buildLane ? state.buildLane[laneKey] : null;
-      if (!lane || !lane.queue || lane.queue.kind !== kind) return;
-      if (!lane.queue.paused){
-        lane.queue.paused = true;
-        toast("대기");
-      } else {
-        // cancel + refund paid so far
+      if (!lane) return;
+
+      // If placing this exact kind, cancel placement (READY stays).
+      if (state.build.active && state.build.kind===kind && state.build.lane===laneKey){
+        cancelBuild();
+        return;
+      }
+
+      // If READY, cancel + refund full cost.
+      if (lane.ready === kind){
+        const refund = (COST[kind]||0);
+        if (refund>0) state.player.money += refund;
+        lane.ready = null;
+        toast("완료 취소 + 환불");
+        return;
+      }
+
+      // If currently building (front), pause then cancel+refund.
+      if (lane.queue && lane.queue.kind === kind){
+        if (!lane.queue.paused){
+          lane.queue.paused = true;
+          lane.queue.autoPaused = false;
+          toast("대기");
+          return;
+        }
         const paid = lane.queue.paid || 0;
-        state.player.money += paid;
+        if (paid>0) state.player.money += paid;
         lane.queue = null;
-        // Also drop any pending reservations of the same kind to avoid "ghost" rebuild.
+
+        // Remove ONE pending reservation of same kind (last) if any.
         if (lane.fifo && lane.fifo.length){
-          lane.fifo = lane.fifo.filter(k=>k!==kind);
+          for (let i=lane.fifo.length-1;i>=0;i--){
+            if (lane.fifo[i]===kind){ lane.fifo.splice(i,1); break; }
+          }
         }
         toast("취소 + 환불");
+        return;
+      }
+
+      // If reserved in FIFO, remove ONE.
+      if (lane.fifo && lane.fifo.length){
+        for (let i=lane.fifo.length-1;i>=0;i--){
+          if (lane.fifo[i]===kind){
+            lane.fifo.splice(i,1);
+            toast("예약 취소");
+            return;
+          }
+        }
       }
     });
   }
+
   attachLaneRClick(btnPow, "main", "power");
   attachLaneRClick(btnRef, "main", "refinery");
   attachLaneRClick(btnBar, "main", "barracks");
@@ -11095,6 +11156,19 @@ function drawPathFx(){
 
     tickLane("main");
     tickLane("def");
+
+    // Auto-enter placement when a lane becomes READY (C&C behavior).
+    // Fixes cases where clicking READY did nothing (e.g., handler error / overlay).
+    for (const lk of ["main","def"]){
+      const lane = state.buildLane && state.buildLane[lk];
+      if (!lane) continue;
+      const prev = (lane._prevReady === undefined) ? null : (lane._prevReady || null);
+      const cur  = lane.ready || null;
+      if (cur && cur !== prev && !state.build.active){
+        enterBuildPlacement(cur, lk, true);
+      }
+      lane._prevReady = cur;
+    }
 
     // BuildMode pill (global placement state)
     const anyReady = !!(state.buildLane.main.ready || state.buildLane.def.ready);
