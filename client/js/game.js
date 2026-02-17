@@ -622,6 +622,61 @@ function fitMini() {
   let nextId=1;
   const units=[];
   const buildings=[];
+  // ===== Step3: Progress accessors (calculation in game, UI draws only) =====
+  // Used by ou_ui.applyProgressOverlays(). Keep progress math out of UI code.
+  state.getBuildProgress = function(kind, laneKey){
+    try{
+      const lane = (laneKey && state.buildLane) ? state.buildLane[laneKey] : null;
+      if (!lane) return null;
+
+      if (lane.ready === kind) return { pct: 1, paused: false, ready: true };
+
+      const q = lane.queue;
+      if (!q || q.kind !== kind) return null;
+
+      let pct = 0;
+      if (q.cost > 0) pct = (q.paid || 0) / q.cost;
+      else if (q.tNeed > 0) pct = (q.t || 0) / q.tNeed;
+
+      if (!Number.isFinite(pct)) pct = 0;
+      pct = pct < 0 ? 0 : (pct > 1 ? 1 : pct);
+
+      return { pct, paused: !!q.paused, ready: false };
+    } catch (_e) {
+      return null;
+    }
+  };
+
+  state.getUnitProgress = function(kind, producerKind){
+    try{
+      let best = null;
+
+      for (const b of buildings){
+        if (!b || !b.alive) continue;
+        if (b.team !== TEAM.PLAYER) continue;
+        if (producerKind && b.kind !== producerKind) continue;
+
+        const q = b.buildQ && b.buildQ[0];
+        if (!q || q.kind !== kind) continue;
+
+        let pct = 0;
+        if (q.cost > 0) pct = (q.paid || 0) / q.cost;
+        else if (q.tNeed > 0) pct = (q.t || 0) / q.tNeed;
+
+        if (!Number.isFinite(pct)) pct = 0;
+        pct = pct < 0 ? 0 : (pct > 1 ? 1 : pct);
+
+        if (!best || pct > best.pct){
+          best = { pct, paused: !!q.paused, producerId: b.id };
+        }
+      }
+
+      return best;
+    } catch (_e) {
+      return null;
+    }
+  };
+
   const bullets=[];
   const traces=[];
   const impacts=[]; // MG bullet impact sparks
@@ -10878,11 +10933,6 @@ function drawPathFx(){
   function updateSidebarButtons() {
   const clamp01 = (x) => (x < 0 ? 0 : (x > 1 ? 1 : x));
 
-  // Optional UI nodes (some builds don't have tech tab/panel)
-  const tabTech = document.getElementById("tabTech");
-  const techPanel = document.getElementById("techPanel");
-  const setTechPanelOpen = window.setTechPanelOpen;
-
   // ======= build (main/def) =======
   const getBuildLabel = (k, fallback) =>
     (window.tech && window.tech.buildLabels && window.tech.buildLabels[k]) ? window.tech.buildLabels[k] : fallback;
@@ -10977,7 +11027,7 @@ function drawPathFx(){
     tabTech.style.display = hasLab ? "" : "none";
     if (!hasLab && state.techOpen) {
       state.techOpen = false;
-      if (typeof setTechPanelOpen === "function") setTechPanelOpen(false);
+      setTechPanelOpen(false);
     }
   }
   if (techPanel) techPanel.style.display = state.techOpen ? "" : "none";
