@@ -43,6 +43,11 @@ ${e.filename}:${e.lineno}:${e.colno}
   const uiToast = $("toast");
 
   function toast(text, dur=1.0){
+  if (__ou_ui && typeof __ou_ui.toast === "function"){
+    __ou_ui.toast(text, dur);
+    return;
+  }
+
     if (!uiToast) return;
     uiToast.textContent = text;
     uiToast.style.display = "block";
@@ -60,7 +65,7 @@ ${e.filename}:${e.lineno}:${e.colno}
   const uiPowerNeed = $("powerNeed");
   const uiPTip = $("pTip");
   const powerBarEl = $("powerBar");
-  if (powerBarEl && uiPTip){
+  if (!(window.OUUI && typeof window.OUUI.create === "function") && powerBarEl && uiPTip){
     const showTip = (e)=>{
       const prod = state.player.powerProd|0;
       const use  = state.player.powerUse|0;
@@ -9840,6 +9845,11 @@ if (state.selection.size>0 && inMap(tx,ty) && ore[idx(tx,ty)]>0){
   const btnSellMode   = $("btnSellMode");
 
   function applyMouseMode(mode){
+  if (__ou_ui && typeof __ou_ui.applyMouseMode === "function"){
+    __ou_ui.applyMouseMode({ state, mode });
+    return;
+  }
+
     state.mouseMode = mode;
     document.body.classList.toggle("cursor-repair", mode==="repair");
     document.body.classList.toggle("cursor-sell",   mode==="sell");
@@ -10777,6 +10787,11 @@ function drawPathFx(){
   }
 
   function tickSidebarBuild(dt){
+  if (__ou_ui && typeof __ou_ui.updateBuildModeUI === "function"){
+    __ou_ui.updateBuildModeUI({ state });
+    return;
+  }
+
     // Economy: build lanes tick moved to ou_economy (money drain + progress + ready state).
     if (__ou_econ && __ou_econ.tickBuildLanes) __ou_econ.tickBuildLanes(dt);
 
@@ -10809,6 +10824,14 @@ function drawPathFx(){
 
 
   function updateSidebarButtons(){
+  if (__ou_ui && typeof __ou_ui.updateSidebarButtons === "function"){
+    __ou_ui.updateSidebarButtons({ state, buildings, TEAM, prodCat, setProdCat });
+    // keep the bars fresh (wrappers delegate to ou_ui too)
+    updateProdBars();
+    updatePowerBar();
+    return;
+  }
+
     // --- Tech tree gating / hiding (icons should not appear if prereqs are not met) ---
     function hasP(kind){
       return buildings.some(b=>b.alive && !b.civ && b.team===TEAM.PLAYER && b.kind===kind);
@@ -10996,7 +11019,11 @@ if (!hasP("factory"))  resetProducerQueues("factory");
 function draw(){
     const W=canvas.width, H=canvas.height;
     ctx.clearRect(0,0,W,H);
+    if (__ou_ui && typeof __ou_ui.updateMoney === "function") {
+    __ou_ui.updateMoney(state.player.money);
+  } else {
     uiMoney.textContent = "$ " + Math.floor(state.player.money);
+  }
     updateProdBadges();
 
     for (let s=0; s<=(MAP_W-1)+(MAP_H-1); s++){
@@ -12715,19 +12742,26 @@ function sanityCheck(){
       sanityCheck();
   setButtonText();
 
-  // bind price tooltips (one-time)
-  bindPriceTip(btnPow, "power");
-  bindPriceTip(btnRef, "refinery");
-  bindPriceTip(btnBar, "barracks");
-  bindPriceTip(btnFac, "factory");
-  bindPriceTip(btnRad, "radar");
-  bindPriceTip(btnTur, "turret");
-  bindPriceTip(btnInf, "infantry");
-  bindPriceTip(btnEng, "engineer");
-  bindPriceTip(btnSnp, "sniper");
-  bindPriceTip(btnTnk, "tank");
-  bindPriceTip(btnHar, "harvester");
-  bindPriceTip(btnIFV, "ifv");
+    // bind price tooltips (one-time)
+  if (!state.__ui_bound_priceTips){
+    state.__ui_bound_priceTips = true;
+    if (__ou_ui && typeof __ou_ui.bindPriceTipsOnce === "function"){
+      __ou_ui.bindPriceTipsOnce({ COST });
+    } else {
+    bindPriceTip(btnPow, "power");
+    bindPriceTip(btnRef, "refinery");
+    bindPriceTip(btnBar, "barracks");
+    bindPriceTip(btnFac, "factory");
+    bindPriceTip(btnRad, "radar");
+    bindPriceTip(btnTur, "turret");
+    bindPriceTip(btnInf, "infantry");
+    bindPriceTip(btnEng, "engineer");
+    bindPriceTip(btnSnp, "sniper");
+    bindPriceTip(btnTnk, "tank");
+    bindPriceTip(btnHar, "harvester");
+    bindPriceTip(btnIFV, "ifv");
+    }
+  }
 
       drawMini();
     }
