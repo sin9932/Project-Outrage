@@ -43,16 +43,20 @@ ${e.filename}:${e.lineno}:${e.colno}
   const uiToast = $("toast");
 
   function toast(text, dur=1.0){
-    if (!uiToast) return;
-    uiToast.textContent = text;
-    uiToast.style.display = "block";
-    uiToast.style.opacity = "1";
-    clearTimeout(toast._t);
-    toast._t = setTimeout(()=>{
-      uiToast.style.opacity="0";
-      setTimeout(()=>{ uiToast.style.display="none"; }, 140);
-    }, Math.max(250, dur*1000));
+  if (__ou_ui && typeof __ou_ui.toast === "function"){
+    __ou_ui.toast(text, dur);
+    return;
   }
+  if (!uiToast) return;
+  uiToast.textContent = text;
+  uiToast.style.display = "block";
+  uiToast.style.opacity = "1";
+  clearTimeout(toast._t);
+  toast._t = setTimeout(()=>{
+    uiToast.style.opacity="0";
+    setTimeout(()=>{ uiToast.style.display="none"; }, 140);
+  }, Math.max(250, dur*1000));
+}
 
   const uiRadarStat = $("radarStat");
   const uiMmHint = $("mmHint");
@@ -105,7 +109,7 @@ ${e.filename}:${e.lineno}:${e.colno}
   // [refactor] UI helpers extracted -> ou_ui.js (Stage 4)
   const __ou_ui = (window.OUUI && typeof window.OUUI.create === "function")
     ? window.OUUI.create({
-        uiSelCount, uiPower, uiRadarStat, uiMmHint, uiSelInfo,
+        uiSelCount, uiPower, uiRadarStat, uiMmHint, uiSelInfo, uiToast,
         btnInf, btnEng, btnSnp, btnTnk, btnHar, btnIFV,
         uiPowerFill, uiPowerNeed,
         qFillMain, qFillDef, qFillInf, qFillVeh,
@@ -11109,175 +11113,12 @@ function drawPathFx(){
 
 
   function updateSidebarButtons(){
-    // --- Tech tree gating / hiding (icons should not appear if prereqs are not met) ---
-    function hasP(kind){
-      return buildings.some(b=>b.alive && !b.civ && b.team===TEAM.PLAYER && b.kind===kind);
-    }
-    const tech = {
-      buildPrereq: {
-        power: ["hq"],
-        refinery: ["hq","power"],
-        barracks: ["hq","refinery"],
-        factory: ["hq","barracks"],
-        radar: ["hq","factory"],
-        turret: ["hq","barracks"],
-      },
-      unitPrereq: {
-        infantry: ["barracks"],
-        engineer: ["barracks"],
-        tank: ["factory"],
-        harvester: ["factory"],
-      },
-      tabProducer: {
-        main: ["hq"],
-        def:  ["hq","barracks"],
-        inf:  ["barracks"],
-        veh:  ["factory"],
-      }
-    };
-    function prereqOk(list){
-      if (!list || !list.length) return true;
-      for (const k of list) if (!hasP(k)) return false;
-      return true;
-    }
-    function tabOk(cat){
-      const req = tech.tabProducer[cat] || [];
-      return prereqOk(req);
-    }
-
-// If a producer type is completely gone, clear its production queue & totals.
-// (User spec: losing all producers nukes the whole category until rebuilt.)
-function resetProducerQueues(prodKind){
-  if (prodKind === "barracks"){
-    if (prodFIFO && prodFIFO.barracks) prodFIFO.barracks.length = 0;
-    for (const k of ["infantry","engineer","sniper"]) prodTotal[k] = 0;
-    state.primary.player.barracks = null;
-  } else if (prodKind === "factory"){
-    if (prodFIFO && prodFIFO.factory) prodFIFO.factory.length = 0;
-    for (const k of ["tank","harvester","ifv"]) prodTotal[k] = 0;
-    state.primary.player.factory = null;
-  }
-}
-if (!hasP("barracks")) resetProducerQueues("barracks");
-if (!hasP("factory"))  resetProducerQueues("factory");
-
-    // Hide whole category tabs if their required producer buildings don't exist.
-    try{
-      let firstAvail = null;
-      for (const b of tabBtns){
-        if (!b) continue;
-        const cat = b.dataset.cat;
-        const ok = tabOk(cat);
-        b.style.display = ok ? "" : "none";
-        if (ok && !firstAvail) firstAvail = cat;
-      }
-      if (!tabOk(prodCat) && firstAvail){
-        // If current tab became unavailable, switch to the first available.
-        setProdCat(firstAvail);
-      }
-    }catch(_e){}
-
-    // Building buttons (two independent lanes)
-    const buildBtns = {
-      power: btnPow, refinery: btnRef, barracks: btnBar, factory: btnFac, radar: btnRad, turret: btnTur
-    };
-    const laneOf = (k)=> (k==="turret") ? "def" : "main";
-
-    for (const [k, btn] of Object.entries(buildBtns)){
-      if (!btn) continue;
-      const show = prereqOk(tech.buildPrereq[k]);
-      btn.style.display = show ? "" : "none";
-      if (!show) continue;
-      const laneKey = laneOf(k);
-      const lane = state.buildLane[laneKey];
-      let pct = 0;
-      let ready = false;
-
-      if (lane && lane.queue && lane.queue.kind === k){
-        const c = lane.queue.cost || 1;
-        pct = clamp((lane.queue.paid||0) / c, 0, 1);
-      } else if (lane && lane.ready === k){
-        pct = 1; ready = true;
-      }
-
-      if (pct>0){
-        btn.style.background = `linear-gradient(180deg, rgba(60,45,18,0.92), rgba(18,14,8,0.96)), linear-gradient(90deg, rgba(90,220,140,0.55) ${pct*100}%, rgba(0,0,0,0) ${pct*100}%)`;
-        btn.style.backgroundBlendMode = "overlay, normal";
-      } else {
-        btn.style.background = "";
-        btn.style.backgroundBlendMode = "";
-      }
-
-      btn.style.outline = ready ? "2px solid rgba(90,220,140,0.75)" : "";
-    }
-    // Unit buttons: stable label + badge count + progress fill (never overwrite innerHTML/textContent)
-    const unitBtns = {
-      infantry: {btn: btnInf, label:"보병"},
-      engineer: {btn: btnEng, label:"엔지니어"},
-      sniper:   {btn: btnSnp, label:"저격병"},
-      tank:     {btn: btnTnk, label:"탱크"},
-      harvester:{btn: btnHar, label:"굴착기"},
-      ifv:      {btn: btnIFV, label:"IFV"},
-    };
-    const ensureLabel = (btn, label)=>{
-      if (!btn) return;
-      // Keep a dedicated label span + badge span. Remove raw text nodes to avoid duplicate labels.
-      let lbl = btn.querySelector(".lbl");
-      if (!lbl){
-        lbl = document.createElement("span");
-        lbl.className = "lbl";
-      }
-      lbl.textContent = label;
-
-      let badge = btn.querySelector(".badge");
-      if (!badge){
-        badge = document.createElement("span");
-        badge.className = "badge";
-        badge.textContent = "0";
-        badge.style.display = "none";
-      }
-
-      // Rebuild children in stable order: [label][badge]
-      while (btn.firstChild) btn.removeChild(btn.firstChild);
-      btn.appendChild(lbl);
-      btn.appendChild(badge);
-    };
-
-    for (const [k, meta] of Object.entries(unitBtns)){
-      const btn = meta.btn;
-      if (!btn) continue;
-      const prereq = (tech.unitPrereq && tech.unitPrereq[k]) ? tech.unitPrereq[k] : [];
-      const show = prereqOk(prereq);
-      btn.style.display = show ? "" : "none";
-      if (!show) continue;
-
-      ensureLabel(btn, meta.label);
-
-      // progress fill: best front-of-queue item among player producers
-      let bestPct = -1;
-      for (const b of buildings){
-        if (!b.alive || b.civ) continue;
-        if (b.team !== TEAM.PLAYER) continue;
-        if (!b.buildQ || !b.buildQ.length) continue;
-        const q = b.buildQ[0];
-        if (!q || q.kind !== k) continue;
-        const c = (q.cost ?? (COST[k]||1)) || 1;
-        const pct = clamp((q.paid||0) / c, 0, 1);
-        if (pct > bestPct) bestPct = pct;
-      }
-      if (bestPct>=0){
-        btn.style.background = `linear-gradient(90deg, rgba(90,220,140,0.22) ${Math.floor(bestPct*100)}%, rgba(0,0,0,0.0) ${Math.floor(bestPct*100)}%)`;
-        btn.style.backgroundBlendMode = "normal";
-      } else {
-        btn.style.background = "";
-        btn.style.backgroundBlendMode = "";
-      }
-    }
-
-
-    updateProdBars();
-
-    updatePowerBar();
+  if (!__ou_ui || typeof __ou_ui.updateSidebarButtons !== "function") return;
+  __ou_ui.updateSidebarButtons({
+    state, buildings, TEAM, clamp,
+    prodFIFO, prodTotal,
+    tabBtns, prodCat, setProdCat
+  });
 }
 
   

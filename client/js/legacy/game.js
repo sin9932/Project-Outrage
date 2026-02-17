@@ -83,6 +83,9 @@ ${e.filename}:${e.lineno}:${e.colno}
   const qTxtInf  = $("qTxtInf");
   const qTxtVeh  = $("qTxtVeh");
 
+  const badgeBar = $("badgeBar");
+  const badgeFac = $("badgeFac");
+
   const btnRef = $("bRef");
   const btnPow = $("bPow");
   const btnBar = $("bBar");
@@ -99,6 +102,18 @@ ${e.filename}:${e.lineno}:${e.colno}
   const btnTnk = $("pTnk");
   const btnHar = $("pHar");
   const btnIFV = $("pIFV");
+  // [refactor] UI helpers extracted -> ou_ui.js (Stage 4)
+  const __ou_ui = (window.OUUI && typeof window.OUUI.create === "function")
+    ? window.OUUI.create({
+        uiSelCount, uiPower, uiRadarStat, uiMmHint, uiSelInfo,
+        btnInf, btnEng, btnSnp, btnTnk, btnHar, btnIFV,
+        uiPowerFill, uiPowerNeed,
+        qFillMain, qFillDef, qFillInf, qFillVeh,
+        qTxtMain, qTxtDef, qTxtInf, qTxtVeh,
+        badgeBar, badgeFac
+      })
+    : null;
+
   const btnRepair = $("repair");
   const btnStop = $("stop");
   const btnScatter = $("scatter");
@@ -255,19 +270,23 @@ function fitMini() {
 
   // TV noise for minimap when low power
   const mmNoise = document.createElement("canvas");
-  const mmNoiseCtx = mmNoise.getContext("2d");
+  const mmNoiseCtx = mmNoise.getContext("2d", { willReadFrequently: true });
   let mmNoiseT = 0;
   function drawMinimapNoise(W,H){
     const s = 96; // small buffer, scaled up
     if (mmNoise.width!==s || mmNoise.height!==s){ mmNoise.width=s; mmNoise.height=s; }
-    const img = mmNoiseCtx.getImageData(0,0,s,s);
-    const d = img.data;
+    // Avoid getImageData readback every frame (Chrome warns about performance).
+    // We allocate once and just rewrite the pixels.
+    if (!drawMinimapNoise._img || drawMinimapNoise._img.width !== s){
+      drawMinimapNoise._img = mmNoiseCtx.createImageData(s,s);
+    }
+    const d = drawMinimapNoise._img.data;
     // refresh every frame (cheap due to small buffer)
     for (let i=0; i<d.length; i+=4){
       const v = (Math.random()*255)|0;
       d[i]=v; d[i+1]=v; d[i+2]=v; d[i+3]=255;
     }
-    mmNoiseCtx.putImageData(img,0,0);
+    mmNoiseCtx.putImageData(drawMinimapNoise._img,0,0);
     mmCtx.save();
     mmCtx.imageSmoothingEnabled = false;
     mmCtx.globalAlpha = 0.95;
@@ -6437,33 +6456,14 @@ function queueUnit(kind){
 }
 
 
-function ensureBadge(btn){
-  if (!btn) return null;
-  let b = btn.querySelector(".badge");
-  if (!b){
-    b = document.createElement("span");
-    b.className = "badge";
-    btn.appendChild(b);
-  }
-  return b;
-}
+
 // Always resolve the current badge element from the button each time.
 // (Buttons can be rebuilt/reattached; caching can point at detached nodes.)
 function updateProdBadges(){
-  const set = (btn, kind)=>{
-    if (!btn) return;
-    const b = ensureBadge(btn);
-    const n = prodTotal[kind]||0;
-    if (n>0){ b.textContent = String(n); b.style.display="block"; }
-    else { b.textContent=""; b.style.display="none"; }
-  };
-  set(btnInf, "infantry");
-  set(btnEng, "engineer");
-  set(btnSnp, "sniper");
-  set(btnTnk, "tank");
-  set(btnHar, "harvester");
-  set(btnIFV, "ifv");
+  if (!__ou_ui || !__ou_ui.updateProdBadges) return;
+  __ou_ui.updateProdBadges({ prodTotal });
 }
+
 
 
 
@@ -9333,9 +9333,9 @@ const keys=new Set();
     window.addEventListener("keyup", _ou_onKeyUp);
   }
 
-  canvas.addEventListener("contextmenu",(e)=>e.preventDefault());
-
-  canvas.addEventListener("mousedown",(e)=>{
+    // [refactor] input wiring extracted -> ou_input.js (mouse)
+  const _ou_onContextMenu = (e)=>e.preventDefault();
+  const _ou_onMouseDown = (e)=>{
     if (!running || gameOver) return;
 
     // Sprite tuner: hijack LMB drag while enabled (requires HQ selected)
@@ -9424,9 +9424,8 @@ const keys=new Set();
     state.drag.moved=false;
     state.drag.x0=state.drag.x1=p.x;
     state.drag.y0=state.drag.y1=p.y;
-  });
-
-  canvas.addEventListener("mousemove",(e)=>{
+  };
+  const _ou_onMouseMove = (e)=>{
     const p=getPointerCanvasPx(e);
     state.hover.px=p.x; state.hover.py=p.y;
     const w=screenToWorld(p.x,p.y);
@@ -9488,9 +9487,8 @@ const keys=new Set();
       const md = Math.abs(state.drag.x1-state.drag.x0)+Math.abs(state.drag.y1-state.drag.y0);
       if (md>10) state.drag.moved=true;
     }
-  });
-  // Mouse wheel zoom (map zoom in/out)
-  canvas.addEventListener("wheel", (e) => {
+  };
+  const _ou_onWheel = (e) => {
     if (!running || gameOver) return;
 
     // Sprite tuner: Shift+Wheel adjusts selected sprite scaleMul (keep normal wheel for map zoom)
@@ -9520,11 +9518,8 @@ const keys=new Set();
     const after = screenToWorld(p.x, p.y);
     cam.x += (before.x - after.x);
     cam.y += (before.y - after.y);
-  }, { passive:false });
-
-
-
-  canvas.addEventListener("mouseup",(e)=>{
+  };
+  const _ou_onMouseUp = (e)=>{
     if (e.button===2){
       state.pan.on=false;
       return;
@@ -9737,7 +9732,27 @@ if (state.selection.size>0 && inMap(tx,ty) && ore[idx(tx,ty)]>0){
     }
     else { if (!additive) state.selection.clear(); updateSelectionUI(); }
     state.drag.on=false;
-  });
+  };
+
+  if (window.OUInput && typeof window.OUInput.installMouse === "function"){
+    window.OUInput.installMouse({
+      canvas,
+      onContextMenu: _ou_onContextMenu,
+      onMouseDown: _ou_onMouseDown,
+      onMouseMove: _ou_onMouseMove,
+      onMouseUp: _ou_onMouseUp,
+      onWheel: _ou_onWheel,
+      wheelOptions: { passive:false }
+    });
+  } else {
+    // fallback: old wiring
+    canvas.addEventListener("contextmenu", _ou_onContextMenu);
+    canvas.addEventListener("mousedown", _ou_onMouseDown);
+    canvas.addEventListener("mousemove", _ou_onMouseMove);
+    canvas.addEventListener("wheel", _ou_onWheel, { passive:false });
+    canvas.addEventListener("mouseup", _ou_onMouseUp);
+  }
+
 
   function rectFromDrag(){
     const x0=Math.min(state.drag.x0,state.drag.x1);
@@ -10183,49 +10198,13 @@ if (btnSelAllKind) btnSelAllKind.onclick = ()=>selectAllUnitsScreenThenMap();
     state.suppressClickUntil = state.t + 0.12;
 }
 
-  function updateSelectionUI(){
-    uiSelCount.textContent=String(state.selection.size);
+  function updateSelectionUI() {
+  if (!__ou_ui || !__ou_ui.updateSelectionUI) return;
+  __ou_ui.updateSelectionUI({
+    state, buildings, TEAM, COST, prodTotal, QCAP, hasRadarAlive, getEntityById, BUILD, NAME_KO
+  });
+}
 
-    const pp=state.player.powerProd, pu=state.player.powerUse;
-    const ok=pp>=pu;
-    uiPower.textContent = `${pp} / ${pu}` + (ok ? "" : " (부족)");
-    uiPower.className = "pill " + (ok ? "ok" : "danger");
-
-    const radar = hasRadarAlive(TEAM.PLAYER);
-    uiRadarStat.textContent = radar ? "ON" : "없음";
-    uiRadarStat.className = "pill " + (radar ? "ok" : "danger");
-    uiMmHint.textContent = radar ? "표시중" : "레이더 필요";
-    uiMmHint.className = "pill " + (radar ? "ok" : "danger");
-    // Keep button labels stable (do not overwrite textContent or badges will be removed).
-    // Prices are shown via tooltip (title).
-    btnInf.title = `보병  $${COST.infantry}`;
-    btnEng.title = `엔지니어  $${COST.engineer}`;
-    btnSnp.title = `저격병  $${COST.sniper}`;
-    btnTnk.title = `탱크  $${COST.tank}`;
-    btnHar.title = `굴착기  $${COST.harvester}`;
-    btnIFV.title = `IFV  $${COST.ifv}`;
-    const hasBar = buildings.some(b=>b.alive && !b.civ && b.team===TEAM.PLAYER && b.kind==="barracks");
-    const hasFac = buildings.some(b=>b.alive && !b.civ && b.team===TEAM.PLAYER && b.kind==="factory");
-
-    btnInf.disabled = !hasBar || state.player.money < COST.infantry || prodTotal.infantry>=QCAP;
-    btnEng.disabled = !hasBar || state.player.money < COST.engineer || prodTotal.engineer>=QCAP;
-    btnTnk.disabled = !hasFac || state.player.money < COST.tank || prodTotal.tank>=QCAP;
-
-    const lines=[];
-    for (const id of state.selection){
-      const e=getEntityById(id);
-      if (!e) continue;
-      if (BUILD[e.kind]){
-        if (e.hideUI) continue;
-        lines.push(`[건물] ${NAME_KO[e.kind]||e.kind} (${e.tw}x${e.th}) HP ${Math.ceil(e.hp)}/${e.hpMax} repair:${e.repairOn?"ON":"OFF"} q:${e.buildQ.length}`);
-      } else {
-        const extra = (e.kind==="harvester") ? ` carry:${Math.floor(e.carry)}/${e.carryMax} (입금:정제소만)`
-                    : (e.kind==="engineer") ? ` (점령)` : "";
-        lines.push(`[유닛] ${NAME_KO[e.kind]||e.kind} HP ${Math.ceil(e.hp)}/${e.hpMax}${extra}`);
-      }
-    }
-    uiSelInfo.textContent = lines.length ? lines.slice(0,12).join("\n") : "아무것도 선택 안 됨";
-  }
 
   function drawIsoTile(tx,ty,type){
     const c=tileToWorldCenter(tx,ty);
@@ -10856,12 +10835,10 @@ function updateInfDeathFx(){
   }
 
 function refreshPrimaryBuildingBadgesUI(){
-  // UI badges inside production buttons must be screen-space (not camera dependent)
-  const bar = document.getElementById("badgeBar");
-  const fac = document.getElementById("badgeFac");
-  if (bar) bar.style.display = (state.primary.player.barracks!=null && state.primary.player.barracks!==-1) ? "inline-block" : "none";
-  if (fac) fac.style.display = (state.primary.player.factory!=null  && state.primary.player.factory!==-1)  ? "inline-block" : "none";
+  if (!__ou_ui || !__ou_ui.refreshPrimaryBuildingBadgesUI) return;
+  __ou_ui.refreshPrimaryBuildingBadgesUI({ state });
 }
+
 
 
   function drawPrimaryBadgeForSelectedBuilding(b){
@@ -11304,101 +11281,17 @@ if (!hasP("factory"))  resetProducerQueues("factory");
 }
 
   
-  function updatePowerBar(){
-    if (!uiPowerFill) return;
-    const prod = state.player.powerProd || 0;
-    const use  = state.player.powerUse  || 0;
+  function updatePowerBar() {
+  if (!__ou_ui || !__ou_ui.updatePowerBar) return;
+  __ou_ui.updatePowerBar({ state, clamp });
+}
 
-    // Green: production vs usage (how "healthy" power is).
-    let pct = 1;
-    if (use > 0){
-      pct = clamp(prod / use, 0, 1);
-    }
-    uiPowerFill.style.height = `${Math.round(pct*100)}%`;
-
-    // Red: consumption overlay (how much is being used).
-    if (uiPowerNeed){
-      let needPct = 0;
-      if (prod > 0){
-        needPct = clamp(use / prod, 0, 1);
-      } else if (use > 0){
-        needPct = 1;
-      }
-      uiPowerNeed.style.height = `${Math.round(needPct*100)}%`;
-    }
-
-    // Overload hint (orange-ish)
-    if (use >= prod){
-      uiPowerFill.style.background = "linear-gradient(180deg, rgba(255,190,90,0.78), rgba(140,70,20,0.78))";
-    } else {
-      uiPowerFill.style.background = "linear-gradient(180deg, rgba(90,220,140,0.75), rgba(40,120,80,0.75))";
-    }
-  }
 
   function updateProdBars(){
-    // Building lanes
-    function lanePct(lane){
-      if (!lane) return 0;
-      if (lane.ready) return 1;
-      if (lane.queue){
-        const c = lane.queue.cost || 1;
-        return clamp((lane.queue.paid||0)/c, 0, 1);
-      }
-      if (lane.fifo && lane.fifo.length) return 0.01; // tiny hint
-      return 0;
-    }
-    const mainLane = state.buildLane.main;
-    const defLane  = state.buildLane.def;
+  if (!__ou_ui || !__ou_ui.updateProdBars) return;
+  __ou_ui.updateProdBars({ state, buildings, TEAM, clamp, prodFIFO, NAME_KO });
+}
 
-    if (qFillMain) qFillMain.style.width = `${lanePct(mainLane)*100}%`;
-    if (qFillDef)  qFillDef.style.width  = `${lanePct(defLane)*100}%`;
-
-    if (qTxtMain) qTxtMain.textContent = mainLane.ready ? `READY: ${NAME_KO[mainLane.ready]}` :
-      mainLane.queue ? `${NAME_KO[mainLane.queue.kind]} ${Math.round(lanePct(mainLane)*100)}%` :
-      (mainLane.fifo && mainLane.fifo.length) ? `예약 ${mainLane.fifo.length}` : "-";
-
-    if (qTxtDef) qTxtDef.textContent = defLane.ready ? `READY: ${NAME_KO[defLane.ready]}` :
-      defLane.queue ? `${NAME_KO[defLane.queue.kind]} ${Math.round(lanePct(defLane)*100)}%` :
-      (defLane.fifo && defLane.fifo.length) ? `예약 ${defLane.fifo.length}` : "-";
-
-    // Unit producers
-    // barracks: infantry+engineer share
-    const pBarr = buildings.filter(b=>b.alive && !b.civ && b.team===TEAM.PLAYER && b.kind==="barracks");
-    const pFac  = buildings.filter(b=>b.alive && !b.civ && b.team===TEAM.PLAYER && b.kind==="factory");
-
-    const curBarr = pBarr.reduce((best,b)=>{
-      if (!b.buildQ || !b.buildQ.length) return best;
-      const q=b.buildQ[0]; const pct=clamp((q.paid||0)/((q.cost||1)),0,1);
-      if (!best) return b;
-      const qb=best.buildQ[0]; const pctb=clamp((qb.paid||0)/((qb.cost||1)),0,1);
-      return (pct>pctb)?b:best;
-    }, null);
-    const curFac  = pFac.reduce((best,b)=>{
-      if (!b.buildQ || !b.buildQ.length) return best;
-      const q=b.buildQ[0]; const pct=clamp((q.paid||0)/((q.cost||1)),0,1);
-      if (!best) return b;
-      const qb=best.buildQ[0]; const pctb=clamp((qb.paid||0)/((qb.cost||1)),0,1);
-      return (pct>pctb)?b:best;
-    }, null);
-
-    function unitPctFromProducer(prod){
-      if (!prod || !prod.buildQ || !prod.buildQ.length) return 0;
-      if (prod.team!==TEAM.PLAYER) return 0;
-      const q = prod.buildQ[0];
-      const c = q.cost || 1;
-      return clamp((q.paid||0)/c, 0, 1);
-    }
-    const infPct = unitPctFromProducer(curBarr);
-    const vehPct = unitPctFromProducer(curFac);
-
-    if (qFillInf) qFillInf.style.width = `${infPct*100}%`;
-    if (qFillVeh) qFillVeh.style.width = `${vehPct*100}%`;
-
-    if (qTxtInf) qTxtInf.textContent = (prodFIFO.barracks.length || (curBarr && curBarr.buildQ.length)) ?
-      `예약 ${prodFIFO.barracks.length + (curBarr?curBarr.buildQ.length:0)}` : "-";
-    if (qTxtVeh) qTxtVeh.textContent = (prodFIFO.factory.length || (curFac && curFac.buildQ.length)) ?
-      `예약 ${prodFIFO.factory.length + (curFac?curFac.buildQ.length:0)}` : "-";
-  }
 
 function draw(){
     const W=canvas.width, H=canvas.height;

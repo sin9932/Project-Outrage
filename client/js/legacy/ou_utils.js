@@ -1,23 +1,31 @@
-// Project-Outrage shared helpers (safe extraction stage 1)
-// Intentionally tiny + dependency-free.
-// Loaded before game.js so game can reuse helpers without growing itself.
-(function(){
-  const OU = (typeof window !== "undefined") ? (window.OU || (window.OU = {})) : {};
+// ou_utils.js
+// Small shared helpers for Project-Outrage.
+// Safe: only defines globals if they don't already exist.
 
-  // DOM helpers
-  OU.$  = OU.$  || ((id) => document.getElementById(id));
-  OU.qs = OU.qs || ((sel, root=document) => root.querySelector(sel));
-  OU.qsa= OU.qsa|| ((sel, root=document) => Array.from(root.querySelectorAll(sel)));
+(function (global) {
+  'use strict';
 
-  // Math helpers
-  OU.clamp = OU.clamp || ((v,a,b)=>Math.max(a,Math.min(b,v)));
-  OU.dist2 = OU.dist2 || ((ax,ay,bx,by)=>{ const dx=ax-bx, dy=ay-by; return dx*dx+dy*dy; });
-  OU.rnd   = OU.rnd   || ((a,b)=> a + Math.random()*(b-a));
-  OU.irnd  = OU.irnd  || ((a,b)=> Math.floor(OU.rnd(a, b+1)));
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const dist2 = (ax, ay, bx, by) => {
+    const dx = ax - bx, dy = ay - by;
+    return dx * dx + dy * dy;
+  };
+  const rnd = (a, b) => a + Math.random() * (b - a);
 
-  // Timing
-  OU.now = OU.now || (() => (typeof performance !== "undefined" && performance.now) ? performance.now() : Date.now());
+  // DOM helper (optional)
+  const $ = (id) => document.getElementById(id);
 
-  // Misc
-  OU.noop = OU.noop || (()=>{});
-})();
+  // Expose as a namespace too (for cleanliness)
+  const OU = global.OU || (global.OU = {});
+  OU.clamp = OU.clamp || clamp;
+  OU.dist2 = OU.dist2 || dist2;
+  OU.rnd = OU.rnd || rnd;
+  OU.$ = OU.$ || $;
+
+  // Back-compat globals (only if missing)
+  if (!global.clamp) global.clamp = clamp;
+  if (!global.dist2) global.dist2 = dist2;
+  if (!global.rnd) global.rnd = rnd;
+  if (!global.$) global.$ = $;
+
+})(window);

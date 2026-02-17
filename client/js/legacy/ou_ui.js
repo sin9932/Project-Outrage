@@ -15,21 +15,6 @@ r.uiPowerFill = r.uiPowerFill || document.getElementById("powerFill");
 r.uiPowerNeed = r.uiPowerNeed || document.getElementById("powerNeed");
 r.uiPowerBar  = r.uiPowerBar  || document.getElementById("powerBar");
 r.uiPTip      = r.uiPTip      || document.getElementById("pTip");
-r.uiToast     = r.uiToast     || document.getElementById("toast");
-// Sidebar/build buttons (optional in some HTML versions)
-r.btnPow   = r.btnPow   || document.getElementById("bPow");
-r.btnRef   = r.btnRef   || document.getElementById("bRef");
-r.btnBar   = r.btnBar   || document.getElementById("bBar");
-r.btnFac   = r.btnFac   || document.getElementById("bFac");
-r.btnRad   = r.btnRad   || document.getElementById("bRad");
-r.btnTur   = r.btnTur   || document.getElementById("bTur");
-r.btnCan   = r.btnCan   || document.getElementById("bCan");
-r.btnToHQ  = r.btnToHQ  || document.getElementById("toHQ");
-r.btnSell  = r.btnSell  || document.getElementById("sell");
-
-// Production category tabs
-r.tabBtns  = r.tabBtns  || Array.from(document.querySelectorAll(".tabbtn"));
-
 
 // Install power tooltip (once). Falls back to title attribute as well.
 if (r.uiPowerBar && !r.__powerTipInstalled){
@@ -66,20 +51,6 @@ if (r.uiPowerBar && !r.__powerTipInstalled){
   r.uiPowerBar.addEventListener("mouseenter", showTip);
   r.uiPowerBar.addEventListener("mousemove", showTip);
   r.uiPowerBar.addEventListener("mouseleave", hideTip);
-
-    function toast(text, dur){
-      dur = (dur==null) ? 1.0 : dur;
-      if (!r.uiToast) return;
-      r.uiToast.textContent = String(text ?? "");
-      r.uiToast.style.display = "block";
-      r.uiToast.style.opacity = "1";
-      clearTimeout(toast._t);
-      toast._t = setTimeout(()=>{
-        r.uiToast.style.opacity = "0";
-        setTimeout(()=>{ if(r.uiToast) r.uiToast.style.display="none"; }, 140);
-      }, Math.max(250, dur*1000));
-    }
-
 }
 
 
@@ -322,201 +293,12 @@ if (r.uiPowerBar && !r.__powerTipInstalled){
       }
     }
 
-
-    function updateSidebarButtons(env){
-      env = env || {};
-      const { state, buildings, TEAM, clamp, prodFIFO, prodTotal, prodCat, setProdCat } = env;
-      const tabBtns = env.tabBtns || r.tabBtns || [];
-      if (!state || !buildings || !TEAM) return;
-
-      // Helper: does player have a building type alive?
-      const hasP = (name, t)=>{
-        const arr = buildings[name];
-        if (!arr) return false;
-        for (let i=0;i<arr.length;i++){
-          const b = arr[i];
-          if (b && b.team===t && b.hp>0) return true;
-        }
-        return false;
-      };
-
-      // Ensure the button has fixed structure: <span class="lbl">..</span><span class="badge">..</span>
-      const ensureLabel = (btn, label)=>{
-        if (!btn) return;
-        if (!btn.dataset) btn.dataset = {};
-        if (!btn.dataset.baseLabel){
-          btn.dataset.baseLabel = label;
-          const badgeTxt = btn.querySelector ? (btn.querySelector(".badge")?.textContent || "") : "";
-          btn.innerHTML = `<span class="lbl">${label}</span><span class="badge">${badgeTxt}</span>`;
-        }else{
-          const lblEl = btn.querySelector ? btn.querySelector(".lbl") : null;
-          if (lblEl) lblEl.textContent = btn.dataset.baseLabel;
-          // If the DOM got messed up (e.g. text nodes duplicated), re-normalize
-          if (!lblEl || !(btn.querySelector && btn.querySelector(".badge"))){
-            btn.innerHTML = `<span class="lbl">${btn.dataset.baseLabel}</span><span class="badge"></span>`;
-          }
-        }
-      };
-
-      // Stable labels (never append text nodes per tick)
-      ensureLabel(r.btnPow, "발전소");
-      ensureLabel(r.btnRef, "정제소");
-      ensureLabel(r.btnBar, "막사");
-      ensureLabel(r.btnFac, "공장");
-      ensureLabel(r.btnRad, "레이다");
-      ensureLabel(r.btnTur, "포탑");
-
-      ensureLabel(r.btnInf, "보병");
-      ensureLabel(r.btnEng, "공병");
-      ensureLabel(r.btnSnp, "저격병");
-      ensureLabel(r.btnTnk, "탱크");
-      ensureLabel(r.btnHar, "굴착기");
-      ensureLabel(r.btnIFV, "IFV");
-
-      // Prereqs + tab availability
-      const prereqOk = (t, name)=>{
-        if (name==="radar") return hasP("power", t) && hasP("refinery", t) && hasP("factory", t);
-        if (name==="turret") return hasP("power", t) && hasP("refinery", t);
-        if (name==="factory") return hasP("power", t) && hasP("refinery", t) && hasP("barrack", t);
-        if (name==="barrack") return hasP("power", t) && hasP("refinery", t);
-        if (name==="refinery") return hasP("power", t);
-        if (name==="power") return true;
-        if (name==="sniper") return hasP("barrack", t) && hasP("factory", t);
-        if (name==="engineer") return hasP("barrack", t);
-        if (name==="tank") return hasP("factory", t);
-        if (name==="harvester") return hasP("refinery", t);
-        if (name==="ifv") return hasP("factory", t);
-        return true;
-      };
-
-      const tabOk = (t, cat)=>{
-        if (cat==="main") return true;
-        if (cat==="def") return prereqOk(t, "turret") || prereqOk(t, "radar");
-        if (cat==="inf") return prereqOk(t, "barrack");
-        if (cat==="veh") return prereqOk(t, "refinery");
-        return true;
-      };
-
-      // Enforce current tab validity
-      const pTeam = (state.primary && state.primary.player) ? state.primary.player.team : 0;
-      if (!tabOk(pTeam, prodCat)){
-        const cats = ["main","def","inf","veh"];
-        let firstAvail = "main";
-        for (let i=0;i<cats.length;i++){
-          if (tabOk(pTeam, cats[i])) { firstAvail = cats[i]; break; }
-        }
-        if (typeof setProdCat === "function") setProdCat(firstAvail);
-      }
-
-      // Cancel build visibility depends on lane
-      if (r.btnCan){
-        r.btnCan.style.opacity = ((state.buildLane === "main") ? 0 : 1);
-      }
-
-      // Tabs opacity
-      for (let i=0;i<tabBtns.length;i++){
-        const b = tabBtns[i];
-        if (!b || !b.dataset) continue;
-        const cat = b.dataset.cat;
-        b.style.opacity = tabOk(pTeam, cat) ? 1 : 0.35;
-      }
-
-      // Per-button enable + queue badge
-      const setAvail = (btn, ok)=>{
-        if (!btn) return;
-        btn.dataset.avail = ok ? "1" : "0";
-        btn.disabled = !ok;
-        btn.style.opacity = ok ? 1 : 0.35;
-      };
-
-      const resetProducerQueues = (producerName, fifoArr, t)=>{
-        const arr = buildings[producerName] || [];
-        for (let i=0;i<arr.length;i++){
-          const b = arr[i];
-          if (b && b.team===t && b.hp>0){
-            if (!b.buildQ) b.buildQ = [];
-            for (let k=b.buildQ.length-1;k>=0;k--){
-              const it = b.buildQ[k];
-              if (it && it.__fromFIFO){
-                b.buildQ.splice(k,1);
-              }
-            }
-          }
-        }
-        for (let i=0;i<fifoArr.length;i++){
-          const it = fifoArr[i];
-          if (!it) continue;
-          // pick the first alive producer of that type
-          for (let j=0;j<arr.length;j++){
-            const b = arr[j];
-            if (b && b.team===t && b.hp>0){
-              if (!b.buildQ) b.buildQ = [];
-              b.buildQ.push(Object.assign({ __fromFIFO:true }, it));
-              break;
-            }
-          }
-        }
-      };
-
-      // Mirror FIFO into the producer queues (so sidebar bars can show progress)
-      resetProducerQueues("barrack", prodFIFO.barrack || [], pTeam);
-      resetProducerQueues("factory", prodFIFO.factory || [], pTeam);
-
-      const setBtnState = (btn, name, producerName)=>{
-        const ok = prereqOk(pTeam, name);
-        setAvail(btn, ok);
-
-        if (!btn) return;
-        const badge = btn.querySelector ? btn.querySelector(".badge") : null;
-        if (!badge) return;
-
-        // Count queued items in producer buildings + FIFO
-        let qCount = 0;
-        const arr = buildings[producerName] || [];
-        for (let i=0;i<arr.length;i++){
-          const b = arr[i];
-          if (b && b.team===pTeam && b.hp>0 && b.buildQ){
-            for (let k=0;k<b.buildQ.length;k++){
-              if (b.buildQ[k] && b.buildQ[k].type === name) qCount++;
-            }
-          }
-        }
-        const fifo = prodFIFO[producerName] || [];
-        for (let i=0;i<fifo.length;i++){
-          if (fifo[i] && fifo[i].type === name) qCount++;
-        }
-        badge.textContent = qCount ? `×${qCount}` : "";
-      };
-
-      // Buildings
-      setBtnState(r.btnPow, "power", "hq");
-      setBtnState(r.btnRef, "refinery", "hq");
-      setBtnState(r.btnBar, "barrack", "hq");
-      setBtnState(r.btnFac, "factory", "hq");
-      setBtnState(r.btnRad, "radar", "hq");
-      setBtnState(r.btnTur, "turret", "hq");
-
-      // Units
-      setBtnState(r.btnInf, "inf", "barrack");
-      setBtnState(r.btnEng, "engineer", "barrack");
-      setBtnState(r.btnSnp, "sniper", "barrack");
-      setBtnState(r.btnTnk, "tank", "factory");
-      setBtnState(r.btnHar, "harvester", "factory");
-      setBtnState(r.btnIFV, "ifv", "factory");
-
-      // Keep bars consistent
-      if (isFn(updateProdBars)) updateProdBars(env);
-      if (isFn(updatePowerBar)) updatePowerBar(env);
-    }
-
     return {
-      toast,
       updateSelectionUI,
       updatePowerBar,
       updateProdBadges,
       refreshPrimaryBuildingBadgesUI,
-      updateProdBars,
-      updateSidebarButtons
+      updateProdBars
     };
   };
 })(window);
