@@ -4380,8 +4380,51 @@ function revealCircle(team, wx, wy, radius){
   }
 
   function recomputePower(){
-    return (__ou_econ && __ou_econ.recomputePower) ? __ou_econ.recomputePower() : undefined;
+  // Prefer economy module's power calc, but fall back if missing/NaN/0/0 while buildings exist.
+  if (__ou_econ && typeof __ou_econ.recomputePower === "function"){
+    try { __ou_econ.recomputePower(); }
+    catch(e){ console.warn("[power] econ recomputePower failed", e); }
   }
+
+  const p = state.player || (state.player = {});
+  const e = state.enemy  || (state.enemy  = {});
+  const hasPlayerBld = buildings.some(b => b && b.alive && !b.civ && b.team === TEAM.PLAYER);
+  const hasEnemyBld  = buildings.some(b => b && b.alive && !b.civ && b.team === TEAM.ENEMY);
+
+  const pOk = Number.isFinite(p.powerProd) && Number.isFinite(p.powerUse);
+  const eOk = Number.isFinite(e.powerProd) && Number.isFinite(e.powerUse);
+  const suspiciousP = hasPlayerBld && ((p.powerProd|0) === 0 && (p.powerUse|0) === 0);
+  const suspiciousE = hasEnemyBld  && ((e.powerProd|0) === 0 && (e.powerUse|0) === 0);
+
+  if (!pOk || !eOk || suspiciousP || suspiciousE){
+    // Local fallback (matches ou_economy logic)
+    function calc(team){
+      let prod = 0, use = 0;
+      for (const b of buildings){
+        if (!b || !b.alive || b.team !== team || b.civ) continue;
+        if (b.kind === "hq")      prod += (POWER.hqProd || 0);
+        if (b.kind === "power")   prod += (POWER.powerPlant || 0);
+        if (b.kind === "refinery")use  += (POWER.refineryUse || 0);
+        if (b.kind === "barracks")use  += (POWER.barracksUse || 0);
+        if (b.kind === "factory") use  += (POWER.factoryUse || 0);
+        if (b.kind === "radar")   use  += (POWER.radarUse || 0);
+        if (b.kind === "turret")  use  += (POWER.turretUse || 0);
+      }
+      return { prod, use };
+    }
+    const pp = calc(TEAM.PLAYER);
+    p.powerProd = pp.prod;
+    p.powerUse  = pp.use;
+    const ee = calc(TEAM.ENEMY);
+    e.powerProd = ee.prod;
+    e.powerUse  = ee.use;
+  }
+
+  // Keep queues consistent with current prerequisites.
+  if (__ou_econ && typeof __ou_econ.validateTechQueues === "function"){
+    try { __ou_econ.validateTechQueues(); } catch(_){}
+  }
+}
   
   function validateTechQueues(){
     return (__ou_econ && __ou_econ.validateTechQueues) ? __ou_econ.validateTechQueues() : undefined;
@@ -6406,9 +6449,10 @@ function queueUnit(kind){
 // Always resolve the current badge element from the button each time.
 // (Buttons can be rebuilt/reattached; caching can point at detached nodes.)
 function updateProdBadges(){
-    // keep UI ownership; economy owns the data
-    if (__ou_ui) __ou_ui.updateProdBadges(prodTotal);
-  }
+  if (!__ou_ui || !__ou_ui.updateProdBadges) return;
+  // ou_ui.updateProdBadges expects { prodTotal }
+  __ou_ui.updateProdBadges({ prodTotal });
+}
 
 
 
@@ -11276,8 +11320,9 @@ let rX = ent.x, rY = ent.y;
           }
         }
         ctx.restore();
-        // Segmented HP blocks under unit
-        drawUnitHpBlocks(ent, p);
+        // Segmented HP blocks under unit (only when hovered or selected)
+        const showHp = (state.selection && state.selection.has(ent.id)) || (state.hover && state.hover.entId===ent.id);
+        if (showHp) drawUnitHpBlocks(ent, p);
 
         if (ent.grp) drawGroupBadge(p.x + ent.r*0.85, p.y - ent.r*0.85, ent.grp);
 

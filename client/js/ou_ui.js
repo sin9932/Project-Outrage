@@ -184,11 +184,18 @@ if (r.uiPowerBar && !r.__powerTipInstalled){
 }
 
     function updateProdBadges(env){
-      env = env || {};
-      const { prodTotal } = env;
-      if (!prodTotal) return;
+  if (!env) return;
 
-      function ensureBadge(btn){
+  // Accept either { prodTotal } or direct prodTotal map for backward compatibility.
+  let prodTotal = null;
+  const looksLikeMap = (env && typeof env === "object" && !("prodTotal" in env) &&
+    ("infantry" in env || "engineer" in env || "sniper" in env || "tank" in env || "harvester" in env));
+
+  if (looksLikeMap) prodTotal = env;
+  else if (env && typeof env === "object") prodTotal = env.prodTotal;
+
+  if (!prodTotal) return;
+function ensureBadge(btn){
         if (!btn) return null;
         let b = btn.querySelector(".badge");
         if (!b){
