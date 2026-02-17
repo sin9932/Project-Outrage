@@ -206,12 +206,34 @@ if (r.uiPowerBar && !r.__powerTipInstalled){
   if (!prodTotal) return;
 function ensureBadge(btn){
         if (!btn) return null;
+
+        // ensure relative positioning so the badge doesn't flow into the label
+        btn.style.position = "relative";
+
         let b = btn.querySelector(".badge");
         if (!b){
           b = document.createElement("span");
           b.className = "badge";
           btn.appendChild(b);
         }
+
+        // style (idempotent)
+        b.style.position = "absolute";
+        b.style.top = "8px";
+        b.style.right = "10px";
+        b.style.zIndex = "2";
+        b.style.pointerEvents = "none";
+        b.style.minWidth = "18px";
+        b.style.height = "18px";
+        b.style.lineHeight = "18px";
+        b.style.padding = "0 6px";
+        b.style.borderRadius = "999px";
+        b.style.fontSize = "12px";
+        b.style.fontWeight = "900";
+        b.style.background = "rgba(0,0,0,0.55)";
+        b.style.border = "1px solid rgba(255,255,255,0.18)";
+        b.style.color = "#fff";
+
         return b;
       }
 
@@ -472,71 +494,114 @@ function ensureBadge(btn){
       const clamp01 = (v)=> (v<0?0:(v>1?1:v));
 
       function ensureBtnUI(btn, label){
-        if (!btn) return null;
+  if (!btn) return null;
 
-        // infer label before we touch child nodes
-        let inferred = label;
-        if (inferred == null){
-          let t = "";
-          for (const n of Array.from(btn.childNodes)){
-            if (n && n.nodeType === 3 && n.textContent) t += n.textContent;
-          }
-          inferred = (t || btn.textContent || "").replace(/\s+/g, " ").trim();
-          inferred = inferred.replace(/주요/g, "").trim();
-        }
+  const cleanLabel = (s)=>{
+    s = (s == null) ? "" : String(s);
+    s = s.replace(/\s+/g, " ").trim();
+    // remove primary/legacy badge text
+    s = s.replace(/주요/g, "").replace(/二쇱슂/g, "").trim();
+    // remove runaway numeric suffix (badge count bleed, e.g. 111111...)
+    s = s.replace(/[0-9]+$/g, "").trim();
+    return s;
+  };
 
-        btn.style.position = "relative";
-        btn.style.overflow = "hidden";
+  // Prefer stable base label stored on the element (prevents accumulating badge digits)
+  let inferred = label;
 
-        // Progress overlay (scaleX)
-        let prog = btn.querySelector(":scope > .prog");
-        if (!prog){
-          prog = document.createElement("span");
-          prog.className = "prog";
-          prog.style.position = "absolute";
-          prog.style.left = "0";
-          prog.style.top = "0";
-          prog.style.bottom = "0";
-          prog.style.width = "100%";
-          prog.style.transformOrigin = "left";
-          prog.style.transform = "scaleX(0)";
-          prog.style.pointerEvents = "none";
-          prog.style.zIndex = "0";
-          prog.style.borderRadius = "inherit";
-          prog.style.background = "linear-gradient(90deg, rgba(70,170,110,0.92), rgba(70,170,110,0.62))";
-          prog.style.color = "transparent";
-          prog.style.fontSize = "0px";
-          prog.textContent = "";
-          btn.insertBefore(prog, btn.firstChild);
-        }
-        // Ensure no text leaks into progress overlay
-        prog.textContent = "";
+  const existingLbl = btn.querySelector(":scope > .lbl");
+  if (inferred == null){
+    const base =
+      (btn.dataset && btn.dataset.baseLabel) ? btn.dataset.baseLabel :
+      (existingLbl ? (existingLbl.getAttribute("data-base") || existingLbl.textContent) : null);
 
-
-        // Label
-        let lbl = btn.querySelector(":scope > .lbl");
-        if (!lbl){
-          // remove direct text nodes to prevent duplicate labels
-          for (const n of Array.from(btn.childNodes)){
-            if (n && n.nodeType === 3 && n.textContent && n.textContent.trim().length){
-              btn.removeChild(n);
-            }
-          }
-          lbl = document.createElement("span");
-          lbl.className = "lbl";
-          lbl.style.position = "relative";
-          lbl.style.zIndex = "1";
-          lbl.style.pointerEvents = "none";
-          btn.appendChild(lbl);
-        }
-
-        // Hide any legacy badges (UI uses queue badges elsewhere)
-        const badge = btn.querySelector(":scope > .badge");
-        if (badge) badge.style.display = "none";
-
-        if (inferred != null) lbl.textContent = inferred;
-        return { prog, lbl };
+    if (base && String(base).trim().length){
+      inferred = cleanLabel(base);
+    } else {
+      // 1) direct text nodes only (avoids span.badge text)
+      let t = "";
+      for (const n of Array.from(btn.childNodes)){
+        if (n && n.nodeType === 3 && n.textContent) t += n.textContent;
       }
+      if (t && t.trim().length){
+        inferred = cleanLabel(t);
+      } else {
+        // 2) last resort: clone and strip known UI spans, then read text
+        try{
+          const c = btn.cloneNode(true);
+          c.querySelectorAll(".badge,.prog,.lbl").forEach(x=>x.remove());
+          inferred = cleanLabel(c.textContent || "");
+        }catch(_e){
+          inferred = cleanLabel(btn.getAttribute("data-label") || btn.textContent || "");
+        }
+      }
+    }
+  } else {
+    inferred = cleanLabel(inferred);
+  }
+
+  // Persist base label for future calls
+  if (btn.dataset) btn.dataset.baseLabel = inferred;
+
+  btn.style.position = "relative";
+  btn.style.overflow = "hidden";
+
+  // Progress overlay (scaleX)
+  let prog = btn.querySelector(":scope > .prog");
+  if (!prog){
+    prog = document.createElement("span");
+    prog.className = "prog";
+    prog.style.position = "absolute";
+    prog.style.left = "0";
+    prog.style.top = "0";
+    prog.style.bottom = "0";
+    prog.style.width = "100%";
+    prog.style.transformOrigin = "left";
+    prog.style.transform = "scaleX(0)";
+    prog.style.pointerEvents = "none";
+    prog.style.zIndex = "0";
+    prog.style.borderRadius = "inherit";
+    prog.style.background = "linear-gradient(90deg, rgba(70,170,110,0.92), rgba(70,170,110,0.62))";
+    prog.style.color = "transparent";
+    prog.style.fontSize = "0px";
+    prog.textContent = "";
+    btn.insertBefore(prog, btn.firstChild);
+  }
+  // Ensure no text leaks into progress overlay
+  prog.textContent = "";
+
+  // If a badge exists, keep it but ensure it doesn't bleed into the label flow
+  const badge = btn.querySelector(":scope > .badge");
+  if (badge){
+    badge.style.position = "absolute";
+    badge.style.top = "8px";
+    badge.style.right = "10px";
+    badge.style.zIndex = "2";
+    badge.style.pointerEvents = "none";
+  }
+
+  // Label
+  let lbl = existingLbl;
+  if (!lbl){
+    // remove direct text nodes to prevent duplicate labels
+    for (const n of Array.from(btn.childNodes)){
+      if (n && n.nodeType === 3 && n.textContent && n.textContent.trim().length){
+        btn.removeChild(n);
+      }
+    }
+    lbl = document.createElement("span");
+    lbl.className = "lbl";
+    lbl.style.position = "relative";
+    lbl.style.zIndex = "1";
+    lbl.style.pointerEvents = "none";
+    btn.appendChild(lbl);
+  }
+
+  lbl.textContent = inferred;
+  lbl.setAttribute("data-base", inferred);
+
+  return { prog, lbl };
+}
 
       // Build progress (state.buildLane)
       const laneMain = state && state.buildLane ? state.buildLane.main : null;
