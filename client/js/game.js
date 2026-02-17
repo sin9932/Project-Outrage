@@ -96,7 +96,8 @@ ${e.filename}:${e.lineno}:${e.colno}
   const btnBar = $("bBar");
   const btnFac = $("bFac");
   const btnTur = $("bTur");
-  const btnRad = $("bRad");
+  const btnWall = $("bWall") || $("btnWall");
+    const btnRad = $("bRad");
   const btnCan = $("bCan");
   const btnToHQ = $("toHQ");
   const btnSell = $("sell");
