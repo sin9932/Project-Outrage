@@ -10886,7 +10886,7 @@ function drawPathFx(){
 
   // ======= build (main/def) =======
   const getBuildLabel = (k, fallback) =>
-    (tech && tech.buildLabels && tech.buildLabels[k]) ? tech.buildLabels[k] : fallback;
+    (window.tech && window.tech.buildLabels && window.tech.buildLabels[k]) ? window.tech.buildLabels[k] : fallback;
 
   const buildBtns = [
     { kind: "power",    lane: state.buildLane.main, btn: btnPow,  label: getBuildLabel("power", "발전소") },
