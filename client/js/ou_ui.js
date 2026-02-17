@@ -115,48 +115,47 @@ if (r.uiPowerBar && !r.__powerTipInstalled){
     }
 
     function updatePowerBar(env){
-      env = env || {};
-      const { state, clamp } = env;
-      if (!state || !clamp) return;
+  env = env || {};
+  const { state, clamp } = env;
+  if (!state || !clamp) return;
 
-      // NOTE: power lives under state.player (not top-level). This bug made the bar look "missing".
-      const p = state.player || {};
-      const prod = p.powerProd || 0;
-      const use  = p.powerUse  || 0;
+  // power lives under state.player
+  const p = state.player || {};
+  const prod = p.powerProd || 0;
+  const use  = p.powerUse  || 0;
 
-// Tooltip text (used by pTip hover + browser title)
-r.__powerTipText = `전력: ${prod} / ${use}`;
-if (r.uiPowerBar) r.uiPowerBar.title = r.__powerTipText;
+  // Tooltip text (production / consumption)
+  const tip = `전력: ${prod} / ${use}`;
+  r.__powerTipText = tip;
+  if (r.uiPowerBar) r.uiPowerBar.title = tip;
 
-      // Green: production vs usage (how "healthy" power is).
-      let pct = 1;
-      if (use > 0){
-        pct = clamp(prod / use, 0, 1);
-      }
-      if (r.uiPowerFill) r.uiPowerFill.style.height = `${Math.round(pct*100)}%`;
+  // Green: production vs usage (health)
+  let pct = 1;
+  if (use > 0){
+    pct = clamp(prod / use, 0, 1);
+  }
+  if (r.uiPowerFill) r.uiPowerFill.style.height = `${Math.round(pct*100)}%`;
 
-      // Red: consumption overlay (how much is being used).
-      if (r.uiPowerNeed){
-        let needPct = 0;
-        if (prod > 0){
-          needPct = clamp(use / prod, 0, 1);
-        } else if (use > 0){
-          needPct = 1;
-        }
-        r.uiPowerNeed.style.height = `${Math.round(needPct*100)}%`;
-      }
-
-      // Overload hint (orange-ish)
-      if (r.uiPowerFill){
-        if (use >= prod){
-          r.uiPowerFill.style.background = "linear-gradient(180deg, rgba(255,190,90,0.78), rgba(140,70,20,0.78))";
-        } else {
-          r.uiPowerFill.style.background = "linear-gradient(180deg, rgba(90,220,140,0.75), rgba(40,120,80,0.75))";
-        }
-      }
+  // Red: consumption overlay
+  if (r.uiPowerNeed){
+    let needPct = 0;
+    if (prod > 0){
+      needPct = clamp(use / prod, 0, 1);
+    } else if (use > 0){
+      needPct = 1;
     }
-      }
+    r.uiPowerNeed.style.height = `${Math.round(needPct*100)}%`;
+  }
+
+  // Overload hint
+  if (r.uiPowerFill){
+    if (use >= prod){
+      r.uiPowerFill.style.background = "linear-gradient(180deg, rgba(255,190,90,0.78), rgba(140,70,20,0.78))";
+    } else {
+      r.uiPowerFill.style.background = "linear-gradient(180deg, rgba(90,220,140,0.75), rgba(40,120,80,0.75))";
     }
+  }
+}
 
     function updateProdBadges(env){
       env = env || {};
