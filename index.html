@@ -6,6 +6,37 @@
 <meta content="width=device-width,initial-scale=1" name="viewport"/>
 <title>Mini C&amp;C RTS (RA2-ish Stable v11 (v65))</title>
 <link rel="stylesheet" href="./style.css">
+
+<!-- CLICK SAFETY OVERRIDES (pregame must be clickable even if layers overlap) -->
+<style>
+  /* Ensure the game root can layer absolute children */
+  #wrap { position: fixed !important; inset: 0 !important; width: 100vw !important; height: 100vh !important; }
+  #game { position: fixed !important; inset: 0 !important; width: 100vw !important; height: 100vh !important; overflow: hidden !important; }
+
+  /* Base layering */
+  #c { position: fixed !important; inset: 0 !important; z-index: 0 !important; }
+  #pregame { position: absolute !important; inset: 0 !important; z-index: 10000 !important; pointer-events: auto !important; }
+  #pregame * { pointer-events: auto !important; }
+  #ui { position: fixed !important; top: 0 !important; right: 0 !important; bottom: 0 !important; height: 100vh !important; z-index: 9000 !important; }
+  #pauseOverlay { position: absolute !important; inset: 0 !important; z-index: 11000 !important; }
+
+  /* Before start: canvas/UI should not eat clicks */
+  body:not(.started) #c { pointer-events: none !important; }
+  body:not(.started) #ui, body:not(.started) #ui * { pointer-events: none !important; }
+
+  /* After start: enable interactions again */
+  body.started #c { pointer-events: auto !important; }
+  body.started #ui, body.started #ui * { pointer-events: auto !important; }
+</style>
+
+<script>
+  // Flip to "started" as soon as the Start button is clicked (capture so it runs before game.js)
+  window.addEventListener('DOMContentLoaded', () => {
+    document.body.classList.remove('started');
+    const btn = document.getElementById('startBtn');
+    if (btn) btn.addEventListener('click', () => document.body.classList.add('started'), { capture: true });
+  });
+</script>
 <script>
   // HQ sprite tuning preset (generated from in-game Sprite Tuner)
   window.SPRITE_TUNE_PRESET = {
@@ -13,10 +44,17 @@
   };
 </script>
 
+<script src="./js/fx_all.js" defer></script>
 <script src="./js/units.js" defer></script>
 
-<script src="./js/fx_smoke.js" defer></script>
-<script src="./js/game.js" defer></script>
+<script>window.LINK_ENEMY_TO_PLAYER_COLOR = false;</script>
+<script src="./js/atlas_tp.js?v=atp_v9" defer></script>
+<script src="./js/buildings.js?v=barracks_power_v8" defer></script>
+<script src="./js/ou_utils.js?v=ou1" defer></script>
+<script src="./js/ou_input.js?v=oi2" defer></script>
+<script src="./js/ou_ui.js?v=ui2" defer></script>
+<script src="./js/ou_economy.js?v=ec1" defer></script>
+<script src="./js/game.js?v=g_preload_v5" defer></script>
 </head>
 <body>
 <div id="wrap">
