@@ -10,6 +10,49 @@
 
   OUUI.create = function create(refs) {
     const r = refs || {};
+// Auto-resolve missing DOM refs (safe fallback if game.js didn't pass them)
+r.uiPowerFill = r.uiPowerFill || document.getElementById("powerFill");
+r.uiPowerNeed = r.uiPowerNeed || document.getElementById("powerNeed");
+r.uiPowerBar  = r.uiPowerBar  || document.getElementById("powerBar");
+r.uiPTip      = r.uiPTip      || document.getElementById("pTip");
+
+// Install power tooltip (once). Falls back to title attribute as well.
+if (r.uiPowerBar && !r.__powerTipInstalled){
+  r.__powerTipInstalled = true;
+
+  // Make sure tooltip element can actually follow the cursor
+  if (r.uiPTip){
+    const t = r.uiPTip;
+    t.style.position = "fixed";
+    t.style.zIndex = "9999";
+    t.style.pointerEvents = "none"; // avoid flicker
+    t.style.padding = "6px 10px";
+    t.style.borderRadius = "10px";
+    t.style.background = "rgba(0,0,0,0.75)";
+    t.style.color = "#fff";
+    t.style.fontSize = "12px";
+    t.style.whiteSpace = "nowrap";
+    t.style.display = "none";
+  }
+
+  const showTip = (e)=>{
+    const txt = r.__powerTipText || (r.uiPowerBar && r.uiPowerBar.title) || "전력";
+    if (r.uiPTip){
+      r.uiPTip.textContent = txt;
+      r.uiPTip.style.display = "block";
+      r.uiPTip.style.left = (e.clientX + 14) + "px";
+      r.uiPTip.style.top  = (e.clientY + 12) + "px";
+    }
+  };
+  const hideTip = ()=>{
+    if (r.uiPTip) r.uiPTip.style.display = "none";
+  };
+
+  r.uiPowerBar.addEventListener("mouseenter", showTip);
+  r.uiPowerBar.addEventListener("mousemove", showTip);
+  r.uiPowerBar.addEventListener("mouseleave", hideTip);
+}
+
 
     function updateSelectionUI(env) {
       env = env || {};
@@ -80,6 +123,10 @@
       const p = state.player || {};
       const prod = p.powerProd || 0;
       const use  = p.powerUse  || 0;
+
+// Tooltip text (used by pTip hover + browser title)
+r.__powerTipText = `전력: ${prod} / ${use}`;
+if (r.uiPowerBar) r.uiPowerBar.title = r.__powerTipText;
 
       // Green: production vs usage (how "healthy" power is).
       let pct = 1;
