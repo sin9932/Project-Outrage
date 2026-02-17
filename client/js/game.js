@@ -13030,6 +13030,7 @@ function sanityCheck(){
       feedProducers();
       tickSidebarBuild(dt);
       tickEnemySidebarBuild(dt);
+      setButtonText();
       updateSidebarButtons();
 
       updateVision();
@@ -13055,9 +13056,7 @@ function sanityCheck(){
       recomputePower();
       updateSelectionUI();
       sanityCheck();
-  setButtonText();
-
-  // bind price tooltips (one-time)
+    // bind price tooltips (one-time)
   bindPriceTip(btnPow, "power");
   bindPriceTip(btnRef, "refinery");
   bindPriceTip(btnBar, "barracks");
