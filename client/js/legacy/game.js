@@ -10878,6 +10878,11 @@ function drawPathFx(){
   function updateSidebarButtons() {
   const clamp01 = (x) => (x < 0 ? 0 : (x > 1 ? 1 : x));
 
+  // Optional UI nodes (some builds don't have tech tab/panel)
+  const tabTech = document.getElementById("tabTech");
+  const techPanel = document.getElementById("techPanel");
+  const setTechPanelOpen = window.setTechPanelOpen;
+
   // ======= build (main/def) =======
   const getBuildLabel = (k, fallback) =>
     (window.tech && window.tech.buildLabels && window.tech.buildLabels[k]) ? window.tech.buildLabels[k] : fallback;
@@ -10972,7 +10977,7 @@ function drawPathFx(){
     tabTech.style.display = hasLab ? "" : "none";
     if (!hasLab && state.techOpen) {
       state.techOpen = false;
-      setTechPanelOpen(false);
+      if (typeof setTechPanelOpen === "function") setTechPanelOpen(false);
     }
   }
   if (techPanel) techPanel.style.display = state.techOpen ? "" : "none";
