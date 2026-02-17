@@ -10838,15 +10838,16 @@ function drawPathFx(){
   }
 
   function tickSidebarBuild(dt){
-  if (__ou_ui && typeof __ou_ui.updateBuildModeUI === "function"){
-    __ou_ui.updateBuildModeUI({ state });
-    return;
-  }
-
     // Economy: build lanes tick moved to ou_economy (money drain + progress + ready state).
+    // Must run even when OUUI is active, otherwise build buttons appear to do nothing.
     if (__ou_econ && __ou_econ.tickBuildLanes) __ou_econ.tickBuildLanes(dt);
 
-    // BuildMode pill (global placement state)
+    if (__ou_ui && typeof __ou_ui.updateBuildModeUI === "function"){
+      __ou_ui.updateBuildModeUI({ state });
+      return;
+    }
+
+// BuildMode pill (global placement state)
     const anyReady = !!(state.buildLane.main.ready || state.buildLane.def.ready);
     const anyBuilding = !!(state.buildLane.main.queue || state.buildLane.def.queue || (state.buildLane.main.fifo&&state.buildLane.main.fifo.length) || (state.buildLane.def.fifo&&state.buildLane.def.fifo.length));
     if (state.build.active) {
