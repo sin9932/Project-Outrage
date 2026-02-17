@@ -27,10 +27,6 @@
   /* After start: enable interactions again */
   body.started #c { pointer-events: auto !important; }
   body.started #ui, body.started #ui * { pointer-events: auto !important; }
-/* UI: don't show browser focus dotted outline on click */
-#panelMain button:focus, #panelDef button:focus, #panelInf button:focus, #panelVeh button:focus,
-#panelMain button:focus-visible, #panelDef button:focus-visible, #panelInf button:focus-visible, #panelVeh button:focus-visible,
-#tabs button:focus, #tabs button:focus-visible { outline: none !important; }
 </style>
 
 <script>
@@ -60,18 +56,6 @@
 <script src="./js/ou_economy.js?v=eco3" defer></script>
 
 <script src="./js/game.js?v=g_ui7" defer></script>
-
-<style id="ou-ui-hotfix">
-  /* Hotfix: remove unexpected dotted/blue outlines on production/build icons */
-  #panelMain button, #panelDef button, #panelInf button, #panelVeh button,
-  #tabs button, #actions button {
-    outline: none !important;
-  }
-  #panelMain button, #panelDef button, #panelInf button, #panelVeh button {
-    border-style: solid !important;
-  }
-</style>
-
 </head>
 <body>
 <div id="wrap">
@@ -174,8 +158,8 @@
 <div class="grid" id="panelMain" style="margin-top:10px">
 <button id="bPow">발전소</button>
 <button id="bRef">정제소</button>
-<button id="bBar">막사</button>
-<button id="bFac">군수공장</button>
+<button id="bBar">막사<span class="badge" id="badgeBar">주요</span></button>
+<button id="bFac">군수공장<span class="badge" id="badgeFac">주요</span></button>
 <button id="bRad">레이더</button>
 </div>
 <div class="grid" id="panelDef" style="margin-top:10px; display:none">

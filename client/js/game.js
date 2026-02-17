@@ -110,14 +110,7 @@ ${e.filename}:${e.lineno}:${e.colno}
   const btnIFV = $("pIFV");
   // [refactor] UI helpers extracted -> ou_ui.js (Stage 4)
   const __ou_ui = (window.OUUI && typeof window.OUUI.create === "function")
-    ? window.OUUI.create({
-        uiSelCount, uiPower, uiRadarStat, uiMmHint, uiSelInfo,
-        btnInf, btnEng, btnSnp, btnTnk, btnHar, btnIFV,
-        uiPowerFill, uiPowerNeed,
-        qFillMain, qFillDef, qFillInf, qFillVeh,
-        qTxtMain, qTxtDef, qTxtInf, qTxtVeh,
-        badgeBar, badgeFac
-      })
+    ? window.OUUI.create()
     : null;
 
   const btnRepair = $("repair");
@@ -139,15 +132,6 @@ ${e.filename}:${e.lineno}:${e.colno}
 function ensureBtnUI(btn, label) {
   if (!btn) return null;
 
-  // Remove legacy inline text nodes like "발전소" so we don't end up with "발전소발전소"
-  // when we later add a <span class="lbl">.
-  try{
-    for (const n of Array.from(btn.childNodes)){
-      if (n && n.nodeType === 3 && n.textContent && n.textContent.trim() !== ""){
-        btn.removeChild(n);
-      }
-    }
-  }catch(_e){}
   // Make sure overlay doesn't steal clicks
   btn.style.position = "relative";
   btn.style.overflow = "hidden";
@@ -10854,14 +10838,13 @@ function drawPathFx(){
   }
 
   function tickSidebarBuild(dt){
-    // Always tick build lanes (money drain + progress + ready state).
-    if (__ou_econ && __ou_econ.tickBuildLanes) __ou_econ.tickBuildLanes(dt);
+  if (__ou_ui && typeof __ou_ui.updateBuildModeUI === "function"){
+    __ou_ui.updateBuildModeUI({ state });
+    return;
+  }
 
-    // If OUUI exists, let it render BuildMode pill + tab blink, but never stop economy ticking.
-    if (__ou_ui && typeof __ou_ui.updateBuildModeUI === "function"){
-      __ou_ui.updateBuildModeUI({ state });
-      return;
-    }
+    // Economy: build lanes tick moved to ou_economy (money drain + progress + ready state).
+    if (__ou_econ && __ou_econ.tickBuildLanes) __ou_econ.tickBuildLanes(dt);
 
     // BuildMode pill (global placement state)
     const anyReady = !!(state.buildLane.main.ready || state.buildLane.def.ready);
@@ -10891,12 +10874,9 @@ function drawPathFx(){
   }
 
 
-  function updateSidebarButtonsLegacy() {
+  function updateSidebarButtons() {
   const clamp01 = (x) => (x < 0 ? 0 : (x > 1 ? 1 : x));
 
-  // Optional tech UI (may not exist). Never crash if missing.
-  const tabTech = document.getElementById("tabTech");
-  const techPanel = document.getElementById("techPanel");
   // ======= build (main/def) =======
   const getBuildLabel = (k, fallback) =>
     (window.tech && window.tech.buildLabels && window.tech.buildLabels[k]) ? window.tech.buildLabels[k] : fallback;
@@ -10905,8 +10885,7 @@ function drawPathFx(){
     { kind: "power",    lane: state.buildLane.main, btn: btnPow,  label: getBuildLabel("power", "발전소") },
     { kind: "refinery", lane: state.buildLane.main, btn: btnRef,  label: getBuildLabel("refinery", "정제소") },
     { kind: "barracks", lane: state.buildLane.main, btn: btnBar,  label: getBuildLabel("barracks", "막사") },
-    { kind: "factory",  lane: state.buildLane.main, btn: btnFac,  label: getBuildLabel("factory", "군수공장") },
-    { kind: "radar",    lane: state.buildLane.main, btn: btnRad,  label: getBuildLabel("radar", "레이더") },
+    { kind: "factory",  lane: state.buildLane.main, btn: btnFac,  label: getBuildLabel("factory", "공장") },
 
     { kind: "turret",   lane: state.buildLane.def,  btn: btnTur,  label: getBuildLabel("turret", "터렛") },
     { kind: "wall",     lane: state.buildLane.def,  btn: btnWall, label: getBuildLabel("wall", "벽") },
@@ -10931,9 +10910,17 @@ function drawPathFx(){
     ui.prog.style.transform = `scaleX(${clamp01(pct)})`;
     ui.prog.style.opacity = (pct > 0 ? "1" : "0");
 
-    // Visible state even when pct=0 (no outline)
-    btn.style.outline = "";
-}
+    // Visible state even when pct=0
+    let outline = "";
+    if (lane && lane.ready === kind) {
+      outline = "2px solid rgba(90, 220, 140, 0.95)";
+    } else if (lane && lane.queue && lane.queue.kind === kind) {
+      outline = "2px dashed rgba(31, 162, 255, 0.95)";
+    } else if (lane && lane.fifo && lane.fifo.includes(kind)) {
+      outline = "2px solid rgba(31, 162, 255, 0.60)";
+    }
+    btn.style.outline = outline;
+  }
 
   // ======= units (inf/veh) =======
   const unitBtns = [
@@ -10943,7 +10930,7 @@ function drawPathFx(){
 
     { kind: "ifv",      btn: btnIFV, producer: "factory",  label: "IFV" },
     { kind: "harvester",btn: btnHar, producer: "factory",  label: "하베스터" },
-    { kind: "tank",     btn: btnTnk, producer: "factory",  label: "경전차" },
+    { kind: "tank",     btn: btnTnk, producer: "factory",  label: "탱크" },
   ];
 
   for (const it of unitBtns) {
@@ -10975,7 +10962,7 @@ function drawPathFx(){
     ui.prog.style.opacity = (bestPct < 0 ? "0" : "1");
 
     // Optional: show that something is actively being produced even at pct=0
-    btn.style.outline = ""; // no dashed/solid outline while producing
+    btn.style.outline = (bestPct >= 0) ? "2px dashed rgba(31, 162, 255, 0.55)" : "";
   }
 
   // ======= tech tab visibility =======
@@ -10989,16 +10976,6 @@ function drawPathFx(){
   }
   if (techPanel) techPanel.style.display = state.techOpen ? "" : "none";
 }
-
-  // UI router: tech gating + tab visibility in ou_ui, progress overlay still in game.js for now
-  function updateSidebarButtons(){
-    if (__ou_ui && typeof __ou_ui.updateSidebarButtons === "function"){
-      __ou_ui.updateSidebarButtons({ state, buildings, TEAM, prodCat, setProdCat });
-    }
-    updateSidebarButtonsLegacy();
-  }
-
-
 
   
   function updatePowerBar() {
@@ -11864,12 +11841,13 @@ for (let ty=0; ty<MAP_H; ty+=2){
   }
 
   function setButtonText() {
+  if (__ou_ui && typeof __ou_ui.updateSidebarButtons === "function") return;
+
   // Build buttons
   ensureBtnUI(btnRef, `정제소`);
   ensureBtnUI(btnPow, `발전소`);
   ensureBtnUI(btnBar, `막사`);
-  ensureBtnUI(btnFac, `군수공장`);
-  ensureBtnUI(btnRad, `레이더`);
+  ensureBtnUI(btnFac, `공장`);
   ensureBtnUI(btnWall, `벽`);
   ensureBtnUI(btnTur, `터렛`);
 
@@ -11879,7 +11857,7 @@ for (let ty=0; ty<MAP_H; ty+=2){
   ensureBtnUI(btnSnp, `저격병`);
   ensureBtnUI(btnIFV, `IFV`);
   ensureBtnUI(btnHar, `하베스터`);
-  ensureBtnUI(btnTnk, `경전차`);
+  ensureBtnUI(btnTnk, `탱크`);
 
   // Other UI
   if (btnSell) btnSell.textContent = `매각(D)`;
@@ -12724,7 +12702,24 @@ function sanityCheck(){
       feedProducers();
       tickSidebarBuild(dt);
       tickEnemySidebarBuild(dt);
-      updateSidebarButtons();
+
+      // UI: sidebar buttons + overlays are handled in ou_ui.js
+      if (__ou_ui && typeof __ou_ui.updateSidebarButtons === "function") {
+        try {
+          __ou_ui.updateSidebarButtons({
+            state,
+            buildings: state.buildings,
+            TEAM,
+            prodCat,
+            setProdCat,
+            tabBtns,
+            panels
+          });
+        } catch (_e) {}
+      } else {
+        updateSidebarButtons();
+      }
+
 
       updateVision();
       tickProduction(dt);
@@ -12747,7 +12742,6 @@ function sanityCheck(){
 
       aiTick();
       recomputePower();
-      updatePowerBar();
       updateSelectionUI();
       sanityCheck();
   setButtonText();

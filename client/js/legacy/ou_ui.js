@@ -41,9 +41,18 @@ r.btnTnk = r.btnTnk || document.getElementById("pTnk");
 r.btnHar = r.btnHar || document.getElementById("pHar");
 r.btnIFV = r.btnIFV || document.getElementById("pIFV");
 
+// HUD misc
+r.uiMoney     = r.uiMoney     || document.getElementById("money");
+r.uiBuildMode = r.uiBuildMode || document.getElementById("buildMode");
+r.uiToast     = r.uiToast     || document.getElementById("toast");
+
+// Cursor mode buttons
+r.btnRepairMode = r.btnRepairMode || document.getElementById("btnRepairMode");
+r.btnSellMode   = r.btnSellMode   || document.getElementById("btnSellMode");
+
 
 // Install power tooltip (once). Falls back to title attribute as well.
-if (r.uiPowerBar && !r.__powerTipInstalled){
+if (!r.__powerTipInstalled){
   r.__powerTipInstalled = true;
 
   // Make sure tooltip element can actually follow the cursor
@@ -74,9 +83,15 @@ if (r.uiPowerBar && !r.__powerTipInstalled){
     if (r.uiPTip) r.uiPTip.style.display = "none";
   };
 
-  r.uiPowerBar.addEventListener("mouseenter", showTip);
-  r.uiPowerBar.addEventListener("mousemove", showTip);
-  r.uiPowerBar.addEventListener("mouseleave", hideTip);
+  const bindTip = (el)=>{
+    if (!el) return;
+    el.addEventListener("mouseenter", showTip);
+    el.addEventListener("mousemove", showTip);
+    el.addEventListener("mouseleave", hideTip);
+  };
+  bindTip(r.uiPowerBar);
+  bindTip(r.uiPowerNeed);
+  bindTip(r.uiPowerFill);
 }
 
 
@@ -228,22 +243,26 @@ function ensureBadge(btn){
     }
 
     function refreshPrimaryBuildingBadgesUI(env){
-      env = env || {};
-      const { state } = env;
-      if (!state || !state.primary || !state.primary.player) return;
+  // User requested: no [주요] primary badges on production icons.
+  // Keep the function for compatibility, but hide badges unless explicitly enabled.
+  const show = !!(env && env.showPrimaryBadges);
+  const badgeBar = (env && env.badgeBar) || r.badgeBar;
+  const badgeFac = (env && env.badgeFac) || r.badgeFac;
 
-      const barId = state.primary.player.barracks;
-      const facId = state.primary.player.factory;
+  if (badgeBar) badgeBar.style.display = show ? "" : "none";
+  if (badgeFac) badgeFac.style.display = show ? "" : "none";
+  if (!show) return;
 
-      const hasBar = (barId != null && barId !== -1);
-      const hasFac = (facId != null && facId !== -1);
+  // If enabled later, keep previous behavior (simple on/off based on primary building existence).
+  const state = (env && env.state) || window.state;
+  const buildings = (env && env.buildings) || window.buildings;
 
-      const barEl = r.badgeBar || document.getElementById("badgeBar");
-      const facEl = r.badgeFac || document.getElementById("badgeFac");
+  const hasBarracks = !!(buildings && buildings.some && buildings.some(b => b && b.kind === "barracks" && b.team === state.team && !b.dead));
+  const hasFactory  = !!(buildings && buildings.some && buildings.some(b => b && b.kind === "factory"  && b.team === state.team && !b.dead));
 
-      if (barEl) barEl.style.display = hasBar ? "inline-block" : "none";
-      if (facEl) facEl.style.display = hasFac ? "inline-block" : "none";
-    }
+  if (badgeBar) badgeBar.style.display = hasBarracks ? "" : "none";
+  if (badgeFac) badgeFac.style.display = hasFactory ? "" : "none";
+}
 
     function updateProdBars(env){
       env = env || {};
@@ -406,6 +425,16 @@ function ensureBadge(btn){
         btn.classList.toggle("disabled", !ok);
       }
 
+      function setVisible(btn, ok){
+        if (!btn) return;
+        btn.style.display = ok ? "" : "none";
+      }
+      function applyTech(btn, ok){
+        setVisible(btn, ok);
+        setEnabled(btn, ok);
+      }
+
+
       // Tabs show/hide by producers (keep same rules as legacy game.js)
       const tabProducer = {
         main: { req: ["hq"] },
@@ -441,20 +470,20 @@ function ensureBadge(btn){
       }
 
       // Build panel buttons
-      setEnabled(r.btnPow, prereqOk("power", tech.buildPrereq));
-      setEnabled(r.btnRef, prereqOk("refinery", tech.buildPrereq));
-      setEnabled(r.btnBar, prereqOk("barracks", tech.buildPrereq));
-      setEnabled(r.btnFac, prereqOk("factory", tech.buildPrereq));
-      setEnabled(r.btnRad, prereqOk("radar", tech.buildPrereq));
-      setEnabled(r.btnTur, prereqOk("turret", tech.buildPrereq));
+      applyTech(r.btnPow, prereqOk("power", tech.buildPrereq));
+      applyTech(r.btnRef, prereqOk("refinery", tech.buildPrereq));
+      applyTech(r.btnBar, prereqOk("barracks", tech.buildPrereq));
+      applyTech(r.btnFac, prereqOk("factory", tech.buildPrereq));
+      applyTech(r.btnRad, prereqOk("radar", tech.buildPrereq));
+      applyTech(r.btnTur, prereqOk("turret", tech.buildPrereq));
 
       // Unit panel buttons
-      setEnabled(r.btnInf, prereqOk("infantry", tech.unitPrereq));
-      setEnabled(r.btnEng, prereqOk("engineer", tech.unitPrereq));
-      setEnabled(r.btnSnp, prereqOk("sniper", tech.unitPrereq));
-      setEnabled(r.btnTnk, prereqOk("tank", tech.unitPrereq));
-      setEnabled(r.btnIFV, prereqOk("ifv", tech.unitPrereq));
-      setEnabled(r.btnHar, prereqOk("harvester", tech.unitPrereq));
+      applyTech(r.btnInf, prereqOk("infantry", tech.unitPrereq));
+      applyTech(r.btnEng, prereqOk("engineer", tech.unitPrereq));
+      applyTech(r.btnSnp, prereqOk("sniper", tech.unitPrereq));
+      applyTech(r.btnTnk, prereqOk("tank", tech.unitPrereq));
+      applyTech(r.btnIFV, prereqOk("ifv", tech.unitPrereq));
+      applyTech(r.btnHar, prereqOk("harvester", tech.unitPrereq));
 
       // Panels themselves (optional): if tab is hidden, also hide its panel to avoid empty UI.
       // (game.js setProdCat already does this; this is just extra safety)
@@ -463,13 +492,189 @@ function ensureBadge(btn){
       }
     }
 
-    return {
+    
+    // -------------------------
+    // P0 UI finishing helpers
+    // -------------------------
+
+    function updateMoney(money){
+      r.uiMoney = r.uiMoney || document.getElementById("money");
+      if (!r.uiMoney) return;
+      const v = (typeof money === "number") ? Math.floor(money) : money;
+      r.uiMoney.textContent = `$ ${v}`;
+    }
+
+    function toast(text, dur=1.0){
+      r.uiToast = r.uiToast || document.getElementById("toast");
+      const el = r.uiToast;
+      if (!el) return;
+      if (text == null || text === ""){
+        el.style.display = "none";
+        return;
+      }
+      el.textContent = String(text);
+      el.style.display = "block";
+      el.style.opacity = "1";
+      clearTimeout(r._toastT);
+      r._toastT = setTimeout(()=>{
+        el.style.opacity = "0";
+        setTimeout(()=>{ el.style.display = "none"; }, 140);
+      }, Math.max(250, (dur||1)*1000));
+    }
+
+    function applyMouseMode(env){
+      env = env || {};
+      const state = env.state;
+      const mode = env.mode;
+      if (state) state.mouseMode = mode;
+
+      const body = document.body;
+      if (body){
+        body.classList.toggle("cursor-repair", mode==="repair");
+        body.classList.toggle("cursor-sell",   mode==="sell");
+      }
+
+      r.btnRepairMode = r.btnRepairMode || document.getElementById("btnRepairMode");
+      r.btnSellMode   = r.btnSellMode   || document.getElementById("btnSellMode");
+      if (r.btnRepairMode) r.btnRepairMode.classList.toggle("on", mode==="repair");
+      if (r.btnSellMode)   r.btnSellMode.classList.toggle("on", mode==="sell");
+    }
+
+    function updateBuildModeUI(env){
+      env = env || {};
+      const state = env.state;
+      r.uiBuildMode = r.uiBuildMode || document.getElementById("buildMode");
+      const el = r.uiBuildMode;
+      if (!el || !state) return;
+
+      const mode = state.mouseMode || "normal";
+      const mainReady = !!(state.buildLane && state.buildLane.main && state.buildLane.main.ready);
+      const defReady  = !!(state.buildLane && state.buildLane.def  && state.buildLane.def.ready);
+      const anyReady  = mainReady || defReady;
+
+      if (mode==="repair"){
+        el.textContent = "REPAIR";
+        el.className = "pill warn";
+      } else if (mode==="sell"){
+        el.textContent = "SELL";
+        el.className = "pill warn";
+      } else if (anyReady){
+        el.textContent = "BUILD";
+        el.className = "pill ok";
+      } else {
+        el.textContent = "NORMAL";
+        el.className = "pill";
+      }
+
+      // Blink tabs when build lane has ready items
+      const tabs = r.tabBtns || Array.from(document.querySelectorAll(".tabbtn[data-cat]"));
+      const setBlink = (cat, on)=>{
+        const t = (tabs||[]).find(x => x && ((x.dataset && x.dataset.cat) || x.getAttribute("data-cat"))===cat);
+        if (t) t.classList.toggle("blink", !!on);
+      };
+      setBlink("main", mainReady);
+      setBlink("def", defReady);
+    }
+
+    function bindPriceTipsOnce(env){
+      if (r._priceTipBound) return;
+      env = env || {};
+      const COST = env.COST || window.COST;
+      r._priceTipBound = true;
+
+      if (!COST) return;
+
+      let tip = document.getElementById("ou_priceTip");
+      if (!tip){
+        tip = document.createElement("div");
+        tip.id = "ou_priceTip";
+        tip.style.position = "fixed";
+        tip.style.padding = "6px 10px";
+        tip.style.borderRadius = "10px";
+        tip.style.background = "rgba(0,0,0,0.86)";
+        tip.style.color = "#ffe9a6";
+        tip.style.fontSize = "18px";
+        tip.style.fontWeight = "950";
+        tip.style.pointerEvents = "none";
+        tip.style.border = "1px solid rgba(255,233,166,0.35)";
+        tip.style.boxShadow = "0 10px 30px rgba(0,0,0,0.45)";
+        tip.style.zIndex = "9999";
+        tip.style.display = "none";
+        document.body.appendChild(tip);
+      }
+      r._priceTip = tip;
+
+      const bound = r._tipBound || (r._tipBound = new WeakSet());
+
+      const show = (kind, e)=>{
+        const cost = COST[kind];
+        if (cost == null){
+          tip.style.display = "none";
+          return;
+        }
+        tip.textContent = `$ ${cost}`;
+        tip.style.left = (e.clientX + 16) + "px";
+        tip.style.top  = (e.clientY + 16) + "px";
+        tip.style.display = "block";
+      };
+      const move = (e)=>{
+        if (tip.style.display !== "block") return;
+        tip.style.left = (e.clientX + 16) + "px";
+        tip.style.top  = (e.clientY + 16) + "px";
+      };
+      const hide = ()=>{ tip.style.display = "none"; };
+
+      const bind = (btn, kind)=>{
+        if (!btn || bound.has(btn)) return;
+        bound.add(btn);
+        btn.addEventListener("mouseenter", (e)=>show(kind, e));
+        btn.addEventListener("mousemove", move);
+        btn.addEventListener("mouseleave", hide);
+      };
+
+      // Resolve buttons (even if game.js didn't pass refs)
+      r.btnPow = r.btnPow || document.getElementById("bPow");
+      r.btnRef = r.btnRef || document.getElementById("bRef");
+      r.btnBar = r.btnBar || document.getElementById("bBar");
+      r.btnFac = r.btnFac || document.getElementById("bFac");
+      r.btnRad = r.btnRad || document.getElementById("bRad");
+      r.btnTur = r.btnTur || document.getElementById("bTur");
+
+      r.btnInf = r.btnInf || document.getElementById("pInf");
+      r.btnEng = r.btnEng || document.getElementById("pEng");
+      r.btnSnp = r.btnSnp || document.getElementById("pSnp");
+      r.btnTnk = r.btnTnk || document.getElementById("pTnk");
+      r.btnHar = r.btnHar || document.getElementById("pHar");
+      r.btnIFV = r.btnIFV || document.getElementById("pIFV");
+
+      bind(r.btnPow, "power");
+      bind(r.btnRef, "refinery");
+      bind(r.btnBar, "barracks");
+      bind(r.btnFac, "factory");
+      bind(r.btnRad, "radar");
+      bind(r.btnTur, "turret");
+
+      bind(r.btnInf, "infantry");
+      bind(r.btnEng, "engineer");
+      bind(r.btnSnp, "sniper");
+      bind(r.btnTnk, "tank");
+      bind(r.btnHar, "harvester");
+      bind(r.btnIFV, "ifv");
+    }
+
+return {
       updateSelectionUI,
-      updateSidebarButtons,
-      updatePowerBar,
-      updateProdBadges,
-      refreshPrimaryBuildingBadgesUI,
-      updateProdBars
+            updateSidebarButtons,
+            updatePowerBar,
+            updateProdBadges,
+            refreshPrimaryBuildingBadgesUI,
+            updateProdBars,
+            // extras
+            toast,
+            updateMoney,
+            applyMouseMode,
+            updateBuildModeUI,
+            bindPriceTipsOnce
     };
   };
 })(window);
