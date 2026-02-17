@@ -9357,7 +9357,6 @@ const keys=new Set();
 
 
     if (e.button===2){
-      if (state.build.active){ cancelBuild(); return; }
       // Right-click: pan camera (even during repair/sell modes).
       const p=getPointerCanvasPx(e);
       state.pan.on=true;
@@ -9871,34 +9870,6 @@ if (state.selection.size>0 && inMap(tx,ty) && ore[idx(tx,ty)]>0){
   }
 
   
-  // --- Build placement helpers (v5) ---
-  function labelOf(k){
-    try { return (NAME_KO && NAME_KO[k]) ? NAME_KO[k] : String(k); }
-    catch(_e){ return String(k); }
-  }
-  function enterBuildPlacement(kind, laneKey, fromAuto){
-    if (!kind) return;
-    state.build.active = true;
-    state.build.kind = kind;
-    state.build.lane = laneKey || null;
-
-    // Prevent accidental immediate placement from the same click.
-    state.suppressClickUntil = state.t + 0.10;
-
-    // Force a visible ghost immediately even if mouse is still over UI.
-    const px = (state.hover && state.hover.px) ? state.hover.px : canvas.width*0.5;
-    const py = (state.hover && state.hover.py) ? state.hover.py : canvas.height*0.5;
-    const w = screenToWorld(px, py);
-    state.hover.wx = w.x; state.hover.wy = w.y;
-    state.hover.px = px; state.hover.py = py;
-
-    const label = labelOf(kind);
-    toast(fromAuto
-      ? `완료: ${label} 배치 (좌클릭 배치 / 우클릭 취소)`
-      : `배치 모드: ${label} (좌클릭 배치 / 우클릭 취소)`);
-  }
-
-
   function setBuild(kind){
     if (!kind) return;
 
@@ -9930,7 +9901,11 @@ if (state.selection.size>0 && inMap(tx,ty) && ore[idx(tx,ty)]>0){
 
     // If this lane has a READY of the same kind, enter placement mode.
     if (lane.ready === kind){
-      enterBuildPlacement(kind, laneKey, false);
+      state.build.active = true;
+      state.build.kind = kind;
+      state.build.lane = laneKey;
+      // Prevent accidental immediate placement from the click that opened placement.
+      state.suppressClickUntil = state.t + 0.10;
       return;
     }
 
@@ -9940,17 +9915,6 @@ if (state.selection.size>0 && inMap(tx,ty) && ore[idx(tx,ty)]>0){
     lane.fifo.push(kind);
   }
 
-function cancelBuild(){
-    if (!state.build.active) return;
-    // do NOT consume lane.ready here; cancel returns the READY item to the queue UI
-    state.build.active = false;
-    state.build.kind = null;
-    state.build.lane = null;
-    state.suppressClickUntil = state.t + 0.12;
-    toast("배치 취소");
-}
-
-
   btnRef.onclick=()=>setBuild("refinery");
   btnPow.onclick=()=>setBuild("power");
   btnBar.onclick=()=>setBuild("barracks");
@@ -9959,69 +9923,28 @@ function cancelBuild(){
   btnRad.onclick=()=>{ if(!hasBuilding(TEAM.PLAYER,"refinery")){ toast("레이더는 정제소가 필요함"); return; } setBuild("radar"); };
 
   // Right-click on the currently building item: 1st = pause(대기, no spending), 2nd = cancel + refund spent cost.
-
-  // Right-click build buttons:
-  //  - If building now (front of lane.queue): 1st = pause(대기), 2nd(while paused) = cancel + refund paid
-  //  - If READY: cancel READY + refund full cost
-  //  - If reserved in FIFO: remove one reservation
-  //  - If currently placing this kind: cancel placement (keeps READY)
   function attachLaneRClick(btn, laneKey, kind){
     if (!btn) return;
     btn.addEventListener("contextmenu", (ev)=>{
       ev.preventDefault();
       const lane = state.buildLane ? state.buildLane[laneKey] : null;
-      if (!lane) return;
-
-      // If placing this exact kind, cancel placement (READY stays).
-      if (state.build.active && state.build.kind===kind && state.build.lane===laneKey){
-        cancelBuild();
-        return;
-      }
-
-      // If READY, cancel + refund full cost.
-      if (lane.ready === kind){
-        const refund = (COST[kind]||0);
-        if (refund>0) state.player.money += refund;
-        lane.ready = null;
-        toast("완료 취소 + 환불");
-        return;
-      }
-
-      // If currently building (front), pause then cancel+refund.
-      if (lane.queue && lane.queue.kind === kind){
-        if (!lane.queue.paused){
-          lane.queue.paused = true;
-          lane.queue.autoPaused = false;
-          toast("대기");
-          return;
-        }
+      if (!lane || !lane.queue || lane.queue.kind !== kind) return;
+      if (!lane.queue.paused){
+        lane.queue.paused = true;
+        toast("대기");
+      } else {
+        // cancel + refund paid so far
         const paid = lane.queue.paid || 0;
-        if (paid>0) state.player.money += paid;
+        state.player.money += paid;
         lane.queue = null;
-
-        // Remove ONE pending reservation of same kind (last) if any.
+        // Also drop any pending reservations of the same kind to avoid "ghost" rebuild.
         if (lane.fifo && lane.fifo.length){
-          for (let i=lane.fifo.length-1;i>=0;i--){
-            if (lane.fifo[i]===kind){ lane.fifo.splice(i,1); break; }
-          }
+          lane.fifo = lane.fifo.filter(k=>k!==kind);
         }
         toast("취소 + 환불");
-        return;
-      }
-
-      // If reserved in FIFO, remove ONE.
-      if (lane.fifo && lane.fifo.length){
-        for (let i=lane.fifo.length-1;i>=0;i--){
-          if (lane.fifo[i]===kind){
-            lane.fifo.splice(i,1);
-            toast("예약 취소");
-            return;
-          }
-        }
       }
     });
   }
-
   attachLaneRClick(btnPow, "main", "power");
   attachLaneRClick(btnRef, "main", "refinery");
   attachLaneRClick(btnBar, "main", "barracks");
@@ -11157,19 +11080,6 @@ function drawPathFx(){
     tickLane("main");
     tickLane("def");
 
-    // Auto-enter placement when a lane becomes READY (C&C behavior).
-    // Fixes cases where clicking READY did nothing (e.g., handler error / overlay).
-    for (const lk of ["main","def"]){
-      const lane = state.buildLane && state.buildLane[lk];
-      if (!lane) continue;
-      const prev = (lane._prevReady === undefined) ? null : (lane._prevReady || null);
-      const cur  = lane.ready || null;
-      if (cur && cur !== prev && !state.build.active){
-        enterBuildPlacement(cur, lk, true);
-      }
-      lane._prevReady = cur;
-    }
-
     // BuildMode pill (global placement state)
     const anyReady = !!(state.buildLane.main.ready || state.buildLane.def.ready);
     const anyBuilding = !!(state.buildLane.main.queue || state.buildLane.def.queue || (state.buildLane.main.fifo&&state.buildLane.main.fifo.length) || (state.buildLane.def.fifo&&state.buildLane.def.fifo.length));
@@ -11273,49 +11183,6 @@ if (!hasP("factory"))  resetProducerQueues("factory");
     };
     const laneOf = (k)=> (k==="turret") ? "def" : "main";
 
-    // Button progress overlay (robust: does not depend on CSS background)
-    function ensureBtnProg(btn){
-      if (!btn) return null;
-      // keep existing positioning if any, but ensure we can place overlay
-      if (!btn.style.position) btn.style.position = "relative";
-      btn.style.overflow = "hidden";
-      let p = btn.querySelector(":scope > span.ouProg");
-      if (!p){
-        p = document.createElement("span");
-        p.className = "ouProg";
-        p.style.position = "absolute";
-        p.style.left = "0";
-        p.style.top = "0";
-        p.style.bottom = "0";
-        p.style.width = "0%";
-        p.style.background = "rgba(90,220,140,0.45)";
-        p.style.pointerEvents = "none";
-        p.style.zIndex = "1";
-        btn.insertBefore(p, btn.firstChild);
-      }
-      // push other element-children above overlay so text stays readable
-      for (const ch of btn.children){
-        if (ch === p) continue;
-        if (ch && ch.style){
-          if (!ch.style.position) ch.style.position = "relative";
-          ch.style.zIndex = "2";
-        }
-      }
-      return p;
-    }
-    function setBtnProg(btn, pct){
-      const p = ensureBtnProg(btn);
-      if (!p) return;
-      if (pct > 0){
-        p.style.display = "block";
-        const w = Math.max(2, Math.floor(pct * 100)); // show something even at 0%
-        p.style.width = `${w}%`;
-      } else {
-        p.style.display = "none";
-        p.style.width = "0%";
-      }
-    }
-
     for (const [k, btn] of Object.entries(buildBtns)){
       if (!btn) continue;
       const show = prereqOk(tech.buildPrereq[k]);
@@ -11327,25 +11194,21 @@ if (!hasP("factory"))  resetProducerQueues("factory");
       let ready = false;
 
       if (lane && lane.queue && lane.queue.kind === k){
-        // Building progress: prefer time-based (t/tNeed) and fallback to paid/cost if present.
-        const cost = (lane.queue.cost ?? (COST[k]||0)) || 0;
-        const denom = Math.max(1, cost);
-        const pctPaid = clamp(((lane.queue.paid||0) / denom), 0, 1);
-
-        const tNeed = lane.queue.tNeed || 0;
-        const pctTime = (tNeed > 0) ? clamp(((lane.queue.t||0) / tNeed), 0, 1) : 0;
-
-        pct = Math.max(pctTime, pctPaid);
-        // If paused, keep a tiny sliver so user sees it's the active item.
-        if ((lane.queue.paused || lane.queue.autoPaused) && pct <= 0) pct = 0.02;
+        const c = lane.queue.cost || 1;
+        pct = clamp((lane.queue.paid||0) / c, 0, 1);
       } else if (lane && lane.ready === k){
         pct = 1; ready = true;
       }
 
-      const inProg = (lane && ((lane.queue && lane.queue.kind === k) || (lane.ready === k)));
-      const showPct = inProg ? Math.max(pct, 0.02) : 0;
-      setBtnProg(btn, showPct);
-btn.style.outline = ready ? "2px solid rgba(90,220,140,0.75)" : "";
+      if (pct>0){
+        btn.style.background = `linear-gradient(180deg, rgba(60,45,18,0.92), rgba(18,14,8,0.96)), linear-gradient(90deg, rgba(90,220,140,0.55) ${pct*100}%, rgba(0,0,0,0) ${pct*100}%)`;
+        btn.style.backgroundBlendMode = "overlay, normal";
+      } else {
+        btn.style.background = "";
+        btn.style.backgroundBlendMode = "";
+      }
+
+      btn.style.outline = ready ? "2px solid rgba(90,220,140,0.75)" : "";
     }
     // Unit buttons: stable label + badge count + progress fill (never overwrite innerHTML/textContent)
     const unitBtns = {
@@ -11402,10 +11265,14 @@ btn.style.outline = ready ? "2px solid rgba(90,220,140,0.75)" : "";
         const pct = clamp((q.paid||0) / c, 0, 1);
         if (pct > bestPct) bestPct = pct;
       }
-
-      const showPct = (bestPct>=0) ? Math.max(bestPct, 0.02) : 0;
-      setBtnProg(btn, showPct);
-}
+      if (bestPct>=0){
+        btn.style.background = `linear-gradient(90deg, rgba(90,220,140,0.22) ${Math.floor(bestPct*100)}%, rgba(0,0,0,0.0) ${Math.floor(bestPct*100)}%)`;
+        btn.style.backgroundBlendMode = "normal";
+      } else {
+        btn.style.background = "";
+        btn.style.backgroundBlendMode = "";
+      }
+    }
 
 
     updateProdBars();
@@ -13120,7 +12987,6 @@ function sanityCheck(){
       feedProducers();
       tickSidebarBuild(dt);
       tickEnemySidebarBuild(dt);
-      setButtonText();
       updateSidebarButtons();
 
       updateVision();
@@ -13146,7 +13012,9 @@ function sanityCheck(){
       recomputePower();
       updateSelectionUI();
       sanityCheck();
-    // bind price tooltips (one-time)
+  setButtonText();
+
+  // bind price tooltips (one-time)
   bindPriceTip(btnPow, "power");
   bindPriceTip(btnRef, "refinery");
   bindPriceTip(btnBar, "barracks");
