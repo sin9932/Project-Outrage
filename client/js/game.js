@@ -11190,7 +11190,7 @@ function drawPathFx(){
       // 다른 레이어 위로 확실히 올려
       mask.style.zIndex = "9999";
       // 진행 표시: 초록 오버레이(RA2 느낌)
-      mask.style.background = "rgba(90,220,140,0.35)";
+      mask.style.background = "rgba(0,0,0,0.55)";
       mask.style.opacity = "0";
       mask.style.transition = "height 80ms linear, opacity 80ms linear";
 
@@ -11214,16 +11214,26 @@ function drawPathFx(){
       const mask = ensureProgMask(btn);
       if (!mask) return;
 
-      // pct: 0..1 (0이면 숨김, 1이면 꽉 채움)
-      const p = clamp01(pct || 0);
-      if (p <= 0){
-        mask.style.height = "0%";
+      // pct가 null/undefined면 "진행중 아님"으로 간주하고 오버레이 숨김
+      if (pct == null){
         mask.style.opacity = "0";
+        mask.style.height = "0%";
         if (btn.__poProgStripe) btn.__poProgStripe.style.opacity = "0";
         return;
       }
+
+      // pct: 0..1 (0%이면 완전 덮기, 100%이면 완전 해제)
+      const p = clamp01(pct || 0);
+      // 100% 완료면 오버레이 제거
+      if (p >= 0.999){
+        mask.style.opacity = "0";
+        mask.style.height = "0%";
+        if (btn.__poProgStripe) btn.__poProgStripe.style.opacity = "0";
+        return;
+      }
+      // 진행중이면 (1-p) 만큼 덮어서 RA2식으로 '검은 덮개가 줄어드는' 느낌
       mask.style.opacity = "1";
-      mask.style.height = (p * 100).toFixed(1) + "%";
+      mask.style.height = ((1 - p) * 100).toFixed(1) + "%";
       if (btn.__poProgStripe) btn.__poProgStripe.style.opacity = paused ? "0.55" : "0";
     }
 
@@ -11271,7 +11281,7 @@ function drawPathFx(){
       // 진행/ready 표시
       const laneKey = (it.kind === "turret") ? "def" : "main";
       const lane = state.buildLane ? state.buildLane[laneKey] : null;
-      let pct = 0, paused = false;
+      let pct = null, paused = false;
       if (lane && lane.queue && lane.queue.kind === it.kind){
         pct = pctFromQueue(lane.queue);
         paused = !!lane.queue.paused;
@@ -11314,6 +11324,7 @@ function drawPathFx(){
 
       // 현재 생산 진행률(여러 생산시설 중 가장 많이 진행된 것)
       let bestPct = 0;
+      let active = false;
       let bestPaused = false;
 
       const producers = [];
@@ -11331,13 +11342,14 @@ function drawPathFx(){
         if (!b.buildQ || !b.buildQ.length) continue;
         const q = b.buildQ[0];
         if (!q || q.kind !== it.kind) continue;
+        active = true;
         const pct = pctFromQueue(q);
         if (pct > bestPct){
           bestPct = pct;
           bestPaused = !!q.paused;
         }
       }
-      setBtnProgress(it.btn, bestPct, bestPaused);
+      setBtnProgress(it.btn, active ? bestPct : null, bestPaused);
     }
   }
 
