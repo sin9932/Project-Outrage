@@ -708,14 +708,33 @@ function ensureBadge(btn){
         if (!ui) continue;
 
         let pct = 0;
-        const lane = it.lane;
-        if (lane && lane.ready === it.kind){
-          pct = 1;
-        } else if (lane && lane.queue && lane.queue.kind === it.kind){
-          pct = (lane.queue.cost > 0) ? (lane.queue.paid / lane.queue.cost) : 0;
-        }
+let status = "";
+let paused = false;
 
-        ui.prog.style.background = "rgba(90, 220, 140, 0.55)";
+if (state && typeof state.getBuildProgress === "function"){
+  const info = state.getBuildProgress(it.kind);
+  if (info){
+    pct = (typeof info.pct === "number") ? info.pct : 0;
+    status = info.status || "";
+    paused = !!info.paused;
+  }
+} else {
+  const lane = it.lane;
+  if (lane && lane.ready === it.kind){
+    pct = 1;
+    status = "ready";
+  } else if (lane && lane.queue && lane.queue.kind === it.kind){
+    const cost = lane.queue.cost || 0;
+    pct = (cost > 0) ? (lane.queue.paid / cost) : 0;
+    paused = !!lane.queue.paused;
+    status = paused ? "paused" : "building";
+  }
+}
+
+ui.prog.style.background = paused
+  ? "rgba(180, 180, 180, 0.45)"
+  : "rgba(90, 220, 140, 0.55)";
+ = "rgba(90, 220, 140, 0.55)";
         ui.prog.style.transform = `scaleX(${clamp01(pct)})`;
         ui.prog.style.opacity = (pct > 0 ? "1" : "0");
       }
@@ -737,27 +756,41 @@ function ensureBadge(btn){
         const ui = ensureBtnUI(btn, null);
         if (!ui) continue;
 
-        let bestPct = -1;
+        let pct = 0;
+let show = false;
 
-        if (Array.isArray(buildings)){
-          for (const b of buildings){
-            if (!b || b.kind !== it.producer) continue;
-            if (!alivePlayerBuilding(b)) continue;
-            if (!b.buildQ || b.buildQ.length === 0) continue;
+if (state && typeof state.getUnitProgress === "function"){
+  const info = state.getUnitProgress(it.kind, it.producer);
+  if (info && typeof info.pct === "number"){
+    pct = clamp01(info.pct);
+    show = (info.status === "building" || info.status === "ready" || pct > 0);
+  }
+} else {
+  // Fallback (legacy): compute locally from buildings[*].buildQ[0]
+  let bestPct = -1;
 
-            const q = b.buildQ[0];
-            if (!q || q.kind !== it.kind) continue;
+  if (Array.isArray(buildings)){
+    for (const b of buildings){
+      if (!b || b.kind !== it.producer) continue;
+      if (!alivePlayerBuilding(b)) continue;
+      if (!b.buildQ || b.buildQ.length === 0) continue;
 
-            const pct = (q.cost > 0) ? (q.paid / q.cost) : (q.tNeed > 0 ? (q.t / q.tNeed) : 0);
-            if (pct > bestPct) bestPct = pct;
-          }
-        }
+      const q = b.buildQ[0];
+      if (!q || q.kind !== it.kind) continue;
 
-        const pct = (bestPct < 0) ? 0 : clamp01(bestPct);
+      const p = (q.cost > 0) ? (q.paid / q.cost) : (q.tNeed > 0 ? (q.t / q.tNeed) : 0);
+      if (p > bestPct) bestPct = p;
+    }
+  }
 
-        ui.prog.style.background = "rgba(90, 220, 140, 0.38)";
+  pct = (bestPct < 0) ? 0 : clamp01(bestPct);
+  show = (bestPct >= 0);
+}
+
+ui.prog.style.background = "rgba(90, 220, 140, 0.38)";
+ = "rgba(90, 220, 140, 0.38)";
         ui.prog.style.transform = `scaleX(${pct})`;
-        ui.prog.style.opacity = (bestPct < 0 ? "0" : "1");
+        ui.prog.style.opacity = (show ? "1" : "0");
       }
 
 
