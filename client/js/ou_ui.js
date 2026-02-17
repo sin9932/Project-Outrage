@@ -98,31 +98,12 @@ if (r.uiPowerBar && !r.__powerTipInstalled){
 
       if (!state || !buildings || !TEAM) return;
 
-      // normalize selection ids (Set or array)
       const selIds = (() => {
         if (state.selection && typeof state.selection.has === "function") return Array.from(state.selection);
-        if (Array.isArray(state.sel)) return state.sel.slice();
         if (Array.isArray(state.selection)) return state.selection.slice();
+        if (Array.isArray(state.sel)) return state.sel.slice();
         return [];
       })();
-
-      const clamp01 = (v) => (v < 0 ? 0 : (v > 1 ? 1 : v));
-
-      const resolveName = (e) => {
-        if (!e) return "알 수 없음";
-        const kind = e.kind || e.type || e.name || "";
-        if (kind && NAME_KO && NAME_KO[kind]) return NAME_KO[kind];
-        return kind || e.name || "알 수 없음";
-      };
-
-      const resolveHpText = (e) => {
-        if (!e || e.hp == null || e.hpMax == null) return "";
-        const hpMax = Number(e.hpMax);
-        const hp = Number(e.hp);
-        if (!isFinite(hp) || !isFinite(hpMax) || hpMax <= 0) return "";
-        const pct = Math.round(clamp01(hp / hpMax) * 100);
-        return `${Math.round(hp)}/${Math.round(hpMax)} (${pct}%)`;
-      };
 
       // Selection count
       try{
@@ -142,65 +123,78 @@ if (r.uiPowerBar && !r.__powerTipInstalled){
         }
       }catch(_e){}
 
+      const resolveName = (e) => {
+        if (!e) return "알 수 없음";
+        const kind = e.kind || e.type || e.name || "";
+        if (kind && NAME_KO && NAME_KO[kind]) return NAME_KO[kind];
+        return kind || e.name || "알 수 없음";
+      };
+
+      const resolveHp = (e) => {
+        if (!e || e.hp == null || e.hpMax == null) return null;
+        const hp = Number(e.hp), hpMax = Number(e.hpMax);
+        if (!isFinite(hp) || !isFinite(hpMax) || hpMax <= 0) return null;
+        const pct = Math.max(0, Math.min(1, hp / hpMax));
+        return { hp, hpMax, pct };
+      };
+
       // Selection info
       try{
         if (r.uiSelInfo){
-          const selN = selIds.length;
-          const hoverId = (state.hover && state.hover.entId != null) ? state.hover.entId : null;
-
-          if (!selN){
-            if (hoverId != null){
-              const e = getEntityById ? getEntityById(hoverId) : null;
-              if (e){
-                const name = resolveName(e);
-                const hpText = resolveHpText(e);
-                const out = [];
-                out.push(`오버: [${name}]`);
-                if (hpText) out.push(`HP ${hpText}`);
-                r.uiSelInfo.textContent = out.join("\n");
-              } else {
-                r.uiSelInfo.textContent = "아무것도 선택 안 됨";
-              }
+          if (!selIds.length){
+            // If nothing selected, optionally show hover info.
+            const hid = state.hover && state.hover.entId ? state.hover.entId : null;
+            const he = hid && getEntityById ? getEntityById(hid) : null;
+            if (he){
+              const name = resolveName(he);
+              const hp = resolveHp(he);
+              r.uiSelInfo.textContent = hp
+                ? `오버: [${name}] HP ${hp.hp}/${hp.hpMax} (${Math.round(hp.pct*100)}%)`
+                : `오버: [${name}]`;
             } else {
               r.uiSelInfo.textContent = "아무것도 선택 안 됨";
             }
-          } else if (selN === 1){
-            const e = getEntityById ? getEntityById(selIds[0]) : null;
-            if (e){
-              const name = resolveName(e);
-              const hpText = resolveHpText(e);
-              const out = [];
-              out.push(`[${name}]`);
-              if (hpText) out.push(`HP ${hpText}`);
-              r.uiSelInfo.textContent = out.join("\n");
-            } else {
-              r.uiSelInfo.textContent = "선택됨";
-            }
           } else {
-            // Multi select: summary only
-            let sum = 0;
-            let min = 1;
-            let n = 0;
+            const ents = [];
+            const pcts = [];
             for (const id of selIds){
               const e = getEntityById ? getEntityById(id) : null;
-              if (!e || e.hp == null || e.hpMax == null) continue;
-              const hpMax = Number(e.hpMax);
-              const hp = Number(e.hp);
-              if (!isFinite(hp) || !isFinite(hpMax) || hpMax <= 0) continue;
-              const pct = clamp01(hp / hpMax);
-              sum += pct;
-              min = Math.min(min, pct);
-              n++;
+              if (!e) continue;
+              const hp = resolveHp(e);
+              const name = resolveName(e);
+              ents.push({ id, e, name, hp });
+              if (hp) pcts.push(hp.pct);
             }
-            const out = [];
-            out.push(`${selN}개 선택`);
-            if (n){
-              const avg = sum / n;
-              out.push(`HP 평균 ${Math.round(avg*100)}% / 최저 ${Math.round(min*100)}%`);
+
+            if (!ents.length){
+              r.uiSelInfo.textContent = "선택됨";
+            } else if (ents.length === 1){
+              const it = ents[0];
+              if (it.hp){
+                r.uiSelInfo.textContent = `[${it.name}] HP ${it.hp.hp}/${it.hp.hpMax} (${Math.round(it.hp.pct*100)}%)`;
+              } else {
+                r.uiSelInfo.textContent = `[${it.name}]`;
+              }
             } else {
-              out.push("HP 정보 없음");
+              const avg = pcts.length ? (pcts.reduce((a,b)=>a+b,0)/pcts.length) : 0;
+              const min = pcts.length ? Math.min(...pcts) : 0;
+              const header = `${ents.length}개 선택 | 평균 ${Math.round(avg*100)}% | 최저 ${Math.round(min*100)}%`;
+
+              const MAX_LINES = 10;
+              const lines = [header];
+              const shown = ents.slice(0, MAX_LINES);
+              for (const it of shown){
+                if (it.hp){
+                  lines.push(`- [${it.name}] HP ${it.hp.hp}/${it.hp.hpMax} (${Math.round(it.hp.pct*100)}%)`);
+                } else {
+                  lines.push(`- [${it.name}]`);
+                }
+              }
+              if (ents.length > MAX_LINES){
+                lines.push(`... (+${ents.length - MAX_LINES}개 더 선택됨)`);
+              }
+              r.uiSelInfo.textContent = lines.join("\n");
             }
-            r.uiSelInfo.textContent = out.join("\n");
           }
         }
       }catch(_e){}
