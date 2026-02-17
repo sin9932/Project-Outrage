@@ -12708,7 +12708,7 @@ function sanityCheck(){
         try {
           __ou_ui.updateSidebarButtons({
             state,
-            buildings: state.buildings,
+            buildings: buildings,
             TEAM,
             prodCat,
             setProdCat,
@@ -12742,6 +12742,7 @@ function sanityCheck(){
 
       aiTick();
       recomputePower();
+      updatePowerBar();
       updateSelectionUI();
       sanityCheck();
   setButtonText();
