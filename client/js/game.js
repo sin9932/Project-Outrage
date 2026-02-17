@@ -99,6 +99,15 @@ ${e.filename}:${e.lineno}:${e.colno}
   const btnTnk = $("pTnk");
   const btnHar = $("pHar");
   const btnIFV = $("pIFV");
+  // [refactor] UI helpers extracted -> ou_ui.js (Stage 4)
+  const __ou_ui = (window.OUUI && typeof window.OUUI.create === "function")
+    ? window.OUUI.create({
+        uiSelCount, uiPower, uiRadarStat, uiMmHint, uiSelInfo,
+        btnInf, btnEng, btnSnp, btnTnk, btnHar, btnIFV,
+        uiPowerFill, uiPowerNeed
+      })
+    : null;
+
   const btnRepair = $("repair");
   const btnStop = $("stop");
   const btnScatter = $("scatter");
@@ -9337,9 +9346,9 @@ const keys=new Set();
     window.addEventListener("keyup", _ou_onKeyUp);
   }
 
-  canvas.addEventListener("contextmenu",(e)=>e.preventDefault());
-
-  canvas.addEventListener("mousedown",(e)=>{
+    // [refactor] input wiring extracted -> ou_input.js (mouse)
+  const _ou_onContextMenu = (e)=>e.preventDefault();
+  const _ou_onMouseDown = (e)=>{
     if (!running || gameOver) return;
 
     // Sprite tuner: hijack LMB drag while enabled (requires HQ selected)
@@ -9428,9 +9437,8 @@ const keys=new Set();
     state.drag.moved=false;
     state.drag.x0=state.drag.x1=p.x;
     state.drag.y0=state.drag.y1=p.y;
-  });
-
-  canvas.addEventListener("mousemove",(e)=>{
+  };
+  const _ou_onMouseMove = (e)=>{
     const p=getPointerCanvasPx(e);
     state.hover.px=p.x; state.hover.py=p.y;
     const w=screenToWorld(p.x,p.y);
@@ -9492,9 +9500,8 @@ const keys=new Set();
       const md = Math.abs(state.drag.x1-state.drag.x0)+Math.abs(state.drag.y1-state.drag.y0);
       if (md>10) state.drag.moved=true;
     }
-  });
-  // Mouse wheel zoom (map zoom in/out)
-  canvas.addEventListener("wheel", (e) => {
+  };
+  const _ou_onWheel = (e) => {
     if (!running || gameOver) return;
 
     // Sprite tuner: Shift+Wheel adjusts selected sprite scaleMul (keep normal wheel for map zoom)
@@ -9524,11 +9531,8 @@ const keys=new Set();
     const after = screenToWorld(p.x, p.y);
     cam.x += (before.x - after.x);
     cam.y += (before.y - after.y);
-  }, { passive:false });
-
-
-
-  canvas.addEventListener("mouseup",(e)=>{
+  };
+  const _ou_onMouseUp = (e)=>{
     if (e.button===2){
       state.pan.on=false;
       return;
@@ -9741,7 +9745,27 @@ if (state.selection.size>0 && inMap(tx,ty) && ore[idx(tx,ty)]>0){
     }
     else { if (!additive) state.selection.clear(); updateSelectionUI(); }
     state.drag.on=false;
-  });
+  };
+
+  if (window.OUInput && typeof window.OUInput.installMouse === "function"){
+    window.OUInput.installMouse({
+      canvas,
+      onContextMenu: _ou_onContextMenu,
+      onMouseDown: _ou_onMouseDown,
+      onMouseMove: _ou_onMouseMove,
+      onMouseUp: _ou_onMouseUp,
+      onWheel: _ou_onWheel,
+      wheelOptions: { passive:false }
+    });
+  } else {
+    // fallback: old wiring
+    canvas.addEventListener("contextmenu", _ou_onContextMenu);
+    canvas.addEventListener("mousedown", _ou_onMouseDown);
+    canvas.addEventListener("mousemove", _ou_onMouseMove);
+    canvas.addEventListener("wheel", _ou_onWheel, { passive:false });
+    canvas.addEventListener("mouseup", _ou_onMouseUp);
+  }
+
 
   function rectFromDrag(){
     const x0=Math.min(state.drag.x0,state.drag.x1);
@@ -10187,49 +10211,13 @@ if (btnSelAllKind) btnSelAllKind.onclick = ()=>selectAllUnitsScreenThenMap();
     state.suppressClickUntil = state.t + 0.12;
 }
 
-  function updateSelectionUI(){
-    uiSelCount.textContent=String(state.selection.size);
+  function updateSelectionUI() {
+  if (!__ou_ui || !__ou_ui.updateSelectionUI) return;
+  __ou_ui.updateSelectionUI({
+    state, buildings, TEAM, COST, prodTotal, QCAP, hasRadarAlive, getEntityById, BUILD, NAME_KO
+  });
+}
 
-    const pp=state.player.powerProd, pu=state.player.powerUse;
-    const ok=pp>=pu;
-    uiPower.textContent = `${pp} / ${pu}` + (ok ? "" : " (부족)");
-    uiPower.className = "pill " + (ok ? "ok" : "danger");
-
-    const radar = hasRadarAlive(TEAM.PLAYER);
-    uiRadarStat.textContent = radar ? "ON" : "없음";
-    uiRadarStat.className = "pill " + (radar ? "ok" : "danger");
-    uiMmHint.textContent = radar ? "표시중" : "레이더 필요";
-    uiMmHint.className = "pill " + (radar ? "ok" : "danger");
-    // Keep button labels stable (do not overwrite textContent or badges will be removed).
-    // Prices are shown via tooltip (title).
-    btnInf.title = `보병  $${COST.infantry}`;
-    btnEng.title = `엔지니어  $${COST.engineer}`;
-    btnSnp.title = `저격병  $${COST.sniper}`;
-    btnTnk.title = `탱크  $${COST.tank}`;
-    btnHar.title = `굴착기  $${COST.harvester}`;
-    btnIFV.title = `IFV  $${COST.ifv}`;
-    const hasBar = buildings.some(b=>b.alive && !b.civ && b.team===TEAM.PLAYER && b.kind==="barracks");
-    const hasFac = buildings.some(b=>b.alive && !b.civ && b.team===TEAM.PLAYER && b.kind==="factory");
-
-    btnInf.disabled = !hasBar || state.player.money < COST.infantry || prodTotal.infantry>=QCAP;
-    btnEng.disabled = !hasBar || state.player.money < COST.engineer || prodTotal.engineer>=QCAP;
-    btnTnk.disabled = !hasFac || state.player.money < COST.tank || prodTotal.tank>=QCAP;
-
-    const lines=[];
-    for (const id of state.selection){
-      const e=getEntityById(id);
-      if (!e) continue;
-      if (BUILD[e.kind]){
-        if (e.hideUI) continue;
-        lines.push(`[건물] ${NAME_KO[e.kind]||e.kind} (${e.tw}x${e.th}) HP ${Math.ceil(e.hp)}/${e.hpMax} repair:${e.repairOn?"ON":"OFF"} q:${e.buildQ.length}`);
-      } else {
-        const extra = (e.kind==="harvester") ? ` carry:${Math.floor(e.carry)}/${e.carryMax} (입금:정제소만)`
-                    : (e.kind==="engineer") ? ` (점령)` : "";
-        lines.push(`[유닛] ${NAME_KO[e.kind]||e.kind} HP ${Math.ceil(e.hp)}/${e.hpMax}${extra}`);
-      }
-    }
-    uiSelInfo.textContent = lines.length ? lines.slice(0,12).join("\n") : "아무것도 선택 안 됨";
-  }
 
   function drawIsoTile(tx,ty,type){
     const c=tileToWorldCenter(tx,ty);
@@ -11308,36 +11296,11 @@ if (!hasP("factory"))  resetProducerQueues("factory");
 }
 
   
-  function updatePowerBar(){
-    if (!uiPowerFill) return;
-    const prod = state.player.powerProd || 0;
-    const use  = state.player.powerUse  || 0;
+  function updatePowerBar() {
+  if (!__ou_ui || !__ou_ui.updatePowerBar) return;
+  __ou_ui.updatePowerBar({ state, clamp });
+}
 
-    // Green: production vs usage (how "healthy" power is).
-    let pct = 1;
-    if (use > 0){
-      pct = clamp(prod / use, 0, 1);
-    }
-    uiPowerFill.style.height = `${Math.round(pct*100)}%`;
-
-    // Red: consumption overlay (how much is being used).
-    if (uiPowerNeed){
-      let needPct = 0;
-      if (prod > 0){
-        needPct = clamp(use / prod, 0, 1);
-      } else if (use > 0){
-        needPct = 1;
-      }
-      uiPowerNeed.style.height = `${Math.round(needPct*100)}%`;
-    }
-
-    // Overload hint (orange-ish)
-    if (use >= prod){
-      uiPowerFill.style.background = "linear-gradient(180deg, rgba(255,190,90,0.78), rgba(140,70,20,0.78))";
-    } else {
-      uiPowerFill.style.background = "linear-gradient(180deg, rgba(90,220,140,0.75), rgba(40,120,80,0.75))";
-    }
-  }
 
   function updateProdBars(){
     // Building lanes
