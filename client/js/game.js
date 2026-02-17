@@ -6552,6 +6552,22 @@ function kindToProducer(kind){
   }
 
 function queueUnit(kind){
+    // If the front item of the relevant producer queue is paused, left-click should RESUME instead of enqueue.
+    const need = kindToProducer(kind);
+    let resumed = false;
+    for (const b of buildings){
+      if (!b || !b.alive || b.civ || b.team !== TEAM.PLAYER || b.kind !== need) continue;
+      const q = b.buildQ && b.buildQ[0];
+      if (q && q.kind === kind && q.paused){
+        q.paused = false;
+        q.autoPaused = false;
+        resumed = true;
+      }
+    }
+    if (resumed){
+      toast("재개");
+      return;
+    }
     return (__ou_econ && __ou_econ.queueUnit) ? __ou_econ.queueUnit(kind) : undefined;
   }
 
@@ -9779,6 +9795,14 @@ if (state.selection.size>0 && inMap(tx,ty) && ore[idx(tx,ty)]>0){
     const laneKey = (kind === "turret") ? "def" : "main";
     const lane = state.buildLane && state.buildLane[laneKey];
     if (!lane) return;
+
+
+    // If this exact kind is paused at the head of this lane, left-click resumes.
+    if (lane.queue && lane.queue.kind === kind && lane.queue.paused){
+      lane.queue.paused = false;
+      toast("재개");
+      return;
+    }
 
     // If we are currently in placement mode for another building, don't allow switching.
     if (state.build.active && state.build.kind && state.build.kind !== kind){
