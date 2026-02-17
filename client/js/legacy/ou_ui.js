@@ -15,8 +15,6 @@ r.uiPowerFill = r.uiPowerFill || document.getElementById("powerFill");
 r.uiPowerNeed = r.uiPowerNeed || document.getElementById("powerNeed");
 r.uiPowerBar  = r.uiPowerBar  || document.getElementById("powerBar");
 r.uiPTip      = r.uiPTip      || document.getElementById("pTip");
-r.uiSelCount = r.uiSelCount || document.getElementById("selCount");
-r.uiSelInfo  = r.uiSelInfo  || document.getElementById("selInfo");
 
 // Auto-resolve production/buttons (safe even if game.js didn't pass refs)
 r.tabBtns = r.tabBtns || Array.from(document.querySelectorAll(".tabbtn[data-cat]"));
@@ -44,6 +42,11 @@ r.btnHar = r.btnHar || document.getElementById("pHar");
 r.btnIFV = r.btnIFV || document.getElementById("pIFV");
 
 // HUD misc
+
+// Selection panel
+r.uiSelCount  = r.uiSelCount  || document.getElementById("selCount");
+r.uiSelInfo   = r.uiSelInfo   || document.getElementById("selInfo");
+
 r.uiMoney     = r.uiMoney     || document.getElementById("money");
 r.uiBuildMode = r.uiBuildMode || document.getElementById("buildMode");
 r.uiToast     = r.uiToast     || document.getElementById("toast");
@@ -93,114 +96,112 @@ if (r.uiPowerBar && !r.__powerTipInstalled){
 
     function updateSelectionUI(env) {
       env = env || {};
-      const {
-        state, buildings, TEAM, COST, prodTotal, QCAP,
-        hasRadarAlive, getEntityById, BUILD, NAME_KO
-      } = env;
+      const { state, hasRadarAlive, getEntityById, NAME_KO } = env;
 
-      if (!state || !buildings || !TEAM) return;
+      if (!state) return;
 
-      // Ensure refs exist (in case create() got partial refs object)
-      r.uiSelCount = r.uiSelCount || document.getElementById("selCount");
-      r.uiSelInfo  = r.uiSelInfo  || document.getElementById("selInfo");
+      const isFn = (f)=> typeof f === "function";
+      const nameOf = (ent)=>{
+        if (!ent) return "";
+        const k = ent.kind || ent.type || ent.name || "";
+        if (!k) return "";
+        if (NAME_KO && NAME_KO[k]) return NAME_KO[k];
+        return k;
+      };
+      const hpRatio = (ent)=>{
+        if (!ent) return null;
+        const hp = ent.hp;
+        const mx = ent.hpMax;
+        if (typeof hp !== "number" || typeof mx !== "number" || mx <= 0) return null;
+        return Math.max(0, Math.min(1, hp / mx));
+      };
 
-      const selIds = (() => {
-        if (state.selection && typeof state.selection.has === "function") return Array.from(state.selection);
-        if (Array.isArray(state.selection)) return state.selection.slice();
-        if (Array.isArray(state.sel)) return state.sel.slice();
-        return [];
-      })();
+      // Selected ids (supports both legacy state.sel[] and current state.selection Set)
+      let selIds = [];
+      try{
+        if (state.selection && typeof state.selection.has === "function"){
+          selIds = Array.from(state.selection);
+        } else if (Array.isArray(state.sel)){
+          selIds = state.sel.slice();
+        }
+      }catch(_e){ selIds = []; }
 
-      // Selection count badge (top-right of the '선택 정보' row)
+      // Hover fallback (show info when nothing selected but cursor is over an entity)
+      const hoverId = state.hover && state.hover.entId != null ? state.hover.entId : null;
+
+      // Selection count pill
       try{
         if (r.uiSelCount){
           r.uiSelCount.textContent = String(selIds.length);
         }
       }catch(_e){}
 
-      const resolveName = (e) => {
-        if (!e) return "알 수 없음";
-        const kind = e.kind || e.type || e.name || "";
-        if (kind && NAME_KO && NAME_KO[kind]) return NAME_KO[kind];
-        return kind || e.name || "알 수 없음";
-      };
-
-      const resolveHp = (e) => {
-        if (!e || e.hp == null || e.hpMax == null) return null;
-        const hp = Number(e.hp), hpMax = Number(e.hpMax);
-        if (!isFinite(hp) || !isFinite(hpMax) || hpMax <= 0) return null;
-        const pct = Math.max(0, Math.min(1, hp / hpMax));
-        return { hp: Math.round(hp), hpMax: Math.round(hpMax), pct };
-      };
-
-      const fmtPct = (p) => `${Math.round(p*100)}%`;
-
-      // Build selected entities list
-      const selEnts = [];
-      if (selIds.length && isFn(getEntityById)){
-        for (const id of selIds){
-          const e = getEntityById(id);
-          if (e && e.alive) selEnts.push(e);
+      // Radar status line
+      try{
+        if (r.uiRadarStat){
+          if (hasRadarAlive && isFn(hasRadarAlive)){
+            r.uiRadarStat.textContent = hasRadarAlive() ? "RADAR ONLINE" : "RADAR REQUIRED";
+          } else {
+            r.uiRadarStat.textContent = "RADAR REQUIRED";
+          }
         }
-      }
+      }catch(_e){}
 
-      // Selection info panel
+      // Selection info text
       try{
         if (r.uiSelInfo){
-          // If nothing selected: show default (and optionally hover info)
-          if (!selEnts.length){
-            const hid = state.hover && state.hover.entId != null ? state.hover.entId : null;
-            const he = (hid != null && isFn(getEntityById)) ? getEntityById(hid) : null;
-
-            if (he && he.alive){
-              const name = resolveName(he);
-              const hp = resolveHp(he);
-              r.uiSelInfo.innerHTML = hp
-                ? `<b>오버:</b> ${name}<br>HP ${hp.hp}/${hp.hpMax} (${fmtPct(hp.pct)})`
-                : `<b>오버:</b> ${name}`;
-            } else {
-              r.uiSelInfo.textContent = "아무것도 선택 안 됨";
+          const ids = selIds.length ? selIds : (hoverId != null ? [hoverId] : []);
+          if (!ids.length){
+            r.uiSelInfo.textContent = "아무것도 선택 안 됨";
+          } else {
+            const ents = [];
+            for (const id of ids){
+              const ent = getEntityById && isFn(getEntityById) ? getEntityById(id) : null;
+              if (ent) ents.push(ent);
             }
-            return;
+
+            if (!ents.length){
+              r.uiSelInfo.textContent = selIds.length ? `${selIds.length}개 선택` : "선택됨";
+            } else if (selIds.length <= 1){
+              const e0 = ents[0];
+              const n = nameOf(e0) || "선택됨";
+              const hp = (typeof e0.hp === "number" && typeof e0.hpMax === "number") ? `${e0.hp}/${e0.hpMax}` : "";
+              r.uiSelInfo.textContent = hp ? `[${n}] HP ${hp}` : `[${n}]`;
+            } else {
+              // multi-select summary + list (old behavior friendly)
+              const ratios = ents.map(hpRatio).filter(v => v != null);
+              let summary = `${selIds.length}개 선택`;
+              if (ratios.length){
+                const avg = ratios.reduce((a,b)=>a+b,0) / ratios.length;
+                const mn  = Math.min(...ratios);
+                summary += `  (평균 HP ${(avg*100).toFixed(0)}% / 최소 ${(mn*100).toFixed(0)}%)`;
+              }
+
+              const list = [];
+              const MAX = 12;
+              for (let i=0;i<ents.length && i<MAX;i++){
+                const e = ents[i];
+                const n = nameOf(e) || "unknown";
+                const hp = (typeof e.hp === "number" && typeof e.hpMax === "number") ? `${e.hp}/${e.hpMax}` : "";
+                list.push(hp ? `- ${n}  (${hp})` : `- ${n}`);
+              }
+              if (ents.length > MAX) list.push(`- ... +${ents.length - MAX}`);
+
+              r.uiSelInfo.textContent = [summary, ...list].join("\n");
+            }
           }
+        }
+      }catch(_e){}
 
-          // Single selection
-          if (selEnts.length === 1){
-            const e = selEnts[0];
-            const name = resolveName(e);
-            const hp = resolveHp(e);
-            r.uiSelInfo.innerHTML = hp
-              ? `<b>${name}</b><br>HP ${hp.hp}/${hp.hpMax} (${fmtPct(hp.pct)})`
-              : `<b>${name}</b>`;
-            return;
-          }
-
-          // Multi selection summary + list
-          const hpPcts = selEnts.map(e=>resolveHp(e)).filter(Boolean).map(h=>h.pct);
-          const avg = hpPcts.length ? hpPcts.reduce((a,b)=>a+b,0)/hpPcts.length : null;
-          const min = hpPcts.length ? Math.min(...hpPcts) : null;
-
-          const header = avg!=null && min!=null
-            ? `<b>${selEnts.length}개 선택</b> <span style="opacity:.85">(평균 ${fmtPct(avg)} / 최저 ${fmtPct(min)})</span>`
-            : `<b>${selEnts.length}개 선택</b>`;
-
-          const limit = 12;
-          const rows = [];
-          for (let i=0; i<Math.min(limit, selEnts.length); i++){
-            const e = selEnts[i];
-            const name = resolveName(e);
-            const hp = resolveHp(e);
-            rows.push(hp ? `${i+1}. ${name} <span style="opacity:.85">(${fmtPct(hp.pct)})</span>` : `${i+1}. ${name}`);
-          }
-          const more = selEnts.length > limit
-            ? `<div style="opacity:.65;margin-top:6px">+${selEnts.length - limit} 더…</div>`
+      // Minimap hint
+      try{
+        if (r.uiMmHint){
+          r.uiMmHint.textContent = hasRadarAlive && isFn(hasRadarAlive) && hasRadarAlive()
+            ? "미니맵 활성"
             : "";
-
-          r.uiSelInfo.innerHTML = header + "<br>" + rows.join("<br>") + more;
         }
       }catch(_e){}
     }
-
 
     function updatePowerBar(env){
   env = env || {};
@@ -484,12 +485,17 @@ function ensureBadge(btn){
         return true;
       }
 
-      function setEnabled(btn, ok){
+      function applyTechGateBtn(btn, ok){
         if (!btn) return;
-        btn.disabled = !ok;
-        btn.classList.toggle("disabled", !ok);
         // Tech-gate: hide completely when not available
         btn.style.display = ok ? "" : "none";
+      }
+
+      function applyEnabledBtn(btn, ok){
+        if (!btn) return;
+        // Enabled/disabled styling only (visibility is handled by applyTechGate)
+        btn.disabled = !ok;
+        btn.classList.toggle("disabled", !ok);
       }
 
       // Tabs show/hide by producers (keep same rules as legacy game.js)
@@ -508,41 +514,67 @@ function ensureBadge(btn){
         return true;
       }
 
-      // Apply tabs visibility
-      for (const b of tabBtns){
-        if (!b) continue;
-        const cat = b.dataset ? b.dataset.cat : b.getAttribute("data-cat");
-        const ok = tabOk(cat);
-        b.style.display = ok ? "" : "none";
-      }
 
-      // If current category becomes invalid, switch to the first visible one.
-      if (typeof setProdCat === "function"){
-        const curOk = tabOk(prodCat);
-        if (!curOk){
-          const firstOk = (tabBtns || []).find(x => x && x.style.display !== "none");
-          const next = firstOk ? (firstOk.dataset ? firstOk.dataset.cat : firstOk.getAttribute("data-cat")) : "main";
-          setProdCat(next);
+      // === Sidebar button update passes ===
+      // 1) applyTechGate(): show/hide (tabs + buttons)
+      // 2) applyEnabledState(): disabled styling only
+      // 3) applyProgressOverlays(): progress bars only (pure visual)
+
+      function applyTechGate(){
+        // Tabs visibility
+        for (const b of tabBtns){
+          if (!b) continue;
+          const cat = b.dataset ? b.dataset.cat : b.getAttribute("data-cat");
+          const ok = tabOk(cat);
+          b.style.display = ok ? "" : "none";
         }
+
+        // If current category becomes invalid, switch to the first visible one.
+        if (typeof setProdCat === "function"){
+          const curOk = tabOk(prodCat);
+          if (!curOk){
+            const firstOk = (tabBtns || []).find(x => x && x.style.display !== "none");
+            const next = firstOk ? (firstOk.dataset ? firstOk.dataset.cat : firstOk.getAttribute("data-cat")) : "main";
+            setProdCat(next);
+          }
+        }
+
+        // Build panel buttons (visibility only)
+        applyTechGateBtn(r.btnPow, prereqOk("power", tech.buildPrereq));
+        applyTechGateBtn(r.btnRef, prereqOk("refinery", tech.buildPrereq));
+        applyTechGateBtn(r.btnBar, prereqOk("barracks", tech.buildPrereq));
+        applyTechGateBtn(r.btnFac, prereqOk("factory", tech.buildPrereq));
+        applyTechGateBtn(r.btnRad, prereqOk("radar", tech.buildPrereq));
+        applyTechGateBtn(r.btnTur, prereqOk("turret", tech.buildPrereq));
+
+        // Unit panel buttons (visibility only)
+        applyTechGateBtn(r.btnInf, prereqOk("infantry", tech.unitPrereq));
+        applyTechGateBtn(r.btnEng, prereqOk("engineer", tech.unitPrereq));
+        applyTechGateBtn(r.btnSnp, prereqOk("sniper", tech.unitPrereq));
+        applyTechGateBtn(r.btnTnk, prereqOk("tank", tech.unitPrereq));
+        applyTechGateBtn(r.btnIFV, prereqOk("ifv", tech.unitPrereq));
+        applyTechGateBtn(r.btnHar, prereqOk("harvester", tech.unitPrereq));
       }
 
-      // Build panel buttons
-      setEnabled(r.btnPow, prereqOk("power", tech.buildPrereq));
-      setEnabled(r.btnRef, prereqOk("refinery", tech.buildPrereq));
-      setEnabled(r.btnBar, prereqOk("barracks", tech.buildPrereq));
-      setEnabled(r.btnFac, prereqOk("factory", tech.buildPrereq));
-      setEnabled(r.btnRad, prereqOk("radar", tech.buildPrereq));
-      setEnabled(r.btnTur, prereqOk("turret", tech.buildPrereq));
+      function applyEnabledState(){
+        // Build panel buttons (disabled state only)
+        applyEnabledBtn(r.btnPow, prereqOk("power", tech.buildPrereq));
+        applyEnabledBtn(r.btnRef, prereqOk("refinery", tech.buildPrereq));
+        applyEnabledBtn(r.btnBar, prereqOk("barracks", tech.buildPrereq));
+        applyEnabledBtn(r.btnFac, prereqOk("factory", tech.buildPrereq));
+        applyEnabledBtn(r.btnRad, prereqOk("radar", tech.buildPrereq));
+        applyEnabledBtn(r.btnTur, prereqOk("turret", tech.buildPrereq));
 
-      // Unit panel buttons
-      setEnabled(r.btnInf, prereqOk("infantry", tech.unitPrereq));
-      setEnabled(r.btnEng, prereqOk("engineer", tech.unitPrereq));
-      setEnabled(r.btnSnp, prereqOk("sniper", tech.unitPrereq));
-      setEnabled(r.btnTnk, prereqOk("tank", tech.unitPrereq));
-      setEnabled(r.btnIFV, prereqOk("ifv", tech.unitPrereq));
-      setEnabled(r.btnHar, prereqOk("harvester", tech.unitPrereq));
+        // Unit panel buttons (disabled state only)
+        applyEnabledBtn(r.btnInf, prereqOk("infantry", tech.unitPrereq));
+        applyEnabledBtn(r.btnEng, prereqOk("engineer", tech.unitPrereq));
+        applyEnabledBtn(r.btnSnp, prereqOk("sniper", tech.unitPrereq));
+        applyEnabledBtn(r.btnTnk, prereqOk("tank", tech.unitPrereq));
+        applyEnabledBtn(r.btnIFV, prereqOk("ifv", tech.unitPrereq));
+        applyEnabledBtn(r.btnHar, prereqOk("harvester", tech.unitPrereq));
+      }
 
-      
+      function applyProgressOverlays(){
       // Progress overlays (build + unit). Purely visual, never blocks input.
       const clamp01 = (v)=> (v<0?0:(v>1?1:v));
 
@@ -728,6 +760,13 @@ function ensureBadge(btn){
         ui.prog.style.opacity = (bestPct < 0 ? "0" : "1");
       }
 
+
+      }
+
+      // Run the passes in a fixed order (safe + predictable)
+      applyTechGate();
+      applyEnabledState();
+      applyProgressOverlays();
 
       // Panels themselves (optional): if tab is hidden, also hide its panel to avoid empty UI.
       // (game.js setProdCat already does this; this is just extra safety)
