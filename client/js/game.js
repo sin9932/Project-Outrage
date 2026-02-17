@@ -9357,6 +9357,7 @@ const keys=new Set();
 
 
     if (e.button===2){
+      if (state.build.active){ cancelBuild(); return; }
       // Right-click: pan camera (even during repair/sell modes).
       const p=getPointerCanvasPx(e);
       state.pan.on=true;
@@ -9906,6 +9907,10 @@ if (state.selection.size>0 && inMap(tx,ty) && ore[idx(tx,ty)]>0){
       state.build.lane = laneKey;
       // Prevent accidental immediate placement from the click that opened placement.
       state.suppressClickUntil = state.t + 0.10;
+    // force a visible ghost immediately even if mouse is still over UI
+    const w = screenToWorld(canvas.width*0.5, canvas.height*0.5);
+    state.hover.wx = w.x; state.hover.wy = w.y;
+    toast(`배치 모드: ${labelOf(kind)} (좌클릭 배치 / 우클릭·ESC 취소)`);
       return;
     }
 
@@ -9914,6 +9919,17 @@ if (state.selection.size>0 && inMap(tx,ty) && ore[idx(tx,ty)]>0){
     if (!lane.fifo) lane.fifo = [];
     lane.fifo.push(kind);
   }
+
+function cancelBuild(){
+    if (!state.build.active) return;
+    // do NOT consume lane.ready here; cancel returns the READY item to the queue UI
+    state.build.active = false;
+    state.build.kind = null;
+    state.build.lane = null;
+    state.suppressClickUntil = state.t + 0.12;
+    toast("배치 취소");
+}
+
 
   btnRef.onclick=()=>setBuild("refinery");
   btnPow.onclick=()=>setBuild("power");
