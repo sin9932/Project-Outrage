@@ -139,6 +139,15 @@ ${e.filename}:${e.lineno}:${e.colno}
 function ensureBtnUI(btn, label) {
   if (!btn) return null;
 
+  // Remove legacy inline text nodes like "발전소" so we don't end up with "발전소발전소"
+  // when we later add a <span class="lbl">.
+  try{
+    for (const n of Array.from(btn.childNodes)){
+      if (n && n.nodeType === 3 && n.textContent && n.textContent.trim() !== ""){
+        btn.removeChild(n);
+      }
+    }
+  }catch(_e){}
   // Make sure overlay doesn't steal clicks
   btn.style.position = "relative";
   btn.style.overflow = "hidden";
@@ -10845,13 +10854,14 @@ function drawPathFx(){
   }
 
   function tickSidebarBuild(dt){
-  if (__ou_ui && typeof __ou_ui.updateBuildModeUI === "function"){
-    __ou_ui.updateBuildModeUI({ state });
-    return;
-  }
-
-    // Economy: build lanes tick moved to ou_economy (money drain + progress + ready state).
+    // Always tick build lanes (money drain + progress + ready state).
     if (__ou_econ && __ou_econ.tickBuildLanes) __ou_econ.tickBuildLanes(dt);
+
+    // If OUUI exists, let it render BuildMode pill + tab blink, but never stop economy ticking.
+    if (__ou_ui && typeof __ou_ui.updateBuildModeUI === "function"){
+      __ou_ui.updateBuildModeUI({ state });
+      return;
+    }
 
     // BuildMode pill (global placement state)
     const anyReady = !!(state.buildLane.main.ready || state.buildLane.def.ready);
@@ -10884,14 +10894,9 @@ function drawPathFx(){
   function updateSidebarButtons() {
   const clamp01 = (x) => (x < 0 ? 0 : (x > 1 ? 1 : x));
 
-
-  // Optional tech UI (may not exist in index.html). Never crash if missing.
+  // Optional tech UI (may not exist). Never crash if missing.
   const tabTech = document.getElementById("tabTech");
   const techPanel = document.getElementById("techPanel");
-  const setTechPanelOpen = (open) => {
-    if (techPanel) techPanel.style.display = open ? "" : "none";
-  };
-
   // ======= build (main/def) =======
   const getBuildLabel = (k, fallback) =>
     (window.tech && window.tech.buildLabels && window.tech.buildLabels[k]) ? window.tech.buildLabels[k] : fallback;
@@ -10977,7 +10982,7 @@ function drawPathFx(){
     ui.prog.style.opacity = (bestPct < 0 ? "0" : "1");
 
     // Optional: show that something is actively being produced even at pct=0
-    btn.style.outline = (bestPct >= 0) ? "2px dashed rgba(31, 162, 255, 0.55)" : "";
+    btn.style.outline = (bestPct >= 0) ? "2px solid rgba(31, 162, 255, 0.55)" : "";
   }
 
   // ======= tech tab visibility =======
@@ -12738,6 +12743,7 @@ function sanityCheck(){
 
       aiTick();
       recomputePower();
+      updatePowerBar();
       updateSelectionUI();
       sanityCheck();
   setButtonText();

@@ -52,7 +52,7 @@ r.btnSellMode   = r.btnSellMode   || document.getElementById("btnSellMode");
 
 
 // Install power tooltip (once). Falls back to title attribute as well.
-if (r.uiPowerBar && !r.__powerTipInstalled){
+if (!r.__powerTipInstalled){
   r.__powerTipInstalled = true;
 
   // Make sure tooltip element can actually follow the cursor
@@ -83,9 +83,15 @@ if (r.uiPowerBar && !r.__powerTipInstalled){
     if (r.uiPTip) r.uiPTip.style.display = "none";
   };
 
-  r.uiPowerBar.addEventListener("mouseenter", showTip);
-  r.uiPowerBar.addEventListener("mousemove", showTip);
-  r.uiPowerBar.addEventListener("mouseleave", hideTip);
+  const bindTip = (el)=>{
+    if (!el) return;
+    el.addEventListener("mouseenter", showTip);
+    el.addEventListener("mousemove", showTip);
+    el.addEventListener("mouseleave", hideTip);
+  };
+  bindTip(r.uiPowerBar);
+  bindTip(r.uiPowerNeed);
+  bindTip(r.uiPowerFill);
 }
 
 
