@@ -10930,17 +10930,9 @@ function drawPathFx(){
     ui.prog.style.transform = `scaleX(${clamp01(pct)})`;
     ui.prog.style.opacity = (pct > 0 ? "1" : "0");
 
-    // Visible state even when pct=0
-    let outline = "";
-    if (lane && lane.ready === kind) {
-      outline = "2px solid rgba(90, 220, 140, 0.95)";
-    } else if (lane && lane.queue && lane.queue.kind === kind) {
-      outline = "2px dashed rgba(31, 162, 255, 0.95)";
-    } else if (lane && lane.fifo && lane.fifo.includes(kind)) {
-      outline = "2px solid rgba(31, 162, 255, 0.60)";
-    }
-    btn.style.outline = outline;
-  }
+    // Visible state even when pct=0 (no outline)
+    btn.style.outline = "";
+}
 
   // ======= units (inf/veh) =======
   const unitBtns = [
@@ -10982,7 +10974,7 @@ function drawPathFx(){
     ui.prog.style.opacity = (bestPct < 0 ? "0" : "1");
 
     // Optional: show that something is actively being produced even at pct=0
-    btn.style.outline = (bestPct >= 0) ? "2px solid rgba(31, 162, 255, 0.55)" : "";
+    btn.style.outline = ""; // no dashed/solid outline while producing
   }
 
   // ======= tech tab visibility =======
