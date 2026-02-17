@@ -11107,192 +11107,229 @@ function drawPathFx(){
     }catch(_e){}
   }
 
-
   function updateSidebarButtons(){
-  // [refactor] Delegate button enable/tech gating to ou_ui.js if available.
-  if (typeof __ou_ui !== "undefined" && __ou_ui && typeof __ou_ui.updateSidebarButtons === "function"){
-    __ou_ui.updateSidebarButtons({
-      state,
-      buildings,
-      TEAM,
-      prodCat,
-      setProdCat,
-      tabBtns,
-      panels
-    });
-    return;
-  }
+    // UI 모듈이 별도로 로딩된 경우, 거기로 위임
+    if (window.__ou_ui && typeof window.__ou_ui.updateSidebarButtons === "function"){
+      try{
+        window.__ou_ui.updateSidebarButtons(state, buildings, BUILD, UNIT, prodFIFO, prodTotal);
+        return;
+      }catch(e){
+        console.warn("[ui] delegated updateSidebarButtons failed, falling back:", e);
+      }
+    }
 
-    // --- Tech tree gating / hiding (icons should not appear if prereqs are not met) ---
+    // --- Tech tree (prereq 미충족이면 '숨김'이 원칙) ---
     function hasP(kind){
+      // NOTE: 건물은 생산완료 후 배치되는 구조라 별도 '공사중' 상태가 없음.
+      // 그래서 '맵 위에 존재하는 건물'만 카운트하면 됨.
       return buildings.some(b=>b.alive && !b.civ && b.team===TEAM.PLAYER && b.kind===kind);
     }
-    const tech = {
-      buildPrereq: {
-        power: ["hq"],
-        refinery: ["hq","power"],
-        barracks: ["hq","refinery"],
-        factory: ["hq","barracks"],
-        radar: ["hq","factory"],
-        turret: ["hq","barracks"],
-      },
-      unitPrereq: {
-        infantry: ["barracks"],
-        engineer: ["barracks"],
-        tank: ["factory"],
-        harvester: ["factory"],
-      },
-      tabProducer: {
-        main: ["hq"],
-        def:  ["hq","barracks"],
-        inf:  ["barracks"],
-        veh:  ["factory"],
-      }
-    };
     function prereqOk(list){
       if (!list || !list.length) return true;
       for (const k of list) if (!hasP(k)) return false;
       return true;
     }
-    function tabOk(cat){
-      const req = tech.tabProducer[cat] || [];
-      return prereqOk(req);
+    function canAfford(cost){
+      return (state.player.money||0) >= cost;
     }
 
-// If a producer type is completely gone, clear its production queue & totals.
-// (User spec: losing all producers nukes the whole category until rebuilt.)
-function resetProducerQueues(prodKind){
-  if (prodKind === "barracks"){
-    if (prodFIFO && prodFIFO.barracks) prodFIFO.barracks.length = 0;
-    for (const k of ["infantry","engineer","sniper"]) prodTotal[k] = 0;
-    state.primary.player.barracks = null;
-  } else if (prodKind === "factory"){
-    if (prodFIFO && prodFIFO.factory) prodFIFO.factory.length = 0;
-    for (const k of ["tank","harvester","ifv"]) prodTotal[k] = 0;
-    state.primary.player.factory = null;
-  }
-}
-if (!hasP("barracks")) resetProducerQueues("barracks");
-if (!hasP("factory"))  resetProducerQueues("factory");
+    const clamp01 = (v)=>clamp(v,0,1);
 
-    // Hide whole category tabs if their required producer buildings don't exist.
-    try{
-      let firstAvail = null;
-      for (const b of tabBtns){
-        if (!b) continue;
-        const cat = b.dataset.cat;
-        const ok = tabOk(cat);
-        b.style.display = ok ? "" : "none";
-        if (ok && !firstAvail) firstAvail = cat;
+    // 탭 노출 조건(탭 자체를 아예 숨길지 / 잠글지)
+    const tech = {
+      tabProducer:{
+        main:["hq"],
+        def:["hq"],
+        inf:["barracks"],
+        veh:["factory"],
       }
-      if (!tabOk(prodCat) && firstAvail){
-        // If current tab became unavailable, switch to the first available.
-        setProdCat(firstAvail);
-      }
-    }catch(_e){}
-
-    // Building buttons (two independent lanes)
-    const buildBtns = {
-      power: btnPow, refinery: btnRef, barracks: btnBar, factory: btnFac, radar: btnRad, turret: btnTur
     };
-    const laneOf = (k)=> (k==="turret") ? "def" : "main";
 
-    for (const [k, btn] of Object.entries(buildBtns)){
-      if (!btn) continue;
-      const show = prereqOk(tech.buildPrereq[k]);
-      btn.style.display = show ? "" : "none";
-      if (!show) continue;
-      const laneKey = laneOf(k);
-      const lane = state.buildLane[laneKey];
-      let pct = 0;
-      let ready = false;
+    // 버튼 노출 조건(아이콘/버튼 자체를 '아예 안 보이게' 숨김)
+    // NOTE: 여기서는 '클릭 시 토스트로 막는' 조건도 같이 prereq로 올려버림(레이더=정제소 필요 등)
+    const buildPrereq = {
+      power:["hq"],
+      refinery:["hq"],
+      barracks:["hq"],
+      factory:["hq","refinery"],   // refinery 없으면 공장도 안 보이게
+      radar:["hq","factory","refinery"],
+      turret:["hq"],
+    };
+    const unitPrereq = {
+      infantry:["barracks"],
+      engineer:["barracks"],
+      sniper:["barracks","radar"],
+      tank:["factory"],
+      harvester:["factory","refinery"],
+      ifv:["factory","radar"],     // 상급 유닛 예시: 레이더 필요
+    };
 
-      if (lane && lane.queue && lane.queue.kind === k){
-        const c = lane.queue.cost || 1;
-        pct = clamp((lane.queue.paid||0) / c, 0, 1);
-      } else if (lane && lane.ready === k){
-        pct = 1; ready = true;
-      }
+    // --- production progress overlay (버튼 위에 덮는 방식, 배경 아이콘/텍스트 유지) ---
+    function ensureProgMask(btn){
+      if (!btn) return null;
+      if (btn.__poProgMask) return btn.__poProgMask;
 
-      if (pct>0){
-        btn.style.background = `linear-gradient(180deg, rgba(60,45,18,0.92), rgba(18,14,8,0.96)), linear-gradient(90deg, rgba(90,220,140,0.55) ${pct*100}%, rgba(0,0,0,0) ${pct*100}%)`;
-        btn.style.backgroundBlendMode = "overlay, normal";
-      } else {
-        btn.style.background = "";
-        btn.style.backgroundBlendMode = "";
-      }
+      // 버튼에 상대좌표/오버플로우만 강제
+      if (!btn.style.position) btn.style.position = "relative";
+      btn.style.overflow = "hidden";
 
-      btn.style.outline = ready ? "2px solid rgba(90,220,140,0.75)" : "";
+      const mask = document.createElement("div");
+      mask.style.position = "absolute";
+      mask.style.left = "0";
+      mask.style.right = "0";
+      mask.style.bottom = "0";
+      mask.style.height = "0%";
+      mask.style.pointerEvents = "none";
+      mask.style.zIndex = "2";
+      mask.style.background = "rgba(0,0,0,0.55)";
+      mask.style.transition = "height 80ms linear";
+
+      // paused 패턴용(선택)
+      const stripe = document.createElement("div");
+      stripe.style.position = "absolute";
+      stripe.style.left = "0";
+      stripe.style.right = "0";
+      stripe.style.top = "0";
+      stripe.style.bottom = "0";
+      stripe.style.opacity = "0";
+      stripe.style.backgroundImage = "repeating-linear-gradient(45deg, rgba(255,255,255,0.10) 0 8px, rgba(255,255,255,0.00) 8px 16px)";
+      mask.appendChild(stripe);
+
+      btn.appendChild(mask);
+      btn.__poProgMask = mask;
+      btn.__poProgStripe = stripe;
+      return mask;
     }
-    // Unit buttons: stable label + badge count + progress fill (never overwrite innerHTML/textContent)
-    const unitBtns = {
-      infantry: {btn: btnInf, label:"보병"},
-      engineer: {btn: btnEng, label:"엔지니어"},
-      sniper:   {btn: btnSnp, label:"저격병"},
-      tank:     {btn: btnTnk, label:"탱크"},
-      harvester:{btn: btnHar, label:"굴착기"},
-      ifv:      {btn: btnIFV, label:"IFV"},
-    };
-    const ensureLabel = (btn, label)=>{
-      if (!btn) return;
-      // Keep a dedicated label span + badge span. Remove raw text nodes to avoid duplicate labels.
-      let lbl = btn.querySelector(".lbl");
-      if (!lbl){
-        lbl = document.createElement("span");
-        lbl.className = "lbl";
+    function setBtnProgress(btn, pct, paused){
+      const mask = ensureProgMask(btn);
+      if (!mask) return;
+
+      // pct: 0..1, '진행 중'일 때만 표시
+      if (!(pct > 0 && pct < 1)){
+        mask.style.height = "0%";
+        mask.style.opacity = "0";
+        if (btn.__poProgStripe) btn.__poProgStripe.style.opacity = "0";
+        return;
       }
-      lbl.textContent = label;
+      const rem = Math.max(0, Math.min(1, 1 - pct));
+      mask.style.opacity = "1";
+      mask.style.height = (rem * 100).toFixed(1) + "%";
+      if (btn.__poProgStripe) btn.__poProgStripe.style.opacity = paused ? "0.65" : "0";
+    }
 
-      let badge = btn.querySelector(".badge");
-      if (!badge){
-        badge = document.createElement("span");
-        badge.className = "badge";
-        badge.textContent = "0";
-        badge.style.display = "none";
+    function pctFromQueue(q){
+      if (!q) return 0;
+      // paid 방식이 있으면 그걸 우선, 아니면 시간 기반
+      if (q.cost && q.paid != null) return clamp01(q.paid / q.cost);
+      if (q.tNeed) return clamp01((q.t||0) / q.tNeed);
+      return 0;
+    }
+
+    // 탭 처리
+    tabBtns.forEach(btn=>{
+      const cat = btn.dataset.cat;
+      const req = (tech.tabProducer[cat]||[]);
+      const ok  = prereqOk(req);
+      btn.style.display = ok ? "" : "none";
+      btn.classList.toggle("locked", !ok);
+    });
+
+    // 생산 버튼 처리(건물)
+    const buildBtns = [
+      { btn:btnPow, kind:"power"},
+      { btn:btnRef, kind:"refinery"},
+      { btn:btnBar, kind:"barracks"},
+      { btn:btnFac, kind:"factory"},
+      { btn:btnRad, kind:"radar"},
+      { btn:btnTur, kind:"turret"},
+    ];
+    for (const it of buildBtns){
+      if (!it.btn) continue;
+      const req = buildPrereq[it.kind] || [];
+      const show = prereqOk(req);
+      it.btn.style.display = show ? "" : "none";
+      if (!show){
+        setBtnProgress(it.btn, 0, false);
+        it.btn.classList.remove("locked");
+        it.btn.style.outline = "";
+        continue;
       }
 
-      // Rebuild children in stable order: [label][badge]
-      while (btn.firstChild) btn.removeChild(btn.firstChild);
-      btn.appendChild(lbl);
-      btn.appendChild(badge);
-    };
+      // 돈 부족이면 '잠금' 표현만
+      it.btn.classList.toggle("locked", !canAfford(costOfBuild(it.kind)));
 
-    for (const [k, meta] of Object.entries(unitBtns)){
-      const btn = meta.btn;
-      if (!btn) continue;
-      const prereq = (tech.unitPrereq && tech.unitPrereq[k]) ? tech.unitPrereq[k] : [];
-      const show = prereqOk(prereq);
-      btn.style.display = show ? "" : "none";
-      if (!show) continue;
+      // 진행/ready 표시
+      const lane = state.buildLane.main;
+      let pct = 0, paused = false;
+      if (lane && lane.queue && lane.queue.kind === it.kind){
+        pct = pctFromQueue(lane.queue);
+        paused = !!lane.queue.paused;
+      } else if (lane && lane.ready === it.kind){
+        pct = 1;
+      }
+      setBtnProgress(it.btn, pct, paused);
 
-      ensureLabel(btn, meta.label);
+      // ready 강조(기존 룰 유지)
+      if (lane && lane.ready === it.kind){
+        it.btn.style.outline = "2px solid #4cff86";
+        it.btn.style.outlineOffset = "2px";
+      }else{
+        it.btn.style.outline = "";
+      }
+    }
 
-      // progress fill: best front-of-queue item among player producers
-      let bestPct = -1;
-      for (const b of buildings){
-        if (!b.alive || b.civ) continue;
-        if (b.team !== TEAM.PLAYER) continue;
+    // 유닛 버튼 처리(보병/기갑)
+    const unitBtns = [
+      { btn:pInf, kind:"infantry"},
+      { btn:pEng, kind:"engineer"},
+      { btn:pSnp, kind:"sniper"},
+      { btn:pTnk, kind:"tank"},
+      { btn:pHar, kind:"harvester"},
+      { btn:pIFV, kind:"ifv"},
+    ];
+    for (const it of unitBtns){
+      if (!it.btn) continue;
+      const req = unitPrereq[it.kind] || [];
+      const show = prereqOk(req);
+      it.btn.style.display = show ? "" : "none";
+      if (!show){
+        setBtnProgress(it.btn, 0, false);
+        it.btn.classList.remove("locked");
+        continue;
+      }
+
+      // 돈 부족이면 잠금
+      it.btn.classList.toggle("locked", !canAfford(costOfUnit(it.kind)));
+
+      // 현재 생산 진행률(여러 생산시설 중 가장 많이 진행된 것)
+      let bestPct = 0;
+      let bestPaused = false;
+
+      const producers = [];
+      if (it.kind==="infantry" || it.kind==="engineer" || it.kind==="sniper"){
+        for (const b of buildings){
+          if (b.alive && !b.civ && b.team===TEAM.PLAYER && b.kind==="barracks") producers.push(b);
+        }
+      }else{
+        for (const b of buildings){
+          if (b.alive && !b.civ && b.team===TEAM.PLAYER && b.kind==="factory") producers.push(b);
+        }
+      }
+
+      for (const b of producers){
         if (!b.buildQ || !b.buildQ.length) continue;
         const q = b.buildQ[0];
-        if (!q || q.kind !== k) continue;
-        const c = (q.cost ?? (COST[k]||1)) || 1;
-        const pct = clamp((q.paid||0) / c, 0, 1);
-        if (pct > bestPct) bestPct = pct;
+        if (!q || q.kind !== it.kind) continue;
+        const pct = pctFromQueue(q);
+        if (pct > bestPct){
+          bestPct = pct;
+          bestPaused = !!q.paused;
+        }
       }
-      if (bestPct>=0){
-        btn.style.background = `linear-gradient(90deg, rgba(90,220,140,0.22) ${Math.floor(bestPct*100)}%, rgba(0,0,0,0.0) ${Math.floor(bestPct*100)}%)`;
-        btn.style.backgroundBlendMode = "normal";
-      } else {
-        btn.style.background = "";
-        btn.style.backgroundBlendMode = "";
-      }
+      setBtnProgress(it.btn, bestPct, bestPaused);
     }
+  }
 
-
-    updateProdBars();
-
-    updatePowerBar();
-}
 
   
   function updatePowerBar() {
