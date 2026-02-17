@@ -10891,7 +10891,7 @@ function drawPathFx(){
   }
 
 
-  function updateSidebarButtons() {
+  function updateSidebarButtonsLegacy() {
   const clamp01 = (x) => (x < 0 ? 0 : (x > 1 ? 1 : x));
 
   // Optional tech UI (may not exist). Never crash if missing.
@@ -10988,6 +10988,16 @@ function drawPathFx(){
   }
   if (techPanel) techPanel.style.display = state.techOpen ? "" : "none";
 }
+
+  // UI router: tech gating + tab visibility in ou_ui, progress overlay still in game.js for now
+  function updateSidebarButtons(){
+    if (__ou_ui && typeof __ou_ui.updateSidebarButtons === "function"){
+      __ou_ui.updateSidebarButtons({ state, buildings, TEAM, prodCat, setProdCat });
+    }
+    updateSidebarButtonsLegacy();
+  }
+
+
 
   
   function updatePowerBar() {

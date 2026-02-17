@@ -421,6 +421,16 @@ function ensureBadge(btn){
         btn.classList.toggle("disabled", !ok);
       }
 
+      function setVisible(btn, ok){
+        if (!btn) return;
+        btn.style.display = ok ? "" : "none";
+      }
+      function applyTech(btn, ok){
+        setVisible(btn, ok);
+        setEnabled(btn, ok);
+      }
+
+
       // Tabs show/hide by producers (keep same rules as legacy game.js)
       const tabProducer = {
         main: { req: ["hq"] },
@@ -456,20 +466,20 @@ function ensureBadge(btn){
       }
 
       // Build panel buttons
-      setEnabled(r.btnPow, prereqOk("power", tech.buildPrereq));
-      setEnabled(r.btnRef, prereqOk("refinery", tech.buildPrereq));
-      setEnabled(r.btnBar, prereqOk("barracks", tech.buildPrereq));
-      setEnabled(r.btnFac, prereqOk("factory", tech.buildPrereq));
-      setEnabled(r.btnRad, prereqOk("radar", tech.buildPrereq));
-      setEnabled(r.btnTur, prereqOk("turret", tech.buildPrereq));
+      applyTech(r.btnPow, prereqOk("power", tech.buildPrereq));
+      applyTech(r.btnRef, prereqOk("refinery", tech.buildPrereq));
+      applyTech(r.btnBar, prereqOk("barracks", tech.buildPrereq));
+      applyTech(r.btnFac, prereqOk("factory", tech.buildPrereq));
+      applyTech(r.btnRad, prereqOk("radar", tech.buildPrereq));
+      applyTech(r.btnTur, prereqOk("turret", tech.buildPrereq));
 
       // Unit panel buttons
-      setEnabled(r.btnInf, prereqOk("infantry", tech.unitPrereq));
-      setEnabled(r.btnEng, prereqOk("engineer", tech.unitPrereq));
-      setEnabled(r.btnSnp, prereqOk("sniper", tech.unitPrereq));
-      setEnabled(r.btnTnk, prereqOk("tank", tech.unitPrereq));
-      setEnabled(r.btnIFV, prereqOk("ifv", tech.unitPrereq));
-      setEnabled(r.btnHar, prereqOk("harvester", tech.unitPrereq));
+      applyTech(r.btnInf, prereqOk("infantry", tech.unitPrereq));
+      applyTech(r.btnEng, prereqOk("engineer", tech.unitPrereq));
+      applyTech(r.btnSnp, prereqOk("sniper", tech.unitPrereq));
+      applyTech(r.btnTnk, prereqOk("tank", tech.unitPrereq));
+      applyTech(r.btnIFV, prereqOk("ifv", tech.unitPrereq));
+      applyTech(r.btnHar, prereqOk("harvester", tech.unitPrereq));
 
       // Panels themselves (optional): if tab is hidden, also hide its panel to avoid empty UI.
       // (game.js setProdCat already does this; this is just extra safety)
