@@ -74,25 +74,40 @@
     function updatePowerBar(env){
       env = env || {};
       const { state, clamp } = env;
-      if (!state || !isFn(clamp)) return;
+      if (!state || !clamp) return;
 
-      const prod = Math.max(1, state.pwrProd || 0);
-      const use = Math.max(0, state.pwrUse || 0);
-      const need = Math.max(0, state.pwrNeed || 0);
+      // NOTE: power lives under state.player (not top-level). This bug made the bar look "missing".
+      const p = state.player || {};
+      const prod = p.powerProd || 0;
+      const use  = p.powerUse  || 0;
 
-      const fillPct = clamp(use / prod, 0, 1);
-      const needPct = clamp(need / prod, 0, 1);
+      // Green: production vs usage (how "healthy" power is).
+      let pct = 1;
+      if (use > 0){
+        pct = clamp(prod / use, 0, 1);
+      }
+      if (r.uiPowerFill) r.uiPowerFill.style.height = `${Math.round(pct*100)}%`;
 
-      if (r.uiPowerFill) r.uiPowerFill.style.height = `${Math.round(fillPct*100)}%`;
-      if (r.uiPowerNeed) r.uiPowerNeed.style.height = `${Math.round(needPct*100)}%`;
+      // Red: consumption overlay (how much is being used).
+      if (r.uiPowerNeed){
+        let needPct = 0;
+        if (prod > 0){
+          needPct = clamp(use / prod, 0, 1);
+        } else if (use > 0){
+          needPct = 1;
+        }
+        r.uiPowerNeed.style.height = `${Math.round(needPct*100)}%`;
+      }
 
-      // Overload hint
+      // Overload hint (orange-ish)
       if (r.uiPowerFill){
         if (use >= prod){
           r.uiPowerFill.style.background = "linear-gradient(180deg, rgba(255,190,90,0.78), rgba(140,70,20,0.78))";
         } else {
           r.uiPowerFill.style.background = "linear-gradient(180deg, rgba(90,220,140,0.75), rgba(40,120,80,0.75))";
         }
+      }
+    }
       }
     }
 
