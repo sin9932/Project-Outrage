@@ -134,6 +134,63 @@ ${e.filename}:${e.lineno}:${e.colno}
     btn.innerHTML = `<span class="lbl">${label}</span><span class="badge" style="display:none"></span>`;
     btn.dataset.kind = kind;
   }
+
+function ensureBtnUI(btn, label) {
+  if (!btn) return null;
+
+  // Make sure overlay doesn't steal clicks
+  btn.style.position = "relative";
+  btn.style.overflow = "hidden";
+
+  // Progress overlay (scaleX)
+  let prog = btn.querySelector(":scope > .prog");
+  if (!prog) {
+    prog = document.createElement("span");
+    prog.className = "prog";
+    prog.style.position = "absolute";
+    prog.style.left = "0";
+    prog.style.top = "0";
+    prog.style.bottom = "0";
+    prog.style.width = "100%";
+    prog.style.transformOrigin = "left";
+    prog.style.transform = "scaleX(0)";
+    prog.style.pointerEvents = "none";
+    prog.style.zIndex = "0";
+    prog.style.borderRadius = "inherit";
+    btn.insertBefore(prog, btn.firstChild);
+  }
+
+  // Label
+  let lbl = btn.querySelector(":scope > .lbl");
+  if (!lbl) {
+    lbl = document.createElement("span");
+    lbl.className = "lbl";
+    lbl.style.position = "relative";
+    lbl.style.zIndex = "1";
+    lbl.style.pointerEvents = "none";
+    btn.appendChild(lbl);
+  }
+
+  // Badge (used by ou_ui.js too)
+  let badge = btn.querySelector(":scope > .badge");
+  if (!badge) {
+    badge = document.createElement("span");
+    badge.className = "badge";
+    badge.style.position = "absolute";
+    badge.style.right = "6px";
+    badge.style.top = "6px";
+    badge.style.zIndex = "2";
+    badge.style.display = "none";
+    badge.style.pointerEvents = "none";
+    btn.appendChild(badge);
+  }
+
+  if (label != null) lbl.textContent = label;
+
+  return { prog, lbl, badge };
+}
+
+
   normalizeProdButton(btnInf, "보병", "infantry");
   normalizeProdButton(btnEng, "엔지니어", "engineer");
   normalizeProdButton(btnSnp, "저격병", "sniper");
@@ -10823,184 +10880,107 @@ function drawPathFx(){
   }
 
 
-  function updateSidebarButtons(){
-  if (__ou_ui && typeof __ou_ui.updateSidebarButtons === "function"){
-    __ou_ui.updateSidebarButtons({ state, buildings, TEAM, prodCat, setProdCat });
-    // keep the bars fresh (wrappers delegate to ou_ui too)
-    updateProdBars();
-    updatePowerBar();
-    return;
+  function updateSidebarButtons() {
+  const clamp01 = (x) => (x < 0 ? 0 : (x > 1 ? 1 : x));
+
+  // ======= build (main/def) =======
+  const getBuildLabel = (k, fallback) =>
+    (tech && tech.buildLabels && tech.buildLabels[k]) ? tech.buildLabels[k] : fallback;
+
+  const buildBtns = [
+    { kind: "power",    lane: state.buildLane.main, btn: btnPow,  label: getBuildLabel("power", "발전소") },
+    { kind: "refinery", lane: state.buildLane.main, btn: btnRef,  label: getBuildLabel("refinery", "정제소") },
+    { kind: "barracks", lane: state.buildLane.main, btn: btnBar,  label: getBuildLabel("barracks", "막사") },
+    { kind: "factory",  lane: state.buildLane.main, btn: btnFac,  label: getBuildLabel("factory", "공장") },
+
+    { kind: "turret",   lane: state.buildLane.def,  btn: btnTur,  label: getBuildLabel("turret", "터렛") },
+    { kind: "wall",     lane: state.buildLane.def,  btn: btnWall, label: getBuildLabel("wall", "벽") },
+  ];
+
+  for (const it of buildBtns) {
+    const { btn, kind, lane, label } = it;
+    if (!btn) continue;
+
+    const ui = ensureBtnUI(btn, label);
+    if (!ui) continue;
+
+    // progress (0..1)
+    let pct = 0;
+    if (lane && lane.ready === kind) {
+      pct = 1;
+    } else if (lane && lane.queue && lane.queue.kind === kind) {
+      pct = (lane.queue.cost > 0) ? (lane.queue.paid / lane.queue.cost) : 0;
+    }
+
+    ui.prog.style.background = "rgba(90, 220, 140, 0.55)";
+    ui.prog.style.transform = `scaleX(${clamp01(pct)})`;
+    ui.prog.style.opacity = (pct > 0 ? "1" : "0");
+
+    // Visible state even when pct=0
+    let outline = "";
+    if (lane && lane.ready === kind) {
+      outline = "2px solid rgba(90, 220, 140, 0.95)";
+    } else if (lane && lane.queue && lane.queue.kind === kind) {
+      outline = "2px dashed rgba(31, 162, 255, 0.95)";
+    } else if (lane && lane.fifo && lane.fifo.includes(kind)) {
+      outline = "2px solid rgba(31, 162, 255, 0.60)";
+    }
+    btn.style.outline = outline;
   }
 
-    // --- Tech tree gating / hiding (icons should not appear if prereqs are not met) ---
-    function hasP(kind){
-      return buildings.some(b=>b.alive && !b.civ && b.team===TEAM.PLAYER && b.kind===kind);
-    }
-    const tech = {
-      buildPrereq: {
-        power: ["hq"],
-        refinery: ["hq","power"],
-        barracks: ["hq","refinery"],
-        factory: ["hq","barracks"],
-        radar: ["hq","factory"],
-        turret: ["hq","barracks"],
-      },
-      unitPrereq: {
-        infantry: ["barracks"],
-        engineer: ["barracks"],
-        tank: ["factory"],
-        harvester: ["factory"],
-      },
-      tabProducer: {
-        main: ["hq"],
-        def:  ["hq","barracks"],
-        inf:  ["barracks"],
-        veh:  ["factory"],
-      }
-    };
-    function prereqOk(list){
-      if (!list || !list.length) return true;
-      for (const k of list) if (!hasP(k)) return false;
-      return true;
-    }
-    function tabOk(cat){
-      const req = tech.tabProducer[cat] || [];
-      return prereqOk(req);
+  // ======= units (inf/veh) =======
+  const unitBtns = [
+    { kind: "infantry", btn: btnInf, producer: "barracks", label: "보병" },
+    { kind: "engineer", btn: btnEng, producer: "barracks", label: "엔지니어" },
+    { kind: "sniper",   btn: btnSnp, producer: "barracks", label: "저격병" },
+
+    { kind: "ifv",      btn: btnIFV, producer: "factory",  label: "IFV" },
+    { kind: "harvester",btn: btnHar, producer: "factory",  label: "하베스터" },
+    { kind: "tank",     btn: btnTnk, producer: "factory",  label: "탱크" },
+  ];
+
+  for (const it of unitBtns) {
+    const { kind, btn, producer, label } = it;
+    if (!btn) continue;
+
+    const ui = ensureBtnUI(btn, label);
+    if (!ui) continue;
+
+    let bestPct = -1;
+
+    for (const b of buildings) {
+      if (!b || !b.alive) continue;
+      if (b.team !== TEAM.PLAYER) continue;
+      if (b.kind !== producer) continue;
+      if (!b.buildQ || b.buildQ.length === 0) continue;
+
+      const q = b.buildQ[0];
+      if (!q || q.kind !== kind) continue;
+
+      const pct = (q.cost > 0) ? (q.paid / q.cost) : (q.tNeed > 0 ? (q.t / q.tNeed) : 0);
+      if (pct > bestPct) bestPct = pct;
     }
 
-// If a producer type is completely gone, clear its production queue & totals.
-// (User spec: losing all producers nukes the whole category until rebuilt.)
-function resetProducerQueues(prodKind){
-  if (prodKind === "barracks"){
-    if (prodFIFO && prodFIFO.barracks) prodFIFO.barracks.length = 0;
-    for (const k of ["infantry","engineer","sniper"]) prodTotal[k] = 0;
-    state.primary.player.barracks = null;
-  } else if (prodKind === "factory"){
-    if (prodFIFO && prodFIFO.factory) prodFIFO.factory.length = 0;
-    for (const k of ["tank","harvester","ifv"]) prodTotal[k] = 0;
-    state.primary.player.factory = null;
+    const pct = (bestPct < 0) ? 0 : clamp01(bestPct);
+
+    ui.prog.style.background = "rgba(90, 220, 140, 0.38)";
+    ui.prog.style.transform = `scaleX(${pct})`;
+    ui.prog.style.opacity = (bestPct < 0 ? "0" : "1");
+
+    // Optional: show that something is actively being produced even at pct=0
+    btn.style.outline = (bestPct >= 0) ? "2px dashed rgba(31, 162, 255, 0.55)" : "";
   }
-}
-if (!hasP("barracks")) resetProducerQueues("barracks");
-if (!hasP("factory"))  resetProducerQueues("factory");
 
-    // Hide whole category tabs if their required producer buildings don't exist.
-    try{
-      let firstAvail = null;
-      for (const b of tabBtns){
-        if (!b) continue;
-        const cat = b.dataset.cat;
-        const ok = tabOk(cat);
-        b.style.display = ok ? "" : "none";
-        if (ok && !firstAvail) firstAvail = cat;
-      }
-      if (!tabOk(prodCat) && firstAvail){
-        // If current tab became unavailable, switch to the first available.
-        setProdCat(firstAvail);
-      }
-    }catch(_e){}
-
-    // Building buttons (two independent lanes)
-    const buildBtns = {
-      power: btnPow, refinery: btnRef, barracks: btnBar, factory: btnFac, radar: btnRad, turret: btnTur
-    };
-    const laneOf = (k)=> (k==="turret") ? "def" : "main";
-
-    for (const [k, btn] of Object.entries(buildBtns)){
-      if (!btn) continue;
-      const show = prereqOk(tech.buildPrereq[k]);
-      btn.style.display = show ? "" : "none";
-      if (!show) continue;
-      const laneKey = laneOf(k);
-      const lane = state.buildLane[laneKey];
-      let pct = 0;
-      let ready = false;
-
-      if (lane && lane.queue && lane.queue.kind === k){
-        const c = lane.queue.cost || 1;
-        pct = clamp((lane.queue.paid||0) / c, 0, 1);
-      } else if (lane && lane.ready === k){
-        pct = 1; ready = true;
-      }
-
-      if (pct>0){
-        btn.style.background = `linear-gradient(180deg, rgba(60,45,18,0.92), rgba(18,14,8,0.96)), linear-gradient(90deg, rgba(90,220,140,0.55) ${pct*100}%, rgba(0,0,0,0) ${pct*100}%)`;
-        btn.style.backgroundBlendMode = "overlay, normal";
-      } else {
-        btn.style.background = "";
-        btn.style.backgroundBlendMode = "";
-      }
-
-      btn.style.outline = ready ? "2px solid rgba(90,220,140,0.75)" : "";
+  // ======= tech tab visibility =======
+  const hasLab = buildings.some((b) => b.team === TEAM.PLAYER && b.kind === "lab");
+  if (tabTech) {
+    tabTech.style.display = hasLab ? "" : "none";
+    if (!hasLab && state.techOpen) {
+      state.techOpen = false;
+      setTechPanelOpen(false);
     }
-    // Unit buttons: stable label + badge count + progress fill (never overwrite innerHTML/textContent)
-    const unitBtns = {
-      infantry: {btn: btnInf, label:"보병"},
-      engineer: {btn: btnEng, label:"엔지니어"},
-      sniper:   {btn: btnSnp, label:"저격병"},
-      tank:     {btn: btnTnk, label:"탱크"},
-      harvester:{btn: btnHar, label:"굴착기"},
-      ifv:      {btn: btnIFV, label:"IFV"},
-    };
-    const ensureLabel = (btn, label)=>{
-      if (!btn) return;
-      // Keep a dedicated label span + badge span. Remove raw text nodes to avoid duplicate labels.
-      let lbl = btn.querySelector(".lbl");
-      if (!lbl){
-        lbl = document.createElement("span");
-        lbl.className = "lbl";
-      }
-      lbl.textContent = label;
-
-      let badge = btn.querySelector(".badge");
-      if (!badge){
-        badge = document.createElement("span");
-        badge.className = "badge";
-        badge.textContent = "0";
-        badge.style.display = "none";
-      }
-
-      // Rebuild children in stable order: [label][badge]
-      while (btn.firstChild) btn.removeChild(btn.firstChild);
-      btn.appendChild(lbl);
-      btn.appendChild(badge);
-    };
-
-    for (const [k, meta] of Object.entries(unitBtns)){
-      const btn = meta.btn;
-      if (!btn) continue;
-      const prereq = (tech.unitPrereq && tech.unitPrereq[k]) ? tech.unitPrereq[k] : [];
-      const show = prereqOk(prereq);
-      btn.style.display = show ? "" : "none";
-      if (!show) continue;
-
-      ensureLabel(btn, meta.label);
-
-      // progress fill: best front-of-queue item among player producers
-      let bestPct = -1;
-      for (const b of buildings){
-        if (!b.alive || b.civ) continue;
-        if (b.team !== TEAM.PLAYER) continue;
-        if (!b.buildQ || !b.buildQ.length) continue;
-        const q = b.buildQ[0];
-        if (!q || q.kind !== k) continue;
-        const c = (q.cost ?? (COST[k]||1)) || 1;
-        const pct = clamp((q.paid||0) / c, 0, 1);
-        if (pct > bestPct) bestPct = pct;
-      }
-      if (bestPct>=0){
-        btn.style.background = `linear-gradient(90deg, rgba(90,220,140,0.22) ${Math.floor(bestPct*100)}%, rgba(0,0,0,0.0) ${Math.floor(bestPct*100)}%)`;
-        btn.style.backgroundBlendMode = "normal";
-      } else {
-        btn.style.background = "";
-        btn.style.backgroundBlendMode = "";
-      }
-    }
-
-
-    updateProdBars();
-
-    updatePowerBar();
+  }
+  if (techPanel) techPanel.style.display = state.techOpen ? "" : "none";
 }
 
   
@@ -11866,15 +11846,26 @@ for (let ty=0; ty<MAP_H; ty+=2){
     }
   }
 
-  function setButtonText(){
-    btnRef.textContent=`정제소`;
-    btnPow.textContent=`발전소`;
-    btnBar.textContent=`막사`;
-    btnFac.textContent=`군수공장`;
-    btnRad.textContent=`레이더`;
-    btnTur.textContent=`터렛`;
-    if (btnSell) btnSell.textContent =`매각(D)`;
-  }
+  function setButtonText() {
+  // Build buttons
+  ensureBtnUI(btnRef, `정제소`);
+  ensureBtnUI(btnPow, `발전소`);
+  ensureBtnUI(btnBar, `막사`);
+  ensureBtnUI(btnFac, `공장`);
+  ensureBtnUI(btnWall, `벽`);
+  ensureBtnUI(btnTur, `터렛`);
+
+  // Unit buttons
+  ensureBtnUI(btnInf, `보병`);
+  ensureBtnUI(btnEng, `엔지니어`);
+  ensureBtnUI(btnSnp, `저격병`);
+  ensureBtnUI(btnIFV, `IFV`);
+  ensureBtnUI(btnHar, `하베스터`);
+  ensureBtnUI(btnTnk, `탱크`);
+
+  // Other UI
+  if (btnSell) btnSell.textContent = `매각(D)`;
+}
 
   function clearWorld(){
     units.length=0; buildings.length=0; bullets.length=0; traces.length=0;
