@@ -11176,7 +11176,7 @@ function drawPathFx(){
       if (!btn) return null;
       if (btn.__poProgMask) return btn.__poProgMask;
 
-      // 버튼에 상대좌표/오버플로우만 강제
+      // 버튼을 오버레이 컨테이너로 만들기
       if (!btn.style.position) btn.style.position = "relative";
       btn.style.overflow = "hidden";
 
@@ -11187,11 +11187,14 @@ function drawPathFx(){
       mask.style.bottom = "0";
       mask.style.height = "0%";
       mask.style.pointerEvents = "none";
-      mask.style.zIndex = "2";
-      mask.style.background = "rgba(0,0,0,0.55)";
-      mask.style.transition = "height 80ms linear";
+      // 다른 레이어 위로 확실히 올려
+      mask.style.zIndex = "9999";
+      // 진행 표시: 초록 오버레이(RA2 느낌)
+      mask.style.background = "rgba(90,220,140,0.35)";
+      mask.style.opacity = "0";
+      mask.style.transition = "height 80ms linear, opacity 80ms linear";
 
-      // paused 패턴용(선택)
+      // paused 패턴(선택)
       const stripe = document.createElement("div");
       stripe.style.position = "absolute";
       stripe.style.left = "0";
@@ -11199,7 +11202,7 @@ function drawPathFx(){
       stripe.style.top = "0";
       stripe.style.bottom = "0";
       stripe.style.opacity = "0";
-      stripe.style.backgroundImage = "repeating-linear-gradient(45deg, rgba(255,255,255,0.10) 0 8px, rgba(255,255,255,0.00) 8px 16px)";
+      stripe.style.backgroundImage = "repeating-linear-gradient(135deg, rgba(255,255,255,0.20) 0 8px, rgba(255,255,255,0.00) 8px 16px)";
       mask.appendChild(stripe);
 
       btn.appendChild(mask);
@@ -11211,17 +11214,17 @@ function drawPathFx(){
       const mask = ensureProgMask(btn);
       if (!mask) return;
 
-      // pct: 0..1, '진행 중'일 때만 표시
-      if (!(pct > 0 && pct < 1)){
+      // pct: 0..1 (0이면 숨김, 1이면 꽉 채움)
+      const p = clamp01(pct || 0);
+      if (p <= 0){
         mask.style.height = "0%";
         mask.style.opacity = "0";
         if (btn.__poProgStripe) btn.__poProgStripe.style.opacity = "0";
         return;
       }
-      const rem = Math.max(0, Math.min(1, 1 - pct));
       mask.style.opacity = "1";
-      mask.style.height = (rem * 100).toFixed(1) + "%";
-      if (btn.__poProgStripe) btn.__poProgStripe.style.opacity = paused ? "0.65" : "0";
+      mask.style.height = (p * 100).toFixed(1) + "%";
+      if (btn.__poProgStripe) btn.__poProgStripe.style.opacity = paused ? "0.55" : "0";
     }
 
     function pctFromQueue(q){
@@ -11266,7 +11269,8 @@ function drawPathFx(){
       it.btn.classList.toggle("locked", !canAfford(costOfBuild(it.kind)));
 
       // 진행/ready 표시
-      const lane = state.buildLane.main;
+      const laneKey = (it.kind === "turret") ? "def" : "main";
+      const lane = state.buildLane ? state.buildLane[laneKey] : null;
       let pct = 0, paused = false;
       if (lane && lane.queue && lane.queue.kind === it.kind){
         pct = pctFromQueue(lane.queue);
