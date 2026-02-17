@@ -706,11 +706,8 @@ const BUILD_SPEED_MIN_PER_1000 = 0.8; // rules(md).ini 기본값: 1000크레딧 
 const MULTIPLE_FACTORY = 0.8; // rules(md).ini MultipleFactory: 공장/막사 등 같은 생산시설 추가 시 빌드타임 누적 곱 (0.8^(n-1))
 
 function getBaseBuildTime(kind){
-  const c = COST[kind] || 0;
-  // (cost/1000) * BuildSpeed * 60 seconds
-  // keep a small floor so ultra-cheap items still have visible progress
-  return clamp((c/1000) * BUILD_SPEED_MIN_PER_1000 * 60, 2.2, 90);
-}
+    return (__ou_econ && __ou_econ.getBaseBuildTime) ? __ou_econ.getBaseBuildTime(kind) : 999999;
+  }
 
   if (DEV_VALIDATE){
     window.addEventListener("error", (ev)=>{
@@ -4383,72 +4380,62 @@ function revealCircle(team, wx, wy, radius){
   }
 
   function recomputePower(){
-    const calc=(team)=>{
-      let prod=0,use=0;
-      for (const b of buildings){
-        if (!b.alive||b.team!==team||b.civ) continue;
-        if (b.kind==="hq") prod+=POWER.hqProd;
-        if (b.kind==="power") prod+=POWER.powerPlant;
-        if (b.kind==="refinery") use+=POWER.refineryUse;
-        if (b.kind==="barracks") use+=POWER.barracksUse;
-        if (b.kind==="factory") use+=POWER.factoryUse;
-        if (b.kind==="radar") use+=POWER.radarUse;
-        if (b.kind==="turret") use+=POWER.turretUse;
-      }
-      return {prod,use};
-    };
-    const p=calc(TEAM.PLAYER); state.player.powerProd=p.prod; state.player.powerUse=p.use;
-    const e=calc(TEAM.ENEMY);  state.enemy.powerProd=e.prod;  state.enemy.powerUse=e.use;
-    validateTechQueues();
+  // Prefer economy module's power calc, but fall back if missing/NaN/0/0 while buildings exist.
+  if (__ou_econ && typeof __ou_econ.recomputePower === "function"){
+    try { __ou_econ.recomputePower(); }
+    catch(e){ console.warn("[power] econ recomputePower failed", e); }
   }
+
+  const p = state.player || (state.player = {});
+  const e = state.enemy  || (state.enemy  = {});
+  const hasPlayerBld = buildings.some(b => b && b.alive && !b.civ && b.team === TEAM.PLAYER);
+  const hasEnemyBld  = buildings.some(b => b && b.alive && !b.civ && b.team === TEAM.ENEMY);
+
+  const pOk = Number.isFinite(p.powerProd) && Number.isFinite(p.powerUse);
+  const eOk = Number.isFinite(e.powerProd) && Number.isFinite(e.powerUse);
+  const suspiciousP = hasPlayerBld && ((p.powerProd|0) === 0 && (p.powerUse|0) === 0);
+  const suspiciousE = hasEnemyBld  && ((e.powerProd|0) === 0 && (e.powerUse|0) === 0);
+
+  if (!pOk || !eOk || suspiciousP || suspiciousE){
+    // Local fallback (matches ou_economy logic)
+    function calc(team){
+      let prod = 0, use = 0;
+      for (const b of buildings){
+        if (!b || !b.alive || b.team !== team || b.civ) continue;
+        if (b.kind === "hq")      prod += (POWER.hqProd || 0);
+        if (b.kind === "power")   prod += (POWER.powerPlant || 0);
+        if (b.kind === "refinery")use  += (POWER.refineryUse || 0);
+        if (b.kind === "barracks")use  += (POWER.barracksUse || 0);
+        if (b.kind === "factory") use  += (POWER.factoryUse || 0);
+        if (b.kind === "radar")   use  += (POWER.radarUse || 0);
+        if (b.kind === "turret")  use  += (POWER.turretUse || 0);
+      }
+      return { prod, use };
+    }
+    const pp = calc(TEAM.PLAYER);
+    p.powerProd = pp.prod;
+    p.powerUse  = pp.use;
+    const ee = calc(TEAM.ENEMY);
+    e.powerProd = ee.prod;
+    e.powerUse  = ee.use;
+  }
+
+  // Keep queues consistent with current prerequisites.
+  if (__ou_econ && typeof __ou_econ.validateTechQueues === "function"){
+    try { __ou_econ.validateTechQueues(); } catch(_){}
+  }
+}
   
   function validateTechQueues(){
-    // If tech prerequisites are lost, remove invalid reservations/queues so they don't soft-lock construction.
-    function hasP(team, kind){
-      return buildings.some(b=>b.alive && !b.civ && b.team===team && b.kind===kind);
-    }
-    const tech = {
-      buildPrereq: { power:["hq"], refinery:["hq","power"], barracks:["hq","refinery"], factory:["hq","barracks"], radar:["hq","factory"], turret:["hq","barracks"] },
-      unitPrereq: { infantry:["barracks"], engineer:["barracks"], sniper:["barracks","radar"], tank:["factory"], ifv:["factory"], harvester:["factory"] }
-    };
-    function prereqOk(team, kind, map){
-      const req = map[kind];
-      if (!req || !req.length) return true;
-      for (const k of req) if (!hasP(team, k)) return false;
-      return true;
-    }
-    // Building lanes (player only)
-    for (const laneKey of ["main","def"]){
-      const lane = state.buildLane[laneKey];
-      if (!lane) continue;
-      if (lane.queue && !prereqOk(TEAM.PLAYER, lane.queue.kind, tech.buildPrereq)){
-        // refund what was already paid
-        state.player.money += Math.floor(lane.queue.paid||0);
-        lane.queue = null;
-      }
-      if (lane.fifo && lane.fifo.length){
-        lane.fifo = lane.fifo.filter(k=>prereqOk(TEAM.PLAYER, k, tech.buildPrereq));
-      }
-    }
-    // Unit production FIFO (player only)
-    if (prodFIFO && prodFIFO.barracks){
-      prodFIFO.barracks = prodFIFO.barracks.filter(req=>prereqOk(TEAM.PLAYER, req.kind, tech.unitPrereq));
-    }
-    if (prodFIFO && prodFIFO.factory){
-      prodFIFO.factory = prodFIFO.factory.filter(req=>prereqOk(TEAM.PLAYER, req.kind, tech.unitPrereq));
-    }
+    return (__ou_econ && __ou_econ.validateTechQueues) ? __ou_econ.validateTechQueues() : undefined;
   }
 
 function getPowerFactor(team){
-    const p = team===TEAM.PLAYER ? state.player : state.enemy;
-    if (p.powerUse<=0) return 1;
-    if (p.powerProd>p.powerUse) return 1;
-    return 0.5;
+    return (__ou_econ && __ou_econ.getPowerFactor) ? __ou_econ.getPowerFactor(team) : 1;
   }
 
   function isUnderPower(team){
-    const p = team===TEAM.PLAYER ? state.player : state.enemy;
-    return (p.powerUse>0 && p.powerProd <= p.powerUse);
+    return (__ou_econ && __ou_econ.isUnderPower) ? __ou_econ.isUnderPower(team) : false;
   }
   function hasRadarAlive(team){
     return buildings.some(b=>b.alive && !b.civ && b.team===team && b.kind==="radar");
@@ -6424,36 +6411,38 @@ const prodFIFO = { barracks: [], factory: [] };
 const prodTotal = { infantry:0, engineer:0, sniper:0, tank:0, harvester:0, ifv:0 };
 const QCAP = 30;
 
+// Economy module hookup (ou_economy.js)
+// Must be loaded BEFORE game.js in index.html.
+const __ou_econ = (window.OUEconomy && typeof window.OUEconomy.create==="function")
+  ? window.OUEconomy.create({
+      state, buildings, TEAM, COST, POWER,
+      prodFIFO, prodTotal, QCAP,
+      clamp,
+      BUILD_SPEED_MIN_PER_1000,
+      GAME_SPEED,
+      BUILD_PROD_MULT,
+      MULTIPLE_FACTORY,
+      ENEMY_PROD_SPEED,
+      toast,
+      updateProdBadges,
+      // spawn helpers (used by production completion)
+      addUnit,
+      setPathTo,
+      findSpawnPointNear,
+      findNearestFreePoint
+    })
+  : null;
+
+if (!__ou_econ) console.warn("[ou_economy] missing: include js/ou_economy.js before game.js");
+
+
 function kindToProducer(kind){
-  return (kind==="tank" || kind==="harvester" || kind==="ifv") ? "factory" : "barracks";
-}
-
-function queueUnit(kind){
-  if (prodTotal[kind] >= QCAP) return;
-
-  const need = kindToProducer(kind);
-
-  // Keep RA2-ish restriction: can't queue without having a producer.
-  const hasProducer = buildings.some(b=>b.alive && !b.civ && b.team===TEAM.PLAYER && b.kind===need);
-  if (!hasProducer){ toast("생산 건물이 없습니다"); return; }
-
-  // If a front-of-queue item of this kind is currently paused, left-click resumes instead of enqueuing another.
-  for (const b of buildings){
-    if (!b.alive || b.civ || b.team!==TEAM.PLAYER || b.kind!==need) continue;
-    const q = b.buildQ && b.buildQ[0];
-    if (q && q.kind===kind && q.paused){
-      q.paused = false;
-      q.autoPaused = false;
-      toast("재개");
-      return;
-    }
+    return (__ou_econ && __ou_econ.kindToProducer) ? __ou_econ.kindToProducer(kind) : "barracks";
   }
 
-  prodFIFO[need].push({ kind });
-  if (prodTotal[kind]==null || Number.isNaN(prodTotal[kind])) prodTotal[kind]=0;
-  prodTotal[kind] += 1;
-  updateProdBadges();
-}
+function queueUnit(kind){
+    return (__ou_econ && __ou_econ.queueUnit) ? __ou_econ.queueUnit(kind) : undefined;
+  }
 
 
 
@@ -6461,6 +6450,7 @@ function queueUnit(kind){
 // (Buttons can be rebuilt/reattached; caching can point at detached nodes.)
 function updateProdBadges(){
   if (!__ou_ui || !__ou_ui.updateProdBadges) return;
+  // ou_ui.updateProdBadges expects { prodTotal }
   __ou_ui.updateProdBadges({ prodTotal });
 }
 
@@ -6472,90 +6462,20 @@ function updateProdBadges(){
 
 // Ensure PRIMARY producer id points to a living building; if not, reassign to first available.
 function ensurePrimaryProducer(kind){
-  if (kind!=="barracks" && kind!=="factory") return null;
-  const pid = (kind==="barracks") ? state.primary.player.barracks : state.primary.player.factory;
-  const pb = pid ? buildings.find(b=>b.alive && !b.civ && b.team===TEAM.PLAYER && b.kind===kind && b.id===pid) : null;
-  if (pb) return pb;
-  // clear stale id
-  if (kind==="barracks") state.primary.player.barracks = null;
-  else state.primary.player.factory = null;
-  const first = buildings.find(b=>b.alive && !b.civ && b.team===TEAM.PLAYER && b.kind===kind) || null;
-  if (first){
-    if (kind==="barracks") state.primary.player.barracks = first.id;
-    else state.primary.player.factory = first.id;
+    return (__ou_econ && __ou_econ.ensurePrimaryProducer) ? __ou_econ.ensurePrimaryProducer(kind) : undefined;
   }
-  return first;
-}
 
-function findProducer(team, need){
-  // PRIMARY building override (player only)
-  if (team===TEAM.PLAYER && (need==="barracks" || need==="factory")){
-    const pb = ensurePrimaryProducer(need);
-    if (pb) return pb;
+function findProducer(team, kind){
+    return (__ou_econ && __ou_econ.findProducer) ? __ou_econ.findProducer(team, kind) : null;
   }
-  // Fallback: prefer smallest queue
-  const list = buildings.filter(b=>b.alive && !b.civ && b.team===team && b.kind===need);
-  if (!list.length) return null;
-  list.sort((a,b)=>a.buildQ.length-b.buildQ.length);
-  return list[0];
-}
 
-function normalizeProducerQueues(kind){
-  // Enforce C&C-style: one active queue per producer type (barracks/factory) for the player.
-  if (kind!=="barracks" && kind!=="factory") return;
-  const pb = ensurePrimaryProducer(kind);
-  if (!pb) return;
-  const cap = (kind==="barracks") ? 12 : 10;
-
-  for (const b of buildings){
-    if (!b.alive || b.civ || b.team!==TEAM.PLAYER || b.kind!==kind) continue;
-    if (b.id===pb.id) continue;
-    if (!b.buildQ || !b.buildQ.length) continue;
-
-    // Move as much as possible into primary queue.
-    while (b.buildQ.length && pb.buildQ.length < cap){
-      pb.buildQ.push(b.buildQ.shift());
-    }
-
-    // Anything left: put back to the GLOBAL FIFO (front), preserving order.
-    if (b.buildQ.length){
-      const rest = b.buildQ.splice(0);
-      for (let i=rest.length-1;i>=0;i--){
-        const it = rest[i];
-        prodFIFO[kind].unshift({ kind: it.kind });
-      }
-    }
+function normalizeProducerQueues(producerType){
+    return (__ou_econ && __ou_econ.normalizeProducerQueues) ? __ou_econ.normalizeProducerQueues(producerType) : undefined;
   }
-}
 
 function feedProducers(){
-  normalizeProducerQueues("barracks");
-  normalizeProducerQueues("factory");
-
-  // Barracks queue (infantry + engineer share order)
-  let guard=0;
-  while (prodFIFO.barracks.length && guard++<200){
-    const b = findProducer(TEAM.PLAYER, "barracks");
-    if (!b) break;
-    if (b.buildQ.length >= 12) break;
-
-    const req = prodFIFO.barracks.shift();
-    const k = req.kind;
-    b.buildQ.push({ kind:k, t:0, tNeed:getBaseBuildTime(k), cost:COST[k], paid:0 });
+    return (__ou_econ && __ou_econ.feedProducers) ? __ou_econ.feedProducers() : undefined;
   }
-
-  // Factory queue (vehicles)
-  guard=0;
-  while (prodFIFO.factory.length && guard++<200){
-    const b = findProducer(TEAM.PLAYER, "factory");
-    if (!b) break;
-    if (b.buildQ.length >= 10) break;
-
-    const req = prodFIFO.factory.shift();
-    const k = req.kind;
-    b.buildQ.push({ kind:k, t:0, tNeed:getBaseBuildTime(k), cost:COST[k], paid:0 });
-  }
-}
 
 function findSpawnPointNear(b, unitKind, opts){
     // Tile-first spawn search (C&C style): find a truly free tile around the producer footprint.
@@ -6618,136 +6538,7 @@ function findSpawnPointNear(b, unitKind, opts){
   }
 
 function tickProduction(dt){
-    for (const b of buildings){
-        if (!b.alive || b.civ) continue;
-        if (!b.buildQ.length) continue;
-
-
-      // PRIMARY producer spawn routing (player): production can progress on any producer,
-      // but finished units spawn/rally from the current PRIMARY of that producer type.
-      const primarySpawn = (b.team===TEAM.PLAYER && (b.kind==="barracks" || b.kind==="factory"))
-        ? ensurePrimaryProducer(b.kind)
-        : null;
-      const spawnB = primarySpawn || b;
-
-
-      const pf=getPowerFactor(b.team);
-      const sameCount = buildings.filter(x=>x.alive && !x.civ && x.team===b.team && x.kind===b.kind).length || 1;
-      // RA2/YR rules(md).ini MultipleFactory: build time multiplier = MULTIPLE_FACTORY^(sameCount-1)
-      // 즉, 속도(진행률)는 1 / MULTIPLE_FACTORY^(sameCount-1)
-      const mf = Math.min(20, sameCount); // 안전 상한
-      const multiSpeed = 1 / Math.pow(MULTIPLE_FACTORY, (mf - 1));
-      let speed = pf * multiSpeed * GAME_SPEED * BUILD_PROD_MULT * ((b.team===TEAM.ENEMY)?ENEMY_PROD_SPEED:1) * (isUnderPower(b.team)?0.5:1);
-      // v139: HQ(메인건물) 건설 속도 더 상향
-      if (b.kind==="hq") speed *= 3;
-
-      const q=b.buildQ[0];
-
-      const debugFastProd = !!(state.debug && state.debug.fastProd && b.team===TEAM.PLAYER);
-
-      // Debug fast production: player only, finish any queue item in ~1s real-time.
-      // - Enemy is not affected.
-      // - Ignores power + money throttles so it always completes.
-      if (debugFastProd){
-        if (q){ q.paused = false; q.autoPaused = false; }
-        speed = (q && q.tNeed) ? q.tNeed : 1;
-      }
-
-
-// Manual/auto pause support (대기).
-// autoPaused(자금 부족)인 경우, 돈이 다시 생기면 자동으로 재개한다. (수동 클릭 안 해도 됨)
-if (q.paused && !debugFastProd){
-  const teamWalletTmp = (b.team===TEAM.PLAYER) ? state.player : state.enemy;
-  const costTotalTmp = q.cost ?? (COST[q.kind]||0);
-  const tNeedTmp = q.tNeed || 0.001;
-  const payRateTmp = costTotalTmp / tNeedTmp;
-  const wantTmp = dt * speed;
-  const canByMoneyTmp = (payRateTmp<=0) ? wantTmp : (teamWalletTmp.money / payRateTmp);
-  if (q.autoPaused && canByMoneyTmp > 0){
-    q.paused = false;
-    q.autoPaused = false;
-  } else {
-    continue;
-  }
-}
-
-      // Money drains while progress advances (RA2-ish).
-      const teamWallet = (b.team===TEAM.PLAYER) ? state.player : state.enemy;
-      const costTotal = q.cost ?? (COST[q.kind]||0);
-      const tNeed = q.tNeed || 0.001;
-      const payRate = costTotal / tNeed; // credits per second at 1x speed
-
-      const want = dt * speed;                  // seconds of progress we WANT
-      const canByMoney = debugFastProd ? want : ((payRate<=0) ? want : (state.player.money / payRate)); // seconds we CAN afford
-      const delta = Math.min(want, canByMoney);
-
-      // If we can't afford progress now, force-pause. Must be resumed manually via left-click.
-      if (delta <= 0){
-        if (debugFast) return;
-        // FIX: '대기 (자금 부족)'가 자금 충분한데도 뜨는 케이스가 있었음.
-        // 원인: speed=0(일시정지/전력/기타)로 want=0인데도 "자금 부족" 경로로 들어가던 문제.
-        // - want<=0이면 그냥 진행이 없는 상태이므로 자동자금대기 처리하지 않는다.
-        // - 돈이 진짜로 부족할 때만 autoPaused로 전환한다.
-        if (want <= 0){
-          continue;
-        }
-        if (payRate>0 && (state.player.money / payRate) <= 0){
-          q.paused = true;
-          q.autoPaused = true;
-          if (!q._autoToast && b.team===TEAM.PLAYER){ q._autoToast=true; toast("대기"); }
-        }
-        continue;
-      }
-
-      let pay = payRate * delta;
-      if (debugFastProd){
-        pay = 0;
-        q.paid = costTotal;
-      } else {
-        state.player.money -= pay;
-        q.paid = (q.paid||0) + pay;
-      }
-
-      q.t += delta;
-
-      if (q.t >= tNeed - 1e-6){
-        // snap to complete
-        q.t = tNeed;
-        q.paid = costTotal;
-
-        const sp = findSpawnPointNear(spawnB, q.kind);
-        if (!sp){
-          q.spawnReady = true;
-          q.t = tNeed;
-          q.paid = costTotal;
-          continue;
-        }
-        const u = addUnit(spawnB.team, q.kind, sp.x, sp.y);
-
-        // Rally / waypoint
-        if (spawnB.rally && spawnB.rally.x!=null && spawnB.rally.y!=null){
-          u.order = { type:"move", x:spawnB.rally.x, y:spawnB.rally.y, tx:null, ty:null };
-          u.target = null;
-          setPathTo(u, spawnB.rally.x, spawnB.rally.y);
-          u.repathCd = 0.25;
-
-        } else {
-          // No rally set: eject newly produced unit away from the producer entrance to avoid door jams.
-          const fp = findNearestFreePoint(u.x, u.y, u, 6);
-          if (fp){
-            u.order = { type:"move", x:fp.x, y:fp.y, tx:null, ty:null };
-            u.target = null;
-            setPathTo(u, fp.x, fp.y);
-            u.repathCd = 0.25;
-          }
-        }
-
-        b.buildQ.shift();
-        if (prodTotal[q.kind]==null || Number.isNaN(prodTotal[q.kind])) prodTotal[q.kind]=0;
-        prodTotal[q.kind] = Math.max(0, (prodTotal[q.kind]||0)-1);
-        updateProdBadges();
-      }
-    }
+    return (__ou_econ && __ou_econ.tickProduction) ? __ou_econ.tickProduction(dt) : undefined;
   }
 
   function tickRepairs(dt){
@@ -10986,99 +10777,8 @@ function drawPathFx(){
   }
 
   function tickSidebarBuild(dt){
-    // Building production: two independent lanes (main/def) with reservation FIFO.
-    // Each lane: can reserve many -> one active build -> READY (await placement) -> then next.
-    const pf = getPowerFactor(TEAM.PLAYER);
-    const speedBase = pf * GAME_SPEED * BUILD_PROD_MULT;
-    const debugFastBuild = !!(state.debug && state.debug.fastProd); // player-only building fast-complete
-
-    function startNextIfIdle(lane){
-      if (!lane) return;
-      if (lane.ready || lane.queue) return;
-      if (lane.fifo && lane.fifo.length){
-        const kind = lane.fifo.shift();
-        lane.queue = { kind, t:0, tNeed:getBaseBuildTime(kind), cost:(COST[kind]||0), paid:0 };
-      }
-    }
-
-    function tickLane(laneKey){
-      const lane = state.buildLane[laneKey];
-      if (!lane) return;
-
-      // If idle, kick next reservation
-      startNextIfIdle(lane);
-
-      if (!lane.queue) return;
-      if (lane.ready) return;
-
-      const q = lane.queue;
-      const debugFast = debugFastBuild; // buildings are player-only lanes
-      if (debugFast){
-        // Debug fast build: finish this build in ~1s real-time, ignore money/power throttles.
-        q.paused = false; q.autoPaused = false; q._autoToast = false;
-      }
-      // Auto-resume if we were paused only because of insufficient money.
-      if (q.paused){
-        if (q.autoPaused){
-          const costTotalTmp = q.cost || 0;
-          const tNeedTmp = q.tNeed || 0.001;
-          const payRateTmp = (costTotalTmp<=0) ? 0 : (costTotalTmp / tNeedTmp);
-          const canByMoneyTmp = (payRateTmp<=0) ? 1 : (state.player.money / payRateTmp);
-          if (canByMoneyTmp > 0){
-            q.paused = false;
-            q.autoPaused = false;
-            q._autoToast = false;
-          } else {
-            return;
-          }
-        } else {
-          return;
-        }
-      }
-      const speed = debugFast ? (q.tNeed || 1) : speedBase;
-      const want = dt * speed;
-      const costTotal = q.cost || 0;
-      const tNeed = q.tNeed || 0.001;
-      const payRate = (costTotal<=0) ? 0 : (costTotal / tNeed);
-      const canByMoney = debugFast ? want : ((payRate<=0) ? want : (state.player.money / payRate));
-      const delta = Math.min(want, canByMoney);
-      // Out of money => auto-pause (do NOT confuse 'no progress' with 'no money').
-      // If want<=0, we are simply not progressing this frame (pause, power, etc). Don't force a money-wait state.
-      if (delta <= 0){
-        if (want <= 0){
-          return;
-        }
-        // If build time is broken (0), don't auto-pause by money logic.
-        if (tNeed <= 0){
-          return;
-        }
-        if (payRate>0 && (state.player.money / payRate) <= 0){
-          q.paused = true;
-          q.autoPaused = true;
-          if (!q._autoToast){ q._autoToast=true; toast("대기"); }
-        }
-        return;
-      }
-
-      let pay = payRate * delta;
-      if (debugFast){
-        pay = 0;
-        q.paid = costTotal;
-      } else {
-        state.player.money -= pay;
-        q.paid = (q.paid||0) + pay;
-      }
-      q.t += delta;
-
-      if (q.t >= tNeed - 1e-6){
-        q.t = tNeed; q.paid = costTotal;
-        lane.ready = q.kind;
-        lane.queue = null;
-      }
-    }
-
-    tickLane("main");
-    tickLane("def");
+    // Economy: build lanes tick moved to ou_economy (money drain + progress + ready state).
+    if (__ou_econ && __ou_econ.tickBuildLanes) __ou_econ.tickBuildLanes(dt);
 
     // BuildMode pill (global placement state)
     const anyReady = !!(state.buildLane.main.ready || state.buildLane.def.ready);
@@ -11620,8 +11320,9 @@ let rX = ent.x, rY = ent.y;
           }
         }
         ctx.restore();
-        // Segmented HP blocks under unit
-        drawUnitHpBlocks(ent, p);
+        // Segmented HP blocks under unit (only when hovered or selected)
+        const showHp = (state.selection && state.selection.has(ent.id)) || (state.hover && state.hover.entId===ent.id);
+        if (showHp) drawUnitHpBlocks(ent, p);
 
         if (ent.grp) drawGroupBadge(p.x + ent.r*0.85, p.y - ent.r*0.85, ent.grp);
 

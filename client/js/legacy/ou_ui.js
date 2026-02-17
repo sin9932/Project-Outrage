@@ -16,6 +16,32 @@ r.uiPowerNeed = r.uiPowerNeed || document.getElementById("powerNeed");
 r.uiPowerBar  = r.uiPowerBar  || document.getElementById("powerBar");
 r.uiPTip      = r.uiPTip      || document.getElementById("pTip");
 
+// Auto-resolve production/buttons (safe even if game.js didn't pass refs)
+r.tabBtns = r.tabBtns || Array.from(document.querySelectorAll(".tabbtn[data-cat]"));
+r.panels  = r.panels  || {
+  main: document.getElementById("panelMain"),
+  def:  document.getElementById("panelDef"),
+  inf:  document.getElementById("panelInf"),
+  veh:  document.getElementById("panelVeh")
+};
+
+// Build buttons
+r.btnPow = r.btnPow || document.getElementById("bPow");
+r.btnRef = r.btnRef || document.getElementById("bRef");
+r.btnBar = r.btnBar || document.getElementById("bBar");
+r.btnFac = r.btnFac || document.getElementById("bFac");
+r.btnRad = r.btnRad || document.getElementById("bRad");
+r.btnTur = r.btnTur || document.getElementById("bTur");
+
+// Unit buttons
+r.btnInf = r.btnInf || document.getElementById("pInf");
+r.btnEng = r.btnEng || document.getElementById("pEng");
+r.btnSnp = r.btnSnp || document.getElementById("pSnp");
+r.btnTnk = r.btnTnk || document.getElementById("pTnk");
+r.btnHar = r.btnHar || document.getElementById("pHar");
+r.btnIFV = r.btnIFV || document.getElementById("pIFV");
+
+
 // Install power tooltip (once). Falls back to title attribute as well.
 if (r.uiPowerBar && !r.__powerTipInstalled){
   r.__powerTipInstalled = true;
@@ -158,11 +184,18 @@ if (r.uiPowerBar && !r.__powerTipInstalled){
 }
 
     function updateProdBadges(env){
-      env = env || {};
-      const { prodTotal } = env;
-      if (!prodTotal) return;
+  if (!env) return;
 
-      function ensureBadge(btn){
+  // Accept either { prodTotal } or direct prodTotal map for backward compatibility.
+  let prodTotal = null;
+  const looksLikeMap = (env && typeof env === "object" && !("prodTotal" in env) &&
+    ("infantry" in env || "engineer" in env || "sniper" in env || "tank" in env || "harvester" in env));
+
+  if (looksLikeMap) prodTotal = env;
+  else if (env && typeof env === "object") prodTotal = env.prodTotal;
+
+  if (!prodTotal) return;
+function ensureBadge(btn){
         if (!btn) return null;
         let b = btn.querySelector(".badge");
         if (!b){
@@ -293,8 +326,146 @@ if (r.uiPowerBar && !r.__powerTipInstalled){
       }
     }
 
+
+    function updateSidebarButtons(env){
+      const e = env || {};
+      const state    = e.state;
+      const buildings = e.buildings || [];
+      const TEAM     = e.TEAM || window.TEAM || {};
+      const prodCat  = e.prodCat;
+      const setProdCat = e.setProdCat;
+
+      const tabBtns = e.tabBtns || r.tabBtns || Array.from(document.querySelectorAll(".tabbtn[data-cat]"));
+      const panels  = e.panels  || r.panels  || {
+        main: document.getElementById("panelMain"),
+        def:  document.getElementById("panelDef"),
+        inf:  document.getElementById("panelInf"),
+        veh:  document.getElementById("panelVeh")
+      };
+
+      // Handle both shapes:
+      // - buildings as array of entities (current game.js)
+      // - buildings as {kind:[...]} map (older experiments)
+      const isArr = Array.isArray(buildings);
+      const playerTeam = (TEAM && typeof TEAM.PLAYER !== "undefined") ? TEAM.PLAYER : 0;
+
+      const kindAliases = {
+        barracks: ["barrack"], // some sprite-spec files use 'barrack'
+        barrack:  ["barracks"]
+      };
+
+      function alivePlayerBuilding(b){
+        return !!(b && b.alive && !b.civ && b.team === playerTeam);
+      }
+
+      function hasP(kind){
+        const kinds = [kind].concat(kindAliases[kind] || []);
+        if (isArr){
+          return buildings.some(b => alivePlayerBuilding(b) && kinds.includes(b.kind));
+        }
+        // map style
+        for (const k of kinds){
+          const arr = buildings[k];
+          if (Array.isArray(arr) && arr.some(alivePlayerBuilding)) return true;
+        }
+        return false;
+      }
+
+      const tech = {
+        // Keep in sync with validateTechQueues() in game.js
+        buildPrereq: {
+          power:    ["hq"],
+          refinery: ["hq","power"],
+          barracks: ["hq","refinery"],
+          factory:  ["hq","barracks"],
+          radar:    ["hq","factory"],
+          turret:   ["hq","barracks"]
+        },
+        unitPrereq: {
+          infantry:  ["barracks"],
+          engineer:  ["barracks"],
+          sniper:    ["barracks","radar"],
+          tank:      ["factory"],
+          ifv:       ["factory"],
+          harvester: ["factory"]
+        }
+      };
+
+      function prereqOk(kind, map){
+        const req = map[kind];
+        if (!req || !req.length) return true;
+        for (const k of req){
+          if (!hasP(k)) return false;
+        }
+        return true;
+      }
+
+      function setEnabled(btn, ok){
+        if (!btn) return;
+        btn.disabled = !ok;
+        btn.classList.toggle("disabled", !ok);
+      }
+
+      // Tabs show/hide by producers (keep same rules as legacy game.js)
+      const tabProducer = {
+        main: { req: ["hq"] },
+        def:  { req: ["hq","barracks"] },
+        inf:  { req: ["barracks"] },
+        veh:  { req: ["factory"] }
+      };
+      function tabOk(cat){
+        const t = tabProducer[cat];
+        if (!t) return true;
+        for (const k of (t.req || [])){
+          if (!hasP(k)) return false;
+        }
+        return true;
+      }
+
+      // Apply tabs visibility
+      for (const b of tabBtns){
+        if (!b) continue;
+        const cat = b.dataset ? b.dataset.cat : b.getAttribute("data-cat");
+        const ok = tabOk(cat);
+        b.style.display = ok ? "" : "none";
+      }
+
+      // If current category becomes invalid, switch to the first visible one.
+      if (typeof setProdCat === "function"){
+        const curOk = tabOk(prodCat);
+        if (!curOk){
+          const firstOk = (tabBtns || []).find(x => x && x.style.display !== "none");
+          const next = firstOk ? (firstOk.dataset ? firstOk.dataset.cat : firstOk.getAttribute("data-cat")) : "main";
+          setProdCat(next);
+        }
+      }
+
+      // Build panel buttons
+      setEnabled(r.btnPow, prereqOk("power", tech.buildPrereq));
+      setEnabled(r.btnRef, prereqOk("refinery", tech.buildPrereq));
+      setEnabled(r.btnBar, prereqOk("barracks", tech.buildPrereq));
+      setEnabled(r.btnFac, prereqOk("factory", tech.buildPrereq));
+      setEnabled(r.btnRad, prereqOk("radar", tech.buildPrereq));
+      setEnabled(r.btnTur, prereqOk("turret", tech.buildPrereq));
+
+      // Unit panel buttons
+      setEnabled(r.btnInf, prereqOk("infantry", tech.unitPrereq));
+      setEnabled(r.btnEng, prereqOk("engineer", tech.unitPrereq));
+      setEnabled(r.btnSnp, prereqOk("sniper", tech.unitPrereq));
+      setEnabled(r.btnTnk, prereqOk("tank", tech.unitPrereq));
+      setEnabled(r.btnIFV, prereqOk("ifv", tech.unitPrereq));
+      setEnabled(r.btnHar, prereqOk("harvester", tech.unitPrereq));
+
+      // Panels themselves (optional): if tab is hidden, also hide its panel to avoid empty UI.
+      // (game.js setProdCat already does this; this is just extra safety)
+      if (panels && prodCat && panels[prodCat]){
+        // nothing
+      }
+    }
+
     return {
       updateSelectionUI,
+      updateSidebarButtons,
       updatePowerBar,
       updateProdBadges,
       refreshPrimaryBuildingBadgesUI,
