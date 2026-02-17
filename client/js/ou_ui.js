@@ -15,6 +15,8 @@ r.uiPowerFill = r.uiPowerFill || document.getElementById("powerFill");
 r.uiPowerNeed = r.uiPowerNeed || document.getElementById("powerNeed");
 r.uiPowerBar  = r.uiPowerBar  || document.getElementById("powerBar");
 r.uiPTip      = r.uiPTip      || document.getElementById("pTip");
+r.uiSelCount = r.uiSelCount || document.getElementById("selCount");
+r.uiSelInfo  = r.uiSelInfo  || document.getElementById("selInfo");
 
 // Auto-resolve production/buttons (safe even if game.js didn't pass refs)
 r.tabBtns = r.tabBtns || Array.from(document.querySelectorAll(".tabbtn[data-cat]"));
@@ -98,6 +100,10 @@ if (r.uiPowerBar && !r.__powerTipInstalled){
 
       if (!state || !buildings || !TEAM) return;
 
+      // Ensure refs exist (in case create() got partial refs object)
+      r.uiSelCount = r.uiSelCount || document.getElementById("selCount");
+      r.uiSelInfo  = r.uiSelInfo  || document.getElementById("selInfo");
+
       const selIds = (() => {
         if (state.selection && typeof state.selection.has === "function") return Array.from(state.selection);
         if (Array.isArray(state.selection)) return state.selection.slice();
@@ -105,21 +111,10 @@ if (r.uiPowerBar && !r.__powerTipInstalled){
         return [];
       })();
 
-      // Selection count
+      // Selection count badge (top-right of the '선택 정보' row)
       try{
         if (r.uiSelCount){
           r.uiSelCount.textContent = String(selIds.length);
-        }
-      }catch(_e){}
-
-      // Radar status line
-      try{
-        if (r.uiRadarStat){
-          if (hasRadarAlive && isFn(hasRadarAlive)){
-            r.uiRadarStat.textContent = hasRadarAlive() ? "RADAR ONLINE" : "RADAR REQUIRED";
-          } else {
-            r.uiRadarStat.textContent = "RADAR REQUIRED";
-          }
         }
       }catch(_e){}
 
@@ -135,79 +130,77 @@ if (r.uiPowerBar && !r.__powerTipInstalled){
         const hp = Number(e.hp), hpMax = Number(e.hpMax);
         if (!isFinite(hp) || !isFinite(hpMax) || hpMax <= 0) return null;
         const pct = Math.max(0, Math.min(1, hp / hpMax));
-        return { hp, hpMax, pct };
+        return { hp: Math.round(hp), hpMax: Math.round(hpMax), pct };
       };
 
-      // Selection info
+      const fmtPct = (p) => `${Math.round(p*100)}%`;
+
+      // Build selected entities list
+      const selEnts = [];
+      if (selIds.length && isFn(getEntityById)){
+        for (const id of selIds){
+          const e = getEntityById(id);
+          if (e && e.alive) selEnts.push(e);
+        }
+      }
+
+      // Selection info panel
       try{
         if (r.uiSelInfo){
-          if (!selIds.length){
-            // If nothing selected, optionally show hover info.
-            const hid = state.hover && state.hover.entId ? state.hover.entId : null;
-            const he = hid && getEntityById ? getEntityById(hid) : null;
-            if (he){
+          // If nothing selected: show default (and optionally hover info)
+          if (!selEnts.length){
+            const hid = state.hover && state.hover.entId != null ? state.hover.entId : null;
+            const he = (hid != null && isFn(getEntityById)) ? getEntityById(hid) : null;
+
+            if (he && he.alive){
               const name = resolveName(he);
               const hp = resolveHp(he);
-              r.uiSelInfo.textContent = hp
-                ? `오버: [${name}] HP ${hp.hp}/${hp.hpMax} (${Math.round(hp.pct*100)}%)`
-                : `오버: [${name}]`;
+              r.uiSelInfo.innerHTML = hp
+                ? `<b>오버:</b> ${name}<br>HP ${hp.hp}/${hp.hpMax} (${fmtPct(hp.pct)})`
+                : `<b>오버:</b> ${name}`;
             } else {
               r.uiSelInfo.textContent = "아무것도 선택 안 됨";
             }
-          } else {
-            const ents = [];
-            const pcts = [];
-            for (const id of selIds){
-              const e = getEntityById ? getEntityById(id) : null;
-              if (!e) continue;
-              const hp = resolveHp(e);
-              const name = resolveName(e);
-              ents.push({ id, e, name, hp });
-              if (hp) pcts.push(hp.pct);
-            }
-
-            if (!ents.length){
-              r.uiSelInfo.textContent = "선택됨";
-            } else if (ents.length === 1){
-              const it = ents[0];
-              if (it.hp){
-                r.uiSelInfo.textContent = `[${it.name}] HP ${it.hp.hp}/${it.hp.hpMax} (${Math.round(it.hp.pct*100)}%)`;
-              } else {
-                r.uiSelInfo.textContent = `[${it.name}]`;
-              }
-            } else {
-              const avg = pcts.length ? (pcts.reduce((a,b)=>a+b,0)/pcts.length) : 0;
-              const min = pcts.length ? Math.min(...pcts) : 0;
-              const header = `${ents.length}개 선택 | 평균 ${Math.round(avg*100)}% | 최저 ${Math.round(min*100)}%`;
-
-              const MAX_LINES = 10;
-              const lines = [header];
-              const shown = ents.slice(0, MAX_LINES);
-              for (const it of shown){
-                if (it.hp){
-                  lines.push(`- [${it.name}] HP ${it.hp.hp}/${it.hp.hpMax} (${Math.round(it.hp.pct*100)}%)`);
-                } else {
-                  lines.push(`- [${it.name}]`);
-                }
-              }
-              if (ents.length > MAX_LINES){
-                lines.push(`... (+${ents.length - MAX_LINES}개 더 선택됨)`);
-              }
-              r.uiSelInfo.textContent = lines.join("\n");
-            }
+            return;
           }
-        }
-      }catch(_e){}
 
-      // Minimap hint
-      try{
-        if (r.uiMmHint){
-          r.uiMmHint.textContent = hasRadarAlive && isFn(hasRadarAlive) && hasRadarAlive()
-            ? "미니맵 활성"
+          // Single selection
+          if (selEnts.length === 1){
+            const e = selEnts[0];
+            const name = resolveName(e);
+            const hp = resolveHp(e);
+            r.uiSelInfo.innerHTML = hp
+              ? `<b>${name}</b><br>HP ${hp.hp}/${hp.hpMax} (${fmtPct(hp.pct)})`
+              : `<b>${name}</b>`;
+            return;
+          }
+
+          // Multi selection summary + list
+          const hpPcts = selEnts.map(e=>resolveHp(e)).filter(Boolean).map(h=>h.pct);
+          const avg = hpPcts.length ? hpPcts.reduce((a,b)=>a+b,0)/hpPcts.length : null;
+          const min = hpPcts.length ? Math.min(...hpPcts) : null;
+
+          const header = avg!=null && min!=null
+            ? `<b>${selEnts.length}개 선택</b> <span style="opacity:.85">(평균 ${fmtPct(avg)} / 최저 ${fmtPct(min)})</span>`
+            : `<b>${selEnts.length}개 선택</b>`;
+
+          const limit = 12;
+          const rows = [];
+          for (let i=0; i<Math.min(limit, selEnts.length); i++){
+            const e = selEnts[i];
+            const name = resolveName(e);
+            const hp = resolveHp(e);
+            rows.push(hp ? `${i+1}. ${name} <span style="opacity:.85">(${fmtPct(hp.pct)})</span>` : `${i+1}. ${name}`);
+          }
+          const more = selEnts.length > limit
+            ? `<div style="opacity:.65;margin-top:6px">+${selEnts.length - limit} 더…</div>`
             : "";
+
+          r.uiSelInfo.innerHTML = header + "<br>" + rows.join("<br>") + more;
         }
       }catch(_e){}
     }
+
 
     function updatePowerBar(env){
   env = env || {};
