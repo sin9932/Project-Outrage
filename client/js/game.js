@@ -10905,7 +10905,8 @@ function drawPathFx(){
     { kind: "power",    lane: state.buildLane.main, btn: btnPow,  label: getBuildLabel("power", "발전소") },
     { kind: "refinery", lane: state.buildLane.main, btn: btnRef,  label: getBuildLabel("refinery", "정제소") },
     { kind: "barracks", lane: state.buildLane.main, btn: btnBar,  label: getBuildLabel("barracks", "막사") },
-    { kind: "factory",  lane: state.buildLane.main, btn: btnFac,  label: getBuildLabel("factory", "공장") },
+    { kind: "factory",  lane: state.buildLane.main, btn: btnFac,  label: getBuildLabel("factory", "군수공장") },
+    { kind: "radar",    lane: state.buildLane.main, btn: btnRad,  label: getBuildLabel("radar", "레이더") },
 
     { kind: "turret",   lane: state.buildLane.def,  btn: btnTur,  label: getBuildLabel("turret", "터렛") },
     { kind: "wall",     lane: state.buildLane.def,  btn: btnWall, label: getBuildLabel("wall", "벽") },
@@ -10942,7 +10943,7 @@ function drawPathFx(){
 
     { kind: "ifv",      btn: btnIFV, producer: "factory",  label: "IFV" },
     { kind: "harvester",btn: btnHar, producer: "factory",  label: "하베스터" },
-    { kind: "tank",     btn: btnTnk, producer: "factory",  label: "탱크" },
+    { kind: "tank",     btn: btnTnk, producer: "factory",  label: "경전차" },
   ];
 
   for (const it of unitBtns) {
@@ -11867,7 +11868,8 @@ for (let ty=0; ty<MAP_H; ty+=2){
   ensureBtnUI(btnRef, `정제소`);
   ensureBtnUI(btnPow, `발전소`);
   ensureBtnUI(btnBar, `막사`);
-  ensureBtnUI(btnFac, `공장`);
+  ensureBtnUI(btnFac, `군수공장`);
+  ensureBtnUI(btnRad, `레이더`);
   ensureBtnUI(btnWall, `벽`);
   ensureBtnUI(btnTur, `터렛`);
 
@@ -11877,7 +11879,7 @@ for (let ty=0; ty<MAP_H; ty+=2){
   ensureBtnUI(btnSnp, `저격병`);
   ensureBtnUI(btnIFV, `IFV`);
   ensureBtnUI(btnHar, `하베스터`);
-  ensureBtnUI(btnTnk, `탱크`);
+  ensureBtnUI(btnTnk, `경전차`);
 
   // Other UI
   if (btnSell) btnSell.textContent = `매각(D)`;
