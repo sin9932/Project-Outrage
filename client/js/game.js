@@ -10884,6 +10884,14 @@ function drawPathFx(){
   function updateSidebarButtons() {
   const clamp01 = (x) => (x < 0 ? 0 : (x > 1 ? 1 : x));
 
+
+  // Optional tech UI (may not exist in index.html). Never crash if missing.
+  const tabTech = document.getElementById("tabTech");
+  const techPanel = document.getElementById("techPanel");
+  const setTechPanelOpen = (open) => {
+    if (techPanel) techPanel.style.display = open ? "" : "none";
+  };
+
   // ======= build (main/def) =======
   const getBuildLabel = (k, fallback) =>
     (window.tech && window.tech.buildLabels && window.tech.buildLabels[k]) ? window.tech.buildLabels[k] : fallback;
