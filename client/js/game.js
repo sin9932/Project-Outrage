@@ -83,6 +83,9 @@ ${e.filename}:${e.lineno}:${e.colno}
   const qTxtInf  = $("qTxtInf");
   const qTxtVeh  = $("qTxtVeh");
 
+  const badgeBar = $("badgeBar");
+  const badgeFac = $("badgeFac");
+
   const btnRef = $("bRef");
   const btnPow = $("bPow");
   const btnBar = $("bBar");
@@ -104,7 +107,10 @@ ${e.filename}:${e.lineno}:${e.colno}
     ? window.OUUI.create({
         uiSelCount, uiPower, uiRadarStat, uiMmHint, uiSelInfo,
         btnInf, btnEng, btnSnp, btnTnk, btnHar, btnIFV,
-        uiPowerFill, uiPowerNeed
+        uiPowerFill, uiPowerNeed,
+        qFillMain, qFillDef, qFillInf, qFillVeh,
+        qTxtMain, qTxtDef, qTxtInf, qTxtVeh,
+        badgeBar, badgeFac
       })
     : null;
 
@@ -6450,33 +6456,14 @@ function queueUnit(kind){
 }
 
 
-function ensureBadge(btn){
-  if (!btn) return null;
-  let b = btn.querySelector(".badge");
-  if (!b){
-    b = document.createElement("span");
-    b.className = "badge";
-    btn.appendChild(b);
-  }
-  return b;
-}
+
 // Always resolve the current badge element from the button each time.
 // (Buttons can be rebuilt/reattached; caching can point at detached nodes.)
 function updateProdBadges(){
-  const set = (btn, kind)=>{
-    if (!btn) return;
-    const b = ensureBadge(btn);
-    const n = prodTotal[kind]||0;
-    if (n>0){ b.textContent = String(n); b.style.display="block"; }
-    else { b.textContent=""; b.style.display="none"; }
-  };
-  set(btnInf, "infantry");
-  set(btnEng, "engineer");
-  set(btnSnp, "sniper");
-  set(btnTnk, "tank");
-  set(btnHar, "harvester");
-  set(btnIFV, "ifv");
+  if (!__ou_ui || !__ou_ui.updateProdBadges) return;
+  __ou_ui.updateProdBadges({ prodTotal });
 }
+
 
 
 
@@ -10848,12 +10835,10 @@ function updateInfDeathFx(){
   }
 
 function refreshPrimaryBuildingBadgesUI(){
-  // UI badges inside production buttons must be screen-space (not camera dependent)
-  const bar = document.getElementById("badgeBar");
-  const fac = document.getElementById("badgeFac");
-  if (bar) bar.style.display = (state.primary.player.barracks!=null && state.primary.player.barracks!==-1) ? "inline-block" : "none";
-  if (fac) fac.style.display = (state.primary.player.factory!=null  && state.primary.player.factory!==-1)  ? "inline-block" : "none";
+  if (!__ou_ui || !__ou_ui.refreshPrimaryBuildingBadgesUI) return;
+  __ou_ui.refreshPrimaryBuildingBadgesUI({ state });
 }
+
 
 
   function drawPrimaryBadgeForSelectedBuilding(b){
@@ -11303,69 +11288,10 @@ if (!hasP("factory"))  resetProducerQueues("factory");
 
 
   function updateProdBars(){
-    // Building lanes
-    function lanePct(lane){
-      if (!lane) return 0;
-      if (lane.ready) return 1;
-      if (lane.queue){
-        const c = lane.queue.cost || 1;
-        return clamp((lane.queue.paid||0)/c, 0, 1);
-      }
-      if (lane.fifo && lane.fifo.length) return 0.01; // tiny hint
-      return 0;
-    }
-    const mainLane = state.buildLane.main;
-    const defLane  = state.buildLane.def;
+  if (!__ou_ui || !__ou_ui.updateProdBars) return;
+  __ou_ui.updateProdBars({ state, buildings, TEAM, clamp, prodFIFO, NAME_KO });
+}
 
-    if (qFillMain) qFillMain.style.width = `${lanePct(mainLane)*100}%`;
-    if (qFillDef)  qFillDef.style.width  = `${lanePct(defLane)*100}%`;
-
-    if (qTxtMain) qTxtMain.textContent = mainLane.ready ? `READY: ${NAME_KO[mainLane.ready]}` :
-      mainLane.queue ? `${NAME_KO[mainLane.queue.kind]} ${Math.round(lanePct(mainLane)*100)}%` :
-      (mainLane.fifo && mainLane.fifo.length) ? `예약 ${mainLane.fifo.length}` : "-";
-
-    if (qTxtDef) qTxtDef.textContent = defLane.ready ? `READY: ${NAME_KO[defLane.ready]}` :
-      defLane.queue ? `${NAME_KO[defLane.queue.kind]} ${Math.round(lanePct(defLane)*100)}%` :
-      (defLane.fifo && defLane.fifo.length) ? `예약 ${defLane.fifo.length}` : "-";
-
-    // Unit producers
-    // barracks: infantry+engineer share
-    const pBarr = buildings.filter(b=>b.alive && !b.civ && b.team===TEAM.PLAYER && b.kind==="barracks");
-    const pFac  = buildings.filter(b=>b.alive && !b.civ && b.team===TEAM.PLAYER && b.kind==="factory");
-
-    const curBarr = pBarr.reduce((best,b)=>{
-      if (!b.buildQ || !b.buildQ.length) return best;
-      const q=b.buildQ[0]; const pct=clamp((q.paid||0)/((q.cost||1)),0,1);
-      if (!best) return b;
-      const qb=best.buildQ[0]; const pctb=clamp((qb.paid||0)/((qb.cost||1)),0,1);
-      return (pct>pctb)?b:best;
-    }, null);
-    const curFac  = pFac.reduce((best,b)=>{
-      if (!b.buildQ || !b.buildQ.length) return best;
-      const q=b.buildQ[0]; const pct=clamp((q.paid||0)/((q.cost||1)),0,1);
-      if (!best) return b;
-      const qb=best.buildQ[0]; const pctb=clamp((qb.paid||0)/((qb.cost||1)),0,1);
-      return (pct>pctb)?b:best;
-    }, null);
-
-    function unitPctFromProducer(prod){
-      if (!prod || !prod.buildQ || !prod.buildQ.length) return 0;
-      if (prod.team!==TEAM.PLAYER) return 0;
-      const q = prod.buildQ[0];
-      const c = q.cost || 1;
-      return clamp((q.paid||0)/c, 0, 1);
-    }
-    const infPct = unitPctFromProducer(curBarr);
-    const vehPct = unitPctFromProducer(curFac);
-
-    if (qFillInf) qFillInf.style.width = `${infPct*100}%`;
-    if (qFillVeh) qFillVeh.style.width = `${vehPct*100}%`;
-
-    if (qTxtInf) qTxtInf.textContent = (prodFIFO.barracks.length || (curBarr && curBarr.buildQ.length)) ?
-      `예약 ${prodFIFO.barracks.length + (curBarr?curBarr.buildQ.length:0)}` : "-";
-    if (qTxtVeh) qTxtVeh.textContent = (prodFIFO.factory.length || (curFac && curFac.buildQ.length)) ?
-      `예약 ${prodFIFO.factory.length + (curFac?curFac.buildQ.length:0)}` : "-";
-  }
 
 function draw(){
     const W=canvas.width, H=canvas.height;
