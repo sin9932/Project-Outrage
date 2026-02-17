@@ -637,74 +637,6 @@ function fitMini() {
 
 const snipDeathFxs=[]; // sniper death animation FX (3x3 = 9 frames)
 
-// === UI progress helpers (Step 3: progress calc lives in game, UI only renders) ===
-function __clamp01(v){ return (v<0)?0:((v>1)?1:v); }
-
-// Build progress for sidebar building buttons (power/refinery/barracks/factory/radar/turret)
-state.getBuildProgress = function(kind){
-  const laneKey = (kind === "turret") ? "def" : "main";
-  const lane = (state.buildLane && state.buildLane[laneKey]) ? state.buildLane[laneKey] : null;
-
-  const out = { kind, laneKey, pct:0, status:"idle", paused:false, paid:0, cost:0, t:0, tNeed:0 };
-
-  if (!lane){ out.status = "no_lane"; return out; }
-
-  if (lane.ready === kind){
-    out.pct = 1;
-    out.status = "ready";
-    return out;
-  }
-
-  const q = lane.queue;
-  if (q && q.kind === kind){
-    out.paid  = q.paid  || 0;
-    out.cost  = q.cost  || 0;
-    out.t     = q.t     || 0;
-    out.tNeed = q.tNeed || 0;
-    out.paused = !!q.paused;
-
-    let pct = 0;
-    if (out.cost > 0) pct = out.paid / out.cost;
-    else if (out.tNeed > 0) pct = out.t / out.tNeed;
-
-    out.pct = __clamp01(pct);
-    out.status = out.paused ? "paused" : "building";
-    return out;
-  }
-
-  return out;
-};
-
-// Unit progress for sidebar unit buttons (infantry/engineer/sniper/tank/harvester/ifv)
-// Uses the player's primary producer building (barracks/factory).
-state.getUnitProgress = function(unitKind, producer){
-  const prod = producer || ((unitKind === "infantry" || unitKind === "engineer" || unitKind === "sniper") ? "barracks" : "factory");
-  const out = { kind:unitKind, producer:prod, pct:0, status:"idle", paid:0, cost:0, t:0, tNeed:0 };
-
-  const pid = (state.primary && state.primary.player) ? state.primary.player[prod] : null;
-  if (!pid){ out.status = "no_producer"; return out; }
-
-  // Find the actual producer building entity
-  const b = buildings.find(bb => bb && bb.alive && bb.team === TEAM.PLAYER && bb.id === pid);
-  if (!b || !b.buildQ || !b.buildQ.length){ out.status = "no_producer"; return out; }
-
-  const q = b.buildQ[0];
-  if (!q || q.kind !== unitKind) return out;
-
-  out.paid  = q.paid  || 0;
-  out.cost  = q.cost  || 0;
-  out.t     = q.t     || 0;
-  out.tNeed = q.tNeed || 0;
-
-  let pct = 0;
-  if (out.cost > 0) pct = out.paid / out.cost;
-  else if (out.tNeed > 0) pct = out.t / out.tNeed;
-
-  out.pct = __clamp01(pct);
-  out.status = "building";
-  return out;
-};
-
 function updateSnipDeathFx(){
   const dt=state.dt??1/60;
 
@@ -10946,6 +10878,11 @@ function drawPathFx(){
   function updateSidebarButtons() {
   const clamp01 = (x) => (x < 0 ? 0 : (x > 1 ? 1 : x));
 
+  // Optional UI nodes (some builds don't have tech tab/panel)
+  const tabTech = document.getElementById("tabTech");
+  const techPanel = document.getElementById("techPanel");
+  const setTechPanelOpen = window.setTechPanelOpen;
+
   // ======= build (main/def) =======
   const getBuildLabel = (k, fallback) =>
     (window.tech && window.tech.buildLabels && window.tech.buildLabels[k]) ? window.tech.buildLabels[k] : fallback;
@@ -11040,7 +10977,7 @@ function drawPathFx(){
     tabTech.style.display = hasLab ? "" : "none";
     if (!hasLab && state.techOpen) {
       state.techOpen = false;
-      setTechPanelOpen(false);
+      if (typeof setTechPanelOpen === "function") setTechPanelOpen(false);
     }
   }
   if (techPanel) techPanel.style.display = state.techOpen ? "" : "none";
