@@ -413,6 +413,8 @@ function ensureBadge(btn){
         if (!btn) return;
         btn.disabled = !ok;
         btn.classList.toggle("disabled", !ok);
+        // Tech-gate: hide completely when not available
+        btn.style.display = ok ? "" : "none";
       }
 
       // Tabs show/hide by producers (keep same rules as legacy game.js)
@@ -464,6 +466,142 @@ function ensureBadge(btn){
       setEnabled(r.btnTnk, prereqOk("tank", tech.unitPrereq));
       setEnabled(r.btnIFV, prereqOk("ifv", tech.unitPrereq));
       setEnabled(r.btnHar, prereqOk("harvester", tech.unitPrereq));
+
+      
+      // Progress overlays (build + unit). Purely visual, never blocks input.
+      const clamp01 = (v)=> (v<0?0:(v>1?1:v));
+
+      function ensureBtnUI(btn, label){
+        if (!btn) return null;
+
+        // infer label before we touch child nodes
+        let inferred = label;
+        if (inferred == null){
+          let t = "";
+          for (const n of Array.from(btn.childNodes)){
+            if (n && n.nodeType === 3 && n.textContent) t += n.textContent;
+          }
+          inferred = (t || btn.textContent || "").replace(/\s+/g, " ").trim();
+          inferred = inferred.replace(/주요/g, "").trim();
+        }
+
+        btn.style.position = "relative";
+        btn.style.overflow = "hidden";
+
+        // Progress overlay (scaleX)
+        let prog = btn.querySelector(":scope > .prog");
+        if (!prog){
+          prog = document.createElement("span");
+          prog.className = "prog";
+          prog.style.position = "absolute";
+          prog.style.left = "0";
+          prog.style.top = "0";
+          prog.style.bottom = "0";
+          prog.style.width = "100%";
+          prog.style.transformOrigin = "left";
+          prog.style.transform = "scaleX(0)";
+          prog.style.pointerEvents = "none";
+          prog.style.zIndex = "0";
+          prog.style.borderRadius = "inherit";
+          btn.insertBefore(prog, btn.firstChild);
+        }
+
+        // Label
+        let lbl = btn.querySelector(":scope > .lbl");
+        if (!lbl){
+          // remove direct text nodes to prevent duplicate labels
+          for (const n of Array.from(btn.childNodes)){
+            if (n && n.nodeType === 3 && n.textContent && n.textContent.trim().length){
+              btn.removeChild(n);
+            }
+          }
+          lbl = document.createElement("span");
+          lbl.className = "lbl";
+          lbl.style.position = "relative";
+          lbl.style.zIndex = "1";
+          lbl.style.pointerEvents = "none";
+          btn.appendChild(lbl);
+        }
+
+        // Hide any legacy badges (UI uses queue badges elsewhere)
+        const badge = btn.querySelector(":scope > .badge");
+        if (badge) badge.style.display = "none";
+
+        if (inferred != null) lbl.textContent = inferred;
+        return { prog, lbl };
+      }
+
+      // Build progress (state.buildLane)
+      const laneMain = state && state.buildLane ? state.buildLane.main : null;
+      const laneDef  = state && state.buildLane ? state.buildLane.def  : null;
+
+      const buildBtns = [
+        { kind: "power",    lane: laneMain, btn: r.btnPow },
+        { kind: "refinery", lane: laneMain, btn: r.btnRef },
+        { kind: "barracks", lane: laneMain, btn: r.btnBar },
+        { kind: "factory",  lane: laneMain, btn: r.btnFac },
+        { kind: "radar",    lane: laneMain, btn: r.btnRad },
+        { kind: "turret",   lane: laneDef,  btn: r.btnTur },
+      ];
+
+      for (const it of buildBtns){
+        const btn = it.btn;
+        if (!btn || btn.style.display === "none") continue;
+        const ui = ensureBtnUI(btn, null);
+        if (!ui) continue;
+
+        let pct = 0;
+        const lane = it.lane;
+        if (lane && lane.ready === it.kind){
+          pct = 1;
+        } else if (lane && lane.queue && lane.queue.kind === it.kind){
+          pct = (lane.queue.cost > 0) ? (lane.queue.paid / lane.queue.cost) : 0;
+        }
+
+        ui.prog.style.background = "rgba(90, 220, 140, 0.55)";
+        ui.prog.style.transform = `scaleX(${clamp01(pct)})`;
+        ui.prog.style.opacity = (pct > 0 ? "1" : "0");
+      }
+
+      // Unit progress (buildings[*].buildQ)
+      const unitBtns = [
+        { kind: "infantry",  btn: r.btnInf, producer: "barracks" },
+        { kind: "engineer",  btn: r.btnEng, producer: "barracks" },
+        { kind: "sniper",    btn: r.btnSnp, producer: "barracks" },
+
+        { kind: "tank",      btn: r.btnTnk, producer: "factory"  },
+        { kind: "harvester", btn: r.btnHar, producer: "factory"  },
+        { kind: "ifv",       btn: r.btnIFV, producer: "factory"  },
+      ];
+
+      for (const it of unitBtns){
+        const btn = it.btn;
+        if (!btn || btn.style.display === "none") continue;
+        const ui = ensureBtnUI(btn, null);
+        if (!ui) continue;
+
+        let bestPct = -1;
+
+        if (Array.isArray(buildings)){
+          for (const b of buildings){
+            if (!b || b.kind !== it.producer) continue;
+            if (!b.buildQ || b.buildQ.length === 0) continue;
+
+            const q = b.buildQ[0];
+            if (!q || q.kind !== it.kind) continue;
+
+            const pct = (q.cost > 0) ? (q.paid / q.cost) : (q.tNeed > 0 ? (q.t / q.tNeed) : 0);
+            if (pct > bestPct) bestPct = pct;
+          }
+        }
+
+        const pct = (bestPct < 0) ? 0 : clamp01(bestPct);
+
+        ui.prog.style.background = "rgba(90, 220, 140, 0.38)";
+        ui.prog.style.transform = `scaleX(${pct})`;
+        ui.prog.style.opacity = (bestPct < 0 ? "0" : "1");
+      }
+
 
       // Panels themselves (optional): if tab is hidden, also hide its panel to avoid empty UI.
       // (game.js setProdCat already does this; this is just extra safety)
