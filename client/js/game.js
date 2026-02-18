@@ -3126,6 +3126,34 @@ function reserveTile(u, tx, ty){
   if (__ou_sim && typeof __ou_sim.reserveTile === "function") return __ou_sim.reserveTile(u, tx, ty);
   return false;
 }
+function isSqueezedTile(tx, ty){
+  if (__ou_sim && typeof __ou_sim.isSqueezedTile === "function") return __ou_sim.isSqueezedTile(tx, ty);
+  return false;
+}
+function findNearestFreeStep(u){
+  if (__ou_sim && typeof __ou_sim.findNearestFreeStep === "function") return __ou_sim.findNearestFreeStep(u);
+  return null;
+}
+function canEnterTile(u, tx, ty){
+  if (__ou_sim && typeof __ou_sim.canEnterTile === "function") return __ou_sim.canEnterTile(u, tx, ty);
+  return false;
+}
+function canEnterTileGoal(u, tx, ty, t){
+  if (__ou_sim && typeof __ou_sim.canEnterTileGoal === "function") return __ou_sim.canEnterTileGoal(u, tx, ty, t);
+  return false;
+}
+function heuristic(ax,ay,bx,by){
+  if (__ou_sim && typeof __ou_sim.heuristic === "function") return __ou_sim.heuristic(ax,ay,bx,by);
+  return 0;
+}
+function aStarPath(sx,sy,gx,gy, maxNodes=12000){
+  if (__ou_sim && typeof __ou_sim.aStarPath === "function") return __ou_sim.aStarPath(sx,sy,gx,gy, maxNodes);
+  return null;
+}
+function aStarPathOcc(u, sx, sy, gx, gy){
+  if (__ou_sim && typeof __ou_sim.aStarPathOcc === "function") return __ou_sim.aStarPathOcc(u, sx, sy, gx, gy);
+  return null;
+}
 
 // Progress accessors (calculation in ou_economy; UI draws only)
 state.getBuildProgress = function(kind, laneKey){

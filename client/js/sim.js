@@ -31,6 +31,7 @@
     const occInf = r.occInf || null;
     const occVeh = r.occVeh || null;
     const occAnyId = r.occAnyId || null;
+    const occId = occAnyId;
     const occTeam = r.occTeam || null;
     const occResId = r.occResId || null;
     const infSlotNext0 = r.infSlotNext0 || null;
@@ -64,9 +65,6 @@
     const idx = r.idx;
     const setPathTo = r.setPathTo;
     const followPath = r.followPath;
-    const canEnterTile = r.canEnterTile;
-    const canEnterTileGoal = r.canEnterTileGoal;
-    const isSqueezedTile = r.isSqueezedTile;
     
     
     const spawnTrailPuff = r.spawnTrailPuff;
@@ -1102,6 +1100,308 @@
         return true;
       }
       return false;
+    }
+
+    function isSqueezedTile(tx, ty){
+      const B = (x,y)=> (inMap(x,y) && buildOcc[idx(x,y)]===1);
+      if (B(tx-1,ty) && B(tx+1,ty)) return true;
+      if (B(tx,ty-1) && B(tx,ty+1)) return true;
+      if (B(tx-1,ty) && B(tx,ty-1)) return true;
+      if (B(tx+1,ty) && B(tx,ty-1)) return true;
+      if (B(tx-1,ty) && B(tx,ty+1)) return true;
+      if (B(tx+1,ty) && B(tx,ty+1)) return true;
+      return false;
+    }
+
+    function findNearestFreeStep(u){
+      if (!u) return null;
+      const s = snapWorldToTileCenter(u.x, u.y);
+      const baseTx = s.tx, baseTy = s.ty;
+      for (let r=1; r<=4; r++){
+        let best = null;
+        let bestD = 1e9;
+        for (let dy=-r; dy<=r; dy++){
+          for (let dx=-r; dx<=r; dx++){
+            if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
+            const tx = baseTx + dx;
+            const ty = baseTy + dy;
+            if (!inMap(tx,ty)) continue;
+            if (!isWalkableTile(tx,ty)) continue;
+            if (isSqueezedTile(tx,ty)) continue;
+            const i = idx(tx,ty);
+            if (occAll[i] !== 0) continue;
+            if (isReservedByOther(u, tx, ty)) continue;
+            const c = tileToWorldCenter(tx,ty);
+            if (isBlockedWorldPoint(u, c.x, c.y)) continue;
+            const d = dx*dx + dy*dy;
+            if (d < bestD){
+              bestD = d;
+              best = {tx, ty};
+            }
+          }
+        }
+        if (best) return best;
+      }
+      return null;
+    }
+
+    function canEnterTileGoal(u, tx, ty, t){
+      if (!inMap(tx,ty)) return false;
+      if (!isWalkableTile(tx,ty)) return false;
+      if (isSqueezedTile(tx,ty)) return false;
+
+      const isB = !!(t && BUILD[t.kind]);
+      if (isB && t && t.tx!=null && t.ty!=null && t.tw!=null && t.th!=null){
+        if (tx>=t.tx && tx<(t.tx+t.tw) && ty>=t.ty && ty<(t.ty+t.th)) return false;
+      } else {
+        const c = tileToWorldCenter(tx,ty);
+        if (isBlockedWorldPoint(u, c.x, c.y)) return false;
+      }
+
+      const i = idx(tx,ty);
+      {
+        const ucls = (UNIT[u.kind] && UNIT[u.kind].cls) ? UNIT[u.kind].cls : "";
+        if (ucls==="inf"){
+          if (occVeh[i] > 0) return false;
+          if (occTeam[i]!==0 && occTeam[i]!==u.team) return false;
+          if (occInf[i] >= INF_SLOT_MAX) return false;
+          return true;
+        }
+      }
+      if (occTeam[i]===0) return true;
+      if (occTeam[i]===u.team && occId[i]===u.id) return true;
+
+      const otherId = occId[i];
+      if (otherId!=null){
+        const other = getEntityById(otherId);
+        if (other && other.alive && other.type==="unit"){
+          const ocls = (UNIT[other.kind] && UNIT[other.kind].cls) ? UNIT[other.kind].cls : "";
+          const ucls = (UNIT[u.kind] && UNIT[u.kind].cls) ? UNIT[u.kind].cls : "";
+          if (ucls==="veh" && ocls!=="veh"){
+            // vehicles can push through infantry only if that infantry yields
+          } else if (ucls!=="veh" && ocls==="veh"){
+            if (!other.yieldCd || other.yieldCd<=0){
+              other.yieldCd = 0.18;
+              const step = findNearestFreeStep(other);
+              if (step){
+                setPathTo(other, (step.tx+0.5)*TILE, (step.ty+0.5)*TILE);
+              }
+            }
+          }
+        }
+      }
+      return (occTeam[i]===0);
+    }
+
+    function canEnterTile(u, tx, ty){
+      if (!inMap(tx,ty)) return false;
+      if (!isWalkableTile(tx,ty)) return false;
+      if (isSqueezedTile(tx,ty)) return false;
+      {
+        const c = tileToWorldCenter(tx,ty);
+        if (isBlockedWorldPoint(u, c.x, c.y)) return false;
+      }
+      if (u.kind==="harvester"){
+        const i = idx(tx,ty);
+        if (isReservedByOther(u, tx, ty)) return false;
+        return occAll[i] < 1;
+      }
+      if (isReservedByOther(u, tx, ty)) return false;
+      const i = idx(tx,ty);
+      const cls = (UNIT[u.kind] && UNIT[u.kind].cls) ? UNIT[u.kind].cls : "";
+      if (cls==="veh") return occAll[i] < 1;
+      if (cls==="inf") {
+        if (occVeh[i] > 0) return false;
+        if (occTeam[i]!==0 && occTeam[i]!==u.team) return false;
+        return occInf[i] < INF_SLOT_MAX;
+      }
+      return occAll[i] < 2;
+    }
+
+    function heuristic(ax,ay,bx,by){
+      const dx=Math.abs(ax-bx), dy=Math.abs(ay-by);
+      const D=10, D2=14;
+      return D*(dx+dy) + (D2-2*D)*Math.min(dx,dy);
+    }
+
+    function aStarPath(sx,sy,gx,gy, maxNodes=12000){
+      if (!inMap(sx,sy) || !inMap(gx,gy)) return null;
+      if (!isWalkableTile(gx,gy)) return null;
+
+      const W=MAP_W, H=MAP_H;
+      const N=W*H;
+
+      const open = new Int32Array(N);
+      let openN=0;
+
+      const inOpen = new Uint8Array(N);
+      const closed = new Uint8Array(N);
+      const gScore = new Int32Array(N);
+      const fScore = new Int32Array(N);
+      const came = new Int32Array(N);
+
+      for (let i=0;i<N;i++){ gScore[i]=1e9; fScore[i]=1e9; came[i]=-1; }
+
+      const s = sy*W+sx;
+      const g = gy*W+gx;
+
+      open[0]=s; inOpen[s]=1; openN=1;
+      gScore[s]=0; fScore[s]=heuristic(sx,sy,gx,gy);
+
+      const dirs = [
+        [1,0,10],[-1,0,10],[0,1,10],[0,-1,10],
+        [1,1,14],[1,-1,14],[-1,1,14],[-1,-1,14]
+      ];
+
+      let nodes = 0;
+      while (openN>0 && nodes++ < maxNodes){
+        let bestI=0, best=open[0], bestF=fScore[best];
+        for (let i=1;i<openN;i++){
+          const n=open[i];
+          const f=fScore[n];
+          if (f<bestF){ bestF=f; best=n; bestI=i; }
+        }
+        openN--;
+        open[bestI]=open[openN];
+        inOpen[best]=0;
+
+        const cx=best%W, cy=(best/W)|0;
+        if (best===g) break;
+        closed[best]=1;
+
+        for (let di=0;di<dirs.length;di++){
+          const nx=cx+dirs[di][0], ny=cy+dirs[di][1];
+          if (!inMap(nx,ny)) continue;
+          const ni=ny*W+nx;
+          if (closed[ni]) continue;
+          if (!isWalkableTile(nx,ny)) continue;
+          const cost=dirs[di][2];
+          const tent=gScore[best]+cost;
+          if (tent < gScore[ni]){
+            came[ni]=best;
+            gScore[ni]=tent;
+            fScore[ni]=tent + heuristic(nx,ny,gx,gy);
+            if (!inOpen[ni]){
+              open[openN++]=ni;
+              inOpen[ni]=1;
+              if (openN>=N-4) break;
+            }
+          }
+        }
+      }
+
+      if (came[g]===-1 && g!==s) return null;
+
+      const path=[];
+      let cur=g;
+      path.push(cur);
+      while (cur!==s){
+        cur=came[cur];
+        if (cur===-1) break;
+        path.push(cur);
+      }
+      path.reverse();
+
+      const out=[];
+      let last=-1;
+      for (let i=0;i<path.length;i++){
+        const n=path[i];
+        if (n===last) continue;
+        last=n;
+        out.push({tx:n%W, ty:(n/W)|0});
+      }
+      return out;
+    }
+
+    function aStarPathOcc(u, sx, sy, gx, gy){
+      if (!inMap(sx,sy) || !inMap(gx,gy)) return null;
+      const W=MAP_W, H=MAP_H, N=W*H;
+      const s=sy*W+sx, g=gy*W+gx;
+      if (s===g) return [{tx:sx, ty:sy}];
+
+      const open = new Int32Array(N);
+      const inOpen = new Uint8Array(N);
+      const closed = new Uint8Array(N);
+      const came = new Int32Array(N);
+      const gScore = new Float32Array(N);
+      const fScore = new Float32Array(N);
+      for (let i=0;i<N;i++){ came[i]=-1; gScore[i]=1e9; fScore[i]=1e9; }
+
+      function h(x,y, tx,ty){ return Math.abs(x-tx)+Math.abs(y-ty); }
+
+      open[0]=s; inOpen[s]=1;
+      gScore[s]=0; fScore[s]=h(sx,sy,gx,gy);
+      let openN=1;
+
+      const dirs = [
+        [1,0,1],[-1,0,1],[0,1,1],[0,-1,1],
+        [1,1,1.42],[1,-1,1.42],[-1,1,1.42],[-1,-1,1.42],
+      ];
+
+      while (openN>0){
+        let bestI=0, best=open[0], bestF=fScore[best];
+        for (let i=1;i<openN;i++){
+          const n=open[i];
+          const f=fScore[n];
+          if (f<bestF){ bestF=f; best=n; bestI=i; }
+        }
+        openN--;
+        open[bestI]=open[openN];
+        inOpen[best]=0;
+
+        const cx=best%W, cy=(best/W)|0;
+        if (best===g) break;
+        closed[best]=1;
+
+        for (let di=0;di<dirs.length;di++){
+          const nx=cx+dirs[di][0], ny=cy+dirs[di][1];
+          if (!inMap(nx,ny)) continue;
+          if (dirs[di][0]!==0 && dirs[di][1]!==0){
+            if (!isWalkableTile(cx+dirs[di][0], cy) || !isWalkableTile(cx, cy+dirs[di][1])) continue;
+          }
+          const ni=ny*W+nx;
+          if (closed[ni]) continue;
+          if (!isWalkableTile(nx,ny)) continue;
+          if (!(nx===sx && ny===sy) && !(nx===gx && ny===gy)){
+            if (!canEnterTile(u, nx, ny)) continue;
+            if (isReservedByOther(u, nx, ny)) continue;
+          }
+          const cost=dirs[di][2];
+          const tent=gScore[best]+cost;
+          if (tent < gScore[ni]){
+            came[ni]=best;
+            gScore[ni]=tent;
+            fScore[ni]=tent + h(nx,ny,gx,gy);
+            if (!inOpen[ni]){
+              open[openN++]=ni;
+              inOpen[ni]=1;
+              if (openN>=N-4) break;
+            }
+          }
+        }
+      }
+
+      if (came[g]===-1 && g!==s) return null;
+
+      const path=[];
+      let cur=g;
+      path.push(cur);
+      while (cur!==s){
+        cur=came[cur];
+        if (cur===-1) break;
+        path.push(cur);
+      }
+      path.reverse();
+
+      const out=[];
+      let last=-1;
+      for (let i=0;i<path.length;i++){
+        const n=path[i];
+        if (n===last) continue;
+        last=n;
+        out.push({tx:n%W, ty:(n/W)|0});
+      }
+      return out;
     }
 
     function findNearestRefinery(team, wx, wy){
@@ -2679,6 +2979,13 @@
       updateVision,
       isReservedByOther,
       reserveTile,
+      isSqueezedTile,
+      findNearestFreeStep,
+      canEnterTile,
+      canEnterTileGoal,
+      heuristic,
+      aStarPath,
+      aStarPathOcc,
       clearReservation,
       settleInfantryToSubslot,
       findNearestFreePoint,
