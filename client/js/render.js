@@ -227,6 +227,7 @@
   let INF_IDLE_ATLAS;
   let LITE_TANK, HARVESTER, LITE_TANK_BASE_SCALE, HARVESTER_BASE_SCALE;
   let LITE_TANK_TURRET_ANCHOR, LITE_TANK_TURRET_NUDGE;
+  let TANK_DIR_TO_IDLE_IDX, MUZZLE_DIR_TO_IDLE_IDX;
   let getUnitSpec, getTeamCroppedSprite;
 
   function bindEnv(env){
@@ -270,6 +271,8 @@
     HARVESTER_BASE_SCALE = env.HARVESTER_BASE_SCALE;
     LITE_TANK_TURRET_ANCHOR = env.LITE_TANK_TURRET_ANCHOR;
     LITE_TANK_TURRET_NUDGE = env.LITE_TANK_TURRET_NUDGE;
+    TANK_DIR_TO_IDLE_IDX = env.TANK_DIR_TO_IDLE_IDX;
+    MUZZLE_DIR_TO_IDLE_IDX = env.MUZZLE_DIR_TO_IDLE_IDX;
     getUnitSpec = env.getUnitSpec;
     getTeamCroppedSprite = env.getTeamCroppedSprite;
   }
@@ -280,7 +283,7 @@
       return prefix + "_mov" + u.bodyTurn.frameNum + ".png";
     }
     const idx = (u.bodyDir ?? u.dir ?? 6);
-    const map = { 2:1, 1:2, 0:3, 7:4, 6:5, 5:6, 4:7, 3:8 };
+    const map = TANK_DIR_TO_IDLE_IDX || { 6:1, 7:2, 0:3, 1:4, 2:5, 3:6, 4:7, 5:8 };
     return prefix + "_idle" + (map[idx] || 1) + ".png";
   }
 
@@ -289,7 +292,7 @@
       return "tank_muzzle_mov" + u.turretTurn.frameNum + ".png";
     }
     const idx = (u.turretDir ?? u.dir ?? 6);
-    const map = { 2:1, 1:2, 0:3, 7:4, 6:5, 5:6, 4:7, 3:8 };
+    const map = MUZZLE_DIR_TO_IDLE_IDX || { 2:1, 1:2, 0:3, 7:4, 6:5, 5:6, 4:7, 3:8 };
     return "tank_muzzle_idle" + (map[idx] || 1) + ".png";
   }
 

@@ -9351,6 +9351,8 @@ function draw(){
         HARVESTER_BASE_SCALE,
         LITE_TANK_TURRET_ANCHOR,
         LITE_TANK_TURRET_NUDGE,
+        TANK_DIR_TO_IDLE_IDX: _dirToIdleIdx,
+        MUZZLE_DIR_TO_IDLE_IDX: _muzzleDirToIdleIdx,
         getUnitSpec: (kind)=> (window.G && G.Units && typeof G.Units.getSpec==="function") ? G.Units.getSpec(kind) : null,
         getTeamCroppedSprite: _getTeamCroppedSprite,
         drawBuildingSprite,
