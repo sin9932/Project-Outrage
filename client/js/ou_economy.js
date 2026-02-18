@@ -34,6 +34,16 @@
     const toast = ctx.toast || noop;
     const updateProdBadges = ctx.updateProdBadges || noop;
 
+    // Progress helpers (single source of truth for UI overlays)
+    function _calcQueuePct(q){
+      if (!q) return 0;
+      let pct = 0;
+      if (q.tNeed > 0) pct = (q.t || 0) / q.tNeed;
+      else if (q.cost > 0) pct = (q.paid || 0) / q.cost;
+      if (!Number.isFinite(pct)) pct = 0;
+      return pct < 0 ? 0 : (pct > 1 ? 1 : pct);
+    }
+
     // Spawn helpers (optional but needed for real production)
     const addUnit = ctx.addUnit || null;
     const setPathTo = ctx.setPathTo || null;
@@ -485,6 +495,86 @@
         }
       }
 
+    // -------------------------
+    // Progress accessors (UI)
+    // -------------------------
+    function getBuildProgress(kind, laneKey){
+      try{
+        const lane = (laneKey && state.buildLane) ? state.buildLane[laneKey] : null;
+        if (!lane) return null;
+        if (lane.ready === kind) return { pct: 1, paused: false, ready: true };
+        const q = lane.queue;
+        if (!q || q.kind !== kind) return null;
+        const pct = _calcQueuePct(q);
+        return { pct, paused: !!q.paused, ready: false };
+      } catch (_e) {
+        return null;
+      }
+    }
+
+    function getUnitProgress(kind, producerKind){
+      try{
+        let best = null;
+        for (const b of buildings){
+          if (!b || !b.alive) continue;
+          if (b.team !== TEAM.PLAYER) continue;
+          if (producerKind && b.kind !== producerKind) continue;
+          const q = b.buildQ && b.buildQ[0];
+          if (!q || q.kind !== kind) continue;
+          const pct = _calcQueuePct(q);
+          if (!best || pct > best.pct){
+            best = { pct, paused: !!q.paused, producerId: b.id };
+          }
+        }
+        return best;
+      } catch (_e) {
+        return null;
+      }
+    }
+
+    function getLaneStatus(laneKey){
+      try{
+        const lane = (laneKey && state.buildLane) ? state.buildLane[laneKey] : null;
+        if (!lane) return null;
+        const q = lane.queue;
+        return {
+          pct: q ? _calcQueuePct(q) : 0,
+          ready: lane.ready || null,
+          queue: q ? q.kind : null,
+          fifoLen: (lane.fifo && lane.fifo.length) ? lane.fifo.length : 0
+        };
+      }catch(_e){
+        return null;
+      }
+    }
+
+    function getProducerStatus(producerKind){
+      try{
+        let best = null;
+        let bestQueueLen = 0;
+        for (const b of buildings){
+          if (!b || !b.alive) continue;
+          if (b.team !== TEAM.PLAYER) continue;
+          if (producerKind && b.kind !== producerKind) continue;
+          if (!b.buildQ || !b.buildQ.length) continue;
+          const q = b.buildQ[0];
+          const pct = _calcQueuePct(q);
+          if (!best || pct > best){
+            best = pct;
+            bestQueueLen = b.buildQ.length || 0;
+          }
+        }
+        const fifoLen = (prodFIFO && prodFIFO[producerKind]) ? prodFIFO[producerKind].length : 0;
+        return {
+          pct: (best != null) ? best : 0,
+          queueLen: bestQueueLen,
+          fifoLen
+        };
+      }catch(_e){
+        return null;
+      }
+    }
+
     return {
       // shared data (by reference)
       prodFIFO, prodTotal, QCAP,
@@ -506,7 +596,13 @@
       getPowerFactor,
       isUnderPower,
       recomputePower,
-      validateTechQueues
+      validateTechQueues,
+
+      // progress accessors for UI
+      getBuildProgress,
+      getUnitProgress,
+      getLaneStatus,
+      getProducerStatus
     };
   }
 

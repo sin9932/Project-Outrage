@@ -417,104 +417,7 @@ function fitMini() {
     if (!action) return;
     state.econActions.push(action);
   }
-  // ===== Step3: Progress accessors (calculation in game, UI draws only) =====
-  // Used by ou_ui.* (progress overlays/bars). Keep progress math out of UI code.
-  function _calcQueuePct(q){
-    if (!q) return 0;
-    let pct = 0;
-    if (q.tNeed > 0) pct = (q.t || 0) / q.tNeed;
-    else if (q.cost > 0) pct = (q.paid || 0) / q.cost;
-    if (!Number.isFinite(pct)) pct = 0;
-    return pct < 0 ? 0 : (pct > 1 ? 1 : pct);
-  }
-
-  state.getBuildProgress = function(kind, laneKey){
-    try{
-      const lane = (laneKey && state.buildLane) ? state.buildLane[laneKey] : null;
-      if (!lane) return null;
-
-      if (lane.ready === kind) return { pct: 1, paused: false, ready: true };
-
-      const q = lane.queue;
-      if (!q || q.kind !== kind) return null;
-
-      const pct = _calcQueuePct(q);
-
-      return { pct, paused: !!q.paused, ready: false };
-    } catch (_e) {
-      return null;
-    }
-  };
-
-  state.getUnitProgress = function(kind, producerKind){
-    try{
-      let best = null;
-
-      for (const b of buildings){
-        if (!b || !b.alive) continue;
-        if (b.team !== TEAM.PLAYER) continue;
-        if (producerKind && b.kind !== producerKind) continue;
-
-        const q = b.buildQ && b.buildQ[0];
-        if (!q || q.kind !== kind) continue;
-
-        const pct = _calcQueuePct(q);
-
-        if (!best || pct > best.pct){
-          best = { pct, paused: !!q.paused, producerId: b.id };
-        }
-      }
-
-      return best;
-    } catch (_e) {
-      return null;
-    }
-  };
-
-  // Build lane status for sidebar progress bars/text
-  state.getLaneStatus = function(laneKey){
-    try{
-      const lane = (laneKey && state.buildLane) ? state.buildLane[laneKey] : null;
-      if (!lane) return null;
-      const q = lane.queue;
-      return {
-        pct: q ? _calcQueuePct(q) : 0,
-        ready: lane.ready || null,
-        queue: q ? q.kind : null,
-        fifoLen: (lane.fifo && lane.fifo.length) ? lane.fifo.length : 0
-      };
-    }catch(_e){
-      return null;
-    }
-  };
-
-  // Producer status for unit progress bars/text (barracks/factory)
-  state.getProducerStatus = function(producerKind){
-    try{
-      let best = null;
-      let bestQueueLen = 0;
-      for (const b of buildings){
-        if (!b || !b.alive) continue;
-        if (b.team !== TEAM.PLAYER) continue;
-        if (producerKind && b.kind !== producerKind) continue;
-        if (!b.buildQ || !b.buildQ.length) continue;
-        const q = b.buildQ[0];
-        const pct = _calcQueuePct(q);
-        if (!best || pct > best){
-          best = pct;
-          bestQueueLen = b.buildQ.length || 0;
-        }
-      }
-      const fifoLen = (prodFIFO && prodFIFO[producerKind]) ? prodFIFO[producerKind].length : 0;
-      return {
-        pct: (best != null) ? best : 0,
-        queueLen: bestQueueLen,
-        fifoLen
-      };
-    }catch(_e){
-      return null;
-    }
-  };
+  // Progress accessors are provided by ou_economy (single source of truth).
 
   const bullets=[];
   const traces=[];
@@ -4628,6 +4531,20 @@ const __ou_econ = (window.OUEconomy && typeof window.OUEconomy.create==="functio
   : null;
 
 if (!__ou_econ) console.warn("[ou_economy] missing: include js/ou_economy.js before game.js");
+
+// Progress accessors (calculation in ou_economy; UI draws only)
+state.getBuildProgress = function(kind, laneKey){
+  return (__ou_econ && __ou_econ.getBuildProgress) ? __ou_econ.getBuildProgress(kind, laneKey) : null;
+};
+state.getUnitProgress = function(kind, producerKind){
+  return (__ou_econ && __ou_econ.getUnitProgress) ? __ou_econ.getUnitProgress(kind, producerKind) : null;
+};
+state.getLaneStatus = function(laneKey){
+  return (__ou_econ && __ou_econ.getLaneStatus) ? __ou_econ.getLaneStatus(laneKey) : null;
+};
+state.getProducerStatus = function(producerKind){
+  return (__ou_econ && __ou_econ.getProducerStatus) ? __ou_econ.getProducerStatus(producerKind) : null;
+};
 
 
 function kindToProducer(kind){
