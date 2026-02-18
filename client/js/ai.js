@@ -319,6 +319,8 @@
     function aiCommandMoveToRally(list) {
       let k = 0; const spacing = 46;
       for (const u of list) {
+        // Keep empty IFVs back for passenger pickup.
+        if (u.kind === "ifv" && !u.passengerId) continue;
         const col = k % 5, row = (k / 5) | 0;
         const ox = (col - 2) * spacing;
         const oy = row * spacing - spacing;
@@ -584,12 +586,12 @@
     function aiParkEmptyIFVs() {
       // Keep empty IFVs near rally to pick up passengers (avoid solo rushing).
       const eIFVs = units.filter(u => u.alive && u.team === TEAM.ENEMY && u.kind === "ifv" && !u.passengerId);
+      const dp = aiDefendPoint();
       for (const ifv of eIFVs) {
-        if (!ifv.order || ifv.order.type !== "move") {
-          ifv.order = { type: "move", x: ai.rally.x, y: ai.rally.y };
-          ifv.target = null;
-          ifv.repathCd = 0.35;
-        }
+        // Override any attack/attackmove orders so empty IFVs don't rush.
+        ifv.order = { type: "move", x: dp.x, y: dp.y };
+        ifv.target = null;
+        ifv.repathCd = 0.35;
       }
     }
 
