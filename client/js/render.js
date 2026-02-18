@@ -278,6 +278,8 @@
   let SNIP_TEAM_SHEET, SNIP_TEAM_SHEET_MOV, SNIP_TEAM_SHEET_MOV_NE, SNIP_TEAM_SHEET_MOV_N, SNIP_TEAM_SHEET_MOV_NW;
   let SNIP_TEAM_SHEET_MOV_W, SNIP_TEAM_SHEET_MOV_SW, SNIP_TEAM_SHEET_MOV_S, SNIP_TEAM_SHEET_MOV_SE;
   let INF_IDLE_ATLAS;
+  const ASSET_REF = (typeof window !== "undefined" && window.ASSET) ? window.ASSET : null;
+
   // === Construction Yard (HQ) sprite (5x5 footprint) ===
   let CON_YARD_PNG = (ASSET_REF && ASSET_REF.sprite && ASSET_REF.sprite.const && ASSET_REF.sprite.const.normal)
     ? ASSET_REF.sprite.const.normal.con_yard
@@ -300,7 +302,6 @@
   };
 
   // === Large explosion FX (exp1) atlas (json + png) ===
-  const ASSET_REF = (typeof window !== "undefined" && window.ASSET) ? window.ASSET : null;
   let EXP1_PNG  = (ASSET_REF && ASSET_REF.sprite && ASSET_REF.sprite.eff && ASSET_REF.sprite.eff.exp1)
     ? ASSET_REF.sprite.eff.exp1.png
     : "";
