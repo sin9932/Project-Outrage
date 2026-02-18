@@ -2326,6 +2326,43 @@
           }
     
     if (u.kind==="harvester"){
+            const findBestOrePatch = () => {
+              // Auto-find ore patch (prefer nearby; fallback to nearest anywhere)
+              let best=null, bestD=Infinity;
+              const cx=tileOfX(u.x), cy=tileOfY(u.y);
+
+              // 1) Nearby scan (cheap)
+              const R=18;
+              for (let dy=-R; dy<=R; dy++){
+                for (let dx=-R; dx<=R; dx++){
+                  const tx=cx+dx, ty=cy+dy;
+                  if (!inMap(tx,ty)) continue;
+                  const ii=idx(tx,ty);
+                  if (terrain[ii]!==2) continue;
+                  if (ore[ii]<=0) continue;
+                  const pTile=tileToWorldCenter(tx,ty);
+                  const px=pTile.x, py=pTile.y;
+                  const d=dist2(u.x,u.y,px,py);
+                  if (d<bestD){ bestD=d; best={tx,ty}; }
+                }
+              }
+
+              // 2) Global fallback: pick the nearest ore tile anywhere (not "first found")
+              if (!best){
+                for (let ty=0; ty<MAP_H; ty++){
+                  for (let tx=0; tx<MAP_W; tx++){
+                    const ii=idx(tx,ty);
+                    if (terrain[ii]!==2) continue;
+                    if (ore[ii]<=0) continue;
+                    const pTile=tileToWorldCenter(tx,ty);
+                    const px=pTile.x, py=pTile.y;
+                    const d=dist2(u.x,u.y,px,py);
+                    if (d<bestD){ bestD=d; best={tx,ty}; }
+                  }
+                }
+              }
+              return best;
+            };
             // Harvester orders: move, harvest, return (deposit)
             if (u.order.type==="move"){
               followPath(u,dt);
@@ -2369,52 +2406,25 @@
                   u.repathCd=0.25;
                 } else {
                   // After deposit: immediately resume auto-harvest.
-                  u.order = {type:"idle", x:u.x, y:u.y, tx:null, ty:null};
-                  u.target = null;
-                  u.path = null; u.pathI = 0;
-                  u.manualOre = null;
-                  u.repathCd = 0.10;
+                  const best = findBestOrePatch();
+                  if (best){
+                    u.order={type:"harvest", x:u.x,y:u.y, tx:best.tx, ty:best.ty};
+                    setPathTo(u, (best.tx+0.5)*TILE, (best.ty+0.5)*TILE);
+                    u.repathCd=0.25;
+                  } else {
+                    u.order = {type:"idle", x:u.x, y:u.y, tx:null, ty:null};
+                    u.target = null;
+                    u.path = null; u.pathI = 0;
+                    u.manualOre = null;
+                    u.repathCd = 0.10;
+                  }
                 }
               }
               continue;
             }
-    
+
             if (u.order.type==="idle"){
-              // Auto-find ore patch (prefer nearby; fallback to nearest anywhere)
-              let best=null, bestD=Infinity;
-              const cx=tileOfX(u.x), cy=tileOfY(u.y);
-    
-              // 1) Nearby scan (cheap)
-              const R=18;
-              for (let dy=-R; dy<=R; dy++){
-                for (let dx=-R; dx<=R; dx++){
-                  const tx=cx+dx, ty=cy+dy;
-                  if (!inMap(tx,ty)) continue;
-                  const ii=idx(tx,ty);
-                  if (terrain[ii]!==2) continue;
-                  if (ore[ii]<=0) continue;
-                  const pTile=tileToWorldCenter(tx,ty);
-                  const px=pTile.x, py=pTile.y;
-                  const d=dist2(u.x,u.y,px,py);
-                  if (d<bestD){ bestD=d; best={tx,ty}; }
-                }
-              }
-    
-              // 2) Global fallback: pick the nearest ore tile anywhere (not "first found")
-              if (!best){
-                for (let ty=0; ty<MAP_H; ty++){
-                  for (let tx=0; tx<MAP_W; tx++){
-                    const ii=idx(tx,ty);
-                    if (terrain[ii]!==2) continue;
-                    if (ore[ii]<=0) continue;
-                    const pTile=tileToWorldCenter(tx,ty);
-                  const px=pTile.x, py=pTile.y;
-                    const d=dist2(u.x,u.y,px,py);
-                    if (d<bestD){ bestD=d; best={tx,ty}; }
-                  }
-                }
-              }
-    
+              const best = findBestOrePatch();
               if (best){
                 u.order={type:"harvest", x:u.x,y:u.y, tx:best.tx, ty:best.ty};
                 setPathTo(u, (best.tx+0.5)*TILE, (best.ty+0.5)*TILE);
