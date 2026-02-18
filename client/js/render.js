@@ -278,6 +278,196 @@
   let SNIP_TEAM_SHEET, SNIP_TEAM_SHEET_MOV, SNIP_TEAM_SHEET_MOV_NE, SNIP_TEAM_SHEET_MOV_N, SNIP_TEAM_SHEET_MOV_NW;
   let SNIP_TEAM_SHEET_MOV_W, SNIP_TEAM_SHEET_MOV_SW, SNIP_TEAM_SHEET_MOV_S, SNIP_TEAM_SHEET_MOV_SE;
   let INF_IDLE_ATLAS;
+  // === Team palette (accent recolor) ===
+  // You can override from HTML by defining:
+  //   window.TEAM_ACCENT = { PLAYER:[r,g,b], ENEMY:[r,g,b], NEUTRAL:[r,g,b] };
+  const TEAM_ACCENT = (typeof window !== "undefined" && window.TEAM_ACCENT) ? window.TEAM_ACCENT : {
+    PLAYER: [80,  180, 255],  // default: BLUE (player)
+    ENEMY:  [255, 60,  60],   // default: RED  (enemy)
+    NEUTRAL:[170, 170, 170]
+  };
+
+  // Team-color brightness tuning (higher = brighter team stripes).
+  const TEAM_ACCENT_LUMA_GAIN = 1.35; // try 1.15~1.60
+  const TEAM_ACCENT_LUMA_BIAS = 0.10; // try 0.00~0.20
+  const TEAM_ACCENT_LUMA_GAMMA = 0.80; // <1 brightens midtones; 1 = linear
+  // Recolors only "neon magenta" accent pixels into team color.
+  const _teamSpriteCache = new Map(); // key -> canvas
+
+  function _teamAccentRGB(team){
+    // Dev/test: mirror factions (enemy uses player's accent)
+    if (typeof window !== "undefined" && window.LINK_ENEMY_TO_PLAYER_COLOR && team === (TEAM && TEAM.ENEMY)) return TEAM_ACCENT.PLAYER;
+    if (TEAM && team === TEAM.ENEMY) return TEAM_ACCENT.ENEMY;
+    if (TEAM && team === TEAM.NEUTRAL) return TEAM_ACCENT.NEUTRAL;
+    return TEAM_ACCENT.PLAYER;
+  }
+
+  function _rgb2hsv(r,g,b){
+    r/=255; g/=255; b/=255;
+    const max=Math.max(r,g,b), min=Math.min(r,g,b);
+    const d=max-min;
+    let h=0;
+    if(d!==0){
+      if(max===r) h=((g-b)/d)%6;
+      else if(max===g) h=(b-r)/d + 2;
+      else h=(r-g)/d + 4;
+      h*=60;
+      if(h<0) h+=360;
+    }
+    const s=max===0?0:d/max;
+    const v=max;
+    return {h,s,v};
+  }
+
+  function _isAccentPixel(r,g,b,a){
+    if(a < 8) return false;
+
+    const max=Math.max(r,g,b), min=Math.min(r,g,b);
+    const sat = max===0 ? 0 : (max-min)/max;
+
+    // Strong magenta/pink key, including anti-aliased edges (pink mixed with grey).
+    // Score is high when R+B dominates and G is suppressed.
+    const rbAvg = (r + b) * 0.5;
+    const magScore = (r + b) - 2*g; // e.g. #ff00ff => 510
+
+    // Very likely key color (and its edge blends)
+    if(rbAvg > 110 && magScore > 105 && g < rbAvg) return true;
+
+    // Extra coverage for bright hot-pink highlights that may have a bit more green from filtering
+    if(rbAvg > 165 && magScore > 65 && g < 170) return true;
+
+    // Extra coverage for darker magenta stripes (some sheets have "dirty" magenta with more green)
+    // Condition: R and B both present, G suppressed relative to them.
+    if (r > 70 && b > 70 && (r + b) > 220 && g < (r * 0.72) && g < (b * 0.72)) return true;
+
+    // If it's basically grey, don't treat as key color.
+    if(sat < 0.10) return false;
+
+    const {h}=_rgb2hsv(r,g,b);
+
+    // Wider hue band for magenta/purple-ish key colors.
+    const magentaBand = (h>=235 && h<=358);
+
+    // Green must not be the dominant channel (allow more slack for filtered pixels)
+    const gNotDominant = g <= Math.min(r,b) + 130;
+
+    // Prevent weird false-positives from pure blues/reds by requiring some R+B presence
+    const rbPresence = (r + b) >= 160;
+
+    return magentaBand && gNotDominant && rbPresence;
+  }
+
+  function _applyTeamPaletteToImage(img, teamColor, opts={}){
+    const excludeRects = opts.excludeRects || null; // [{x,y,w,h}] in image pixel coords
+    const w=img.width, h=img.height;
+    const c=document.createElement('canvas'); c.width=w; c.height=h;
+    const ctx=c.getContext('2d', {willReadFrequently:true});
+    ctx.drawImage(img,0,0);
+    const id=ctx.getImageData(0,0,w,h);
+    const d=id.data;
+
+    // Team color (linear-ish blend)
+    const tr=teamColor.r, tg=teamColor.g, tb=teamColor.b;
+
+    // Brighten like unit tint: stronger gain + slight bias, softer gamma
+    const GAIN = (opts.gain ?? 1.65);
+    const BIAS = (opts.bias ?? 0.18);
+    const GAMMA = (opts.gamma ?? 0.78);
+    const MINV = (opts.minV ?? 0.42);
+
+    function inExclude(x,y){
+      if(!excludeRects) return false;
+      for(const r of excludeRects){
+        if(x>=r.x && x<r.x+r.w && y>=r.y && y<r.y+r.h) return true;
+      }
+      return false;
+    }
+
+    for(let y=0;y<h;y++){
+      for(let x=0;x<w;x++){
+        const i=(y*w+x)*4;
+        const a=d[i+3];
+        if(a<8) continue;
+        if(inExclude(x,y)) continue;
+
+        const r=d[i], g=d[i+1], b=d[i+2];
+        if(!_isAccentPixel(r,g,b,a)) continue;
+
+        // Preserve shading using luminance, but keep it bright enough
+        const l=(0.2126*r + 0.7152*g + 0.0722*b)/255;
+        // If pixel is strongly saturated magenta, force a brighter base so key-color doesn't look dirty
+        const max=Math.max(r,g,b), min=Math.min(r,g,b);
+        const sat = max===0 ? 0 : (max-min)/max;
+        let l2 = (Math.pow(l, GAMMA) * GAIN) + BIAS;
+        if(sat > 0.45) l2 = Math.max(l2, 0.65);
+        l2 = Math.max(MINV, Math.min(1, l2));
+
+        // Blend toward team color (keep some original detail)
+        d[i]   = Math.min(255, Math.round(tr * l2));
+        d[i+1] = Math.min(255, Math.round(tg * l2));
+        d[i+2] = Math.min(255, Math.round(tb * l2));
+      }
+    }
+    ctx.putImageData(id,0,0);
+
+    const out=new Image();
+    out.src=c.toDataURL();
+    return out;
+  }
+
+  function _getTeamCroppedSprite(img, crop, team){
+    const key = img.src + "|" + crop.x + "," + crop.y + "," + crop.w + "," + crop.h + "|t" + team;
+    const cached = _teamSpriteCache.get(key);
+    if (cached) return cached;
+
+    const cvs = document.createElement("canvas");
+    cvs.width = crop.w;
+    cvs.height = crop.h;
+    const c = cvs.getContext("2d", { willReadFrequently: true });
+    try{
+      c.clearRect(0, 0, crop.w, crop.h);
+      c.drawImage(img, crop.x, crop.y, crop.w, crop.h, 0, 0, crop.w, crop.h);
+
+      const id = c.getImageData(0, 0, crop.w, crop.h);
+      const d = id.data;
+      const tc = _teamAccentRGB(team);
+      const tr = tc[0], tg = tc[1], tb = tc[2];
+
+      for (let i = 0; i < d.length; i += 4){
+        const r = d[i], g = d[i+1], b = d[i+2], a = d[i+3];
+
+        if (!_isAccentPixel(r, g, b, a)) continue;
+
+        // brightness keeps shading; luma is stable for highlights
+        const l = (0.2126*r + 0.7152*g + 0.0722*b) / 255;
+        // brighten team accents so they pop like unit stripes
+        const l2 = Math.min(1, Math.pow(l, TEAM_ACCENT_LUMA_GAMMA) * TEAM_ACCENT_LUMA_GAIN + TEAM_ACCENT_LUMA_BIAS);
+        d[i]   = Math.max(0, Math.min(255, tr * l2));
+        d[i+1] = Math.max(0, Math.min(255, tg * l2));
+        d[i+2] = Math.max(0, Math.min(255, tb * l2));
+        // alpha unchanged
+      }
+
+      c.putImageData(id, 0, 0);
+    }catch(e){
+      // If canvas becomes tainted for any reason, just fall back to original sprite.
+      _teamSpriteCache.set(key, null);
+      return null;
+    }
+
+    _teamSpriteCache.set(key, cvs);
+    return cvs;
+  }
+
+  // Expose team palette helpers for other modules (e.g. buildings.js)
+  try{
+    window.applyTeamPaletteToImage = window.applyTeamPaletteToImage || _applyTeamPaletteToImage;
+    window.replaceMagentaWithTeamColor = window.replaceMagentaWithTeamColor || _applyTeamPaletteToImage;
+    window.PO = window.PO || {};
+    window.PO.applyTeamPaletteToImage = window.PO.applyTeamPaletteToImage || _applyTeamPaletteToImage;
+    // Keep TEAM_ACCENT visible for debugging/overrides
+    window.TEAM_ACCENT = TEAM_ACCENT;
+  }catch(_e){}
   const LITE_TANK_BASE = "asset/sprite/unit/tank/lite_tank/";
   const HARVESTER_BASE = "asset/sprite/unit/tank/harvester/";
   const LITE_TANK_BASE_SCALE = 0.13;
@@ -309,7 +499,7 @@
     infDeathFxs = env.infDeathFxs || [];
     snipDeathFxs = env.snipDeathFxs || [];
     SPRITE_TUNE = env.SPRITE_TUNE || {};
-    getTeamCroppedSprite = env.getTeamCroppedSprite;
+    getTeamCroppedSprite = env.getTeamCroppedSprite || _getTeamCroppedSprite;
     drawBuildingSprite = env.drawBuildingSprite || drawBuildingSprite;
     INF_DIE_IMG = env.INF_DIE_IMG;
     SNIP_DIE_IMG = env.SNIP_DIE_IMG;
@@ -569,6 +759,17 @@
       const sy=((fi/cols)|0)*th;
 
       fx._rd = { sx, sy, sw: tw, sh: th, alpha, fi };
+    }
+  }
+
+  function updateExp1Fxs(){
+    if (!EXP1_FRAMES || !EXP1_FRAMES.length) return;
+    if (!exp1Fxs || !exp1Fxs.length) return;
+    for (let i=exp1Fxs.length-1;i>=0;i--){
+      const fx = exp1Fxs[i];
+      const age = state.t - fx.t0;
+      const idx = Math.floor(age / Math.max(0.001, fx.frameDur));
+      if (idx >= EXP1_FRAMES.length) exp1Fxs.splice(i,1);
     }
   }
 
@@ -2083,6 +2284,7 @@
 
     updateInfDeathFx();
     updateSnipDeathFx();
+    updateExp1Fxs();
 
     const drawables=[];
     for (const b of buildings) if (b.alive) drawables.push(b);
@@ -2565,8 +2767,21 @@
     }
   }
 
+  function setTeamAccent(opts){
+    if (!opts || typeof opts !== "object") return;
+    if (opts.player && Array.isArray(opts.player)) TEAM_ACCENT.PLAYER = opts.player;
+    if (opts.enemy  && Array.isArray(opts.enemy))  TEAM_ACCENT.ENEMY  = opts.enemy;
+    if (opts.neutral && Array.isArray(opts.neutral)) TEAM_ACCENT.NEUTRAL = opts.neutral;
+  }
+
+  function clearTeamSpriteCache(){
+    _teamSpriteCache.clear();
+  }
+
   window.OURender = window.OURender || {};
   window.OURender.drawMini = drawMini;
   window.OURender.draw = drawMain;
+  window.OURender.setTeamAccent = setTeamAccent;
+  window.OURender.clearTeamSpriteCache = clearTeamSpriteCache;
 })();
 
