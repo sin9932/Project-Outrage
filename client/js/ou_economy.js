@@ -467,8 +467,9 @@
           const lane = state.buildLane[laneKey];
           if (!lane) continue;
           if (lane.queue && !prereqOk(TEAM.PLAYER, lane.queue.kind, tech.buildPrereq)){
-            // refund what was already paid
-            state.player.money += Math.floor(lane.queue.paid||0);
+            // refund what was already paid (snap to int to avoid 1-credit drift)
+            state.player.money += Math.round(lane.queue.paid||0);
+            state.player.money = Math.round(state.player.money||0);
             lane.queue = null;
           }
           if (lane.fifo && lane.fifo.length){
