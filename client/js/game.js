@@ -12451,9 +12451,7 @@ function sanityCheck(){
             buildings: buildings,
             TEAM,
             prodCat,
-            setProdCat,
-            tabBtns,
-            panels
+            setProdCat
           });
         } catch (_e) {}
       }
