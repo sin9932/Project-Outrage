@@ -444,7 +444,8 @@
 
         // If no player infantry on map, stop basic infantry/sniper production and focus vehicles.
         const wantInf = playerHasInf ? (poor ? 3 : 6) : 0;
-        while (bar.buildQ.length < 8 && (eUnits.filter(u => u.kind==="infantry").length + queuedInf) < wantInf) {
+        const eInfCount = units.filter(u => u.alive && u.team === TEAM.ENEMY && u.kind === "infantry").length;
+        while (bar.buildQ.length < 8 && (eInfCount + queuedInf) < wantInf) {
           bar.buildQ.push({ kind: "infantry", t: 0, tNeed: getBaseBuildTime("infantry") / pf, cost: COST.infantry, paid: 0 });
           if (poor) break; // conserve
         }
