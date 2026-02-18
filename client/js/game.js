@@ -517,6 +517,12 @@ function fitMini() {
   let nextId=1;
   const units=[];
   const buildings=[];
+  // Economy action queue: UI events enqueue, tick() applies.
+  state.econActions = state.econActions || [];
+  function enqueueEcon(action){
+    if (!action) return;
+    state.econActions.push(action);
+  }
   // ===== Step3: Progress accessors (calculation in game, UI draws only) =====
   // Used by ou_ui.* (progress overlays/bars). Keep progress math out of UI code.
   function _calcQueuePct(q){
@@ -9725,7 +9731,7 @@ if (state.selection.size>0 && inMap(tx,ty) && ore[idx(tx,ty)]>0){
   }
 
   
-  function setBuild(kind){
+  function _applySetBuild(kind){
     if (!kind) return;
 
     // Decide lane: defenses go to def lane, everything else to main lane.
@@ -9778,6 +9784,10 @@ if (state.selection.size>0 && inMap(tx,ty) && ore[idx(tx,ty)]>0){
     lane.fifo.push(kind);
   }
 
+  function setBuild(kind){
+    enqueueEcon({ type:"setBuild", kind });
+  }
+
   btnRef.onclick=()=>setBuild("refinery");
   btnPow.onclick=()=>setBuild("power");
   btnBar.onclick=()=>setBuild("barracks");
@@ -9785,56 +9795,60 @@ if (state.selection.size>0 && inMap(tx,ty) && ore[idx(tx,ty)]>0){
   btnTur.onclick=()=>setBuild("turret");
   btnRad.onclick=()=>{ if(!hasBuilding(TEAM.PLAYER,"refinery")){ toast("레이더는 정제소가 필요함"); return; } setBuild("radar"); };
 
+  function _applyLaneRClick(laneKey, kind){
+    const lane = state.buildLane ? state.buildLane[laneKey] : null;
+    if (!lane) return;
+
+    // If build is READY (waiting for placement), allow cancel + refund.
+    if (lane.ready === kind){
+      const refund = COST[kind] || 0;
+      if (refund > 0) state.player.money += refund;
+      lane.ready = null;
+      // If player was in placement mode for this item, exit it.
+      if (state.build && state.build.active && state.build.kind === kind && state.build.lane === laneKey){
+        state.build.active = false;
+        state.build.kind = null;
+        state.build.lane = null;
+      }
+      toast("취소 + 환불");
+      return;
+    }
+
+    if (!lane.queue || lane.queue.kind !== kind){
+      // Cancel a reserved (FIFO) build of this kind if present.
+      if (lane.fifo && lane.fifo.length){
+        for (let i=lane.fifo.length-1; i>=0; i--){
+          if (lane.fifo[i] === kind){
+            lane.fifo.splice(i,1);
+            toast("예약 취소");
+            return;
+          }
+        }
+      }
+      return;
+    }
+    if (!lane.queue.paused){
+      lane.queue.paused = true;
+      toast("대기");
+    } else {
+      // cancel + refund paid so far
+      const paid = lane.queue.paid || 0;
+      state.player.money += paid;
+      lane.queue = null;
+      // Also drop any pending reservations of the same kind to avoid "ghost" rebuild.
+      if (lane.fifo && lane.fifo.length){
+        lane.fifo = lane.fifo.filter(k=>k!==kind);
+      }
+      toast("취소 + 환불");
+    }
+  }
+
   // Right-click on the currently building item: 1st = pause(대기, no spending), 2nd = cancel + refund spent cost.
   function attachLaneRClick(btn, laneKey, kind){
     if (!btn) return;
     btn.addEventListener("contextmenu", (ev)=>{
       ev.preventDefault();
-      const lane = state.buildLane ? state.buildLane[laneKey] : null;
-      if (!lane) return;
-
-      // If build is READY (waiting for placement), allow cancel + refund.
-      if (lane.ready === kind){
-        const refund = COST[kind] || 0;
-        if (refund > 0) state.player.money += refund;
-        lane.ready = null;
-        // If player was in placement mode for this item, exit it.
-        if (state.build && state.build.active && state.build.kind === kind && state.build.lane === laneKey){
-          state.build.active = false;
-          state.build.kind = null;
-          state.build.lane = null;
-        }
-        toast("취소 + 환불");
-        return;
-      }
-
-      if (!lane.queue || lane.queue.kind !== kind){
-        // Cancel a reserved (FIFO) build of this kind if present.
-        if (lane.fifo && lane.fifo.length){
-          for (let i=lane.fifo.length-1; i>=0; i--){
-            if (lane.fifo[i] === kind){
-              lane.fifo.splice(i,1);
-              toast("예약 취소");
-              return;
-            }
-          }
-        }
-        return;
-      }
-      if (!lane.queue.paused){
-        lane.queue.paused = true;
-        toast("대기");
-      } else {
-        // cancel + refund paid so far
-        const paid = lane.queue.paid || 0;
-        state.player.money += paid;
-        lane.queue = null;
-        // Also drop any pending reservations of the same kind to avoid "ghost" rebuild.
-        if (lane.fifo && lane.fifo.length){
-          lane.fifo = lane.fifo.filter(k=>k!==kind);
-        }
-        toast("취소 + 환불");
-      }
+      enqueueEcon({ type:"laneRClick", laneKey, kind });
     });
   }
   attachLaneRClick(btnPow, "main", "power");
@@ -9845,78 +9859,82 @@ if (state.selection.size>0 && inMap(tx,ty) && ore[idx(tx,ty)]>0){
   attachLaneRClick(btnTur, "def", "turret");
   if (btnCan) btnCan.onclick = ()=>cancelBuild();
   if (btnToHQ) btnToHQ.onclick = ()=>goToHQ();
-  if (btnSell) btnSell.onclick = ()=>sellSelectedBuildings();
+  if (btnSell) btnSell.onclick = ()=>enqueueEcon({ type:"sellSelected" });
 
-  btnInf.onclick=()=>queueUnit("infantry");
-  btnEng.onclick=()=>queueUnit("engineer");
-  btnSnp.onclick=()=>queueUnit("sniper");
-  btnTnk.onclick=()=>queueUnit("tank");
-  btnHar.onclick=()=>queueUnit("harvester");
-  btnIFV.onclick=()=>queueUnit("ifv");
+  btnInf.onclick=()=>enqueueEcon({ type:"queueUnit", kind:"infantry" });
+  btnEng.onclick=()=>enqueueEcon({ type:"queueUnit", kind:"engineer" });
+  btnSnp.onclick=()=>enqueueEcon({ type:"queueUnit", kind:"sniper" });
+  btnTnk.onclick=()=>enqueueEcon({ type:"queueUnit", kind:"tank" });
+  btnHar.onclick=()=>enqueueEcon({ type:"queueUnit", kind:"harvester" });
+  btnIFV.onclick=()=>enqueueEcon({ type:"queueUnit", kind:"ifv" });
 
-  // Unit production right-click: 1st = pause(대기), 2nd (while paused) = cancel + refund spent.
-  function attachUnitRClick(btn, kind){
-    if (!btn) return;
-    btn.addEventListener("contextmenu", (ev)=>{
-      ev.preventDefault();
-      const need = kindToProducer(kind);
+  function _applyUnitRClick(kind){
+    const need = kindToProducer(kind);
 
-      // 1) If this kind is currently being built at the front of some producer queue:
-      //    - first right click: pause
-      //    - second right click (while paused): cancel + refund paid
-      let pb=null; let q=null;
-      for (const b of buildings){
-        if (!b.alive || b.civ || b.team!==TEAM.PLAYER || b.kind!==need) continue;
-        const qq=b.buildQ && b.buildQ[0];
-        if (qq && qq.kind===kind){ pb=b; q=qq; break; }
-      }
+    // 1) If this kind is currently being built at the front of some producer queue:
+    //    - first right click: pause
+    //    - second right click (while paused): cancel + refund paid
+    let pb=null; let q=null;
+    for (const b of buildings){
+      if (!b.alive || b.civ || b.team!==TEAM.PLAYER || b.kind!==need) continue;
+      const qq=b.buildQ && b.buildQ[0];
+      if (qq && qq.kind===kind){ pb=b; q=qq; break; }
+    }
 
-      if (pb && q){
-        if (!q.paused){
-          q.paused = true;
-          q.autoPaused = false;
-          toast("대기");
-          return;
-        }
-        const paid = q.paid || 0;
-        state.player.money += paid;
-        pb.buildQ.shift();
-        prodTotal[kind] = Math.max(0, (prodTotal[kind]||0)-1);
-        updateProdBadges();
-        toast("취소 + 환불");
+    if (pb && q){
+      if (!q.paused){
+        q.paused = true;
+        q.autoPaused = false;
+        toast("대기");
         return;
       }
+      const paid = q.paid || 0;
+      state.player.money += paid;
+      pb.buildQ.shift();
+      prodTotal[kind] = Math.max(0, (prodTotal[kind]||0)-1);
+      updateProdBadges();
+      toast("취소 + 환불");
+      return;
+    }
 
-      // 2) If it's queued in a producer buildQ but NOT at the front (i.e., reserved for later),
-      // cancel the last one of this kind.
-      for (const b of buildings){
-        if (!b.alive || b.civ || b.team!==TEAM.PLAYER || b.kind!==need) continue;
-        const ql = b.buildQ || [];
-        for (let i=ql.length-1; i>=1; i--){ // skip index 0 (handled above)
-          if (ql[i] && ql[i].kind===kind){
-            const paid = ql[i].paid || 0;
-            if (paid>0) state.player.money += paid;
-            ql.splice(i,1);
-            prodTotal[kind] = Math.max(0, (prodTotal[kind]||0)-1);
-            updateProdBadges();
-            toast("예약 취소");
-            return;
-          }
-        }
-      }
-
-      // 3) Otherwise: cancel ONE queued reservation of this kind from the global FIFO (not yet started, so no refund needed).
-      const fifo = prodFIFO[need];
-      if (!fifo || !fifo.length) return;
-      for (let i=fifo.length-1; i>=0; i--){
-        if (fifo[i].kind===kind){
-          fifo.splice(i,1);
+    // 2) If it's queued in a producer buildQ but NOT at the front (i.e., reserved for later),
+    // cancel the last one of this kind.
+    for (const b of buildings){
+      if (!b.alive || b.civ || b.team!==TEAM.PLAYER || b.kind!==need) continue;
+      const ql = b.buildQ || [];
+      for (let i=ql.length-1; i>=1; i--){ // skip index 0 (handled above)
+        if (ql[i] && ql[i].kind===kind){
+          const paid = ql[i].paid || 0;
+          if (paid>0) state.player.money += paid;
+          ql.splice(i,1);
           prodTotal[kind] = Math.max(0, (prodTotal[kind]||0)-1);
           updateProdBadges();
           toast("예약 취소");
           return;
         }
       }
+    }
+
+    // 3) Otherwise: cancel ONE queued reservation of this kind from the global FIFO (not yet started, so no refund needed).
+    const fifo = prodFIFO[need];
+    if (!fifo || !fifo.length) return;
+    for (let i=fifo.length-1; i>=0; i--){
+      if (fifo[i].kind===kind){
+        fifo.splice(i,1);
+        prodTotal[kind] = Math.max(0, (prodTotal[kind]||0)-1);
+        updateProdBadges();
+        toast("예약 취소");
+        return;
+      }
+    }
+  }
+
+  // Unit production right-click: 1st = pause(대기), 2nd (while paused) = cancel + refund spent.
+  function attachUnitRClick(btn, kind){
+    if (!btn) return;
+    btn.addEventListener("contextmenu", (ev)=>{
+      ev.preventDefault();
+      enqueueEcon({ type:"unitRClick", kind });
     });
   }
   attachUnitRClick(btnInf, "infantry");
@@ -9926,12 +9944,12 @@ if (state.selection.size>0 && inMap(tx,ty) && ore[idx(tx,ty)]>0){
   attachUnitRClick(btnHar, "harvester");
   attachUnitRClick(btnIFV, "ifv");
   if (btnCancelSel) btnCancelSel.onclick = ()=>{ state.selection.clear(); updateSelectionUI(); };
-  if (btnRepair) btnRepair.onclick = ()=>toggleRepair();
+  if (btnRepair) btnRepair.onclick = ()=>enqueueEcon({ type:"toggleRepair" });
   if (btnStop) btnStop.onclick = ()=>stopUnits();
   if (btnScatter) btnScatter.onclick = ()=>scatterUnits();
   
   // Duplicate command buttons in VEH panel
-  if (btnRepair2) btnRepair2.onclick = ()=>toggleRepair();
+  if (btnRepair2) btnRepair2.onclick = ()=>enqueueEcon({ type:"toggleRepair" });
   if (btnStop2) btnStop2.onclick = ()=>stopUnits();
   if (btnScatter2) btnScatter2.onclick = ()=>scatterUnits();
 
@@ -9993,6 +10011,35 @@ if (btnSelAllKind) btnSelAllKind.onclick = ()=>selectAllUnitsScreenThenMap();
       }
     }
     updateSelectionUI();
+  }
+
+  function processEconActions(){
+    const q = state.econActions;
+    if (!q || !q.length) return;
+    while (q.length){
+      const a = q.shift();
+      if (!a || !a.type) continue;
+      switch (a.type){
+        case "setBuild":
+          _applySetBuild(a.kind);
+          break;
+        case "laneRClick":
+          _applyLaneRClick(a.laneKey, a.kind);
+          break;
+        case "unitRClick":
+          _applyUnitRClick(a.kind);
+          break;
+        case "queueUnit":
+          queueUnit(a.kind);
+          break;
+        case "toggleRepair":
+          toggleRepair();
+          break;
+        case "sellSelected":
+          sellSelectedBuildings();
+          break;
+      }
+    }
   }
 
   function stopUnits(){
@@ -12506,6 +12553,7 @@ function sanityCheck(){
       if (keys.has("arrowdown")) cam.y += sp;
       clampCamera();
 
+      processEconActions();
       feedProducers();
 
       let _m0 = 0, _m1 = 0, _m2 = 0, _m3 = 0;
