@@ -352,6 +352,13 @@
       return candidates[0];
     }
 
+    function aiPickPlayerInfantry() {
+      const inf = units.filter(u => u.alive && u.team === TEAM.PLAYER && (UNIT[u.kind] && UNIT[u.kind].cls === "inf") && !u.inTransport && !u.hidden);
+      if (!inf.length) return null;
+      inf.sort((a, b) => dist2(ai.rally.x, ai.rally.y, a.x, a.y) - dist2(ai.rally.x, ai.rally.y, b.x, b.y));
+      return inf[0];
+    }
+
     function aiThreatNearBase() {
       const centers = aiEnemyCenters();
       if (!centers.length) return 0;
@@ -538,7 +545,7 @@
 
         // Sniper-IFV: hunt player infantry then kite away to rally
         if (ifv.passKind === "sniper") {
-          const prey = units.find(u => u.alive && u.team === TEAM.PLAYER && (UNIT[u.kind] && UNIT[u.kind].cls === "inf") && !u.inTransport && !u.hidden);
+          const prey = aiPickPlayerInfantry();
           if (prey) {
             ifv.order = { type: "attackmove", x: prey.x, y: prey.y };
           } else {
@@ -775,6 +782,7 @@
       if (snipers.length) {
         for (const s of snipers) {
           if (s.inTransport) continue;
+          const prey = aiPickPlayerInfantry();
           if (idleIFVs.length) {
             let best = null, bestD = Infinity;
             for (const ifv of idleIFVs) {
@@ -788,10 +796,18 @@
               continue;
             }
           }
-          // Fallback: keep near rally, do not attack harvesters.
-          s.order = { type: "move", x: ai.rally.x, y: ai.rally.y, tx: null, ty: null };
-          setPathTo(s, ai.rally.x, ai.rally.y);
-          s.repathCd = 0.35;
+          // No IFV available: target player infantry only (may move near tanks/turrets but doesn't target them).
+          if (prey) {
+            s.order = { type: "attack", x: s.x, y: s.y, tx: null, ty: null };
+            s.target = prey.id;
+            setPathTo(s, prey.x, prey.y);
+            s.repathCd = 0.25;
+          } else {
+            // Fallback: keep near rally, do not attack harvesters.
+            s.order = { type: "move", x: ai.rally.x, y: ai.rally.y, tx: null, ty: null };
+            setPathTo(s, ai.rally.x, ai.rally.y);
+            s.repathCd = 0.35;
+          }
         }
       }
     }
