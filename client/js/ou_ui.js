@@ -883,6 +883,57 @@ function ensureBadge(btn){
       }
     }
 
+    function initPregameUI(env){
+      env = env || {};
+      const onSpawnChange = env.onSpawnChange;
+      const onMoneyChange = env.onMoneyChange;
+
+      const spawnChips = Array.from(document.querySelectorAll(".chip.spawn"));
+      const moneyChips = Array.from(document.querySelectorAll(".chip.money"));
+
+      function setSpawnChip(target){
+        for (const c of spawnChips) c.classList.remove("on");
+        if (target) target.classList.add("on");
+        const v = target && target.dataset ? target.dataset.spawn : null;
+        if (typeof onSpawnChange === "function") onSpawnChange(v);
+      }
+
+      function setMoneyChip(target){
+        for (const c of moneyChips) c.classList.remove("on");
+        if (target) target.classList.add("on");
+        const v = target && target.dataset ? parseInt(target.dataset.money, 10) : NaN;
+        if (typeof onMoneyChange === "function") onMoneyChange(v);
+      }
+
+      for (const chip of spawnChips){
+        chip.addEventListener("click", ()=>setSpawnChip(chip));
+      }
+      for (const chip of moneyChips){
+        chip.addEventListener("click", ()=>setMoneyChip(chip));
+      }
+    }
+
+    function setPregameLoading(env){
+      env = env || {};
+      const startBtn = env.startBtn || document.getElementById("startBtn");
+      if (!startBtn) return;
+      const loading = !!env.loading;
+      if (loading){
+        if (!startBtn.dataset._oldTxt) startBtn.dataset._oldTxt = startBtn.textContent || "";
+        startBtn.disabled = true;
+        startBtn.textContent = "LOADING...";
+      } else {
+        startBtn.textContent = startBtn.dataset._oldTxt || startBtn.textContent;
+        startBtn.disabled = !!env.forceEnable ? false : startBtn.disabled;
+      }
+    }
+
+    function hidePregame(env){
+      env = env || {};
+      const pregame = env.pregame || document.getElementById("pregame");
+      if (pregame) pregame.style.display = "none";
+    }
+
     function bindPriceTipsOnce(env){
       if (r._priceTipBound) return;
       env = env || {};
@@ -982,7 +1033,10 @@ return {
             applyMouseMode,
             updateBuildModeUI,
             bindPriceTipsOnce,
-            updateProdTabsUI
+            updateProdTabsUI,
+            initPregameUI,
+            setPregameLoading,
+            hidePregame
     };
   };
 })(window);

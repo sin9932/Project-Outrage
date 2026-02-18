@@ -861,6 +861,28 @@ function ensureBadge(btn){
       setBlink("def", defReady);
     }
 
+    function updateProdTabsUI(env){
+      env = env || {};
+      const tabBtns = env.tabBtns || r.tabBtns || Array.from(document.querySelectorAll(".tabbtn[data-cat]"));
+      const panels  = env.panels  || r.panels  || {
+        main: document.getElementById("panelMain"),
+        def:  document.getElementById("panelDef"),
+        inf:  document.getElementById("panelInf"),
+        veh:  document.getElementById("panelVeh")
+      };
+      const prodCat = env.prodCat || "main";
+
+      for (const b of tabBtns){
+        if (!b) continue;
+        const cat = b.dataset ? b.dataset.cat : b.getAttribute("data-cat");
+        b.classList.toggle("on", cat === prodCat);
+      }
+      for (const [k,p] of Object.entries(panels)){
+        if (!p) continue;
+        p.style.display = (k===prodCat) ? "" : "none";
+      }
+    }
+
     function bindPriceTipsOnce(env){
       if (r._priceTipBound) return;
       env = env || {};
@@ -959,7 +981,8 @@ return {
             updateMoney,
             applyMouseMode,
             updateBuildModeUI,
-            bindPriceTipsOnce
+            bindPriceTipsOnce,
+            updateProdTabsUI
     };
   };
 })(window);

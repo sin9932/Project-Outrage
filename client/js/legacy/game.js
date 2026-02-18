@@ -65,21 +65,8 @@ ${e.filename}:${e.lineno}:${e.colno}
   const uiMmHint = $("mmHint");
   const uiPowerFill = $("powerFill");
   const uiPowerNeed = $("powerNeed");
-  const uiPTip = $("pTip");
-  const powerBarEl = $("powerBar");
-  if (!(window.OUUI && typeof window.OUUI.create === "function") && powerBarEl && uiPTip){
-    const showTip = (e)=>{
-      const prod = state.player.powerProd|0;
-      const use  = state.player.powerUse|0;
-      uiPTip.textContent = `전력: ${prod} / ${use}`;
-      uiPTip.style.display = "block";
-      uiPTip.style.left = (e.clientX + 14) + "px";
-      uiPTip.style.top  = (e.clientY + 12) + "px";
-    };
-    powerBarEl.addEventListener("mouseenter", showTip);
-    powerBarEl.addEventListener("mousemove", showTip);
-    powerBarEl.addEventListener("mouseleave", ()=>{ uiPTip.style.display="none"; });
-  }
+  // Power tooltip element is owned by ou_ui.js
+  // Power tooltip is handled in ou_ui.js
 
   const qFillMain = $("qFillMain");
   const qFillDef  = $("qFillDef");
@@ -134,20 +121,11 @@ ${e.filename}:${e.lineno}:${e.colno}
   const fastProdChk = $("fastProd");
 
   let spawnChoice = "left";
-  for (const chip of document.querySelectorAll(".chip.spawn")) {
-    chip.addEventListener("click", () => {
-      for (const c of document.querySelectorAll(".chip.spawn")) c.classList.remove("on");
-      chip.classList.add("on");
-      spawnChoice = chip.dataset.spawn;
-    });
-  }
-
   let startMoney = 10000;
-  for (const chip of document.querySelectorAll(".chip.money")) {
-    chip.addEventListener("click", () => {
-      for (const c of document.querySelectorAll(".chip.money")) c.classList.remove("on");
-      chip.classList.add("on");
-      startMoney = parseInt(chip.dataset.money, 10) || 10000;
+  if (__ou_ui && typeof __ou_ui.initPregameUI === "function"){
+    __ou_ui.initPregameUI({
+      onSpawnChange: (v)=>{ spawnChoice = v || "left"; },
+      onMoneyChange: (v)=>{ startMoney = (typeof v==="number" && !Number.isNaN(v)) ? v : 10000; }
     });
   }
 
@@ -709,39 +687,7 @@ function drawSnipDeathFxOne(fx){
   };
 
 
-  // ===== PRICE TOOLTIP (hover to see cost) =====
-  const priceTip = document.createElement("div");
-  priceTip.style.position = "fixed";
-  priceTip.style.padding = "10px 14px";
-  priceTip.style.borderRadius = "12px";
-  priceTip.style.background = "rgba(0,0,0,0.86)";
-  priceTip.style.color = "#ffe9a6";
-  priceTip.style.fontSize = "18px";
-  priceTip.style.fontWeight = "950";
-  priceTip.style.pointerEvents = "none";
-  priceTip.style.border = "1px solid rgba(255,233,166,0.35)";
-  priceTip.style.boxShadow = "0 10px 30px rgba(0,0,0,0.45)";
-  priceTip.style.zIndex = "9999";
-  priceTip.style.display = "none";
-  document.body.appendChild(priceTip);
-
-  function bindPriceTip(btn, kind){
-    if (!btn) return;
-    btn.addEventListener("mouseenter", (e)=>{
-      const cost = COST[kind] ?? 0;
-      priceTip.textContent = `$ ${cost}`;
-      priceTip.style.display = "block";
-      priceTip.style.left = (e.clientX + 16) + "px";
-      priceTip.style.top  = (e.clientY + 16) + "px";
-    });
-    btn.addEventListener("mousemove", (e)=>{
-      priceTip.style.left = (e.clientX + 16) + "px";
-      priceTip.style.top  = (e.clientY + 16) + "px";
-    });
-    btn.addEventListener("mouseleave", ()=>{
-      priceTip.style.display = "none";
-    });
-  }
+  // Price tooltip is handled in ou_ui.js
 
 
   // Sidebar-style build time (seconds). Simple deterministic rule: time scales with cost.
@@ -10006,10 +9952,8 @@ if (state.selection.size>0 && inMap(tx,ty) && ore[idx(tx,ty)]>0){
   let prodCat = "main";
   function setProdCat(cat){
     prodCat = cat;
-    for (const b of tabBtns) b.classList.toggle("on", b.dataset.cat===cat);
-    for (const [k,p] of Object.entries(panels)){
-      if (!p) continue;
-      p.style.display = (k===cat) ? "" : "none";
+    if (__ou_ui && typeof __ou_ui.updateProdTabsUI === "function"){
+      __ou_ui.updateProdTabsUI({ tabBtns, panels, prodCat });
     }
   }
   for (const b of tabBtns){
@@ -12080,22 +12024,39 @@ startBtn.addEventListener("click", async () => {
     // Preload building atlases before starting (avoid long placeholder-box phase)
     try {
       if (window.PO && PO.buildings && typeof PO.buildings.preload === "function") {
-        const _oldTxt = startBtn.textContent;
-        startBtn.disabled = true;
-        startBtn.textContent = "LOADING...";
+        if (__ou_ui && typeof __ou_ui.setPregameLoading === "function"){
+          __ou_ui.setPregameLoading({ startBtn, loading: true });
+        } else {
+          const _oldTxt = startBtn.textContent;
+          startBtn.disabled = true;
+          startBtn.textContent = "LOADING...";
+          startBtn.dataset._oldTxt = _oldTxt;
+        }
         await PO.buildings.preload();
-        startBtn.textContent = _oldTxt;
+        if (__ou_ui && typeof __ou_ui.setPregameLoading === "function"){
+          __ou_ui.setPregameLoading({ startBtn, loading: false });
+        } else {
+          startBtn.textContent = startBtn.dataset._oldTxt || startBtn.textContent;
+        }
       }
     } catch (e) {
       console.error("[preload] building assets failed", e);
       alert("Asset preload failed. Check DevTools Console/Network.\n" + (e && e.message ? e.message : e));
-      startBtn.disabled = false;
+      if (__ou_ui && typeof __ou_ui.setPregameLoading === "function"){
+        __ou_ui.setPregameLoading({ startBtn, loading: false, forceEnable: true });
+      } else {
+        startBtn.disabled = false;
+      }
       return;
     }
 
     placeStart(spawnChoice);
     spawnStartingUnits();
-    pregame.style.display = "none";
+    if (__ou_ui && typeof __ou_ui.hidePregame === "function"){
+      __ou_ui.hidePregame({ pregame });
+    } else {
+      pregame.style.display = "none";
+    }
     // Start BGM on user gesture (autoplay-safe)
     BGM.userStart();
     running = true;
@@ -12732,19 +12693,6 @@ function sanityCheck(){
     state.__ui_bound_priceTips = true;
     if (__ou_ui && typeof __ou_ui.bindPriceTipsOnce === "function"){
       __ou_ui.bindPriceTipsOnce({ COST });
-    } else {
-    bindPriceTip(btnPow, "power");
-    bindPriceTip(btnRef, "refinery");
-    bindPriceTip(btnBar, "barracks");
-    bindPriceTip(btnFac, "factory");
-    bindPriceTip(btnRad, "radar");
-    bindPriceTip(btnTur, "turret");
-    bindPriceTip(btnInf, "infantry");
-    bindPriceTip(btnEng, "engineer");
-    bindPriceTip(btnSnp, "sniper");
-    bindPriceTip(btnTnk, "tank");
-    bindPriceTip(btnHar, "harvester");
-    bindPriceTip(btnIFV, "ifv");
     }
   }
 

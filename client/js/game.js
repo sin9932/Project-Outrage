@@ -121,20 +121,11 @@ ${e.filename}:${e.lineno}:${e.colno}
   const fastProdChk = $("fastProd");
 
   let spawnChoice = "left";
-  for (const chip of document.querySelectorAll(".chip.spawn")) {
-    chip.addEventListener("click", () => {
-      for (const c of document.querySelectorAll(".chip.spawn")) c.classList.remove("on");
-      chip.classList.add("on");
-      spawnChoice = chip.dataset.spawn;
-    });
-  }
-
   let startMoney = 10000;
-  for (const chip of document.querySelectorAll(".chip.money")) {
-    chip.addEventListener("click", () => {
-      for (const c of document.querySelectorAll(".chip.money")) c.classList.remove("on");
-      chip.classList.add("on");
-      startMoney = parseInt(chip.dataset.money, 10) || 10000;
+  if (__ou_ui && typeof __ou_ui.initPregameUI === "function"){
+    __ou_ui.initPregameUI({
+      onSpawnChange: (v)=>{ spawnChoice = v || "left"; },
+      onMoneyChange: (v)=>{ startMoney = (typeof v==="number" && !Number.isNaN(v)) ? v : 10000; }
     });
   }
 
@@ -12033,22 +12024,39 @@ startBtn.addEventListener("click", async () => {
     // Preload building atlases before starting (avoid long placeholder-box phase)
     try {
       if (window.PO && PO.buildings && typeof PO.buildings.preload === "function") {
-        const _oldTxt = startBtn.textContent;
-        startBtn.disabled = true;
-        startBtn.textContent = "LOADING...";
+        if (__ou_ui && typeof __ou_ui.setPregameLoading === "function"){
+          __ou_ui.setPregameLoading({ startBtn, loading: true });
+        } else {
+          const _oldTxt = startBtn.textContent;
+          startBtn.disabled = true;
+          startBtn.textContent = "LOADING...";
+          startBtn.dataset._oldTxt = _oldTxt;
+        }
         await PO.buildings.preload();
-        startBtn.textContent = _oldTxt;
+        if (__ou_ui && typeof __ou_ui.setPregameLoading === "function"){
+          __ou_ui.setPregameLoading({ startBtn, loading: false });
+        } else {
+          startBtn.textContent = startBtn.dataset._oldTxt || startBtn.textContent;
+        }
       }
     } catch (e) {
       console.error("[preload] building assets failed", e);
       alert("Asset preload failed. Check DevTools Console/Network.\n" + (e && e.message ? e.message : e));
-      startBtn.disabled = false;
+      if (__ou_ui && typeof __ou_ui.setPregameLoading === "function"){
+        __ou_ui.setPregameLoading({ startBtn, loading: false, forceEnable: true });
+      } else {
+        startBtn.disabled = false;
+      }
       return;
     }
 
     placeStart(spawnChoice);
     spawnStartingUnits();
-    pregame.style.display = "none";
+    if (__ou_ui && typeof __ou_ui.hidePregame === "function"){
+      __ou_ui.hidePregame({ pregame });
+    } else {
+      pregame.style.display = "none";
+    }
     // Start BGM on user gesture (autoplay-safe)
     BGM.userStart();
     running = true;
