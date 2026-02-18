@@ -388,9 +388,10 @@
       const hasRad = aiEnemyHas("radar");
 
       // If only HQ, don't get stuck: power -> refinery -> barracks -> factory -> radar
+      const powerMargin = (e.powerProd || 0) - (e.powerUse || 0);
       if (!hasPow) { aiTryStartBuild("power"); return true; }
       if (!hasRef) { aiTryStartBuild("refinery"); return true; }
-      if (underPower) { aiTryStartBuild("power"); return true; }
+      if (underPower || powerMargin < 6) { aiTryStartBuild("power"); return true; }
       if (!hasBar) { aiTryStartBuild("barracks"); return true; }
       if (!hasFac) { aiTryStartBuild("factory"); return true; }
       if (!hasRad && e.money > COST.radar * 0.25) { aiTryStartBuild("radar"); return true; }
@@ -407,13 +408,13 @@
       const hasRad = aiEnemyHas("radar");
       if (!hasRad) return false;
 
-      const wantTur = (state.t < 240) ? 1 : 2; // keep low: avoid turret spam
+      const wantTur = (state.t < 240) ? 2 : 4;
       const threat = aiThreatNearBase();
-      if (threat < 3) return false;
+      if (threat < 2 && tur >= 1) return false;
       if (tur >= wantTur) return false;
 
       // Start building a turret when money buffer exists.
-      if (e.money > 900) return aiTryStartBuild("turret");
+      if (e.money > 700) return aiTryStartBuild("turret");
       return false;
     }
 
