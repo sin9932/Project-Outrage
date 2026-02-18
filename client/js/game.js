@@ -1674,53 +1674,7 @@ function getBaseBuildTime(kind){
     ctx.drawImage(srcImg, ssx, ssy, sw, sh, dx + odx, dy + ody, sw*scale, sh*scale);
     return true;
   }
-
-  function drawLiteTankSprite(u, p){
-    if (!LITE_TANK.ok) return false;
-    const specScale = (window.G && G.Units && typeof G.Units.getSpec==="function") ? (G.Units.getSpec("tank")?.spriteScale ?? 1) : 1;
-    const s = (cam.zoom || 1) * LITE_TANK_BASE_SCALE * specScale;
-    const bodyName = _tankBodyFrameName(u);
-    const muzzleName = _tankMuzzleFrameName(u);
-
-    // Hull first, turret on top
-    const bodyAtlas = (bodyName.indexOf("_mov")>=0) ? LITE_TANK.bodyMov : LITE_TANK.bodyIdle;
-    const muzzleAtlas = (muzzleName.indexOf("_mov")>=0) ? LITE_TANK.muzzleMov : LITE_TANK.muzzleIdle;
-
-    const ok1 = _drawTPFrame(bodyAtlas, bodyName, p.x, p.y, s, u.team);
-    const ok2 = _drawTPFrame(muzzleAtlas, muzzleName, p.x, p.y, s, u.team, LITE_TANK_TURRET_ANCHOR, LITE_TANK_TURRET_NUDGE);
-
-    // If frame lookup failed because of atlas mismatch, try the other atlas.
-    if (!ok1){
-      _drawTPFrame(LITE_TANK.bodyMov, bodyName, p.x, p.y, s, u.team);
-      _drawTPFrame(LITE_TANK.bodyIdle, bodyName, p.x, p.y, s, u.team);
-    }
-    if (!ok2){
-      _drawTPFrame(LITE_TANK.muzzleMov, muzzleName, p.x, p.y, s, u.team, LITE_TANK_TURRET_ANCHOR, LITE_TANK_TURRET_NUDGE);
-      _drawTPFrame(LITE_TANK.muzzleIdle, muzzleName, p.x, p.y, s, u.team, LITE_TANK_TURRET_ANCHOR, LITE_TANK_TURRET_NUDGE);
-    }
-    return true;
-  }
-
-
-  function drawHarvesterSprite(u, p){
-    if (!HARVESTER.ok) return false;
-    const getSpec = (window.G && G.Units && typeof G.Units.getSpec==="function") ? G.Units.getSpec.bind(G.Units) : null;
-    const specScale = getSpec ? (getSpec("harvester")?.spriteScale ?? getSpec("tank")?.spriteScale ?? 1) : 1;
-    const s = (cam.zoom || 1) * HARVESTER_BASE_SCALE * specScale;
-
-    const bodyName = _tankBodyFrameName(u);
-    const atlas = (bodyName.indexOf("_mov")>=0) ? HARVESTER.mov : HARVESTER.idle;
-
-    const ok = _drawTPFrame(atlas, bodyName, p.x, p.y, s, u.team);
-    if (!ok){
-      // atlas mismatch fallback
-      _drawTPFrame(HARVESTER.mov, bodyName, p.x, p.y, s, u.team);
-      _drawTPFrame(HARVESTER.idle, bodyName, p.x, p.y, s, u.team);
-    }
-    return true;
-  }
-
-  // Kick off lite tank atlas loads early (non-blocking)
+// Kick off lite tank atlas loads early (non-blocking)
   ;(async()=>{
     try{
       const [bodyIdle, bodyMov, muzzleIdle, muzzleMov] = await Promise.all([
@@ -9374,11 +9328,6 @@ function showUnitPathFx(u){ /* disabled */ }
 
 
 
-const spriteDraw = {
-  drawLiteTankSprite,
-  drawHarvesterSprite,
-};
-
 function draw(){
     if (window.OURender && typeof window.OURender.draw === "function"){
       window.OURender.draw({
@@ -9440,7 +9389,16 @@ function draw(){
         SNIP_TEAM_SHEET_MOV_SW,
         SNIP_TEAM_SHEET_MOV_S,
         SNIP_TEAM_SHEET_MOV_SE,
-        spriteDraw,
+        LITE_TANK,
+        HARVESTER,
+        LITE_TANK_BASE_SCALE,
+        HARVESTER_BASE_SCALE,
+        LITE_TANK_TURRET_ANCHOR,
+        LITE_TANK_TURRET_NUDGE,
+        drawTPFrame: _drawTPFrame,
+        tankBodyFrameName: _tankBodyFrameName,
+        tankMuzzleFrameName: _tankMuzzleFrameName,
+        getUnitSpec: (kind)=> (window.G && G.Units && typeof G.Units.getSpec==="function") ? G.Units.getSpec(kind) : null,
         drawBuildingSprite,
         worldVecToDir8,
         isUnderPower, clamp,
@@ -10363,6 +10321,9 @@ window.unboardIFV = tryUnloadIFV;
 window.resolveUnitOverlaps = resolveUnitOverlaps;
 
 })();
+
+
+
 
 
 

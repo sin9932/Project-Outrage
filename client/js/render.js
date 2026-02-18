@@ -225,6 +225,9 @@
   let SNIP_TEAM_SHEET, SNIP_TEAM_SHEET_MOV, SNIP_TEAM_SHEET_MOV_NE, SNIP_TEAM_SHEET_MOV_N, SNIP_TEAM_SHEET_MOV_NW;
   let SNIP_TEAM_SHEET_MOV_W, SNIP_TEAM_SHEET_MOV_SW, SNIP_TEAM_SHEET_MOV_S, SNIP_TEAM_SHEET_MOV_SE;
   let INF_IDLE_ATLAS;
+  let LITE_TANK, HARVESTER, LITE_TANK_BASE_SCALE, HARVESTER_BASE_SCALE;
+  let LITE_TANK_TURRET_ANCHOR, LITE_TANK_TURRET_NUDGE;
+  let drawTPFrame, tankBodyFrameName, tankMuzzleFrameName, getUnitSpec;
 
   function bindEnv(env){
     canvas = env.canvas; ctx = env.ctx; cam = env.cam; state = env.state;
@@ -261,6 +264,16 @@
     SNIP_TEAM_SHEET_MOV_NW = env.SNIP_TEAM_SHEET_MOV_NW; SNIP_TEAM_SHEET_MOV_W = env.SNIP_TEAM_SHEET_MOV_W; SNIP_TEAM_SHEET_MOV_SW = env.SNIP_TEAM_SHEET_MOV_SW;
     SNIP_TEAM_SHEET_MOV_S = env.SNIP_TEAM_SHEET_MOV_S; SNIP_TEAM_SHEET_MOV_SE = env.SNIP_TEAM_SHEET_MOV_SE;
     INF_IDLE_ATLAS = env.INF_IDLE_ATLAS;
+    LITE_TANK = env.LITE_TANK;
+    HARVESTER = env.HARVESTER;
+    LITE_TANK_BASE_SCALE = env.LITE_TANK_BASE_SCALE;
+    HARVESTER_BASE_SCALE = env.HARVESTER_BASE_SCALE;
+    LITE_TANK_TURRET_ANCHOR = env.LITE_TANK_TURRET_ANCHOR;
+    LITE_TANK_TURRET_NUDGE = env.LITE_TANK_TURRET_NUDGE;
+    drawTPFrame = env.drawTPFrame;
+    tankBodyFrameName = env.tankBodyFrameName;
+    tankMuzzleFrameName = env.tankMuzzleFrameName;
+    getUnitSpec = env.getUnitSpec;
   }
 
   function getSnipDieTeamSheet(teamId){
@@ -620,6 +633,50 @@
     else if (dir===6) return drawSniperMoveSheet(ctx, px, py, alpha, teamId, t, SNIP_MOV_S_IMG,  SNIP_TEAM_SHEET_MOV_S,  6);
     else if (dir===7) return drawSniperMoveSheet(ctx, px, py, alpha, teamId, t, SNIP_MOV_SE_IMG, SNIP_TEAM_SHEET_MOV_SE, 7);
     return drawSniperSprite(ctx, px, py, dir, alpha, teamId);
+  }
+
+  function drawLiteTankSprite(u, p){
+    if (!LITE_TANK || !LITE_TANK.ok) return false;
+    if (typeof drawTPFrame !== "function" || typeof tankBodyFrameName !== "function" || typeof tankMuzzleFrameName !== "function") return false;
+    const spec = (typeof getUnitSpec === "function") ? getUnitSpec("tank") : null;
+    const specScale = (spec && spec.spriteScale != null) ? spec.spriteScale : 1;
+    const s = (cam.zoom || 1) * (LITE_TANK_BASE_SCALE || 1) * specScale;
+    const bodyName = tankBodyFrameName(u);
+    const muzzleName = tankMuzzleFrameName(u);
+
+    const bodyAtlas = (bodyName.indexOf("_mov")>=0) ? LITE_TANK.bodyMov : LITE_TANK.bodyIdle;
+    const muzzleAtlas = (muzzleName.indexOf("_mov")>=0) ? LITE_TANK.muzzleMov : LITE_TANK.muzzleIdle;
+
+    const ok1 = drawTPFrame(bodyAtlas, bodyName, p.x, p.y, s, u.team);
+    const ok2 = drawTPFrame(muzzleAtlas, muzzleName, p.x, p.y, s, u.team, LITE_TANK_TURRET_ANCHOR, LITE_TANK_TURRET_NUDGE);
+
+    if (!ok1){
+      drawTPFrame(LITE_TANK.bodyMov, bodyName, p.x, p.y, s, u.team);
+      drawTPFrame(LITE_TANK.bodyIdle, bodyName, p.x, p.y, s, u.team);
+    }
+    if (!ok2){
+      drawTPFrame(LITE_TANK.muzzleMov, muzzleName, p.x, p.y, s, u.team, LITE_TANK_TURRET_ANCHOR, LITE_TANK_TURRET_NUDGE);
+      drawTPFrame(LITE_TANK.muzzleIdle, muzzleName, p.x, p.y, s, u.team, LITE_TANK_TURRET_ANCHOR, LITE_TANK_TURRET_NUDGE);
+    }
+    return true;
+  }
+
+  function drawHarvesterSprite(u, p){
+    if (!HARVESTER || !HARVESTER.ok) return false;
+    if (typeof drawTPFrame !== "function" || typeof tankBodyFrameName !== "function") return false;
+    const spec = (typeof getUnitSpec === "function") ? (getUnitSpec("harvester") || getUnitSpec("tank")) : null;
+    const specScale = (spec && spec.spriteScale != null) ? spec.spriteScale : 1;
+    const s = (cam.zoom || 1) * (HARVESTER_BASE_SCALE || 1) * specScale;
+
+    const bodyName = tankBodyFrameName(u);
+    const atlas = (bodyName.indexOf("_mov")>=0) ? HARVESTER.mov : HARVESTER.idle;
+
+    const ok = drawTPFrame(atlas, bodyName, p.x, p.y, s, u.team);
+    if (!ok){
+      drawTPFrame(HARVESTER.mov, bodyName, p.x, p.y, s, u.team);
+      drawTPFrame(HARVESTER.idle, bodyName, p.x, p.y, s, u.team);
+    }
+    return true;
   }
 
   function drawIsoTile(tx,ty,type){
@@ -1603,7 +1660,6 @@
       snapHoverToTileOrigin, buildingWorldFromTileOrigin, inBuildRadius, isBlockedFootprint, footprintBlockedMask,
       updateInfDeathFx, updateSnipDeathFx,
       rectFromDrag, refreshPrimaryBuildingBadgesUI,
-      spriteDraw,
       drawBuildingSprite,
       worldVecToDir8,
       isUnderPower, clamp,
@@ -1810,12 +1866,10 @@
         }
         if (!isInf){
           let drewSprite = false;
-          if (spriteDraw){
-            if (ent.kind==="tank"){
-              drewSprite = spriteDraw.drawLiteTankSprite(ent, p);
-            } else if (ent.kind==="harvester"){
-              drewSprite = spriteDraw.drawHarvesterSprite(ent, p);
-            }
+          if (ent.kind==="tank"){
+            drewSprite = drawLiteTankSprite(ent, p);
+          } else if (ent.kind==="harvester"){
+            drewSprite = drawHarvesterSprite(ent, p);
           }
           if (!drewSprite){
             ctx.fillStyle=c;
