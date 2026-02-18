@@ -1156,6 +1156,10 @@ function getBaseBuildTime(kind){
   const INF_MOV_SE_IMG = new Image();
   INF_MOV_SE_IMG.src = INF_MOV_SE_PNG;
 
+  // EXP1 asset urls (render.js loads/parses)
+  const EXP1_PNG  = ASSET.sprite.eff.exp1.png;
+  const EXP1_JSON = ASSET.sprite.eff.exp1.json;
+
   // === Team palette swap (magenta -> team color) ===
   // Recolors magenta-ish pixels in the infantry sheet into the team's color.
   // Performance: builds one recolored cached sheet per team (draw-time stays fast).
@@ -8626,6 +8630,7 @@ function draw(){
         snapHoverToTileOrigin, buildingWorldFromTileOrigin, inBuildRadius, isBlockedFootprint, footprintBlockedMask,
         rectFromDrag, refreshPrimaryBuildingBadgesUI,
         exp1Fxs,
+        EXP1_PNG, EXP1_JSON,
         smokeWaves, smokePuffs, dustPuffs, dmgSmokePuffs, bloodStains, bloodPuffs,
         explosions,
         INF_DIE_IMG,

@@ -280,14 +280,15 @@
   let INF_IDLE_ATLAS;
   // === Large explosion FX (exp1) atlas (json + png) ===
   const ASSET_REF = (typeof window !== "undefined" && window.ASSET) ? window.ASSET : null;
-  const EXP1_PNG  = (ASSET_REF && ASSET_REF.sprite && ASSET_REF.sprite.eff && ASSET_REF.sprite.eff.exp1)
+  let EXP1_PNG  = (ASSET_REF && ASSET_REF.sprite && ASSET_REF.sprite.eff && ASSET_REF.sprite.eff.exp1)
     ? ASSET_REF.sprite.eff.exp1.png
     : "";
-  const EXP1_JSON = (ASSET_REF && ASSET_REF.sprite && ASSET_REF.sprite.eff && ASSET_REF.sprite.eff.exp1)
+  let EXP1_JSON = (ASSET_REF && ASSET_REF.sprite && ASSET_REF.sprite.eff && ASSET_REF.sprite.eff.exp1)
     ? ASSET_REF.sprite.eff.exp1.json
     : "";
   const EXP1_IMG = new Image();
   if (EXP1_PNG) EXP1_IMG.src = EXP1_PNG;
+  let _exp1Loading = false;
 
   // Parsed frames: [{x,y,w,h}]
   let EXP1_FRAMES = null;
@@ -584,9 +585,11 @@
   }
 
   // Kick off exp1 atlas load early (non-blocking)
-  ;(async()=>{
+  async function _initExp1IfNeeded(){
+    if (_exp1Loading || (EXP1_FRAMES && EXP1_FRAMES.length)) return;
+    if (!EXP1_JSON) return;
+    _exp1Loading = true;
     try{
-      if (!EXP1_JSON) return;
       const r = await fetch(EXP1_JSON, {cache:"no-store"});
       if (!r.ok) throw new Error("HTTP "+r.status);
       const j = await r.json();
@@ -599,8 +602,10 @@
     }catch(e){
       console.warn("[EXP1] load failed:", e);
       EXP1_FRAMES = null;
+    }finally{
+      _exp1Loading = false;
     }
-  })();
+  }
 
   // Expose team palette helpers for other modules (e.g. buildings.js)
   try{
@@ -633,6 +638,14 @@
     clamp = env.clamp; getEntityById = env.getEntityById;
     REPAIR_WRENCH_IMG = env.REPAIR_WRENCH_IMG; repairWrenches = env.repairWrenches || [];
     exp1Fxs = env.exp1Fxs || [];
+    if (env.EXP1_PNG && !EXP1_PNG){
+      EXP1_PNG = env.EXP1_PNG;
+      EXP1_IMG.src = EXP1_PNG;
+    }
+    if (env.EXP1_JSON && !EXP1_JSON){
+      EXP1_JSON = env.EXP1_JSON;
+    }
+    _initExp1IfNeeded();
     smokeWaves = env.smokeWaves || []; smokePuffs = env.smokePuffs || [];
     dustPuffs = env.dustPuffs || []; dmgSmokePuffs = env.dmgSmokePuffs || [];
     bloodStains = env.bloodStains || []; bloodPuffs = env.bloodPuffs || [];
