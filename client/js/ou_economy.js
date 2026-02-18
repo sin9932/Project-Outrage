@@ -303,7 +303,7 @@
           // 즉, 속도(진행률)는 1 / MULTIPLE_FACTORY^(sameCount-1)
           const mf = Math.min(20, sameCount); // 안전 상한
           const multiSpeed = 1 / Math.pow(MULTIPLE_FACTORY, (mf - 1));
-          let speed = pf * multiSpeed * GAME_SPEED * BUILD_PROD_MULT * ((b.team===TEAM.ENEMY)?ENEMY_PROD_SPEED:1) * (isUnderPower(b.team)?0.5:1);
+          let speed = pf * multiSpeed * GAME_SPEED * BUILD_PROD_MULT * ((b.team===TEAM.ENEMY)?ENEMY_PROD_SPEED:1);
           // v139: HQ(메인건물) 건설 속도 더 상향
           if (b.kind==="hq") speed *= 3;
 
@@ -349,7 +349,7 @@
 
           // If we can't afford progress now, force-pause. Must be resumed manually via left-click.
           if (delta <= 0){
-            if (debugFast) return;
+            if (debugFastProd) return;
             // FIX: '대기 (자금 부족)'가 자금 충분한데도 뜨는 케이스가 있었음.
             // 원인: speed=0(일시정지/전력/기타)로 want=0인데도 "자금 부족" 경로로 들어가던 문제.
             // - want<=0이면 그냥 진행이 없는 상태이므로 자동자금대기 처리하지 않는다.
@@ -357,7 +357,7 @@
             if (want <= 0){
               continue;
             }
-            if (payRate>0 && (state.player.money / payRate) <= 0){
+            if (payRate>0 && (teamWallet.money / payRate) <= 0){
               q.paused = true;
               q.autoPaused = true;
               if (!q._autoToast && b.team===TEAM.PLAYER){ q._autoToast=true; toast("대기"); }
