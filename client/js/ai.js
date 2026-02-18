@@ -446,6 +446,10 @@
       const countQueued = (q, kind) => q.reduce((n, it) => n + (it && it.kind === kind ? 1 : 0), 0);
 
       if (bar) {
+        if (!playerHasInf && bar.buildQ && bar.buildQ.length) {
+          // If no player infantry, cancel queued snipers.
+          bar.buildQ = bar.buildQ.filter(it => it && it.kind !== "sniper");
+        }
         const queuedInf = countQueued(bar.buildQ, "infantry");
         const queuedEng = countQueued(bar.buildQ, "engineer");
         const queuedSnp = countQueued(bar.buildQ, "sniper");
