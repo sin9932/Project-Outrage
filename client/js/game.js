@@ -5186,10 +5186,6 @@ function addBloodBurst(wx, wy, size=1){
     });
   }
 }
-  ctx.restore();
-}
-  ctx.restore();
-}
 
 function updateBlood(dt){
   // Stains
