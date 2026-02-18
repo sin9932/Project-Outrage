@@ -4528,6 +4528,16 @@ const __ou_econ = (window.OUEconomy && typeof window.OUEconomy.create==="functio
 
 if (!__ou_econ) console.warn("[ou_economy] missing: include js/ou_economy.js before game.js");
 
+// Simulation module hookup (sim.js)
+const __ou_sim = (window.OUSim && typeof window.OUSim.create==="function")
+  ? window.OUSim.create({
+      tickUnits,
+      tickTurrets,
+      tickBullets
+    })
+  : null;
+if (!__ou_sim) console.warn("[ou_sim] missing: include js/sim.js before game.js");
+
 // Progress accessors (calculation in ou_economy; UI draws only)
 state.getBuildProgress = function(kind, laneKey){
   return (__ou_econ && __ou_econ.getBuildProgress) ? __ou_econ.getBuildProgress(kind, laneKey) : null;
@@ -8992,9 +9002,13 @@ function sanityCheck(){
           console.log(`[money] build:${dBuild.toFixed(2)} prod:${dProd.toFixed(2)} repair:${dRep.toFixed(2)} t=${state.t.toFixed(2)} money=${(state.player.money||0).toFixed(2)}`);
         }
       }
-      tickUnits(dt);
-      tickTurrets(dt);
-      tickBullets(dt);
+      if (__ou_sim && typeof __ou_sim.tickSim === "function"){
+        __ou_sim.tickSim(dt);
+      } else {
+        tickUnits(dt);
+        tickTurrets(dt);
+        tickBullets(dt);
+      }
 
       for (let i=units.length-1;i>=0;i--) if (!units[i].alive) units.splice(i,1);
       for (let i=buildings.length-1;i>=0;i--) if (!buildings[i].alive) buildings.splice(i,1);
