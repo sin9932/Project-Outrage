@@ -778,7 +778,9 @@ function getBaseBuildTime(kind){
     infantry:"보병", engineer:"엔지니어", sniper:"저격병", tank:"경전차", ifv:"IFV", harvester:"굴착기"
   };
 
-  const NAME_KO = (window.G && window.G.Units && window.G.Units.NAME_KO) ? window.G.Units.NAME_KO : DEFAULT_NAME_KO;
+  const _extNames = (window.G && window.G.Units && window.G.Units.NAME_KO) ? window.G.Units.NAME_KO : null;
+  const NAME_KO = Object.assign({}, DEFAULT_NAME_KO, _extNames || {});
+  if (NAME_KO.tank !== "경전차") NAME_KO.tank = "경전차";
 
 
   // === Centralized assets (refactor) ===
