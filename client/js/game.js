@@ -2,6 +2,8 @@
   // Debug/validation mode: add ?debug=1 to URL
   const DEV_VALIDATE = /(?:\?|&)debug=1(?:&|$)/.test(location.search);
   const DEV_VALIDATE_THROW = false; // if true, throws on first invariant failure
+  // Money drain tracing: add ?debugmoney=1 to URL
+  const DEBUG_MONEY = /(?:\?|&)debugmoney=1(?:&|$)/.test(location.search);
 
   function _assert(cond, msg){
     if (cond) return;
@@ -12840,7 +12842,13 @@ function sanityCheck(){
       clampCamera();
 
       feedProducers();
+
+      let _m0 = 0, _m1 = 0, _m2 = 0, _m3 = 0;
+      if (DEBUG_MONEY && state && state.player) _m0 = state.player.money || 0;
+
       tickSidebarBuild(dt);
+
+      if (DEBUG_MONEY && state && state.player) _m1 = state.player.money || 0;
       tickEnemySidebarBuild(dt);
 
       // UI: sidebar buttons + overlays are handled in ou_ui.js
@@ -12863,7 +12871,18 @@ function sanityCheck(){
 
       updateVision();
       tickProduction(dt);
+      if (DEBUG_MONEY && state && state.player) _m2 = state.player.money || 0;
       tickRepairs(dt);
+      if (DEBUG_MONEY && state && state.player) _m3 = state.player.money || 0;
+
+      if (DEBUG_MONEY && state && state.player){
+        const dBuild = _m1 - _m0;
+        const dProd  = _m2 - _m1;
+        const dRep   = _m3 - _m2;
+        if (dBuild < 0 || dProd < 0 || dRep < 0){
+          console.log(`[money] build:${dBuild.toFixed(2)} prod:${dProd.toFixed(2)} repair:${dRep.toFixed(2)} t=${state.t.toFixed(2)} money=${(state.player.money||0).toFixed(2)}`);
+        }
+      }
       tickCivOreGen(dt);
       tickUnits(dt);
       tickTurrets(dt);
