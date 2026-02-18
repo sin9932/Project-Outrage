@@ -750,6 +750,35 @@ function drawSnipDeathFxOne(fx){
   ctx.drawImage(sheet, rd.sx, rd.sy, rd.sw, rd.sh, x, y, rd.sw*s, rd.sh*s);
   ctx.restore();
 }
+function drawInfDeathFxOne(fx){
+  const baseImg = INF_DIE_IMG;
+  if (!baseImg || !baseImg.complete || baseImg.naturalWidth<=0) return;
+
+  const rd = fx._rd;
+  if (!rd) return;
+
+  // Palette swap (magenta -> team color), cached per team
+  const sheet = buildInfTeamSheet(baseImg, INF_TEAM_SHEET_DIE, fx.team) || baseImg;
+
+  const p = worldToScreen(fx.x, fx.y);
+  const z = cam.zoom||1;
+
+  // Draw near ground plane (corpse). Match infantry render scale so it doesn't look huge.
+  const x = p.x;
+  const y = p.y - 18*z;
+
+  const sc = INF_SPRITE_SCALE * 1.9 * z; // death FX size (slightly reduced)
+  const dw = rd.sw * sc;
+  const dh = rd.sh * sc;
+
+  ctx.save();
+  ctx.globalAlpha = rd.alpha;
+  const dx = Math.round(x - dw/2);
+  const dy = Math.round(y - dh/2);
+  ctx.drawImage(sheet, rd.sx, rd.sy, rd.sw, rd.sh, dx, dy, dw, dh);
+  ctx.restore();
+}
+
 
   const COST = {
     power:600, refinery:2000, barracks:500, factory:2000, radar:1000, turret:500,
