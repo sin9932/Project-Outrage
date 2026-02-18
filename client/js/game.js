@@ -1842,41 +1842,6 @@ function getBaseBuildTime(kind){
     }
   }
 
-  function drawExp1Fxs(ctx){
-    if (!exp1Fxs.length) return;
-    if (!EXP1_FRAMES || !EXP1_FRAMES.length) return;
-    if (!EXP1_IMG || !EXP1_IMG.complete) return;
-
-    const z = (typeof cam !== "undefined" && cam && typeof cam.zoom==="number") ? cam.zoom : 1;
-
-    ctx.save();
-    ctx.globalCompositeOperation = "lighter";
-    ctx.globalAlpha = 1;
-
-    for (const fx of exp1Fxs){
-      const age = state.t - fx.t0;
-      const fi = Math.floor(age / Math.max(0.001, fx.frameDur));
-      if (fi < 0 || fi >= EXP1_FRAMES.length) continue;
-
-      const fr = EXP1_FRAMES[fi];
-      const p = worldToScreen(fx.x, fx.y);
-
-      const dw = (fr.sw ?? fr.w) * fx.scale * z;
-      const dh = (fr.sh ?? fr.h) * fx.scale * z;
-
-      // Anchor: pivoted (tunable) at (fx.x, fx.y) == "바닥 정중앙"
-      const dx = p.x - dw * EXP1_PIVOT_X;
-      const dy = p.y - dh * EXP1_PIVOT_Y + (EXP1_Y_OFFSET * z);
-
-      // Trim-aware placement:
-      const ox = (fr.ox ?? 0) * fx.scale * z;
-      const oy = (fr.oy ?? 0) * fx.scale * z;
-      const fw = fr.w * fx.scale * z;
-      const fh = fr.h * fx.scale * z;
-
-      ctx.drawImage(EXP1_IMG, fr.x, fr.y, fr.w, fr.h, dx + ox, dy + oy, fw, fh);
-    }
-
     ctx.restore();
   }
 
@@ -5177,67 +5142,6 @@ function updateSmoke(dt){
   }
 }
 
-function drawSmokeWaves(ctx){
-  if (!smokeWaves.length) return;
-  const z = (typeof cam !== "undefined" && cam && typeof cam.zoom==="number") ? cam.zoom : 1;
-
-  // deterministic-ish per-wave rand
-  const pr = (seed, n)=>{
-    const x = Math.sin((seed + n) * 12.9898) * 43758.5453;
-    return x - Math.floor(x);
-  };
-
-  for (const w of smokeWaves){
-    const p = worldToScreen(w.x, w.y);
-    const t = clamp(w.t / Math.max(0.001, w.ttl), 0, 1);
-    const ease = 1 - Math.pow(1 - t, 4); // fast -> slow
-
-    // 너무 커지지 않게(건물 크기 대비)
-    const R0 = (TILE * 0.10) * z;
-    const R1 = (TILE * 1.05 * w.size) * z;
-    const R  = R0 + (R1 - R0) * ease;
-
-    // "잔류연기처럼" 흐릿: 라인X, 그라데이션 필
-    const aBase = 0.32 * Math.pow(1 - t, 0.60);
-
-    const squash = (w.squash ?? 0.62);
-    const th = (TILE * 0.34 * w.size) * z; // 부드러운 두께
-
-    ctx.save();
-    ctx.globalCompositeOperation = "source-over";
-
-    // ellipse gradient: scale Y so radial gradient becomes flattened in screen space
-    ctx.translate(p.x, p.y);
-    ctx.scale(1, squash);
-
-    // 3겹 연무 레이어(살짝 흔들리는)
-    for (let k=0;k<3;k++){
-      const jx = (pr(w.seed, 10+k)-0.5) * (TILE * 0.09 * w.size) * z;
-      const jy = (pr(w.seed, 20+k)-0.5) * (TILE * 0.09 * w.size) * z;
-      const rr = 1 + (pr(w.seed, 30+k)-0.5) * 0.07;
-
-      const a = aBase * (0.66 - k*0.16);
-
-      // 깨끗한 라인 방지용 블러
-      ctx.shadowColor = "rgba(0,0,0,0.22)";
-      ctx.shadowBlur  = 28 * z;
-
-      const inner = Math.max(0, (R*rr) - th*0.55);
-      const outer = (R*rr) + th*1.45;
-
-      const g = ctx.createRadialGradient(jx, jy, inner, jx, jy, outer);
-      g.addColorStop(0.00, "rgba(0,0,0,0)");
-      g.addColorStop(0.42, `rgba(110,110,110,${a*0.10})`);
-      g.addColorStop(0.60, `rgba(85,85,85,${a*0.22})`);
-      g.addColorStop(0.80, `rgba(70,70,70,${a*0.18})`);
-      g.addColorStop(1.00, "rgba(0,0,0,0)");
-
-      ctx.fillStyle = g;
-      ctx.beginPath();
-      ctx.arc(jx, jy, outer, 0, Math.PI*2);
-      ctx.fill();
-    }
-
     // 링 가장자리의 옅은 연무 덩이(연기 느낌)
     ctx.shadowBlur = 18 * z;
     for (let i=0;i<12;i++){
@@ -5264,36 +5168,6 @@ function drawSmokeWaves(ctx){
     ctx.restore();
   }
 }
-
-  function drawSmokePuffs(ctx){
-    if (!smokePuffs.length) return;
-    const z = (typeof cam !== "undefined" && cam && typeof cam.zoom==="number") ? cam.zoom : 1;
-
-    for (const s of smokePuffs){
-      const p = worldToScreen(s.x, s.y);
-      const t = clamp(s.t / Math.max(0.001, s.ttl), 0, 1);
-
-      const r = (s.r0 + s.grow * t) * z;
-
-      // fade out slowly
-      const a = s.a0 * Math.pow(1 - t, 0.65);
-
-      ctx.save();
-      ctx.globalCompositeOperation = "source-over";
-      ctx.globalAlpha = a;
-
-      const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, r);
-      g.addColorStop(0.0, "rgba(220,220,220,0.22)");
-      g.addColorStop(0.35, "rgba(130,130,130,0.20)");
-      g.addColorStop(1.0, "rgba(50,50,50,0.0)");
-      ctx.fillStyle = g;
-
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, r, 0, Math.PI*2);
-      ctx.fill();
-
-      ctx.restore();
-    }
   }
 
 
@@ -5345,40 +5219,8 @@ function addBloodBurst(wx, wy, size=1){
     });
   }
 }
-
-
-function drawDustPuffs(ctx){
-  if (!dustPuffs.length) return;
-  const z = (typeof cam !== "undefined" && cam && typeof cam.zoom==="number") ? cam.zoom : 1;
-  ctx.save();
-  for (const p of dustPuffs){
-    const k = p.t / p.ttl;
-    const a = (1-k) * p.a0;
-    const r = (p.r0 + p.grow*k) * z;
-    const s = worldToScreen(p.x, p.y);
-    // sandy haze
-    ctx.fillStyle = `rgba(220, 205, 175, ${a})`;
-    ctx.beginPath();
-    ctx.ellipse(s.x, s.y, r*1.45, r*1.00, 0, 0, Math.PI*2);
-    ctx.fill();
-  }
   ctx.restore();
 }
-
-function drawDmgSmokePuffs(ctx){
-  if (!dmgSmokePuffs.length) return;
-  const z = (typeof cam !== "undefined" && cam && typeof cam.zoom==="number") ? cam.zoom : 1;
-  ctx.save();
-  for (const p of dmgSmokePuffs){
-    const k = p.t / p.ttl;
-    const a = (1-k) * p.a0;
-    const r = (p.r0 + p.grow*k) * z;
-    const s = worldToScreen(p.x, p.y);
-    ctx.fillStyle = `rgba(160, 160, 160, ${a})`;
-    ctx.beginPath();
-    ctx.ellipse(s.x, s.y, r*1.05, r*0.95, 0, 0, Math.PI*2);
-    ctx.fill();
-  }
   ctx.restore();
 }
 
@@ -5409,36 +5251,6 @@ function updateBlood(dt){
     p.vrise *= Math.pow(0.94, dt*60);
   }
 }
-
-function drawBlood(ctx){
-  const z = (typeof cam !== "undefined" && cam && typeof cam.zoom==="number") ? cam.zoom : 1;
-
-  // 1) ground stains (very subtle, long lasting)
-  for (const s of bloodStains){
-    const p = worldToScreen(s.x, s.y);
-    const t = clamp(s.t / Math.max(0.001, s.ttl), 0, 1);
-    const a = s.a0 * Math.pow(1 - t, 0.55);
-    const r = (s.r0 + s.grow * t) * z;
-
-    ctx.save();
-    ctx.globalCompositeOperation = "source-over";
-    ctx.globalAlpha = a;
-
-    ctx.translate(p.x, p.y);
-    ctx.scale(1, s.squash ?? 0.58);
-
-    const g = ctx.createRadialGradient(0, 0, 0, 0, 0, r);
-    // darker center, softer edge
-    g.addColorStop(0.0, "rgba(80, 0, 0, 0.55)");
-    g.addColorStop(0.35, "rgba(60, 0, 0, 0.35)");
-    g.addColorStop(1.0, "rgba(0, 0, 0, 0.0)");
-    ctx.fillStyle = g;
-
-    ctx.beginPath();
-    ctx.arc(0, 0, r, 0, Math.PI*2);
-    ctx.fill();
-    ctx.restore();
-  }
 
   // 2) mist/droplets (short-lived)
   for (const b of bloodPuffs){
@@ -5579,86 +5391,6 @@ function drawBlood(ctx){
       }
     }
   }
-
-  function drawExplosions(ctx){
-    if (!explosions.length) return;
-    const z = (typeof cam !== "undefined" && cam && typeof cam.zoom==="number") ? cam.zoom : 1;
-
-    for (const e of explosions){
-      const p = worldToScreen(e.x, e.y);
-      const k = clamp(1 - (e.t / Math.max(0.001, e.ttl)), 0, 1);
-
-      // Big ground glow (additive)
-      ctx.save();
-      ctx.globalCompositeOperation = "lighter";
-      ctx.globalAlpha = 0.95 * Math.pow(k, 0.55);
-      const R = (TILE*2.60*e.size) * z;
-      const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, R);
-      g.addColorStop(0.0, "rgba(255,255,235,0.92)");
-      g.addColorStop(0.28, "rgba(255,220,120,0.70)");
-      g.addColorStop(0.62, "rgba(255,170,70,0.28)");
-      g.addColorStop(1.0, "rgba(255,140,50,0.0)");
-      ctx.fillStyle = g;
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, R, 0, Math.PI*2);
-      ctx.fill();
-
-      // Central flash
-      ctx.globalAlpha = 0.85 * Math.pow(k, 0.35);
-      const R2 = (TILE*1.25*e.size) * z; // HUGE central flash
-      const g2 = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, R2);
-      g2.addColorStop(0.0, "rgba(255,255,255,0.95)");
-      g2.addColorStop(0.5, "rgba(255,245,210,0.55)");
-      g2.addColorStop(1.0, "rgba(255,220,140,0.0)");
-      ctx.fillStyle = g2;
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, R2, 0, Math.PI*2);
-      ctx.fill();
-
-      // Particles
-      for (const prt of e.parts){
-        const pp = worldToScreen(prt.x, prt.y);
-        const a = clamp(prt.life / Math.max(0.001, prt.ttl), 0, 1);
-
-        if (prt.kind==="streak"){
-          // thin streak line
-          const len = (TILE*1.40*e.size) * z * (0.7 + (1-a)*1.2);
-          const dx = (prt.vx) * 0.006 * z;
-          const dy = (prt.vy) * 0.006 * z;
-          const norm = Math.hypot(dx,dy) || 1;
-          const ux = dx/norm, uy = dy/norm;
-          ctx.globalAlpha = 0.70 * a;
-          ctx.lineWidth = prt.w * z;
-          ctx.strokeStyle = "rgba(255,230,150,1)";
-          ctx.beginPath();
-          ctx.moveTo(pp.x - ux*len, pp.y - uy*len);
-          ctx.lineTo(pp.x + ux*len*0.15, pp.y + uy*len*0.15);
-          ctx.stroke();
-        } else if (prt.kind==="ember"){
-          const rr = (prt.r * z) * (0.35 + (1-a)*0.25);
-          ctx.globalAlpha = 0.65 * a;
-          const ge = ctx.createRadialGradient(pp.x, pp.y, 0, pp.x, pp.y, rr);
-          ge.addColorStop(0, "rgba(255,255,235,0.9)");
-          ge.addColorStop(0.5, "rgba(255,200,90,0.55)");
-          ge.addColorStop(1, "rgba(255,160,60,0.0)");
-          ctx.fillStyle = ge;
-          ctx.beginPath();
-          ctx.arc(pp.x, pp.y, rr, 0, Math.PI*2);
-          ctx.fill();
-        } else if (prt.kind==="flame"){
-          const lift = (prt.rise * (1-a)) * z * 0.10;
-          const rr = (prt.r * z) * (0.75 + (1-a)*0.55);
-          ctx.globalAlpha = 0.55 * a;
-          const gf = ctx.createRadialGradient(pp.x, pp.y - lift, 0, pp.x, pp.y - lift, rr);
-          gf.addColorStop(0, "rgba(255,255,235,0.85)");
-          gf.addColorStop(0.35, "rgba(255,210,110,0.62)");
-          gf.addColorStop(0.70, "rgba(255,140,60,0.26)");
-          gf.addColorStop(1, "rgba(255,120,40,0.0)");
-          ctx.fillStyle = gf;
-          ctx.beginPath();
-          ctx.arc(pp.x, pp.y - lift, rr, 0, Math.PI*2);
-          ctx.fill();
-        }
       }
 
       ctx.restore();

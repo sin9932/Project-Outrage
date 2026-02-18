@@ -149,9 +149,11 @@
         }
         q.t += delta;
 
-        if (q.t >= tNeed - 1e-6){
+          if (q.t >= tNeed - 1e-6){
           const overPaid = (q.paid||0) - costTotal;
           if (overPaid > 0) state.player.money += overPaid;
+          // snap wallet to integer credits to avoid sub-1 drift
+          state.player.money = Math.round(state.player.money||0);
           q.t = tNeed; q.paid = costTotal;
           lane.ready = q.kind;
           lane.queue = null;
@@ -382,6 +384,8 @@
             // snap to complete (refund any float overpay)
             const overPaid = (q.paid||0) - costTotal;
             if (overPaid > 0) teamWallet.money += overPaid;
+            // snap wallet to integer credits to avoid sub-1 drift
+            teamWallet.money = Math.round(teamWallet.money||0);
             q.t = tNeed;
             q.paid = costTotal;
 
