@@ -2458,7 +2458,20 @@
     
               let tx=u.order.tx, ty=u.order.ty;
               const curOk = inMap(tx,ty) && ore[idx(tx,ty)]>0;
-    
+
+              // If we lost the path to ore, re-pick a valid ore patch.
+              if (!u.path || !u.path.length){
+                const best = findBestOrePatch();
+                if (best){
+                  u.order.tx=best.tx; u.order.ty=best.ty;
+                  setPathTo(u, (best.tx+0.5)*TILE, (best.ty+0.5)*TILE);
+                  u.repathCd=0.25;
+                } else {
+                  u.order.type="idle";
+                }
+                continue;
+              }
+
               if (!curOk){
                 if (u.carry < u.carryMax-1){
                   const n=seekNearbyOre();
