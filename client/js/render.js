@@ -279,7 +279,8 @@
   const HARVESTER_BASE = "asset/sprite/unit/tank/harvester/";
   const LITE_TANK_BASE_SCALE = 0.13;
   const HARVESTER_BASE_SCALE = 0.13;
-  const LITE_TANK_TURRET_ANCHOR = { x: 0.5, y: 0.555 };
+  // Use atlas anchor by default; set this to override if needed.
+  const LITE_TANK_TURRET_ANCHOR = null;
   const LITE_TANK_TURRET_NUDGE  = { x: 0,   y: 0   };
 
   const LITE_TANK = { ok:false, bodyIdle:null, bodyMov:null, muzzleIdle:null, muzzleMov:null };
@@ -786,15 +787,15 @@
     const muzzleAtlas = (muzzleName.indexOf("_mov")>=0) ? LITE_TANK.muzzleMov : LITE_TANK.muzzleIdle;
 
     const ok1 = drawTPFrame(bodyAtlas, bodyName, p.x, p.y, s, u.team);
-    const ok2 = drawTPFrame(muzzleAtlas, muzzleName, p.x, p.y, s, u.team, LITE_TANK_TURRET_ANCHOR, LITE_TANK_TURRET_NUDGE);
+    const ok2 = drawTPFrame(muzzleAtlas, muzzleName, p.x, p.y, s, u.team, LITE_TANK_TURRET_ANCHOR || null, LITE_TANK_TURRET_NUDGE);
 
     if (!ok1){
       drawTPFrame(LITE_TANK.bodyMov, bodyName, p.x, p.y, s, u.team);
       drawTPFrame(LITE_TANK.bodyIdle, bodyName, p.x, p.y, s, u.team);
     }
     if (!ok2){
-      drawTPFrame(LITE_TANK.muzzleMov, muzzleName, p.x, p.y, s, u.team, LITE_TANK_TURRET_ANCHOR, LITE_TANK_TURRET_NUDGE);
-      drawTPFrame(LITE_TANK.muzzleIdle, muzzleName, p.x, p.y, s, u.team, LITE_TANK_TURRET_ANCHOR, LITE_TANK_TURRET_NUDGE);
+      drawTPFrame(LITE_TANK.muzzleMov, muzzleName, p.x, p.y, s, u.team, LITE_TANK_TURRET_ANCHOR || null, LITE_TANK_TURRET_NUDGE);
+      drawTPFrame(LITE_TANK.muzzleIdle, muzzleName, p.x, p.y, s, u.team, LITE_TANK_TURRET_ANCHOR || null, LITE_TANK_TURRET_NUDGE);
     }
     return true;
   }
@@ -1279,7 +1280,7 @@
     const p=worldToScreen(b.x,b.y);
     const yy = p.y - (Math.max(b.tw,b.th)*ISO_Y*cam.zoom) - 40;
     const xx = p.x + ISO_X*(b.tw*0.72)*cam.zoom;
-    const text="??????";
+    const text="주요";
     ctx.save();
     ctx.font="bold 12px system-ui";
     ctx.textAlign="left";
