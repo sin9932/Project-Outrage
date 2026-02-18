@@ -835,8 +835,7 @@
 
       ctx.restore();
     }
-
-
+  }
 
   function drawExplosions(ctx){
     if (!explosions.length) return;
