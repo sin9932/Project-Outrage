@@ -679,7 +679,7 @@
 
       // Engineer harassment (value-aware) - keep trying to capture high-value and sell.
       if (engs.length && state.t > 140 && combat.length >= 4) {
-        if (playerDefenseHeavy() || idleIFVs.length > 0) {
+        if (playerDefenseHeavy()) {
           const dp = aiDefendPoint();
           for (const eng of engs) {
             if (eng.inTransport) continue;
@@ -748,11 +748,12 @@
           const pool = combat
             .filter(u => u.kind !== "harvester" && u.kind !== "engineer")
             .filter(u => u.kind !== "sniper")
-            .filter(u => !(u.kind === "ifv" && u.passengerId && u.passKind === "engineer"))
-            .filter(u => !(u.kind === "ifv" && !u.passengerId))
+            // avoid tank trickle-harass; use only IFVs with passengers
+            .filter(u => u.kind === "ifv" && u.passengerId)
+            .filter(u => !(u.kind === "ifv" && u.passKind === "engineer"))
             .filter(u => !squad.includes(u))
-              // Prefer units that are not currently committed to a main-base attack
-              .filter(u => !(ai.mode === "attack" && u.order && u.order.type === "attack"))
+            // Prefer units that are not currently committed to a main-base attack
+            .filter(u => !(ai.mode === "attack" && u.order && u.order.type === "attack"))
               .sort((a, b) => dist2(ai.rally.x, ai.rally.y, a.x, a.y) - dist2(ai.rally.x, ai.rally.y, b.x, b.y));
             while (squad.length < 3 && pool.length) {
               const u = pool.shift();
