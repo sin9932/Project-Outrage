@@ -493,7 +493,7 @@
       const eIFVs = units.filter(u => u.alive && u.team === TEAM.ENEMY && u.kind === "ifv");
       const eInf = units.filter(u => u.alive && u.team === TEAM.ENEMY && (u.kind === "engineer" || u.kind === "sniper") && !u.inTransport && !u.hidden);
 
-      // Boarding logic
+      // Boarding logic (IFV moves to passenger; passenger should not chase IFV)
       for (const inf of eInf) {
         // Find nearest empty IFV
         let best = null, bestD = Infinity;
@@ -639,22 +639,6 @@
             return pr + Math.max(0, c - (COST.engineer || 800)) + (c * 0.1);
           };
           for (const eng of engs) {
-            // Prefer IFV boarding when available (avoid solo engineer rush if IFVs exist).
-            if (idleIFVs.length && !eng.inTransport) {
-              let best = null, bestD = Infinity;
-              for (const ifv of idleIFVs) {
-                const d2 = dist2(eng.x, eng.y, ifv.x, ifv.y);
-                if (d2 < bestD) { bestD = d2; best = ifv; }
-              }
-              if (best) {
-                // Move engineer toward nearest IFV and let aiUseIFVPassengers handle boarding.
-                eng.order = { type: "move", x: best.x, y: best.y, tx: null, ty: null };
-                setPathTo(eng, best.x, best.y);
-                eng.repathCd = 0.25;
-                continue;
-              }
-            }
-
             // Don't suicide into nearby player combat blobs; pull back and wait for escort.
             const pNear = units.filter(u => u.alive && u.team === TEAM.PLAYER && u.kind !== "harvester").some(pu => dist2(eng.x, eng.y, pu.x, pu.y) < 220 * 220);
             if (pNear) {
@@ -783,19 +767,7 @@
         for (const s of snipers) {
           if (s.inTransport) continue;
           const prey = aiPickPlayerInfantry();
-          if (idleIFVs.length) {
-            let best = null, bestD = Infinity;
-            for (const ifv of idleIFVs) {
-              const d2 = dist2(s.x, s.y, ifv.x, ifv.y);
-              if (d2 < bestD) { bestD = d2; best = ifv; }
-            }
-            if (best) {
-              s.order = { type: "move", x: best.x, y: best.y, tx: null, ty: null };
-              setPathTo(s, best.x, best.y);
-              s.repathCd = 0.25;
-              continue;
-            }
-          }
+          // Let IFVs come pick snipers up (do not chase IFVs).
           // No IFV available: target player infantry only (may move near tanks/turrets but doesn't target them).
           if (prey) {
             s.order = { type: "attack", x: s.x, y: s.y, tx: null, ty: null };
