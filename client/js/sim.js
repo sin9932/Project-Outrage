@@ -66,12 +66,9 @@
     const isSqueezedTile = r.isSqueezedTile;
     const clearReservation = r.clearReservation;
     const settleInfantryToSubslot = r.settleInfantryToSubslot;
-    const isHitscanUnit = r.isHitscanUnit;
-    const hitscanShot = r.hitscanShot;
-    const fireTankShell = r.fireTankShell;
-    const fireIFVMissiles = r.fireIFVMissiles;
     const spawnBullet = r.spawnBullet;
-    const spawnMGTracers = r.spawnMGTracers;
+    const spawnMGTracers = r.spawnMGTracers;
+    const spawnSniperTracer = r.spawnSniperTracer;
     const spawnTrace = r.spawnTrace;
     const spawnTrailPuff = r.spawnTrailPuff;
     const spawnDmgSmokePuff = r.spawnDmgSmokePuff;
@@ -1086,6 +1083,74 @@
         if (d2<=r2 && d2<bestD){ best=b; bestD=d2; }
       }
       return best;
+    }
+
+    function isHitscanUnit(u){
+      return !!(u.hitscan || UNIT[u.kind]?.hitscan || (u.kind==="ifv" && u.passKind==="sniper"));
+    }
+
+    function setFacingForShot(shooter, target){
+      if (!shooter || shooter.inTransport) return;
+      if (shooter.kind!=="infantry" && shooter.kind!=="sniper") return;
+      if (!target) return;
+      const dx = (target.x - shooter.x);
+      const dy = (target.y - shooter.y);
+      const fd = worldVecToDir8(dx, dy);
+      shooter.faceDir = fd;
+      shooter.dir = fd;
+      shooter.fireDir = fd;
+      shooter.fireHoldT = Math.max(shooter.fireHoldT||0, 0.40);
+    }
+
+    function hitscanShot(shooter,target){
+      setFacingForShot(shooter, target);
+      if (shooter.kind==="infantry" || (shooter.kind==="ifv" && shooter.passKind==="infantry")){
+        spawnMGTracers(shooter, target);
+      } else if (shooter.kind==="sniper" || (shooter.kind==="ifv" && shooter.passKind==="sniper")){
+        if (spawnSniperTracer) spawnSniperTracer(shooter, target);
+      } else {
+        spawnTrace(shooter.x,shooter.y,target.x,target.y,shooter.team);
+      }
+      let dmg = shooter.dmg;
+      const isInfTarget = (target && !BUILD[target.kind] && (UNIT[target.kind]?.cls==="inf"));
+      if (shooter.kind==="sniper" || (shooter.kind==="ifv" && shooter.passKind==="sniper")){
+        dmg = isInfTarget ? 125 : 1;
+      }
+      applyDamage(target, dmg, shooter.id, shooter.team);
+    }
+
+    function fireTankShell(shooter,target){
+      const dx = target.x - shooter.x, dy = target.y - shooter.y;
+      const d = Math.hypot(dx,dy)||1;
+      const nx = dx/d, ny = dy/d;
+
+      flashes.push({x: shooter.x + nx*18, y: shooter.y + ny*18, r: 26 + Math.random()*12, life: 0.10, delay: 0});
+
+      const mx = shooter.x + nx*16, my = shooter.y + ny*16;
+      spawnTrace(mx, my, mx + nx*26, my + ny*26, shooter.team, { kind:"mg", life: 0.06, delay: 0 });
+
+      spawnBullet(shooter.team, mx, my, target.x, target.y, shooter.dmg, shooter.id, { kind:"shell", dur: 0.12, h: 18, tid: target.id, allowFriendly: !!(shooter.order && shooter.order.allowFriendly) });
+    }
+
+    function fireIFVMissiles(u, t){
+      const dx = t.x - u.x, dy = t.y - u.y;
+      const dist = Math.hypot(dx,dy) || 1;
+      const ang = Math.atan2(dy, dx);
+      const spread = 0.08;
+
+      const sp = 1350;
+      const baseLife = dist / sp;
+      const life = Math.max(0.25, Math.min(2.0, baseLife + 0.18));
+
+      const tid = (t && typeof t.id==="number") ? t.id : null;
+
+      const tx1 = u.x + Math.cos(ang-spread)*dist;
+      const ty1 = u.y + Math.sin(ang-spread)*dist;
+      const tx2 = u.x + Math.cos(ang+spread)*dist;
+      const ty2 = u.y + Math.sin(ang+spread)*dist;
+
+      spawnBullet(u.team, u.x, u.y, tx1, ty1, u.dmg, u.id, { sp, kind:"missile", life, tx:tx1, ty:ty1, tid, aimX:t.x, aimY:t.y });
+      spawnBullet(u.team, u.x, u.y, tx2, ty2, u.dmg, u.id, { sp, kind:"missile", life, tx:tx2, ty:ty2, tid, aimX:t.x, aimY:t.y });
     }
 
     function tickUnits(dt){
