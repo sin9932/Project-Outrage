@@ -154,7 +154,10 @@
     const frame = fr.frame || { x:0, y:0, w:0, h:0 };
     const sss   = fr.spriteSourceSize || { x:0, y:0, w:frame.w, h:frame.h };
     const srcSz = fr.sourceSize || { w: sss.w, h: sss.h };
-    const pv    = fr.pivot || fr.anchor || cfg.forcePivot;
+    // For death frames, force pivot to match idle/build (avoid atlas pivot drift).
+    const pv    = (atlasKey === "death")
+      ? cfg.forcePivot
+      : (fr.pivot || fr.anchor || cfg.forcePivot);
 
     // drawFrame (no rotation support) – your atlases are unrotated
     const dx = x - (pv.x * srcSz.w - sss.x) * scale;
