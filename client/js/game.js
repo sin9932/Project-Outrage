@@ -7375,9 +7375,7 @@ const keys=new Set();
         }
         if (state.mouseMode==="sell"){
           if (t.team!==TEAM.PLAYER){ toast("매각 불가"); return; }
-          sellBuilding(t);
-          toast("매각");
-          updateSelectionUI();
+          enqueueEcon({ type:"sellById", id: t.id });
           return;
         }
       } else {
@@ -8042,6 +8040,15 @@ function applyMouseMode(mode){
         case "sellSelected":
           sellSelectedBuildings();
           break;
+        case "sellById": {
+          const b = getEntityById(a.id);
+          if (b && b.alive && b.team===TEAM.PLAYER && BUILD[b.kind] && !b.civ){
+            sellBuilding(b);
+            toast("매각");
+            updateSelectionUI();
+          }
+          break;
+        }
       }
     }
   }
