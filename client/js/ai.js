@@ -209,6 +209,10 @@
     function aiEnemyCenters() {
       return buildings.filter(b => b.alive && !b.civ && b.team === TEAM.ENEMY && b.provideR > 0);
     }
+    function playerDefenseHeavy() {
+      const tur = buildings.filter(b => b.alive && !b.civ && b.team === TEAM.PLAYER && b.kind === "turret").length;
+      return tur >= 4;
+    }
 
     function aiTryStartBuild(kind) {
       // Only one building build at a time (simple, RA2-ish sidebar)
@@ -524,6 +528,12 @@
 
         // Engineer-IFV: rush high value building and unload to capture
         if (ifv.passKind === "engineer" && targetB) {
+          // If player defenses are heavy, avoid engineer rush until defenses are reduced.
+          if (playerDefenseHeavy()) {
+            ifv.order = { type: "move", x: ai.rally.x, y: ai.rally.y };
+            ifv.target = null;
+            continue;
+          }
           const dock = getClosestPointOnBuilding(targetB, ifv);
           const edgeD2 = dist2PointToRect(ifv.x, ifv.y, targetB.x, targetB.y, targetB.w, targetB.h);
           const dDock = Math.sqrt(dist2(ifv.x, ifv.y, dock.x, dock.y));
@@ -627,6 +637,14 @@
 
       // Engineer harassment (value-aware) - keep trying to capture high-value and sell.
       if (engs.length && state.t > 140 && combat.length >= 4) {
+        if (playerDefenseHeavy()) {
+          for (const eng of engs) {
+            if (eng.inTransport) continue;
+            eng.order = { type: "move", x: ai.rally.x, y: ai.rally.y, tx: null, ty: null };
+            setPathTo(eng, ai.rally.x, ai.rally.y);
+            eng.repathCd = 0.35;
+          }
+        } else {
         const targets = buildings.filter(b => b.alive && !b.civ && b.team === TEAM.PLAYER && b.attackable !== false);
         if (targets.length) {
           const valueOf = (b) => {
@@ -666,6 +684,7 @@
               eng.repathCd = 0.25;
             }
           }
+        }
         }
       }
 
