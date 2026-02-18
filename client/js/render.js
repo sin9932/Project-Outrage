@@ -1859,6 +1859,7 @@
 
   function isPrimaryBuilding(b){
     if (!b || b.team!==TEAM.PLAYER) return false;
+    if (!state || !state.primary || !state.primary.player) return false;
     if (b.kind==="barracks") return state.primary.player.barracks===b.id;
     if (b.kind==="factory")  return state.primary.player.factory===b.id;
     return false;
