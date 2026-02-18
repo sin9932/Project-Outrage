@@ -393,11 +393,13 @@
       const hasRad = aiEnemyHas("radar");
       if (!hasRad) return false;
 
-      const wantTur = (state.t < 240) ? 3 : 6; // more later
+      const wantTur = (state.t < 240) ? 1 : 2; // keep low: avoid turret spam
+      const threat = aiThreatNearBase();
+      if (threat < 3) return false;
       if (tur >= wantTur) return false;
 
       // Start building a turret when money buffer exists.
-      if (e.money > 500) return aiTryStartBuild("turret");
+      if (e.money > 900) return aiTryStartBuild("turret");
       return false;
     }
 
@@ -411,18 +413,39 @@
       const poor = e.money < 250;
       const rich = e.money > 900;
 
+      const playerInf = units.filter(u => u.alive && u.team === TEAM.PLAYER && (UNIT[u.kind] && UNIT[u.kind].cls === "inf") && !u.inTransport && !u.hidden);
+      const playerHasInf = playerInf.length > 0;
+
+      const eEng = units.filter(u => u.alive && u.team === TEAM.ENEMY && u.kind === "engineer");
+      const eSnp = units.filter(u => u.alive && u.team === TEAM.ENEMY && u.kind === "sniper");
+      const eIFV = units.filter(u => u.alive && u.team === TEAM.ENEMY && u.kind === "ifv");
+
+      const countQueued = (q, kind) => q.reduce((n, it) => n + (it && it.kind === kind ? 1 : 0), 0);
+
       if (bar) {
-        const wantInf = poor ? 2 : 5;
-        while (bar.buildQ.length < wantInf) {
+        const queuedInf = countQueued(bar.buildQ, "infantry");
+        const queuedEng = countQueued(bar.buildQ, "engineer");
+        const queuedSnp = countQueued(bar.buildQ, "sniper");
+
+        // If no player infantry on map, stop basic infantry/sniper production and focus vehicles.
+        const wantInf = playerHasInf ? (poor ? 2 : 4) : 0;
+        while (bar.buildQ.length < 6 && queuedInf + (bar.buildQ.filter(it => it.kind === "infantry").length) < wantInf) {
           bar.buildQ.push({ kind: "infantry", t: 0, tNeed: getBaseBuildTime("infantry") / pf, cost: COST.infantry, paid: 0 });
           if (poor) break; // conserve
         }
-        // occasional engineer + sniper (but intended to be IFV-passengers; AI will try to board them)
-        if (!poor && bar.buildQ.length < 6 && Math.random() < 0.08) {
+
+        // Engineers: keep them cycling for IFV capture play.
+        const desiredEng = Math.max(4, Math.min(10, 2 + eIFV.length * 2));
+        if (bar.buildQ.length < 6 && (eEng.length + queuedEng) < desiredEng) {
           bar.buildQ.push({ kind: "engineer", t: 0, tNeed: getBaseBuildTime("engineer") / pf, cost: COST.engineer, paid: 0 });
         }
-        if (!poor && bar.buildQ.length < 6 && fac && Math.random() < 0.08) {
-          bar.buildQ.push({ kind: "sniper", t: 0, tNeed: getBaseBuildTime("sniper") / pf, cost: COST.sniper, paid: 0 });
+
+        // Snipers: only if player infantry exists, cap at 2~3 total.
+        if (playerHasInf && fac && bar.buildQ.length < 6) {
+          const maxSnp = rich ? 3 : 2;
+          if ((eSnp.length + queuedSnp) < maxSnp) {
+            bar.buildQ.push({ kind: "sniper", t: 0, tNeed: getBaseBuildTime("sniper") / pf, cost: COST.sniper, paid: 0 });
+          }
         }
       }
 
@@ -433,20 +456,25 @@
           if (fac.buildQ.length < 1) fac.buildQ.push({ kind: "harvester", t: 0, tNeed: getBaseBuildTime("harvester") / pf, cost: COST.harvester, paid: 0 });
           return;
         }
-        const wantVeh = poor ? 2 : (rich ? 4 : 3);
+        const wantVeh = poor ? 2 : (rich ? 5 : 3);
         // Mix IFV + tanks. Tanks are mainline; IFV is support (passenger carriers / utility).
         while (fac.buildQ.length < wantVeh) {
-          const countIFV = units.filter(u => u.alive && u.team === TEAM.ENEMY && u.kind === "ifv").length;
+          const countIFV = eIFV.length;
           const countTank = units.filter(u => u.alive && u.team === TEAM.ENEMY && u.kind === "tank").length;
-          const desiredIFV = 2 + Math.floor(countTank / 5); // keep a small escort pool
+          const desiredIFV = 3 + Math.floor((eEng.length + eSnp.length) / 2);
           const needIFV = (countIFV < desiredIFV);
 
           // Also bias to tanks in general
           const roll = Math.random();
-          if (needIFV && roll < 0.85) {
+          if (needIFV && roll < 0.92) {
             fac.buildQ.push({ kind: "ifv", t: 0, tNeed: getBaseBuildTime("ifv") / pf, cost: COST.ifv, paid: 0 });
           } else {
-            fac.buildQ.push({ kind: "tank", t: 0, tNeed: getBaseBuildTime("tank") / pf, cost: COST.tank, paid: 0 });
+            // Avoid tank spam: only sprinkle tanks occasionally.
+            if (countTank < Math.max(2, Math.floor(countIFV / 3))) {
+              fac.buildQ.push({ kind: "tank", t: 0, tNeed: getBaseBuildTime("tank") / pf, cost: COST.tank, paid: 0 });
+            } else {
+              fac.buildQ.push({ kind: "ifv", t: 0, tNeed: getBaseBuildTime("ifv") / pf, cost: COST.ifv, paid: 0 });
+            }
           }
           if (poor) break;
         }
