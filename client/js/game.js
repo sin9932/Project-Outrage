@@ -634,6 +634,43 @@ function fitMini() {
   const casings=[]; // MG shell casings
   const repairWrenches=[]; // building repair wrench FX
   const infDeathFxs=[]; // infantry death animation FX
+function updateInfDeathFx(){
+  const dt=state.dt??1/60;
+  const FRAME_DUR=0.06;
+  const FRAMES=9;
+  const HOLD_LAST=0.12;
+  const FADE_DUR=0.22;
+  const cols=3;
+  const tw=(INF_DIE_IMG.naturalWidth/cols)|0;
+  const th=(INF_DIE_IMG.naturalHeight/cols)|0;
+
+  for(let i=infDeathFxs.length-1;i>=0;i--){
+    const fx=infDeathFxs[i];
+    fx.t=(fx.t??0)+dt;
+
+    const playT=FRAMES*FRAME_DUR;
+    const holdEnd=playT+HOLD_LAST;
+    const fadeEnd=holdEnd+FADE_DUR;
+
+    let fi=0, alpha=1;
+    if(fx.t<playT){
+      fi=Math.min(FRAMES-1, (fx.t/FRAME_DUR)|0);
+      alpha=1;
+    }else if(fx.t<holdEnd){
+      fi=FRAMES-1; alpha=1;
+    }else if(fx.t<fadeEnd){
+      fi=FRAMES-1; alpha=1-((fx.t-holdEnd)/FADE_DUR);
+    }else{
+      infDeathFxs.splice(i,1);
+      continue;
+    }
+
+    const sx=(fi%cols)*tw;
+    const sy=((fi/cols)|0)*th;
+    fx._rd = { sx, sy, sw: tw, sh: th, alpha, fi };
+  }
+}
+
 
 
 const snipDeathFxs=[]; // sniper death animation FX (3x3 = 9 frames)
