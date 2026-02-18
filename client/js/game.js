@@ -1842,9 +1842,6 @@ function getBaseBuildTime(kind){
     }
   }
 
-    ctx.restore();
-  }
-
   // === Camera shake (world only, UI unaffected) ===
   const camShake = { t:0, dur:0, mag:0, freq:0, ox:0, oy:0, active:false };
 
