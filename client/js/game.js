@@ -5215,48 +5215,6 @@ function updateBlood(dt){
   }
 }
 
-  // 2) mist/droplets (short-lived)
-  for (const b of bloodPuffs){
-    const p = worldToScreen(b.x, b.y);
-    const t = clamp(b.t / Math.max(0.001, b.ttl), 0, 1);
-    const a = b.a0 * Math.pow(1 - t, 0.70);
-
-    const r = (b.r0 + b.grow * t) * z;
-    const yLift = (b.rise || 0) * z;
-
-    ctx.save();
-    ctx.globalCompositeOperation = "source-over";
-    ctx.globalAlpha = a;
-
-    if (b.kind === "droplet"){
-      // small, denser blob
-      const rr = Math.max(2, r*0.35);
-      const g = ctx.createRadialGradient(p.x, p.y - yLift, 0, p.x, p.y - yLift, rr*2.2);
-      g.addColorStop(0.0, "rgba(160, 0, 0, 0.65)");
-      g.addColorStop(0.45, "rgba(120, 0, 0, 0.28)");
-      g.addColorStop(1.0, "rgba(0,0,0,0)");
-      ctx.fillStyle = g;
-      ctx.beginPath();
-      ctx.arc(p.x, p.y - yLift, rr*2.2, 0, Math.PI*2);
-      ctx.fill();
-    } else {
-      // misty puff
-      const g = ctx.createRadialGradient(p.x, p.y - yLift, 0, p.x, p.y - yLift, r);
-      g.addColorStop(0.0, "rgba(120, 0, 0, 0.28)");
-      g.addColorStop(0.35, "rgba(70, 0, 0, 0.16)");
-      g.addColorStop(1.0, "rgba(0,0,0,0)");
-      ctx.fillStyle = g;
-      ctx.beginPath();
-      ctx.arc(p.x, p.y - yLift, r, 0, Math.PI*2);
-      ctx.fill();
-    }
-
-    ctx.restore();
-  }
-}
-
-
-
   // ===== Building Destruction Explosion FX =====
   // Creates a big flash + ground glow + streak sparks + flame plumes (roughly like the screenshot).
   function addBuildingExplosion(b){
