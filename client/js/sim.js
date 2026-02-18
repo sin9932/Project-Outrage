@@ -27,6 +27,17 @@
     const DEFENSE = r.DEFENSE || {};
     const BUILD = r.BUILD || {};
     const UNIT = r.UNIT || {};
+    const occAll = r.occAll || null;
+    const occInf = r.occInf || null;
+    const occVeh = r.occVeh || null;
+    const occAnyId = r.occAnyId || null;
+    const occTeam = r.occTeam || null;
+    const occResId = r.occResId || null;
+    const infSlotNext0 = r.infSlotNext0 || null;
+    const infSlotNext1 = r.infSlotNext1 || null;
+    const infSlotMask0 = r.infSlotMask0 || null;
+    const infSlotMask1 = r.infSlotMask1 || null;
+    const INF_SLOT_MAX = r.INF_SLOT_MAX || 4;
     const terrain = r.terrain || [];
     const TILE = r.TILE || 48;
     const WORLD_W = r.WORLD_W || 0;
@@ -82,18 +93,81 @@
     const segIntersectsAABB = r.segIntersectsAABB;
     const updateExplosions = r.updateExplosions;
 
-    function buildingAnyExplored(viewerTeam, b){
-      // Consider a building "known/visible" if any tile in its footprint is explored.
-      // Using only (b.tx,b.ty) breaks for large buildings partially in fog.
-      const ex = explored[viewerTeam];
+    function buildingAnyExplored(viewerTeam, b){
+      // Consider a building "known/visible" if any tile in its footprint is explored.
+      // Using only (b.tx,b.ty) breaks for large buildings partially in fog.
+      const ex = explored[viewerTeam];
       for (let ty=b.ty; ty<b.ty+b.th; ty++){
         for (let tx=b.tx; tx<b.tx+b.tw; tx++){
           if (!inMap(tx,ty)) continue;
           if (ex[idx(tx,ty)]) return true;
         }
       }
-      return false;
-    }
+      return false;
+    }
+
+    function clearOcc(dt){
+      if (!occAll || !occInf || !occVeh || !occAnyId || !occTeam || !occResId ||
+          !infSlotNext0 || !infSlotNext1 || !infSlotMask0 || !infSlotMask1) return;
+
+      occAll.fill(0);
+      occInf.fill(0);
+      occVeh.fill(0);
+      occAnyId.fill(0);
+      occTeam.fill(0);
+      occResId.fill(0);
+      infSlotNext0.fill(0);
+      infSlotNext1.fill(0);
+      infSlotMask0.fill(0);
+      infSlotMask1.fill(0);
+      // Rebuild reservations from units (kept in u.resTx/u.resTy)
+      for (const u of units){
+        if (!u.alive) continue;
+        if (u.resTx!=null && u.resTy!=null && inMap(u.resTx,u.resTy)){
+          const ri = idx(u.resTx,u.resTy);
+          if ((occResId[ri]|0)===0) occResId[ri]=u.id;
+        }
+      }
+      for (const u of units){
+        if (!u.alive) continue;
+        if (u.sepCd && u.sepCd>0){ u.sepCd -= dt; if (u.sepCd<=0){ u.sepCd=0; u.sepOx=0; u.sepOy=0; } }
+        const tx=tileOfX(u.x), ty=tileOfY(u.y);
+        if (!inMap(tx,ty)) continue;
+        const i=idx(tx,ty);
+        if (occAnyId[i]===0){ occAnyId[i]=u.id; occTeam[i]=u.team; }
+        const cls = (UNIT[u.kind] && UNIT[u.kind].cls) ? UNIT[u.kind].cls : "";
+        if (cls==="inf") {
+          // Allow up to 4 infantry per tile (same-team only via canEnterTile rules)
+          occInf[i] = Math.min(255, occInf[i]+1);
+
+          // Stable per-unit sub-slot: keep the same slot while staying in the same tile.
+          let mask = (u.team===0) ? infSlotMask0[i] : infSlotMask1[i];
+
+          let slot = -1;
+          if (u.subSlot!=null && u.subSlotTx===tx && u.subSlotTy===ty) slot = (u.subSlot & 3);
+
+          // keep existing slot if free this frame, else pick first free slot.
+          if (slot>=0 && ((mask >> slot) & 1)===0){
+            // ok
+          } else {
+            slot = -1;
+            for (let s=0; s<INF_SLOT_MAX; s++){
+              if (((mask >> s) & 1)===0){ slot=s; break; }
+            }
+            if (slot<0) slot = 0;
+          }
+
+          u.subSlot = slot;
+          u.subSlotTx = tx; u.subSlotTy = ty;
+          mask = (mask | (1<<slot)) & 0x0F;
+
+          if (u.team===0) infSlotMask0[i] = mask;
+          else infSlotMask1[i] = mask;
+        }
+        else if (cls==="veh") occVeh[i] = Math.min(255, occVeh[i]+1);
+        occAll[i] = Math.min(255, occAll[i]+1);
+      }
+    }
 
     function tickTurrets(dt){
       for (const b of buildings){
@@ -483,7 +557,166 @@
       }
     }
 
-                function tickUnits(dt){
+    function resolveUnitOverlaps(){
+      const clsOf = (u)=> (u && UNIT[u.kind] && UNIT[u.kind].cls) ? UNIT[u.kind].cls : "";
+      const effCollR = (u)=> (clsOf(u)==="inf" ? 9 : (u.r||18));
+      const alive = units.filter(u=>u.alive && !u.inTransport);
+      const n = alive.length;
+      if (n<2) return;
+
+      const isImmovableInCombat = (u)=>{
+        if (!u || !u.alive) return false;
+        if (!u.order || u.order.type!=="attack") return false;
+        if ((u.fireHoldT||0) > 0) return true;
+        if (!u.holdAttack) return false;
+        if (u.target==null) return false;
+        const t = getEntityById(u.target);
+        if (!t || !t.alive) return false;
+        const dEff = _effDist(u, t, u.x, u.y);
+        return (dEff <= (u.range + 1.0));
+      };
+
+      const isAnchored = (u)=>{
+        if (!u || !u.alive) return false;
+        if (u.path && u.path.length && u.pathI < u.path.length) return false;
+        if (u.target!=null){
+          const tt = getEntityById(u.target);
+          if (!tt || !tt.alive || tt.attackable===false){ u.target=null; }
+        }
+        if (u.target!=null) return false;
+        const ot = u.order && u.order.type;
+        if (ot && ot!=="idle" && ot!=="guard") return false;
+        if (u.kind==="harvester" && (u.returning || u.manualOre!=null)) return false;
+        return true;
+      };
+
+      const cell = 64;
+      const grid = new Map();
+      const key = (cx,cy)=> (cx<<16) ^ cy;
+
+      const iters = 5;
+      const basePushK = 0.85;
+      const baseMaxPush = 18.0;
+      const eps = 1.0;
+
+      for (let it=0; it<iters; it++){
+        grid.clear();
+        for (const uu of alive){
+          uu._sepAx = 0; uu._sepAy = 0;
+          const cx2 = (uu.x/cell)|0, cy2=(uu.y/cell)|0;
+          const k2 = key(cx2,cy2);
+          let arr2 = grid.get(k2);
+          if (!arr2){ arr2=[]; grid.set(k2,arr2); }
+          arr2.push(uu);
+        }
+
+        for (const u of alive){
+          const cx = (u.x/cell)|0, cy=(u.y/cell)|0;
+          for (let oy=-1; oy<=1; oy++){
+            for (let ox=-1; ox<=1; ox++){
+              const arr = grid.get(key(cx+ox,cy+oy));
+              if (!arr) continue;
+              for (const v of arr){
+                if (v===u) continue;
+                if (v.id < u.id) continue;
+
+                const dx = v.x - u.x;
+                const dy = v.y - u.y;
+                const cu = clsOf(u);
+                const cv = clsOf(v);
+                const rr = (effCollR(u)+effCollR(v));
+                const d2 = dx*dx + dy*dy;
+                if (d2 >= rr*rr) continue;
+
+                const d = Math.sqrt(d2) || 0.001;
+                const overlap = rr - d;
+                if (overlap <= eps) continue;
+
+                const nx = dx / d, ny = dy / d;
+                const bothInf = (cu==="inf" && cv==="inf");
+                if (bothInf) {
+                  const utx = (u.x / TILE) | 0, uty = (u.y / TILE) | 0;
+                  const vtx = (v.x / TILE) | 0, vty = (v.y / TILE) | 0;
+                  if (utx===vtx && uty===vty) continue;
+                }
+                const pushK = bothInf ? 0.70 : basePushK;
+                const maxPush = bothInf ? 10.0 : baseMaxPush;
+                const push = Math.min(maxPush, overlap * pushK);
+
+                const au = isAnchored(u);
+                const av = isAnchored(v);
+
+                const hu = isImmovableInCombat(u);
+                const hv = isImmovableInCombat(v);
+                if (hu && hv) continue;
+
+                let wu = 0.5, wv = 0.5;
+                if (au && !av){ wu = 0.0; wv = 1.0; }
+                else if (!au && av){ wu = 1.0; wv = 0.0; }
+                if (hu && !hv){ wu = 0.0; wv = 1.0; }
+                else if (!hu && hv){ wu = 1.0; wv = 0.0; }
+                if (u.kind==="harvester" && v.kind!=="harvester"){ wu = 0.08; wv = 0.92; }
+                else if (v.kind==="harvester" && u.kind!=="harvester"){ wu = 0.92; wv = 0.08; }
+                if (cu==="inf" && cv!=="inf"){ wu = 0.0; wv = 1.0; }
+                else if (cv==="inf" && cu!=="inf"){ wu = 1.0; wv = 0.0; }
+
+                u._sepAx = (u._sepAx||0) - nx * push * wu;
+                u._sepAy = (u._sepAy||0) - ny * push * wu;
+                v._sepAx = (v._sepAx||0) + nx * push * wv;
+                v._sepAy = (v._sepAy||0) + ny * push * wv;
+              }
+            }
+          }
+        }
+
+        // Apply accumulated separation with damping to prevent "진동"
+        for (const uu of alive){
+          if (clsOf(uu)==="inf"){ uu._sepAx = 0; uu._sepAy = 0; continue; }
+          let ax = uu._sepAx || 0;
+          let ay = uu._sepAy || 0;
+          if (ax===0 && ay===0) continue;
+
+          const damp = 0.55;
+          ax *= damp; ay *= damp;
+
+          const lx = uu._lastSepAx || 0;
+          const ly = uu._lastSepAy || 0;
+          if ((lx!==0 || ly!==0) && (ax*lx + ay*ly) < 0){
+            const blend = 0.25;
+            ax = ax*blend + lx*(1-blend);
+            ay = ay*blend + ly*(1-blend);
+          }
+
+          const mag = Math.hypot(ax, ay);
+          const maxStep = 6.0;
+          if (mag > maxStep){
+            const k = maxStep / (mag || 1);
+            ax *= k; ay *= k;
+          }
+
+          uu.x += ax;
+          uu.y += ay;
+
+          uu._lastSepAx = ax;
+          uu._lastSepAy = ay;
+
+          uu._sepAx = 0; uu._sepAy = 0;
+        }
+      }
+      // Attack-hold anchor
+      for (const uu of alive){
+        const holdAtk = isImmovableInCombat(uu);
+        if (!holdAtk){
+          uu.atkX = null; uu.atkY = null;
+          continue;
+        }
+        if (uu.atkX==null || uu.atkY==null){ uu.atkX = uu.x; uu.atkY = uu.y; }
+        uu.x = uu.atkX;
+        uu.y = uu.atkY;
+      }
+    }
+
+    function tickUnits(dt){
         clearOcc(dt);
         for (const u of units){
           if (!u.alive) continue;
@@ -1564,8 +1797,10 @@
       tickBullets(dt);
     }
 
-    return {
-      tickSim
+    return {
+      tickSim,
+      clearOcc,
+      resolveUnitOverlaps
     };
   };
 })(window);
@@ -1573,4 +1808,6 @@
 
 
 
+
+
 

@@ -1288,24 +1288,7 @@ function tileToWorldSubslot(tx, ty, slot){
   const w = isoToWorld(iso.x + o.ix, iso.y + o.iy);
   return w;
 }
-  function clearOcc(dt){
-    occAll.fill(0);
-    occInf.fill(0);
-    occVeh.fill(0);
-    occAnyId.fill(0);
-    occTeam.fill(0);
-    occResId.fill(0);
-    infSlotNext0.fill(0);
-    infSlotNext1.fill(0);
-    infSlotMask0.fill(0);
-    infSlotMask1.fill(0);
-    // Rebuild reservations from units (kept in u.resTx/u.resTy)
-    for (const u of units){
-      if (!u.alive) continue;
-      if (u.resTx!=null && u.resTy!=null && inMap(u.resTx,u.resTy)){
-        const ri = idx(u.resTx,u.resTy);
-        if ((occResId[ri]|0)===0) occResId[ri]=u.id;
-      }
+  
     }
     for (const u of units){
       if (!u.alive) continue;
@@ -3888,38 +3871,7 @@ function updateBlood(dt){
 
 
 
-  function resolveUnitOverlaps(){
-  const clsOf = (u)=> (u && UNIT[u.kind] && UNIT[u.kind].cls) ? UNIT[u.kind].cls : "";
-  // Infantry sub-slot crowding: treat infantry collision as much smaller so 4 can share a tile.
-  const effCollR = (u)=> (clsOf(u)==="inf" ? 9 : (u.r||18));
-  // De-clump without making idle units "walk" on their own.
-  // Rule:
-  // - If one unit is anchored (idle + no path/target), push the OTHER unit almost entirely.
-  // - If both are anchored, split push 50/50 (rare, only if they spawn stacked).
-  const alive = units.filter(u=>u.alive && !u.inTransport);
-  const n = alive.length;
-  if (n<2) return;
-
-  const isImmovableInCombat = (u)=>{
-    if (!u || !u.alive) return false;
-    if (!u.order || u.order.type!=="attack") return false;
-
-    // Any unit that has just fired should not be pushed around by de-clumping.
-    // This is the real source of the visible '움찔' when target-attacking (especially vs buildings).
-    if ((u.fireHoldT||0) > 0) return true;
-
-    // Only treat holdAttack as immovable if we are STILL actually in range.
-    // Otherwise (hysteresis / slight target drift), units can get stuck staring.
-    if (!u.holdAttack) return false;
-    if (u.target==null) return false;
-    const t = getEntityById(u.target);
-    if (!t || !t.alive) return false;
-
-    const isB = !!BUILD[t.kind];
-    const dEff = _effDist(u, t, u.x, u.y);
-
-    return (dEff <= (u.range + 1.0));
-  };
+  ;
 
   const isAnchored = (u)=>{
     if (!u || !u.alive) return false;
@@ -4140,6 +4092,17 @@ const __ou_sim = (window.OUSim && typeof window.OUSim.create==="function")
       DEFENSE,
       BUILD,
       UNIT,
+      occAll,
+      occInf,
+      occVeh,
+      occAnyId,
+      occTeam,
+      occResId,
+      infSlotNext0,
+      infSlotNext1,
+      infSlotMask0,
+      infSlotMask1,
+      INF_SLOT_MAX,
       terrain,
       TILE,
       WORLD_W,
@@ -4163,7 +4126,6 @@ const __ou_sim = (window.OUSim && typeof window.OUSim.create==="function")
       findNearestEnemyFor,
       findNearestAttackMoveTargetFor,
       clearReservation,
-      clearOcc,
       settleInfantryToSubslot,
       isHitscanUnit,
       hitscanShot,
@@ -4186,7 +4148,6 @@ const __ou_sim = (window.OUSim && typeof window.OUSim.create==="function")
       getStandoffPoint,
       _effDist,
       _tankUpdateTurret,
-      resolveUnitOverlaps,
       isEnemyInf,
       boardUnitIntoIFV,
       // turret/bullet deps
@@ -4197,6 +4158,14 @@ const __ou_sim = (window.OUSim && typeof window.OUSim.create==="function")
     })
   : null;
 if (!__ou_sim) console.warn("[ou_sim] missing: include js/sim.js before game.js");
+
+// Delegated helpers (sim.js owns implementations)
+function clearOcc(dt){
+  if (__ou_sim && typeof __ou_sim.clearOcc === "function") return __ou_sim.clearOcc(dt);
+}
+function resolveUnitOverlaps(){
+  if (__ou_sim && typeof __ou_sim.resolveUnitOverlaps === "function") return __ou_sim.resolveUnitOverlaps();
+}
 
 // Progress accessors (calculation in ou_economy; UI draws only)
 state.getBuildProgress = function(kind, laneKey){
@@ -7698,6 +7667,7 @@ window.unboardIFV = tryUnloadIFV;
 window.resolveUnitOverlaps = resolveUnitOverlaps;
 
 })();
+
 
 
 
