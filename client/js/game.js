@@ -6664,8 +6664,68 @@ function findSpawnPointNear(b, unitKind, opts){
     return null;
   }
 
-function tickProduction(dt){
-    return (__ou_econ && __ou_econ.tickProduction) ? __ou_econ.tickProduction(dt) : undefined;
+function _ou_collectPlayerProdHeads(){
+    const heads = [];
+    // Build (construction) heads: lanes
+    try{
+      if (state && state.buildLane){
+        for (const laneKey of ["main","def"]){
+          const lane = state.buildLane[laneKey];
+          const q = lane && lane.queue;
+          if (q && q.kind) heads.push({ q, type:"build", laneKey });
+        }
+      }
+    }catch(_e){}
+    // Unit production heads: per building (buildQ[0])
+    try{
+      for (const b of buildings){
+        if (!b || !b.alive) continue;
+        if (b.team !== TEAM.PLAYER) continue;
+        const q = b.buildQ && b.buildQ[0];
+        if (q && q.kind) heads.push({ q, type:"unit", b });
+      }
+    }catch(_e){}
+    return heads;
+  }
+
+  function tickProduction(dt){
+    if (!(__ou_econ && __ou_econ.tickProduction)) return undefined;
+
+    // Hotfix: paused queue MUST NOT spend money nor advance progress.
+    // Some economy ticks ignore q.paused; we enforce it here by snapshot+restore.
+    const heads = _ou_collectPlayerProdHeads();
+    const paused = [];
+    for (const h of heads){
+      const q = h.q;
+      if (q && q.paused) paused.push({ q, paid: (q.paid||0), t: (q.t||0) });
+    }
+
+    const out = __ou_econ.tickProduction(dt);
+
+    if (paused.length){
+      let refund = 0;
+      for (const s of paused){
+        const q = s.q;
+        if (!q) continue;
+        const paid1 = (q.paid||0);
+        const t1 = (q.t||0);
+
+        if (paid1 > s.paid){
+          refund += (paid1 - s.paid);
+          q.paid = s.paid;
+        }
+        if (t1 > s.t){
+          q.t = s.t;
+        }
+      }
+
+      if (refund > 0 && state && state.player){
+        // refund only the amount that was incorrectly spent while paused
+        state.player.money = (state.player.money||0) + refund;
+      }
+    }
+
+    return out;
   }
 
   function tickRepairs(dt){
