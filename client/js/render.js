@@ -267,6 +267,7 @@
   let drawBuildingSprite;
   let SPRITE_TUNE, getTeamCroppedSprite;
   let INF_DIE_IMG, SNIP_DIE_IMG, INF_TEAM_SHEET_DIE, SNIP_DIE_TEAM_SHEET;
+  let infDeathFxs, snipDeathFxs;
   let INF_SPRITE_SCALE, buildInfTeamSheet;
   let INF_IMG, INF_ATK_IMG;
   let INF_MOV_IMG, INF_MOV_NE_IMG, INF_MOV_N_IMG, INF_MOV_NW_IMG, INF_MOV_W_IMG, INF_MOV_SW_IMG, INF_MOV_S_IMG, INF_MOV_SE_IMG;
@@ -305,6 +306,8 @@
     dustPuffs = env.dustPuffs || []; dmgSmokePuffs = env.dmgSmokePuffs || [];
     bloodStains = env.bloodStains || []; bloodPuffs = env.bloodPuffs || [];
     explosions = env.explosions || [];
+    infDeathFxs = env.infDeathFxs || [];
+    snipDeathFxs = env.snipDeathFxs || [];
     SPRITE_TUNE = env.SPRITE_TUNE || {};
     getTeamCroppedSprite = env.getTeamCroppedSprite;
     drawBuildingSprite = env.drawBuildingSprite || drawBuildingSprite;
@@ -1985,8 +1988,7 @@
       drawBuildingSprite,
       worldVecToDir8,
       isUnderPower, clamp,
-      INF_IMG, SNIP_IMG,
-      infDeathFxs = [], snipDeathFxs = []
+      INF_IMG, SNIP_IMG
     } = env;
 
     const W=canvas.width, H=canvas.height;
