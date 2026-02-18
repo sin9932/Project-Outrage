@@ -2,6 +2,8 @@
   // Debug/validation mode: add ?debug=1 to URL
   const DEV_VALIDATE = /(?:\?|&)debug=1(?:&|$)/.test(location.search);
   const DEV_VALIDATE_THROW = false; // if true, throws on first invariant failure
+  // Money drain tracing: add ?debugmoney=1 to URL
+  const DEBUG_MONEY = /(?:\?|&)debugmoney=1(?:&|$)/.test(location.search);
 
   function _assert(cond, msg){
     if (cond) return;
@@ -122,75 +124,7 @@ ${e.filename}:${e.lineno}:${e.colno}
   const btnStop2 = $("stop2");
   const btnScatter2 = $("scatter2");
 
-  // v53: normalize production buttons so badges don't duplicate/overwrite labels
-  function normalizeProdButton(btn, label, kind){
-    if (!btn) return;
-    btn.innerHTML = `<span class="lbl">${label}</span><span class="badge" style="display:none"></span>`;
-    btn.dataset.kind = kind;
-  }
-
-function ensureBtnUI(btn, label) {
-  if (!btn) return null;
-
-  // Make sure overlay doesn't steal clicks
-  btn.style.position = "relative";
-  btn.style.overflow = "hidden";
-
-  // Progress overlay (scaleX)
-  let prog = btn.querySelector(":scope > .prog");
-  if (!prog) {
-    prog = document.createElement("span");
-    prog.className = "prog";
-    prog.style.position = "absolute";
-    prog.style.left = "0";
-    prog.style.top = "0";
-    prog.style.bottom = "0";
-    prog.style.width = "100%";
-    prog.style.transformOrigin = "left";
-    prog.style.transform = "scaleX(0)";
-    prog.style.pointerEvents = "none";
-    prog.style.zIndex = "0";
-    prog.style.borderRadius = "inherit";
-    btn.insertBefore(prog, btn.firstChild);
-  }
-
-  // Label
-  let lbl = btn.querySelector(":scope > .lbl");
-  if (!lbl) {
-    lbl = document.createElement("span");
-    lbl.className = "lbl";
-    lbl.style.position = "relative";
-    lbl.style.zIndex = "1";
-    lbl.style.pointerEvents = "none";
-    btn.appendChild(lbl);
-  }
-
-  // Badge (used by ou_ui.js too)
-  let badge = btn.querySelector(":scope > .badge");
-  if (!badge) {
-    badge = document.createElement("span");
-    badge.className = "badge";
-    badge.style.position = "absolute";
-    badge.style.right = "6px";
-    badge.style.top = "6px";
-    badge.style.zIndex = "2";
-    badge.style.display = "none";
-    badge.style.pointerEvents = "none";
-    btn.appendChild(badge);
-  }
-
-  if (label != null) lbl.textContent = label;
-
-  return { prog, lbl, badge };
-}
-
-
-  normalizeProdButton(btnInf, "보병", "infantry");
-  normalizeProdButton(btnEng, "엔지니어", "engineer");
-  normalizeProdButton(btnSnp, "저격병", "sniper");
-  normalizeProdButton(btnTnk, "경전차", "tank");
-  normalizeProdButton(btnHar, "굴착기", "harvester");
-  normalizeProdButton(btnIFV, "IFV", "ifv");
+  // Sidebar button UI is managed by ou_ui.js. Keep game.js free of DOM mutations here.
 
   const pregame = $("pregame");
   const startBtn = $("startBtn");
@@ -6552,6 +6486,22 @@ function kindToProducer(kind){
   }
 
 function queueUnit(kind){
+    // If the front item of the relevant producer queue is paused, left-click should RESUME instead of enqueue.
+    const need = kindToProducer(kind);
+    let resumed = false;
+    for (const b of buildings){
+      if (!b || !b.alive || b.civ || b.team !== TEAM.PLAYER || b.kind !== need) continue;
+      const q = b.buildQ && b.buildQ[0];
+      if (q && q.kind === kind && q.paused){
+        q.paused = false;
+        q.autoPaused = false;
+        resumed = true;
+      }
+    }
+    if (resumed){
+      toast("재개");
+      return;
+    }
     return (__ou_econ && __ou_econ.queueUnit) ? __ou_econ.queueUnit(kind) : undefined;
   }
 
@@ -6648,8 +6598,68 @@ function findSpawnPointNear(b, unitKind, opts){
     return null;
   }
 
-function tickProduction(dt){
-    return (__ou_econ && __ou_econ.tickProduction) ? __ou_econ.tickProduction(dt) : undefined;
+function _ou_collectPlayerProdHeads(){
+    const heads = [];
+    // Build (construction) heads: lanes
+    try{
+      if (state && state.buildLane){
+        for (const laneKey of ["main","def"]){
+          const lane = state.buildLane[laneKey];
+          const q = lane && lane.queue;
+          if (q && q.kind) heads.push({ q, type:"build", laneKey });
+        }
+      }
+    }catch(_e){}
+    // Unit production heads: per building (buildQ[0])
+    try{
+      for (const b of buildings){
+        if (!b || !b.alive) continue;
+        if (b.team !== TEAM.PLAYER) continue;
+        const q = b.buildQ && b.buildQ[0];
+        if (q && q.kind) heads.push({ q, type:"unit", b });
+      }
+    }catch(_e){}
+    return heads;
+  }
+
+  function tickProduction(dt){
+    if (!(__ou_econ && __ou_econ.tickProduction)) return undefined;
+
+    // Hotfix: paused queue MUST NOT spend money nor advance progress.
+    // Some economy ticks ignore q.paused; we enforce it here by snapshot+restore.
+    const heads = _ou_collectPlayerProdHeads();
+    const paused = [];
+    for (const h of heads){
+      const q = h.q;
+      if (q && q.paused) paused.push({ q, paid: (q.paid||0), t: (q.t||0) });
+    }
+
+    const out = __ou_econ.tickProduction(dt);
+
+    if (paused.length){
+      let refund = 0;
+      for (const s of paused){
+        const q = s.q;
+        if (!q) continue;
+        const paid1 = (q.paid||0);
+        const t1 = (q.t||0);
+
+        if (paid1 > s.paid){
+          refund += (paid1 - s.paid);
+          q.paid = s.paid;
+        }
+        if (t1 > s.t){
+          q.t = s.t;
+        }
+      }
+
+      if (refund > 0 && state && state.player){
+        // refund only the amount that was incorrectly spent while paused
+        state.player.money = (state.player.money||0) + refund;
+      }
+    }
+
+    return out;
   }
 
   function tickRepairs(dt){
@@ -9780,6 +9790,14 @@ if (state.selection.size>0 && inMap(tx,ty) && ore[idx(tx,ty)]>0){
     const lane = state.buildLane && state.buildLane[laneKey];
     if (!lane) return;
 
+
+    // If this exact kind is paused at the head of this lane, left-click resumes.
+    if (lane.queue && lane.queue.kind === kind && lane.queue.paused){
+      lane.queue.paused = false;
+      toast("재개");
+      return;
+    }
+
     // If we are currently in placement mode for another building, don't allow switching.
     if (state.build.active && state.build.kind && state.build.kind !== kind){
       toast("명령을 따를 수 없습니다. 건설 중입니다");
@@ -10698,6 +10716,12 @@ function updateInfDeathFx(){
     ctx.restore();
   }
 
+  function isEntSelectedOrHovered(ent){
+    if (!ent) return false;
+    return (state.selection && state.selection.has(ent.id)) ||
+      (state.hover && state.hover.entId === ent.id);
+  }
+
 
 
 
@@ -10931,107 +10955,9 @@ function drawPathFx(){
 
 
   function updateSidebarButtons() {
-  const clamp01 = (x) => (x < 0 ? 0 : (x > 1 ? 1 : x));
-
-  // ======= build (main/def) =======
-  const getBuildLabel = (k, fallback) =>
-    (window.tech && window.tech.buildLabels && window.tech.buildLabels[k]) ? window.tech.buildLabels[k] : fallback;
-
-  const buildBtns = [
-    { kind: "power",    lane: state.buildLane.main, btn: btnPow,  label: getBuildLabel("power", "발전소") },
-    { kind: "refinery", lane: state.buildLane.main, btn: btnRef,  label: getBuildLabel("refinery", "정제소") },
-    { kind: "barracks", lane: state.buildLane.main, btn: btnBar,  label: getBuildLabel("barracks", "막사") },
-    { kind: "factory",  lane: state.buildLane.main, btn: btnFac,  label: getBuildLabel("factory", "공장") },
-
-    { kind: "turret",   lane: state.buildLane.def,  btn: btnTur,  label: getBuildLabel("turret", "터렛") },
-    { kind: "wall",     lane: state.buildLane.def,  btn: btnWall, label: getBuildLabel("wall", "벽") },
-  ];
-
-  for (const it of buildBtns) {
-    const { btn, kind, lane, label } = it;
-    if (!btn) continue;
-
-    const ui = ensureBtnUI(btn, label);
-    if (!ui) continue;
-
-    // progress (0..1)
-    let pct = 0;
-    if (lane && lane.ready === kind) {
-      pct = 1;
-    } else if (lane && lane.queue && lane.queue.kind === kind) {
-      pct = (lane.queue.cost > 0) ? (lane.queue.paid / lane.queue.cost) : 0;
-    }
-
-    ui.prog.style.background = "rgba(90, 220, 140, 0.55)";
-    ui.prog.style.transform = `scaleX(${clamp01(pct)})`;
-    ui.prog.style.opacity = (pct > 0 ? "1" : "0");
-
-    // Visible state even when pct=0
-    let outline = "";
-    if (lane && lane.ready === kind) {
-      outline = "2px solid rgba(90, 220, 140, 0.95)";
-    } else if (lane && lane.queue && lane.queue.kind === kind) {
-      outline = "2px dashed rgba(31, 162, 255, 0.95)";
-    } else if (lane && lane.fifo && lane.fifo.includes(kind)) {
-      outline = "2px solid rgba(31, 162, 255, 0.60)";
-    }
-    btn.style.outline = outline;
+    // Legacy stub (kept for backward safety). Sidebar UI is owned by ou_ui.js.
+    return;
   }
-
-  // ======= units (inf/veh) =======
-  const unitBtns = [
-    { kind: "infantry", btn: btnInf, producer: "barracks", label: "보병" },
-    { kind: "engineer", btn: btnEng, producer: "barracks", label: "엔지니어" },
-    { kind: "sniper",   btn: btnSnp, producer: "barracks", label: "저격병" },
-
-    { kind: "ifv",      btn: btnIFV, producer: "factory",  label: "IFV" },
-    { kind: "harvester",btn: btnHar, producer: "factory",  label: "하베스터" },
-    { kind: "tank",     btn: btnTnk, producer: "factory",  label: "탱크" },
-  ];
-
-  for (const it of unitBtns) {
-    const { kind, btn, producer, label } = it;
-    if (!btn) continue;
-
-    const ui = ensureBtnUI(btn, label);
-    if (!ui) continue;
-
-    let bestPct = -1;
-
-    for (const b of buildings) {
-      if (!b || !b.alive) continue;
-      if (b.team !== TEAM.PLAYER) continue;
-      if (b.kind !== producer) continue;
-      if (!b.buildQ || b.buildQ.length === 0) continue;
-
-      const q = b.buildQ[0];
-      if (!q || q.kind !== kind) continue;
-
-      const pct = (q.cost > 0) ? (q.paid / q.cost) : (q.tNeed > 0 ? (q.t / q.tNeed) : 0);
-      if (pct > bestPct) bestPct = pct;
-    }
-
-    const pct = (bestPct < 0) ? 0 : clamp01(bestPct);
-
-    ui.prog.style.background = "rgba(90, 220, 140, 0.38)";
-    ui.prog.style.transform = `scaleX(${pct})`;
-    ui.prog.style.opacity = (bestPct < 0 ? "0" : "1");
-
-    // Optional: show that something is actively being produced even at pct=0
-    btn.style.outline = (bestPct >= 0) ? "2px dashed rgba(31, 162, 255, 0.55)" : "";
-  }
-
-  // ======= tech tab visibility =======
-  const hasLab = buildings.some((b) => b.team === TEAM.PLAYER && b.kind === "lab");
-  if (tabTech) {
-    tabTech.style.display = hasLab ? "" : "none";
-    if (!hasLab && state.techOpen) {
-      state.techOpen = false;
-      setTechPanelOpen(false);
-    }
-  }
-  if (techPanel) techPanel.style.display = state.techOpen ? "" : "none";
-}
 
   
   function updatePowerBar() {
@@ -11260,10 +11186,11 @@ let rX = ent.x, rY = ent.y;
         const yy = p.y - (Math.max(ent.tw,ent.th)*ISO_Y*z) - 22*z;
         // C&C-ish segmented building HP bar (blocks)
         // Show only when hovered or selected
-        const showHp = (state.selection && state.selection.has(ent.id)) || (state.hover && state.hover.entId===ent.id);
+        const showHp = isEntSelectedOrHovered(ent);
         if (showHp) drawBuildingHpBlocks(ent);
 
-        drawLabel(`${NAME_KO[ent.kind]||ent.kind}`, p.x, yy-14);
+        // Building name only when selected/hovered (matches selection panel intent)
+        if (showHp) drawLabel(`${NAME_KO[ent.kind]||ent.kind}`, p.x, yy-14);
         if (ent.grp) drawGroupBadge(p.x + ISO_X*(ent.tw*0.55), yy-14, ent.grp);
 
         if (state.selection.has(ent.id)){
@@ -11378,7 +11305,7 @@ let rX = ent.x, rY = ent.y;
         }
         ctx.restore();
         // Segmented HP blocks under unit (only when hovered or selected)
-        const showHp = (state.selection && state.selection.has(ent.id)) || (state.hover && state.hover.entId===ent.id);
+        const showHp = isEntSelectedOrHovered(ent);
         if (showHp) drawUnitHpBlocks(ent, p);
 
         if (ent.grp) drawGroupBadge(p.x + ent.r*0.85, p.y - ent.r*0.85, ent.grp);
@@ -11897,27 +11824,9 @@ for (let ty=0; ty<MAP_H; ty+=2){
   }
 
   function setButtonText() {
-  if (__ou_ui && typeof __ou_ui.updateSidebarButtons === "function") return;
-
-  // Build buttons
-  ensureBtnUI(btnRef, `정제소`);
-  ensureBtnUI(btnPow, `발전소`);
-  ensureBtnUI(btnBar, `막사`);
-  ensureBtnUI(btnFac, `공장`);
-  ensureBtnUI(btnWall, `벽`);
-  ensureBtnUI(btnTur, `터렛`);
-
-  // Unit buttons
-  ensureBtnUI(btnInf, `보병`);
-  ensureBtnUI(btnEng, `엔지니어`);
-  ensureBtnUI(btnSnp, `저격병`);
-  ensureBtnUI(btnIFV, `IFV`);
-  ensureBtnUI(btnHar, `하베스터`);
-  ensureBtnUI(btnTnk, `탱크`);
-
-  // Other UI
-  if (btnSell) btnSell.textContent = `매각(D)`;
-}
+    // Keep non-sidebar labels here if needed.
+    if (btnSell) btnSell.textContent = `매각(D)`;
+  }
 
   function clearWorld(){
     units.length=0; buildings.length=0; bullets.length=0; traces.length=0;
@@ -12756,7 +12665,13 @@ function sanityCheck(){
       clampCamera();
 
       feedProducers();
+
+      let _m0 = 0, _m1 = 0, _m2 = 0, _m3 = 0;
+      if (DEBUG_MONEY && state && state.player) _m0 = state.player.money || 0;
+
       tickSidebarBuild(dt);
+
+      if (DEBUG_MONEY && state && state.player) _m1 = state.player.money || 0;
       tickEnemySidebarBuild(dt);
 
       // UI: sidebar buttons + overlays are handled in ou_ui.js
@@ -12772,14 +12687,23 @@ function sanityCheck(){
             panels
           });
         } catch (_e) {}
-      } else {
-        updateSidebarButtons();
       }
 
 
       updateVision();
       tickProduction(dt);
+      if (DEBUG_MONEY && state && state.player) _m2 = state.player.money || 0;
       tickRepairs(dt);
+      if (DEBUG_MONEY && state && state.player) _m3 = state.player.money || 0;
+
+      if (DEBUG_MONEY && state && state.player){
+        const dBuild = _m1 - _m0;
+        const dProd  = _m2 - _m1;
+        const dRep   = _m3 - _m2;
+        if (dBuild < 0 || dProd < 0 || dRep < 0){
+          console.log(`[money] build:${dBuild.toFixed(2)} prod:${dProd.toFixed(2)} repair:${dRep.toFixed(2)} t=${state.t.toFixed(2)} money=${(state.player.money||0).toFixed(2)}`);
+        }
+      }
       tickCivOreGen(dt);
       tickUnits(dt);
       tickTurrets(dt);

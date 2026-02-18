@@ -157,7 +157,10 @@ if (r.uiPowerBar && !r.__powerTipInstalled){
             const ents = [];
             for (const id of ids){
               const ent = getEntityById && isFn(getEntityById) ? getEntityById(id) : null;
-              if (ent) ents.push(ent);
+              if (!ent) continue;
+              if (ent.alive === false) continue;
+              if (ent.hidden || ent.inTransport) continue;
+              ents.push(ent);
             }
 
             if (!ents.length){
@@ -688,17 +691,14 @@ function ensureBadge(btn){
   return { prog, lbl };
 }
 
-      // Build progress (state.buildLane)
-      const laneMain = state && state.buildLane ? state.buildLane.main : null;
-      const laneDef  = state && state.buildLane ? state.buildLane.def  : null;
-
+      // Build progress (delegated to game.js)
       const buildBtns = [
-        { kind: "power",    lane: laneMain, btn: r.btnPow },
-        { kind: "refinery", lane: laneMain, btn: r.btnRef },
-        { kind: "barracks", lane: laneMain, btn: r.btnBar },
-        { kind: "factory",  lane: laneMain, btn: r.btnFac },
-        { kind: "radar",    lane: laneMain, btn: r.btnRad },
-        { kind: "turret",   lane: laneDef,  btn: r.btnTur },
+        { kind: "power",    laneKey: "main", btn: r.btnPow },
+        { kind: "refinery", laneKey: "main", btn: r.btnRef },
+        { kind: "barracks", laneKey: "main", btn: r.btnBar },
+        { kind: "factory",  laneKey: "main", btn: r.btnFac },
+        { kind: "radar",    laneKey: "main", btn: r.btnRad },
+        { kind: "turret",   laneKey: "def",  btn: r.btnTur },
       ];
 
       for (const it of buildBtns){
@@ -707,20 +707,26 @@ function ensureBadge(btn){
         const ui = ensureBtnUI(btn, null);
         if (!ui) continue;
 
-        let pct = 0;
-        const lane = it.lane;
-        if (lane && lane.ready === it.kind){
-          pct = 1;
-        } else if (lane && lane.queue && lane.queue.kind === it.kind){
-          pct = (lane.queue.cost > 0) ? (lane.queue.paid / lane.queue.cost) : 0;
+        const prog = (state && typeof state.getBuildProgress === "function")
+          ? state.getBuildProgress(it.kind, it.laneKey)
+          : null;
+
+        if (!prog){
+          ui.prog.style.opacity = "0";
+          continue;
         }
 
-        ui.prog.style.background = "rgba(90, 220, 140, 0.55)";
-        ui.prog.style.transform = `scaleX(${clamp01(pct)})`;
-        ui.prog.style.opacity = (pct > 0 ? "1" : "0");
+        const pct = clamp01((typeof prog.pct === "number") ? prog.pct : 0);
+        const vis = Math.max(0.02, pct);
+
+        ui.prog.style.background = prog.paused ? "rgba(170, 170, 170, 0.55)"
+          : (prog.ready ? "rgba(220, 200, 90, 0.62)" : "rgba(90, 220, 140, 0.55)");
+        ui.prog.style.transform = `scaleX(${vis})`;
+        ui.prog.style.opacity = "1";
       }
 
-      // Unit progress (buildings[*].buildQ)
+
+// Unit progress (delegated to game.js)
       const unitBtns = [
         { kind: "infantry",  btn: r.btnInf, producer: "barracks" },
         { kind: "engineer",  btn: r.btnEng, producer: "barracks" },
@@ -737,28 +743,24 @@ function ensureBadge(btn){
         const ui = ensureBtnUI(btn, null);
         if (!ui) continue;
 
-        let bestPct = -1;
+        const prog = (state && typeof state.getUnitProgress === "function")
+          ? state.getUnitProgress(it.kind, it.producer)
+          : null;
 
-        if (Array.isArray(buildings)){
-          for (const b of buildings){
-            if (!b || b.kind !== it.producer) continue;
-            if (!alivePlayerBuilding(b)) continue;
-            if (!b.buildQ || b.buildQ.length === 0) continue;
-
-            const q = b.buildQ[0];
-            if (!q || q.kind !== it.kind) continue;
-
-            const pct = (q.cost > 0) ? (q.paid / q.cost) : (q.tNeed > 0 ? (q.t / q.tNeed) : 0);
-            if (pct > bestPct) bestPct = pct;
-          }
+        if (!prog){
+          ui.prog.style.opacity = "0";
+          continue;
         }
 
-        const pct = (bestPct < 0) ? 0 : clamp01(bestPct);
+        const pct = clamp01((typeof prog.pct === "number") ? prog.pct : 0);
+        const vis = Math.max(0.02, pct);
 
-        ui.prog.style.background = "rgba(90, 220, 140, 0.38)";
-        ui.prog.style.transform = `scaleX(${pct})`;
-        ui.prog.style.opacity = (bestPct < 0 ? "0" : "1");
+        ui.prog.style.background = prog.paused ? "rgba(170, 170, 170, 0.38)" : "rgba(90, 220, 140, 0.38)";
+        ui.prog.style.transform = `scaleX(${vis})`;
+        ui.prog.style.opacity = "1";
       }
+
+
 
 
       }

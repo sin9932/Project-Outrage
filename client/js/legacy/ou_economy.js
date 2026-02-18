@@ -344,7 +344,7 @@
           const payRate = costTotal / tNeed; // credits per second at 1x speed
 
           const want = dt * speed;                  // seconds of progress we WANT
-          const canByMoney = debugFastProd ? want : ((payRate<=0) ? want : (state.player.money / payRate)); // seconds we CAN afford
+          const canByMoney = debugFastProd ? want : ((payRate<=0) ? want : (teamWallet.money / payRate)); // seconds we CAN afford
           const delta = Math.min(want, canByMoney);
 
           // If we can't afford progress now, force-pause. Must be resumed manually via left-click.
@@ -370,7 +370,7 @@
             pay = 0;
             q.paid = costTotal;
           } else {
-            state.player.money -= pay;
+            teamWallet.money -= pay;
             q.paid = (q.paid||0) + pay;
           }
 

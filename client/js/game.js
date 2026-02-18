@@ -65,21 +65,8 @@ ${e.filename}:${e.lineno}:${e.colno}
   const uiMmHint = $("mmHint");
   const uiPowerFill = $("powerFill");
   const uiPowerNeed = $("powerNeed");
-  const uiPTip = $("pTip");
-  const powerBarEl = $("powerBar");
-  if (!(window.OUUI && typeof window.OUUI.create === "function") && powerBarEl && uiPTip){
-    const showTip = (e)=>{
-      const prod = state.player.powerProd|0;
-      const use  = state.player.powerUse|0;
-      uiPTip.textContent = `전력: ${prod} / ${use}`;
-      uiPTip.style.display = "block";
-      uiPTip.style.left = (e.clientX + 14) + "px";
-      uiPTip.style.top  = (e.clientY + 12) + "px";
-    };
-    powerBarEl.addEventListener("mouseenter", showTip);
-    powerBarEl.addEventListener("mousemove", showTip);
-    powerBarEl.addEventListener("mouseleave", ()=>{ uiPTip.style.display="none"; });
-  }
+  // Power tooltip element is owned by ou_ui.js
+  // Power tooltip is handled in ou_ui.js
 
   const qFillMain = $("qFillMain");
   const qFillDef  = $("qFillDef");
@@ -709,39 +696,7 @@ function drawSnipDeathFxOne(fx){
   };
 
 
-  // ===== PRICE TOOLTIP (hover to see cost) =====
-  const priceTip = document.createElement("div");
-  priceTip.style.position = "fixed";
-  priceTip.style.padding = "10px 14px";
-  priceTip.style.borderRadius = "12px";
-  priceTip.style.background = "rgba(0,0,0,0.86)";
-  priceTip.style.color = "#ffe9a6";
-  priceTip.style.fontSize = "18px";
-  priceTip.style.fontWeight = "950";
-  priceTip.style.pointerEvents = "none";
-  priceTip.style.border = "1px solid rgba(255,233,166,0.35)";
-  priceTip.style.boxShadow = "0 10px 30px rgba(0,0,0,0.45)";
-  priceTip.style.zIndex = "9999";
-  priceTip.style.display = "none";
-  document.body.appendChild(priceTip);
-
-  function bindPriceTip(btn, kind){
-    if (!btn) return;
-    btn.addEventListener("mouseenter", (e)=>{
-      const cost = COST[kind] ?? 0;
-      priceTip.textContent = `$ ${cost}`;
-      priceTip.style.display = "block";
-      priceTip.style.left = (e.clientX + 16) + "px";
-      priceTip.style.top  = (e.clientY + 16) + "px";
-    });
-    btn.addEventListener("mousemove", (e)=>{
-      priceTip.style.left = (e.clientX + 16) + "px";
-      priceTip.style.top  = (e.clientY + 16) + "px";
-    });
-    btn.addEventListener("mouseleave", ()=>{
-      priceTip.style.display = "none";
-    });
-  }
+  // Price tooltip is handled in ou_ui.js
 
 
   // Sidebar-style build time (seconds). Simple deterministic rule: time scales with cost.
@@ -10006,10 +9961,8 @@ if (state.selection.size>0 && inMap(tx,ty) && ore[idx(tx,ty)]>0){
   let prodCat = "main";
   function setProdCat(cat){
     prodCat = cat;
-    for (const b of tabBtns) b.classList.toggle("on", b.dataset.cat===cat);
-    for (const [k,p] of Object.entries(panels)){
-      if (!p) continue;
-      p.style.display = (k===cat) ? "" : "none";
+    if (__ou_ui && typeof __ou_ui.updateProdTabsUI === "function"){
+      __ou_ui.updateProdTabsUI({ tabBtns, panels, prodCat });
     }
   }
   for (const b of tabBtns){
@@ -12732,19 +12685,6 @@ function sanityCheck(){
     state.__ui_bound_priceTips = true;
     if (__ou_ui && typeof __ou_ui.bindPriceTipsOnce === "function"){
       __ou_ui.bindPriceTipsOnce({ COST });
-    } else {
-    bindPriceTip(btnPow, "power");
-    bindPriceTip(btnRef, "refinery");
-    bindPriceTip(btnBar, "barracks");
-    bindPriceTip(btnFac, "factory");
-    bindPriceTip(btnRad, "radar");
-    bindPriceTip(btnTur, "turret");
-    bindPriceTip(btnInf, "infantry");
-    bindPriceTip(btnEng, "engineer");
-    bindPriceTip(btnSnp, "sniper");
-    bindPriceTip(btnTnk, "tank");
-    bindPriceTip(btnHar, "harvester");
-    bindPriceTip(btnIFV, "ifv");
     }
   }
 
