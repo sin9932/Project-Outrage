@@ -279,10 +279,15 @@
   let SNIP_TEAM_SHEET_MOV_W, SNIP_TEAM_SHEET_MOV_SW, SNIP_TEAM_SHEET_MOV_S, SNIP_TEAM_SHEET_MOV_SE;
   let INF_IDLE_ATLAS;
   // === Large explosion FX (exp1) atlas (json + png) ===
-  const EXP1_PNG  = ASSET.sprite.eff.exp1.png;
-  const EXP1_JSON = ASSET.sprite.eff.exp1.json;
+  const ASSET_REF = (typeof window !== "undefined" && window.ASSET) ? window.ASSET : null;
+  const EXP1_PNG  = (ASSET_REF && ASSET_REF.sprite && ASSET_REF.sprite.eff && ASSET_REF.sprite.eff.exp1)
+    ? ASSET_REF.sprite.eff.exp1.png
+    : "";
+  const EXP1_JSON = (ASSET_REF && ASSET_REF.sprite && ASSET_REF.sprite.eff && ASSET_REF.sprite.eff.exp1)
+    ? ASSET_REF.sprite.eff.exp1.json
+    : "";
   const EXP1_IMG = new Image();
-  EXP1_IMG.src = EXP1_PNG;
+  if (EXP1_PNG) EXP1_IMG.src = EXP1_PNG;
 
   // Parsed frames: [{x,y,w,h}]
   let EXP1_FRAMES = null;
@@ -581,6 +586,7 @@
   // Kick off exp1 atlas load early (non-blocking)
   ;(async()=>{
     try{
+      if (!EXP1_JSON) return;
       const r = await fetch(EXP1_JSON, {cache:"no-store"});
       if (!r.ok) throw new Error("HTTP "+r.status);
       const j = await r.json();
