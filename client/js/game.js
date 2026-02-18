@@ -12,17 +12,6 @@
   }
 
 
-;(() => {
-  window.addEventListener("error", (e) => {
-    document.body.innerHTML =
-      `<pre style="white-space:pre-wrap;padding:16px;color:#fff;background:#000;">
-JS ERROR:
-${e.message}
-${e.filename}:${e.lineno}:${e.colno}
-</pre>`;
-  });
-})();
-
   const canvas = document.getElementById("c");
   // FORCE fullscreen canvas (prevents tiny top-left render)
   canvas.style.position = "fixed";
@@ -42,6 +31,13 @@ ${e.filename}:${e.lineno}:${e.colno}
   const __ou_ui = (window.OUUI && typeof window.OUUI.create === "function")
     ? window.OUUI.create()
     : null;
+
+  // Global error overlay (UI owns DOM manipulation)
+  window.addEventListener("error", (e) => {
+    if (__ou_ui && typeof __ou_ui.showFatalError === "function"){
+      __ou_ui.showFatalError(e);
+    }
+  });
 
   function toast(text, dur=1.0){
     if (__ou_ui && typeof __ou_ui.toast === "function"){
@@ -8503,18 +8499,17 @@ if (__ou_ui && typeof __ou_ui.bindPregameStart === "function"){
   let pauseStartMs = null; // real-time ms when pause menu opened (for freezing battle timer)
 
   function setGameBrightness(v){
-    const val = Math.max(0.5, Math.min(1.6, v));
-    document.documentElement.style.setProperty("--game-brightness", String(val));
-    try { localStorage.setItem("rts_brightness", String(val)); } catch(_){}
+    if (__ou_ui && typeof __ou_ui.setGameBrightness === "function"){
+      return __ou_ui.setGameBrightness(v);
+    }
+    return v;
   }
-  // restore brightness
-
+  // restore brightness (UI owns DOM/localStorage)
   try {
-    let saved = 1;
-    try { saved = parseFloat(localStorage.getItem("rts_brightness") || "1"); } catch(_){ saved = 1; }
-    if (Number.isFinite(saved)) setGameBrightness(saved);
-    else setGameBrightness(1);
-  } catch(_){ setGameBrightness(1); }
+    if (__ou_ui && typeof __ou_ui.restoreGameBrightness === "function"){
+      __ou_ui.restoreGameBrightness();
+    }
+  } catch(_){}
 
   const BGM = (() => {
   // Tracks are local files (uploaded). Two playlists and auto-switch by combat.
@@ -8842,10 +8837,9 @@ BGM.monitor = (dt=0.016) => __bgmOldMonitor(dt);
     pauseMenuOpen = next;
 
     if (__ou_ui && typeof __ou_ui.setPauseMenuVisible === "function"){
-      const getBright = ()=> {
-        const v = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--game-brightness"));
-        return Number.isFinite(v) ? v : 1;
-      };
+      const getBright = ()=> (__ou_ui && typeof __ou_ui.getGameBrightness === "function")
+        ? __ou_ui.getGameBrightness()
+        : 1;
       __ou_ui.setPauseMenuVisible({ open: pauseMenuOpen, bgm: BGM, getBrightness: getBright });
       if (pauseMenuOpen && typeof __ou_ui.wirePauseMenuUI === "function"){
         __ou_ui.wirePauseMenuUI({

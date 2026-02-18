@@ -214,6 +214,44 @@ if (r.uiPowerBar && !r.__powerTipInstalled){
       }catch(_e){}
     }
 
+    function showFatalError(e){
+      try{
+        const msg = (e && e.message) ? e.message : String(e);
+        const file = e && e.filename ? e.filename : "";
+        const line = e && e.lineno != null ? e.lineno : "";
+        const col = e && e.colno != null ? e.colno : "";
+        document.body.innerHTML =
+          `<pre style="white-space:pre-wrap;padding:16px;color:#fff;background:#000;">\n`+
+          `JS ERROR:\n`+
+          `${msg}\n`+
+          `${file}:${line}:${col}\n`+
+          `</pre>`;
+      }catch(_e){}
+    }
+
+    function setGameBrightness(v){
+      const val = Math.max(0.5, Math.min(1.6, v));
+      try{ document.documentElement.style.setProperty("--game-brightness", String(val)); }catch(_e){}
+      try { localStorage.setItem("rts_brightness", String(val)); } catch(_){}
+      return val;
+    }
+
+    function getGameBrightness(){
+      try{
+        const v = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--game-brightness"));
+        return Number.isFinite(v) ? v : 1;
+      }catch(_e){
+        return 1;
+      }
+    }
+
+    function restoreGameBrightness(){
+      let saved = 1;
+      try { saved = parseFloat(localStorage.getItem("rts_brightness") || "1"); } catch(_){ saved = 1; }
+      if (Number.isFinite(saved)) setGameBrightness(saved);
+      else setGameBrightness(1);
+    }
+
     function updatePowerBar(env){
   env = env || {};
   const { state, clamp } = env;
@@ -1367,6 +1405,10 @@ function ensureBadge(btn){
 
 return {
       updateSelectionUI,
+      showFatalError,
+      setGameBrightness,
+      getGameBrightness,
+      restoreGameBrightness,
             updateSidebarButtons,
             updatePowerBar,
             updateProdBadges,
