@@ -40,8 +40,10 @@
     const INF_SLOT_MAX = r.INF_SLOT_MAX || 4;
     const terrain = r.terrain || [];
     const TILE = r.TILE || 48;
-    const WORLD_W = r.WORLD_W || 0;
-    const WORLD_H = r.WORLD_H || 0;
+    const WORLD_W = r.WORLD_W || 0;
+    const WORLD_H = r.WORLD_H || 0;
+    const MAP_W = r.MAP_W || 0;
+    const MAP_H = r.MAP_H || 0;
     const state = r.state || {};
     const ore = r.ore || [];
 
@@ -55,7 +57,7 @@
     const tileOfX = r.tileOfX;
     const tileOfY = r.tileOfY;
     const tileToWorldCenter = r.tileToWorldCenter;
-    const inMap = r.inMap;
+    const inMap = r.inMap;
     const idx = r.idx;
     const setPathTo = r.setPathTo;
     const followPath = r.followPath;
@@ -80,10 +82,10 @@
     const dist2PointToRect = r.dist2PointToRect;
     const captureBuilding = r.captureBuilding;
     const getStandoffPoint = r.getStandoffPoint;
-    const _effDist = r._effDist;
-    const _tankUpdateTurret = r._tankUpdateTurret;
+    const _tankUpdateTurret = r._tankUpdateTurret;
     const boardUnitIntoIFV = r.boardUnitIntoIFV;
     const applyDamage = r.applyDamage;
+    const isWalkableTile = r.isWalkableTile;
     const updateExplosions = r.updateExplosions;
 
     function segIntersectsCircle(ax,ay,bx,by, cx,cy, r){
@@ -825,6 +827,157 @@
         uu.x = uu.atkX;
         uu.y = uu.atkY;
       }
+    }
+
+    // v1415: combat goal selection for backline congestion.
+    function _distPointToRect(px,py,x0,y0,x1,y1){
+      const dx = Math.max(x0 - px, 0, px - x1);
+      const dy = Math.max(y0 - py, 0, py - y1);
+      return Math.hypot(dx, dy);
+    }
+
+    function _effDist(u, t, px, py){
+      // Effective distance from point (px,py) to the target's hittable boundary.
+      const ur = (u && u.r) ? u.r : 0;
+      if (!t) return 1e9;
+      const isB = (t.type==="building") || !!BUILD[t.kind];
+      if (isB){
+        const tw = (t.tw!=null)? t.tw : (t.w!=null? Math.max(1, Math.round(t.w/TILE)) : 1);
+        const th = (t.th!=null)? t.th : (t.h!=null? Math.max(1, Math.round(t.h/TILE)) : 1);
+        const tx = (t.tx!=null)? t.tx : ((t.x/TILE)|0);
+        const ty = (t.ty!=null)? t.ty : ((t.y/TILE)|0);
+        const x0 = tx*TILE, y0 = ty*TILE;
+        const x1 = (tx+tw)*TILE, y1 = (ty+th)*TILE;
+        const d = _distPointToRect(px,py,x0,y0,x1,y1);
+        return Math.max(0, d - ur);
+      } else {
+        const raw = Math.hypot(t.x - px, t.y - py);
+        return Math.max(0, raw - (t.r||0) - ur);
+      }
+    }
+
+    function _occNearTile(tx, ty){
+      let n = 0;
+      for (const uu of units){
+        if (!uu.alive) continue;
+        const ux = (uu.x / TILE) | 0, uy = (uu.y / TILE) | 0;
+        if (Math.abs(ux - tx) <= 1 && Math.abs(uy - ty) <= 1) n++;
+      }
+      return n;
+    }
+
+    function pickAttackTile(u, t, preferDist){
+      const maxR = Math.max(2, Math.min(12, Math.ceil((u.range || 0) / TILE) + 4));
+      const tTx = (t.x / TILE) | 0, tTy = (t.y / TILE) | 0;
+
+      let best = null, bestScore = 1e18;
+      for (let r = 0; r <= maxR; r++){
+        for (let dy = -r; dy <= r; dy++){
+          for (let dx = -r; dx <= r; dx++){
+            if (Math.abs(dx) !== r && Math.abs(dy) !== r) continue;
+            const tx = tTx + dx, ty = tTy + dy;
+            if (!inMap(tx, ty)) continue;
+            if (!isWalkableTile(tx, ty)) continue;
+
+            const cx = (tx + 0.5) * TILE, cy = (ty + 0.5) * TILE;
+            const dEff = _effDist(u, t, cx, cy);
+            if (dEff > (u.range || 0)) continue;
+
+            const occ = _occNearTile(tx, ty);
+            const distPref = Math.abs(dEff - preferDist);
+            const travel = Math.hypot(cx - u.x, cy - u.y) / TILE;
+
+            const score = distPref*1.00 + travel*0.65 + occ*0.95 + (Math.random()*0.06);
+            if (score < bestScore){
+              bestScore = score;
+              best = {x: cx, y: cy};
+            }
+          }
+        }
+        if (best && r >= 2 && bestScore < 7.0) break;
+      }
+      return best;
+    }
+
+    function pickApproachTile(u, t){
+      const maxR = Math.max(3, Math.min(18, Math.ceil(((u.range || 0) + (TILE*3)) / TILE) + 6));
+      const tTx = (t.x / TILE) | 0, tTy = (t.y / TILE) | 0;
+
+      let best = null, bestScore = 1e18;
+      const maxEff = (u.range || 0) + (TILE*3.0);
+      for (let r = 1; r <= maxR; r++){
+        for (let dy = -r; dy <= r; dy++){
+          for (let dx = -r; dx <= r; dx++){
+            if (Math.abs(dx) !== r && Math.abs(dy) !== r) continue;
+            const tx = tTx + dx, ty = tTy + dy;
+            if (!inMap(tx, ty)) continue;
+            if (!isWalkableTile(tx, ty)) continue;
+
+            const cx = (tx + 0.5) * TILE, cy = (ty + 0.5) * TILE;
+            const dEff = _effDist(u, t, cx, cy);
+            if (dEff > maxEff) continue;
+
+            const occ = _occNearTile(tx, ty);
+            const travel = Math.hypot(cx - u.x, cy - u.y) / TILE;
+
+            const score = dEff*0.020 + travel*0.85 + occ*1.00 + (Math.random()*0.08);
+            if (score < bestScore){
+              bestScore = score;
+              best = {x: cx, y: cy};
+            }
+          }
+        }
+        if (best && bestScore < 10.0) break;
+      }
+      return best;
+    }
+
+    function getCombatGoal(u, t){
+      const isB = !!BUILD[t.kind];
+      let gx = t.x, gy = t.y;
+
+      if (isB){
+        const x0 = (t.x - (t.w||0)/2), y0 = (t.y - (t.h||0)/2);
+        const pad = TILE * 0.55;
+        const rx0 = x0 - pad, ry0 = y0 - pad;
+        const rx1 = x0 + (t.w||0) + pad, ry1 = y0 + (t.h||0) + pad;
+        gx = clamp(u.x, rx0, rx1);
+        gy = clamp(u.y, ry0, ry1);
+      } else {
+        let dx = u.x - t.x, dy = u.y - t.y;
+        let L = Math.hypot(dx,dy);
+        if (L < 1e-3){ dx = 1; dy = 0; L = 1; }
+        const stop = Math.max(10, (u.range||0) * 0.88);
+        gx = t.x + (dx / L) * stop;
+        gy = t.y + (dy / L) * stop;
+      }
+
+      let gTx = tileOfX(gx), gTy = tileOfY(gy);
+      if (!inMap(gTx,gTy)){ gTx = clamp(gTx,0,MAP_W-1); gTy = clamp(gTy,0,MAP_H-1); }
+
+      if (!isWalkableTile(gTx,gTy)){
+        let best=null, bestD=1e9;
+        for (let r=1;r<=10;r++){
+          for (let dy=-r;dy<=r;dy++){
+            for (let dx=-r;dx<=r;dx++){
+              const tx=gTx+dx, ty=gTy+dy;
+              if (!inMap(tx,ty)) continue;
+              if (!isWalkableTile(tx,ty)) continue;
+              const d = dx*dx+dy*dy;
+              if (d<bestD){ bestD=d; best={tx,ty}; }
+            }
+          }
+          if (best) break;
+        }
+        if (best){ gTx=best.tx; gTy=best.ty; }
+      }
+
+      u.combatGX = (gTx+0.5)*TILE;
+      u.combatGY = (gTy+0.5)*TILE;
+      u.combatGoalMode = "commit";
+      u.combatGoalT = 0.40;
+
+      return {x:u.combatGX, y:u.combatGY};
     }
 
     function tickUnits(dt){

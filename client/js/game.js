@@ -2445,191 +2445,6 @@ function getStandoffPoint(u, t, wantDist, isB, targetRad, seedAng){
   return {x:u.x, y:u.y};
 }
 
-// v1415: combat goal selection for backline congestion.
-// Pick an in-range tile around the target that the unit can actually enter, and cache it briefly
-// to avoid frame-to-frame goal jitter ("왔다갔다"/orbit).
-
-
-function _distPointToRect(px,py,x0,y0,x1,y1){
-  const dx = Math.max(x0 - px, 0, px - x1);
-  const dy = Math.max(y0 - py, 0, py - y1);
-  return Math.hypot(dx, dy);
-}
-
-function _effDist(u, t, px, py){
-  // Effective distance from point (px,py) to the target's hittable boundary.
-  // - Units: circle radius (t.r)
-  // - Buildings: axis-aligned rectangle based on tx/ty/tw/th footprint
-  const ur = (u && u.r) ? u.r : 0;
-  if (!t) return 1e9;
-  const isB = (t.type==="building") || !!BUILD[t.kind];
-  if (isB){
-    const tw = (t.tw!=null)? t.tw : (t.w!=null? Math.max(1, Math.round(t.w/TILE)) : 1);
-    const th = (t.th!=null)? t.th : (t.h!=null? Math.max(1, Math.round(t.h/TILE)) : 1);
-    const tx = (t.tx!=null)? t.tx : ((t.x/TILE)|0);
-    const ty = (t.ty!=null)? t.ty : ((t.y/TILE)|0);
-    const x0 = tx*TILE, y0 = ty*TILE;
-    const x1 = (tx+tw)*TILE, y1 = (ty+th)*TILE;
-    const d = _distPointToRect(px,py,x0,y0,x1,y1);
-    return Math.max(0, d - ur);
-  } else {
-    const raw = Math.hypot(t.x - px, t.y - py);
-    return Math.max(0, raw - (t.r||0) - ur);
-  }
-}
-
-function _occNearTile(tx, ty){
-  let n = 0;
-  for (const uu of units){
-    if (!uu.alive) continue;
-    const ux = (uu.x / TILE) | 0, uy = (uu.y / TILE) | 0;
-    if (Math.abs(ux - tx) <= 1 && Math.abs(uy - ty) <= 1) n++;
-  }
-  return n;
-}
-
-function pickAttackTile(u, t, preferDist){
-  // Finds a FREE tile that is already within weapon range (effective distance <= range).
-  // Used to spread units around the target so backliners don't all fight for the same spot.
-  const maxR = Math.max(2, Math.min(12, Math.ceil((u.range || 0) / TILE) + 4));
-  const tTx = (t.x / TILE) | 0, tTy = (t.y / TILE) | 0;
-
-  let best = null, bestScore = 1e18;
-  for (let r = 0; r <= maxR; r++){
-    for (let dy = -r; dy <= r; dy++){
-      for (let dx = -r; dx <= r; dx++){
-        if (Math.abs(dx) !== r && Math.abs(dy) !== r) continue; // ring
-        const tx = tTx + dx, ty = tTy + dy;
-        if (!inMap(tx, ty)) continue;
-        if (!isWalkableTile(tx, ty)) continue;
-
-        const curTx=((u.x/TILE)|0), curTy=((u.y/TILE)|0);
-        // NOTE(v1417): Approach goals may temporarily target tiles occupied/reserved by friendlies.
-        // We still require walkable, but do NOT require canEnterTile here; backliners must keep compressing in.
-
-        const cx = (tx + 0.5) * TILE, cy = (ty + 0.5) * TILE;
-        const dEff = _effDist(u, t, cx, cy);
-        if (dEff > (u.range || 0)) continue;
-
-        const occ = _occNearTile(tx, ty);
-        const distPref = Math.abs(dEff - preferDist);
-        const travel = Math.hypot(cx - u.x, cy - u.y) / TILE;
-
-        // Prefer: in-range, close travel, low local crowding, and near preferred range band.
-        const score = distPref*1.00 + travel*0.65 + occ*0.95 + (Math.random()*0.06);
-        if (score < bestScore){
-          bestScore = score;
-          best = {x: cx, y: cy};
-        }
-      }
-    }
-    // Early break once we found a decent in-range tile.
-    if (best && r >= 2 && bestScore < 7.0) break;
-  }
-  return best;
-}
-
-// If there is NO free in-range tile, we still need a "good approach" goal.
-// Otherwise backliners get stuck dancing forever behind occupied tiles.
-function pickApproachTile(u, t){
-  const maxR = Math.max(3, Math.min(18, Math.ceil(((u.range || 0) + (TILE*3)) / TILE) + 6));
-  const tTx = (t.x / TILE) | 0, tTy = (t.y / TILE) | 0;
-
-  let best = null, bestScore = 1e18;
-  const maxEff = (u.range || 0) + (TILE*3.0); // allow slightly-out-of-range approach goals
-  for (let r = 1; r <= maxR; r++){
-    for (let dy = -r; dy <= r; dy++){
-      for (let dx = -r; dx <= r; dx++){
-        if (Math.abs(dx) !== r && Math.abs(dy) !== r) continue; // ring
-        const tx = tTx + dx, ty = tTy + dy;
-        if (!inMap(tx, ty)) continue;
-        if (!isWalkableTile(tx, ty)) continue;
-
-        const curTx=((u.x/TILE)|0), curTy=((u.y/TILE)|0);
-        // NOTE(v1417): Approach goals may temporarily target tiles occupied/reserved by friendlies.
-        // We still require walkable, but do NOT require canEnterTile here; backliners must keep compressing in.
-
-        const cx = (tx + 0.5) * TILE, cy = (ty + 0.5) * TILE;
-        const dEff = _effDist(u, t, cx, cy);
-        if (dEff > maxEff) continue;
-
-        const occ = _occNearTile(tx, ty);
-        const travel = Math.hypot(cx - u.x, cy - u.y) / TILE;
-
-        // Primary objective: reduce effective distance (get closer).
-        // Secondary: don't walk too far if we can still get closer elsewhere.
-        const score = dEff*0.020 + travel*0.85 + occ*1.00 + (Math.random()*0.08);
-
-        if (score < bestScore){
-          bestScore = score;
-          best = {x: cx, y: cy};
-        }
-      }
-    }
-    // If we found a pretty close approach tile, stop searching bigger rings.
-    if (best && bestScore < 10.0) break;
-  }
-  return best;
-}
-
-function getCombatGoal(u, t){
-  // Hard rule: on attack orders, units should *commit* to closing distance toward the target.
-  // No orbiting, no slot-hunting. Just run in until in-range, then shoot.
-  const isB = !!BUILD[t.kind];
-
-  // Desired "dock" world point near the target (not inside footprint).
-  let gx = t.x, gy = t.y;
-
-  if (isB){
-    // Nearest point to unit on the building's expanded rectangle.
-    const x0 = (t.x - (t.w||0)/2), y0 = (t.y - (t.h||0)/2);
-    const pad = TILE * 0.55; // expanded so we aim just outside the footprint
-    const rx0 = x0 - pad, ry0 = y0 - pad;
-    const rx1 = x0 + (t.w||0) + pad, ry1 = y0 + (t.h||0) + pad;
-    gx = clamp(u.x, rx0, rx1);
-    gy = clamp(u.y, ry0, ry1);
-  } else {
-    // Aim to a point at ~0.88*range from the target, along the line from target to unit.
-    let dx = u.x - t.x, dy = u.y - t.y;
-    let L = Math.hypot(dx,dy);
-    if (L < 1e-3){ dx = 1; dy = 0; L = 1; }
-    const stop = Math.max(10, (u.range||0) * 0.88);
-    gx = t.x + (dx / L) * stop;
-    gy = t.y + (dy / L) * stop;
-  }
-
-  // Convert to goal tile and ensure it is walkable. For combat goals we intentionally do NOT require
-  // capacity/occupancy here (that was the source of backline "dance"). The path/steering will resolve.
-  let gTx = tileOfX(gx), gTy = tileOfY(gy);
-  if (!inMap(gTx,gTy)){ gTx = clamp(gTx,0,MAP_W-1); gTy = clamp(gTy,0,MAP_H-1); }
-
-  if (!isWalkableTile(gTx,gTy)){
-    let best=null, bestD=1e9;
-    for (let r=1;r<=10;r++){
-      for (let dy=-r;dy<=r;dy++){
-        for (let dx=-r;dx<=r;dx++){
-          const tx=gTx+dx, ty=gTy+dy;
-          if (!inMap(tx,ty)) continue;
-          if (!isWalkableTile(tx,ty)) continue;
-          const d = dx*dx+dy*dy;
-          if (d<bestD){ bestD=d; best={tx,ty}; }
-        }
-      }
-      if (best) break;
-    }
-    if (best){ gTx=best.tx; gTy=best.ty; }
-  }
-
-  // Small smoothing: keep goal stable for a short time to avoid flicker.
-  u.combatGX = (gTx+0.5)*TILE;
-  u.combatGY = (gTy+0.5)*TILE;
-  u.combatGoalMode = "commit";
-  u.combatGoalT = 0.40;
-
-  return {x:u.combatGX, y:u.combatGY};
-}
-
-
 function revealCircle(team, wx, wy, radius){
     const t0x=clamp(((wx-radius)/TILE)|0,0,MAP_W-1);
     const t1x=clamp(((wx+radius)/TILE)|0,0,MAP_W-1);
@@ -3778,6 +3593,8 @@ const __ou_sim = (window.OUSim && typeof window.OUSim.create==="function")
       INF_SLOT_MAX,
       terrain,
       TILE,
+      MAP_W,
+      MAP_H,
       WORLD_W,
       WORLD_H,
       ore,
@@ -3793,6 +3610,7 @@ const __ou_sim = (window.OUSim && typeof window.OUSim.create==="function")
       tileOfY,
       tileToWorldCenter,
       inMap,
+      isWalkableTile,
       idx,
       setPathTo,
       followPath,
@@ -3818,7 +3636,6 @@ const __ou_sim = (window.OUSim && typeof window.OUSim.create==="function")
       dist2PointToRect,
       captureBuilding,
       getStandoffPoint,
-      _effDist,
       _tankUpdateTurret,
       boardUnitIntoIFV,
       // turret/bullet deps
