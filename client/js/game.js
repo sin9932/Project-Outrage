@@ -10999,6 +10999,7 @@ function sanityCheck(){
   requestAnimationFrame(tick);
 
 // Expose a few helpers to window for debugging / sanityCheck
+
 function pushOrderFx(unitId, kind, x, y, targetId=null, color=null){
   if (!state.fx.orders) state.fx.orders = [];
   const isAtk = (kind==="attack" || kind==="attackmove" || kind==="harvest");
