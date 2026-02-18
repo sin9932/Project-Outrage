@@ -2369,82 +2369,6 @@ function getClosestPointOnBuilding(b, u){
 
 
 
-  // Pick an attack standoff point around the target so clumped units don't all try to stand on the same pixel.
-// v1413: formation-aware + congestion-aware:
-// - Stable per-(attacker,target) seed so the desired slot doesn't jitter every frame.
-// - Prefer standing near max range, but if the best tile is blocked by allies, progressively allow closer slots
-//   instead of "wiggling forever behind".
-// - Use canEnterTile when possible (not just walkable) to avoid selecting already-occupied tiles.
-function getStandoffPoint(u, t, wantDist, isB, targetRad, seedAng){
-  // Stable seed (0..1) per attacker+target so groups spread deterministically.
-  const tid = (t && t.id!=null) ? t.id : 0;
-  const h = (((u.id*9301 + tid*49297 + 233280*7) % 233280) / 233280);
-  const jitter = (h - 0.5);
-
-  // Base angle should be stable across frames. If not provided, fall back to current vector.
-  const base = (seedAng!=null && isFinite(seedAng)) ? seedAng : Math.atan2(u.y - t.y, u.x - t.x);
-
-  const lateral = jitter * TILE * 0.95;
-
-  // Radii: start near preferred distance, but if congested, allow closer rings.
-  const minDist = (targetRad||0) + Math.max((u.r||0) + 10, TILE*0.35);
-  const startDist = (targetRad||0) + Math.max(wantDist, TILE*0.45);
-
-  const radii = [];
-  for (let r = startDist; r >= minDist; r -= TILE*0.55){
-    radii.push(r);
-    if (radii.length>=6) break;
-  }
-  if (!radii.length) radii.push(startDist);
-
-  // Candidate angles (slotting around the target).
-  const angs = [];
-  angs.push(base + jitter*1.35);
-  for (let k=1;k<=6;k++){
-    const s = (k%2?1:-1);
-    const step = 0.34 + 0.20*Math.floor((k-1)/2);
-    angs.push(base + jitter*1.10 + s*step);
-  }
-
-  const uTx = tileOfX(u.x), uTy = tileOfY(u.y);
-
-  for (const dist of radii){
-    for (const ang of angs){
-      let gx = t.x + Math.cos(ang)*dist + Math.cos(ang + Math.PI/2)*lateral;
-      let gy = t.y + Math.sin(ang)*dist + Math.sin(ang + Math.PI/2)*lateral;
-      gx = clamp(gx, 0, WORLD_W);
-      gy = clamp(gy, 0, WORLD_H);
-      const tx=(gx/TILE)|0, ty=(gy/TILE)|0;
-      if (!inMap(tx,ty)) continue;
-      if (!isWalkableTile(tx,ty)) continue;
-
-      // Prefer enterable tiles; allow staying on our current tile even if "occupied" (by us).
-      // For BUILDING attacks we must allow selecting occupied/reserved tiles as *goals* so backliners keep compressing in.
-      // The movement/pathing layer will resolve the final stop using nearest-free tiles, preventing infinite "dance" stalls.
-      const okGoal = (tx===uTx && ty===uTy) || canEnterTile(u, tx, ty) || (isB && !isSqueezedTile(tx,ty));
-      if (okGoal) return {x:gx,y:gy};
-    }
-  }
-
-  // Fallbacks
-  if (isB){
-    const dock = getDockPoint(t,u);
-    return {x:dock.x, y:dock.y};
-  }
-
-  // As a last resort, try moving straight toward target but stop at max range (prevents "orbiting" far away).
-  const rawD = Math.hypot(t.x-u.x, t.y-u.y);
-  const dist = clamp((targetRad||0) + wantDist, minDist, startDist);
-  if (rawD > 1){
-    const nx = (u.x - t.x)/rawD, ny = (u.y - t.y)/rawD;
-    let gx = t.x + nx*dist, gy = t.y + ny*dist;
-    gx = clamp(gx, 0, WORLD_W);
-    gy = clamp(gy, 0, WORLD_H);
-    return {x:gx, y:gy};
-  }
-  return {x:u.x, y:u.y};
-}
-
 function revealCircle(team, wx, wy, radius){
     const t0x=clamp(((wx-radius)/TILE)|0,0,MAP_W-1);
     const t1x=clamp(((wx+radius)/TILE)|0,0,MAP_W-1);
@@ -3614,8 +3538,7 @@ const __ou_sim = (window.OUSim && typeof window.OUSim.create==="function")
       idx,
       setPathTo,
       followPath,
-      findNearestEnemyFor,
-      findNearestAttackMoveTargetFor,
+      
       clearReservation,
       settleInfantryToSubslot,
       isHitscanUnit,
@@ -3635,7 +3558,6 @@ const __ou_sim = (window.OUSim && typeof window.OUSim.create==="function")
       getClosestPointOnBuilding,
       dist2PointToRect,
       captureBuilding,
-      getStandoffPoint,
       _tankUpdateTurret,
       boardUnitIntoIFV,
       // turret/bullet deps
@@ -4337,7 +4259,7 @@ function getChasePointForAttack(u, t){
   const tr = isB ? (Math.max(BUILD[t.kind].tw, BUILD[t.kind].th) * TILE * 0.5 * 0.95) : (t.r||0);
   const seed = (u && u.atkSlotT===t.id && isFinite(u.atkSlotAng)) ? u.atkSlotAng : null;
 
-  const p = getStandoffPoint(u, t, want, isB, tr, seed);
+  const p = (__ou_sim && __ou_sim.getStandoffPoint) ? __ou_sim.getStandoffPoint(u, t, want, isB, tr, seed) : null;
   return p || {x:t.x, y:t.y};
 }
 function issueAttack(targetId){
@@ -4550,57 +4472,6 @@ function issueEngineerRepair(targetId){
   }
 
   
-function findNearestEnemyFor(team, wx, wy, radius, infOnly=false, unitOnly=false){
-  const enemyTeam = (team===TEAM.PLAYER) ? TEAM.ENEMY : TEAM.PLAYER;
-  let best=null, bestD=Infinity;
-  const r2=radius*radius;
-  // units first
-  for (const u of units){
-    if (!u.alive || u.team!==enemyTeam || u.inTransport || u.hidden) continue;
-    if (infOnly){
-      const cls = (UNIT[u.kind] && UNIT[u.kind].cls) ? UNIT[u.kind].cls : "";
-      if (cls!=="inf") continue; // sniper/inf-only: ignore vehicles/harvesters/etc
-    }
-const tx=tileOfX(u.x), ty=tileOfY(u.y);
-    // 시야 규칙: 현재 visible 밖 적은 무시 (탐험(explored)만으론 전투가 멈추는 버그 발생)
-    if (enemyTeam===TEAM.ENEMY && inMap(tx,ty) && !visible[TEAM.PLAYER][idx(tx,ty)]) continue;
-    const d2=dist2(wx,wy,u.x,u.y);
-    if (d2<bestD && d2<=r2){ bestD=d2; best=u; }
-  }
-  if (infOnly || unitOnly) return best;
-  // buildings next (attackable only)
-  for (const b of buildings){
-    if (!b.alive || b.team!==enemyTeam) continue;
-    if (b.attackable===false || b.civ) continue;
-    if (enemyTeam===TEAM.ENEMY && inMap(b.tx,b.ty) && !visible[TEAM.PLAYER][idx(b.tx,b.ty)]) continue;
-    const d2=dist2(wx,wy,b.x,b.y);
-    if (d2<bestD && d2<=r2){ bestD=d2; best=b; }
-  }
-  return best;
-}
-
-function findNearestAttackMoveTargetFor(team, wx, wy, radius, attackerKind){
-  // Attack-move should prioritize enemy units and defensive turrets only.
-  const enemyTeam = (team===TEAM.PLAYER) ? TEAM.ENEMY : TEAM.PLAYER;
-  let best=null, bestD=Infinity;
-  const r2=radius*radius;
-
-  for (const u of units){
-    if (!u.alive || u.team!==enemyTeam || u.inTransport || u.hidden) continue;
-    // Sniper: do not auto-engage vehicles/harvesters on attack-move unless explicitly ordered.
-    if (attackerKind==="sniper" && (u.kind==="tank" || u.kind==="harvester")) continue;
-const d2=dist2(wx,wy,u.x,u.y);
-    if (d2<=r2 && d2<bestD){ best=u; bestD=d2; }
-  }
-  for (const b of buildings){
-    if (!b.alive || b.team!==enemyTeam) continue;
-    if (b.kind!=="turret") continue; // ignore non-combat buildings
-    const d2=dist2(wx,wy,b.x,b.y);
-    if (d2<=r2 && d2<bestD){ best=b; bestD=d2; }
-  }
-  return best;
-}
-
 function issueIFVRepair(targetId){
   const t=getEntityById(targetId);
   if (!t || !t.alive || t.team!==TEAM.PLAYER) return;
@@ -7143,6 +7014,7 @@ window.unboardIFV = tryUnloadIFV;
 window.resolveUnitOverlaps = resolveUnitOverlaps;
 
 })();
+
 
 
 
