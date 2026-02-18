@@ -332,6 +332,8 @@
         if (u.kind === "ifv" && u.passengerId && u.passKind === "engineer") continue;
         // Keep snipers out of frontal waves (they should IFV-harass instead).
         if (u.kind === "sniper") continue;
+        // Avoid sending empty IFVs to frontal waves (keep them for passenger pickup).
+        if (u.kind === "ifv" && !u.passengerId) continue;
         u.order = { type: "attack", x: u.x, y: u.y, tx: null, ty: null };
         u.target = target ? target.id : null;
         if (target) setPathTo(u, target.x, target.y);
@@ -566,6 +568,18 @@
       }
     }
 
+    function aiParkEmptyIFVs() {
+      // Keep empty IFVs near rally to pick up passengers (avoid solo rushing).
+      const eIFVs = units.filter(u => u.alive && u.team === TEAM.ENEMY && u.kind === "ifv" && !u.passengerId);
+      for (const ifv of eIFVs) {
+        if (!ifv.order || ifv.order.type !== "move") {
+          ifv.order = { type: "move", x: ai.rally.x, y: ai.rally.y };
+          ifv.target = null;
+          ifv.repathCd = 0.35;
+        }
+      }
+    }
+
     function aiTick() {
       // frequent decisions, but not every frame
       if (state.t < ai.nextThink) return;
@@ -595,6 +609,7 @@
       // Unit production should ALWAYS run (this was the big "AI builds only" failure mode).
       aiQueueUnits(e);
       aiUseIFVPassengers();
+      aiParkEmptyIFVs();
 
       // Mainline tank rush waves (IFV escorts). Keep pressure up.
       const phq = buildings.find(b => b.alive && !b.civ && b.team === TEAM.PLAYER && b.kind === "hq");
@@ -603,7 +618,7 @@
         ai.nextWave = state.t + rnd(22, 34);
         const eUnitsAll = units.filter(u => u.alive && u.team === TEAM.ENEMY && !u.inTransport && !u.hidden);
         const tanks = eUnitsAll.filter(u => u.kind === "tank");
-        const ifvs = eUnitsAll.filter(u => u.kind === "ifv");
+        const ifvs = eUnitsAll.filter(u => u.kind === "ifv" && u.passengerId);
         const pack = [];
         // take up to 8 tanks
         tanks.sort((a, b) => a.id - b.id);
@@ -708,6 +723,7 @@
             .filter(u => u.kind !== "harvester" && u.kind !== "engineer")
             .filter(u => u.kind !== "sniper")
             .filter(u => !(u.kind === "ifv" && u.passengerId && u.passKind === "engineer"))
+            .filter(u => !(u.kind === "ifv" && !u.passengerId))
             .filter(u => !squad.includes(u))
               // Prefer units that are not currently committed to a main-base attack
               .filter(u => !(ai.mode === "attack" && u.order && u.order.type === "attack"))
