@@ -1601,7 +1601,7 @@
       inMap, idx, tileToWorldCenter, worldToScreen,
       getEntityById, REPAIR_WRENCH_IMG, repairWrenches,
       snapHoverToTileOrigin, buildingWorldFromTileOrigin, inBuildRadius, isBlockedFootprint, footprintBlockedMask,
-      updateInfDeathFx, updateSnipDeathFx, drawInfDeathFxOne, drawSnipDeathFxOne,
+      updateInfDeathFx, updateSnipDeathFx,
       rectFromDrag, refreshPrimaryBuildingBadgesUI,
       spriteDraw,
       drawBuildingSprite,
@@ -1779,8 +1779,8 @@
           drawFootprintDiamond(ent, "rgba(0,0,0,0)", "rgba(255,255,255,0.9)");
         }
       } else {
-        if (ent.kind==="_fx_inf_die"){ if (typeof drawInfDeathFxOne === "function") drawInfDeathFxOne(ent.fxRef); continue; }
-        if (ent.kind==="_fx_snip_die"){ if (typeof drawSnipDeathFxOne === "function") drawSnipDeathFxOne(ent.fxRef); continue; }
+        if (ent.kind==="_fx_inf_die"){ drawInfDeathFxOne(ent.fxRef); continue; }
+        if (ent.kind==="_fx_snip_die"){ drawSnipDeathFxOne(ent.fxRef); continue; }
         if (ent.hidden || ent.inTransport) continue;
         if (ent.kind==="sniper" && ent.cloaked && ent.team===TEAM.ENEMY) continue;
         const p=worldToScreen(rX,rY);
