@@ -9875,6 +9875,23 @@ function showUnitPathFx(u){ /* disabled */ }
 }
 
 
+
+const spriteDraw = {
+  drawLiteTankSprite,
+  drawHarvesterSprite,
+  drawInfantrySprite,
+  drawInfantryMoveEast,
+  drawInfantryMoveNE,
+  drawInfantryMoveN,
+  drawInfantryMoveNW,
+  drawInfantryMoveW,
+  drawInfantryMoveSW,
+  drawInfantryMoveS,
+  drawInfantryMoveSE,
+  drawSniperSprite,
+  drawSniperMoveByDir,
+};
+
 function draw(){
     if (window.OURender && typeof window.OURender.draw === "function"){
       window.OURender.draw({
@@ -9892,9 +9909,7 @@ function draw(){
         EXP1_IMG, EXP1_FRAMES, EXP1_PIVOT_X, EXP1_PIVOT_Y, EXP1_Y_OFFSET, exp1Fxs,
         smokeWaves, smokePuffs, dustPuffs, dmgSmokePuffs, bloodStains, bloodPuffs,
         explosions,
-        drawLiteTankSprite, drawHarvesterSprite,
-        drawInfantrySprite, drawInfantryMoveEast, drawInfantryMoveNE, drawInfantryMoveN, drawInfantryMoveNW, drawInfantryMoveW, drawInfantryMoveSW, drawInfantryMoveS, drawInfantryMoveSE,
-        drawSniperSprite, drawSniperMoveByDir,
+        spriteDraw,
         drawBuildingSprite,
         worldVecToDir8,
         isUnderPower, clamp,

@@ -1,4 +1,4 @@
-// render.js
+﻿// render.js
 // Minimap renderer split from game.js (Step 1)
 (function(){
   "use strict";
@@ -1178,9 +1178,7 @@
       snapHoverToTileOrigin, buildingWorldFromTileOrigin, inBuildRadius, isBlockedFootprint, footprintBlockedMask,
       updateInfDeathFx, updateSnipDeathFx, drawInfDeathFxOne, drawSnipDeathFxOne,
       rectFromDrag, refreshPrimaryBuildingBadgesUI,
-      drawLiteTankSprite, drawHarvesterSprite,
-      drawInfantrySprite, drawInfantryMoveEast, drawInfantryMoveNE, drawInfantryMoveN, drawInfantryMoveNW, drawInfantryMoveW, drawInfantryMoveSW, drawInfantryMoveS, drawInfantryMoveSE,
-      drawSniperSprite, drawSniperMoveByDir,
+      spriteDraw,
       drawBuildingSprite,
       worldVecToDir8,
       isUnderPower, clamp,
@@ -1387,10 +1385,12 @@
         }
         if (!isInf){
           let drewSprite = false;
-          if (ent.kind==="tank"){
-            drewSprite = drawLiteTankSprite(ent, p);
-          } else if (ent.kind==="harvester"){
-            drewSprite = drawHarvesterSprite(ent, p);
+          if (spriteDraw){
+            if (ent.kind==="tank"){
+              drewSprite = spriteDraw.drawLiteTankSprite(ent, p);
+            } else if (ent.kind==="harvester"){
+              drewSprite = spriteDraw.drawHarvesterSprite(ent, p);
+            }
           }
           if (!drewSprite){
             ctx.fillStyle=c;
@@ -1410,9 +1410,9 @@
               const v2 = (ent.vx||0)*(ent.vx||0) + (ent.vy||0)*(ent.vy||0);
               const moving = isMoveOrder || v2 > 0.0004 || (ent.path && ent.path.length>0);
               if (!firing && moving){
-                drawSniperMoveByDir(ctx, p.x, p.y, infDir, a, ent.team, state.t);
+                spriteDraw.drawSniperMoveByDir(ctx, p.x, p.y, infDir, a, ent.team, state.t);
               } else {
-                drawSniperSprite(ctx, p.x, p.y, infDir, a, ent.team);
+                spriteDraw.drawSniperSprite(ctx, p.x, p.y, infDir, a, ent.team);
               }
             } else {
               const firing = ((ent.fireHoldT||0)>0);
@@ -1420,17 +1420,17 @@
               const v2 = (ent.vx||0)*(ent.vx||0) + (ent.vy||0)*(ent.vy||0);
               const moving = isMoveOrder || v2 > 0.0004 || (ent.path && ent.path.length>0);
               if (!firing && moving){
-                if (infDir===0)      drawInfantryMoveEast(ctx, p.x, p.y, a, ent.team, state.t);
-                else if (infDir===1) drawInfantryMoveNE(ctx, p.x, p.y, a, ent.team, state.t);
-                else if (infDir===2) drawInfantryMoveN(ctx,  p.x, p.y, a, ent.team, state.t);
-                else if (infDir===3) drawInfantryMoveNW(ctx, p.x, p.y, a, ent.team, state.t);
-                else if (infDir===4) drawInfantryMoveW(ctx,  p.x, p.y, a, ent.team, state.t);
-                else if (infDir===5) drawInfantryMoveSW(ctx, p.x, p.y, a, ent.team, state.t);
-                else if (infDir===6) drawInfantryMoveS(ctx,  p.x, p.y, a, ent.team, state.t);
-                else if (infDir===7) drawInfantryMoveSE(ctx, p.x, p.y, a, ent.team, state.t);
-                else                 drawInfantrySprite(ctx, p.x, p.y, infDir, a, ent.team, firing);
+                if (infDir===0)      spriteDraw.drawInfantryMoveEast(ctx, p.x, p.y, a, ent.team, state.t);
+                else if (infDir===1) spriteDraw.drawInfantryMoveNE(ctx, p.x, p.y, a, ent.team, state.t);
+                else if (infDir===2) spriteDraw.drawInfantryMoveN(ctx,  p.x, p.y, a, ent.team, state.t);
+                else if (infDir===3) spriteDraw.drawInfantryMoveNW(ctx, p.x, p.y, a, ent.team, state.t);
+                else if (infDir===4) spriteDraw.drawInfantryMoveW(ctx,  p.x, p.y, a, ent.team, state.t);
+                else if (infDir===5) spriteDraw.drawInfantryMoveSW(ctx, p.x, p.y, a, ent.team, state.t);
+                else if (infDir===6) spriteDraw.drawInfantryMoveS(ctx,  p.x, p.y, a, ent.team, state.t);
+                else if (infDir===7) spriteDraw.drawInfantryMoveSE(ctx, p.x, p.y, a, ent.team, state.t);
+                else                 spriteDraw.drawInfantrySprite(ctx, p.x, p.y, infDir, a, ent.team, firing);
               } else {
-                drawInfantrySprite(ctx, p.x, p.y, infDir, a, ent.team, firing);
+                spriteDraw.drawInfantrySprite(ctx, p.x, p.y, infDir, a, ent.team, firing);
               }
             }
           }
@@ -1765,3 +1765,4 @@
   window.OURender.drawMini = drawMini;
   window.OURender.draw = drawMain;
 })();
+
