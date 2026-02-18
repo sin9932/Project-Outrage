@@ -454,6 +454,121 @@
     ctx.restore();
   }
 
+  function updateInfDeathFx(){
+    // Prepare infantry death FX for depth-sorted rendering with buildings/units.
+    // Playback: frameDur=0.05s, play up to frame #6 (index 5), then hold that frame and fade out.
+    const baseImg = INF_DIE_IMG;
+    if (!baseImg || !baseImg.complete || baseImg.naturalWidth<=0) return;
+
+    const COLS = 3;
+    const FRAMES_TOTAL = 6;
+
+    const frameDur = 0.05;
+    const HOLD_INDEX = 5;  // "last 6th frame" (1-based 6) held for fade out
+    const playFrames = Math.min(HOLD_INDEX+1, FRAMES_TOTAL);
+    const playDur = playFrames * frameDur;
+
+    const fadeDur = 0.65;
+    const totalDur = playDur + fadeDur;
+
+    const imgW = baseImg.naturalWidth|0;
+    const imgH = baseImg.naturalHeight|0;
+
+    // Derive tile size from width, and allow non-multiple widths by distributing remainder.
+    const colX = [0];
+    for (let c=1;c<=COLS;c++){
+      colX[c] = Math.round((imgW * c) / COLS);
+    }
+    const rowsGuess = 2; // detected layout: 3 cols x 2 rows
+    const rowY = [0];
+    for (let r=1;r<=rowsGuess;r++){
+      rowY[r] = Math.round((imgH * r) / rowsGuess);
+    }
+
+    const frames = [
+      {cx:0, cy:0}, // 1
+      {cx:1, cy:0}, // 2
+      {cx:2, cy:0}, // 3
+      {cx:0, cy:1}, // 4
+      {cx:1, cy:1}, // 5
+      {cx:2, cy:1}, // 6 (hold here)
+    ];
+
+    for (let i=infDeathFxs.length-1;i>=0;i--){
+      const fx = infDeathFxs[i];
+      const age = state.t - fx.t0;
+      if (age >= totalDur){
+        infDeathFxs.splice(i,1);
+        continue;
+      }
+
+      // frame index (stop at HOLD_INDEX after playDur)
+      let fi = Math.min(playFrames-1, Math.max(0, (age / frameDur)|0));
+      if (age >= playDur) fi = Math.min(HOLD_INDEX, FRAMES_TOTAL-1);
+
+      // alpha (fade only after playDur)
+      let alpha = 1;
+      if (age > playDur){
+        alpha = clamp(1 - ((age - playDur) / fadeDur), 0, 1);
+      }
+
+      let cx = frames[fi].cx, cy = frames[fi].cy;
+      cx = clamp(cx, 0, COLS-1);
+      cy = clamp(cy, 0, rowsGuess-1);
+
+      const sx0 = colX[cx], sx1 = colX[cx+1];
+      const sy0 = rowY[cy], sy1 = rowY[cy+1];
+      const sw = Math.max(1, sx1 - sx0);
+      const sh = Math.max(1, sy1 - sy0);
+
+      fx._rd = { sx:sx0, sy:sy0, sw, sh, alpha, fi };
+    }
+  }
+
+  function updateSnipDeathFx(){
+    const baseImg = SNIP_DIE_IMG;
+    if (!baseImg || !baseImg.complete || baseImg.naturalWidth<=0) return;
+
+    const dt=state.dt??1/60;
+
+    const FRAME_DUR=0.06;
+    const FRAMES=9;
+    const HOLD_LAST=0.12;
+    const FADE_DUR=0.22;
+
+    // derive per-tile size from texture (expects 3x3 sheet, each 1200x1200)
+    const cols=3;
+    const tw=(baseImg.naturalWidth/cols)|0;
+    const th=(baseImg.naturalHeight/cols)|0;
+
+    for(let i=snipDeathFxs.length-1;i>=0;i--){
+      const fx=snipDeathFxs[i];
+      fx.t=(fx.t??0)+dt;
+
+      const playT=FRAMES*FRAME_DUR;
+      const holdEnd=playT+HOLD_LAST;
+      const fadeEnd=holdEnd+FADE_DUR;
+
+      let fi=0, alpha=1;
+      if(fx.t<playT){
+        fi=Math.min(FRAMES-1, (fx.t/FRAME_DUR)|0);
+        alpha=1;
+      }else if(fx.t<holdEnd){
+        fi=FRAMES-1; alpha=1;
+      }else if(fx.t<fadeEnd){
+        fi=FRAMES-1; alpha=1-((fx.t-holdEnd)/FADE_DUR);
+      }else{
+        snipDeathFxs.splice(i,1);
+        continue;
+      }
+
+      const sx=(fi%cols)*tw;
+      const sy=((fi/cols)|0)*th;
+
+      fx._rd = { sx, sy, sw: tw, sh: th, alpha, fi };
+    }
+  }
+
   function drawInfDeathFxOne(fx){
     const baseImg = INF_DIE_IMG;
     if (!baseImg || !baseImg.complete || baseImg.naturalWidth<=0) return;
@@ -1866,7 +1981,6 @@
       inMap, idx, tileToWorldCenter, worldToScreen,
       getEntityById, REPAIR_WRENCH_IMG, repairWrenches,
       snapHoverToTileOrigin, buildingWorldFromTileOrigin, inBuildRadius, isBlockedFootprint, footprintBlockedMask,
-      updateInfDeathFx, updateSnipDeathFx,
       rectFromDrag, refreshPrimaryBuildingBadgesUI,
       drawBuildingSprite,
       worldVecToDir8,
@@ -1965,8 +2079,8 @@
       }
     }
 
-    if (typeof updateInfDeathFx === "function") updateInfDeathFx();
-    if (typeof updateSnipDeathFx === "function") updateSnipDeathFx();
+    updateInfDeathFx();
+    updateSnipDeathFx();
 
     const drawables=[];
     for (const b of buildings) if (b.alive) drawables.push(b);
