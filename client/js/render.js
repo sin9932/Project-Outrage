@@ -1161,16 +1161,11 @@
       ctx.restore();
     }
   }
-  }
 
   function drawMain(env){
     if (!env) return;
     bindEnv(env);
     const {
-
-
-
-
       canvas, ctx, cam, state, TEAM, MAP_W, MAP_H, TILE, ISO_X, ISO_Y,
       terrain, ore, explored, visible, BUILD, DEFENSE, BUILD_SPRITE, NAME_KO,
       units, buildings, bullets, traces, impacts, fires, healMarks, flashes, casings,
@@ -1191,10 +1186,6 @@
       isUnderPower, clamp,
       INF_IMG, SNIP_IMG,
       infDeathFxs = [], snipDeathFxs = []
-    
-    
-    
-    
     } = env;
 
     const W=canvas.width, H=canvas.height;
