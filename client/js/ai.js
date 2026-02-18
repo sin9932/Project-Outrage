@@ -326,6 +326,8 @@
       for (const u of list) {
         // Don't override engineer-IFV harassment/capture logic.
         if (u.kind === "ifv" && u.passengerId && u.passKind === "engineer") continue;
+        // Keep snipers out of frontal waves (they should IFV-harass instead).
+        if (u.kind === "sniper") continue;
         u.order = { type: "attack", x: u.x, y: u.y, tx: null, ty: null };
         u.target = target ? target.id : null;
         if (target) setPathTo(u, target.x, target.y);
@@ -583,8 +585,10 @@
 
       // Army behavior: rally -> attack waves, plus engineer harassment
       const eUnits = units.filter(u => u.alive && u.team === TEAM.ENEMY);
-      const combat = eUnits.filter(u => u.kind !== "harvester" && u.kind !== "engineer");
+      const combat = eUnits.filter(u => u.kind !== "harvester" && u.kind !== "engineer" && u.kind !== "sniper");
       const engs = eUnits.filter(u => u.kind === "engineer");
+      const snipers = eUnits.filter(u => u.kind === "sniper");
+      const idleIFVs = units.filter(u => u.alive && u.team === TEAM.ENEMY && u.kind === "ifv" && !u.passengerId);
 
       // Engineer harassment (value-aware) - keep trying to capture high-value and sell.
       if (engs.length && state.t > 140 && combat.length >= 4) {
@@ -600,6 +604,22 @@
             return pr + Math.max(0, c - (COST.engineer || 800)) + (c * 0.1);
           };
           for (const eng of engs) {
+            // Prefer IFV boarding when available (avoid solo engineer rush if IFVs exist).
+            if (idleIFVs.length && !eng.inTransport) {
+              let best = null, bestD = Infinity;
+              for (const ifv of idleIFVs) {
+                const d2 = dist2(eng.x, eng.y, ifv.x, ifv.y);
+                if (d2 < bestD) { bestD = d2; best = ifv; }
+              }
+              if (best) {
+                // Move engineer toward nearest IFV and let aiUseIFVPassengers handle boarding.
+                eng.order = { type: "move", x: best.x, y: best.y, tx: null, ty: null };
+                setPathTo(eng, best.x, best.y);
+                eng.repathCd = 0.25;
+                continue;
+              }
+            }
+
             // Don't suicide into nearby player combat blobs; pull back and wait for escort.
             const pNear = units.filter(u => u.alive && u.team === TEAM.PLAYER && u.kind !== "harvester").some(pu => dist2(eng.x, eng.y, pu.x, pu.y) < 220 * 220);
             if (pNear) {
@@ -644,10 +664,11 @@
 
           // Refill squad up to 3
           if (squad.length < 3) {
-            const pool = combat
-              .filter(u => u.kind !== "harvester" && u.kind !== "engineer")
-              .filter(u => !(u.kind === "ifv" && u.passengerId && u.passKind === "engineer"))
-              .filter(u => !squad.includes(u))
+          const pool = combat
+            .filter(u => u.kind !== "harvester" && u.kind !== "engineer")
+            .filter(u => u.kind !== "sniper")
+            .filter(u => !(u.kind === "ifv" && u.passengerId && u.passKind === "engineer"))
+            .filter(u => !squad.includes(u))
               // Prefer units that are not currently committed to a main-base attack
               .filter(u => !(ai.mode === "attack" && u.order && u.order.type === "attack"))
               .sort((a, b) => dist2(ai.rally.x, ai.rally.y, a.x, a.y) - dist2(ai.rally.x, ai.rally.y, b.x, b.y));
@@ -720,6 +741,30 @@
       if (Math.random() < 0.06) {
         const target = aiPickPlayerTarget();
         if (target) aiCommandAttackWave(combat, target);
+      }
+
+      // Snipers should avoid solo engagements and prefer IFV usage.
+      if (snipers.length) {
+        for (const s of snipers) {
+          if (s.inTransport) continue;
+          if (idleIFVs.length) {
+            let best = null, bestD = Infinity;
+            for (const ifv of idleIFVs) {
+              const d2 = dist2(s.x, s.y, ifv.x, ifv.y);
+              if (d2 < bestD) { bestD = d2; best = ifv; }
+            }
+            if (best) {
+              s.order = { type: "move", x: best.x, y: best.y, tx: null, ty: null };
+              setPathTo(s, best.x, best.y);
+              s.repathCd = 0.25;
+              continue;
+            }
+          }
+          // Fallback: keep near rally, do not attack harvesters.
+          s.order = { type: "move", x: ai.rally.x, y: ai.rally.y, tx: null, ty: null };
+          setPathTo(s, ai.rally.x, ai.rally.y);
+          s.repathCd = 0.35;
+        }
       }
     }
 
