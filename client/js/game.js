@@ -7841,6 +7841,8 @@ if (state.selection.size>0 && inMap(tx,ty) && ore[idx(tx,ty)]>0){
     if (lane.ready === kind){
       const refund = COST[kind] || 0;
       if (refund > 0) state.player.money += refund;
+      // snap to integer to avoid sub-1 drift
+      state.player.money = Math.round(state.player.money||0);
       lane.ready = null;
       // If player was in placement mode for this item, exit it.
       if (state.build && state.build.active && state.build.kind === kind && state.build.lane === laneKey){
@@ -7872,6 +7874,8 @@ if (state.selection.size>0 && inMap(tx,ty) && ore[idx(tx,ty)]>0){
       // cancel + refund paid so far
       const paid = lane.queue.paid || 0;
       state.player.money += paid;
+      // snap to integer to avoid sub-1 drift
+      state.player.money = Math.round(state.player.money||0);
       lane.queue = null;
       // Also drop any pending reservations of the same kind to avoid "ghost" rebuild.
       if (lane.fifo && lane.fifo.length){
