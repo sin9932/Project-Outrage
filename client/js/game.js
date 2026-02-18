@@ -3022,6 +3022,9 @@ const __ou_sim = (window.OUSim && typeof window.OUSim.create==="function")
       snapWorldToTileCenter,
       isBlockedWorldPoint,
       buildOcc,
+      _turnStepTowardTurret,
+      _advanceTurnState,
+      _turretTurnFrameNum,
       // spawnBullet/spawnTrace/mg/sniper now live in sim
       spawnTrailPuff,
       spawnDmgSmokePuff,
