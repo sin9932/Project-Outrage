@@ -7967,7 +7967,7 @@ if (state.selection.size>0 && inMap(tx,ty) && ore[idx(tx,ty)]>0){
 
   // Unit production right-click: 1st = pause(대기), 2nd (while paused) = cancel + refund spent.
 
-function applyMouseMode(mode){
+  function applyMouseMode(mode){
     state.mouseMode = mode;
     if (__ou_ui && typeof __ou_ui.applyMouseMode === "function"){
       __ou_ui.applyMouseMode({ state, mode });
@@ -7981,7 +7981,7 @@ function applyMouseMode(mode){
       onLaneRClick: (laneKey, kind)=>enqueueEcon({ type:"laneRClick", laneKey, kind }),
       onQueueUnit: (kind)=>enqueueEcon({ type:"queueUnit", kind }),
       onUnitRClick: (kind)=>enqueueEcon({ type:"unitRClick", kind }),
-      onCancelBuild: ()=>cancelBuild(),
+      onCancelBuild: ()=>enqueueEcon({ type:"cancelBuild" }),
       onGoToHQ: ()=>goToHQ(),
       onSellSelected: ()=>enqueueEcon({ type:"sellSelected" }),
       onCancelSel: ()=>{ state.selection.clear(); updateSelectionUI(); },
@@ -8024,6 +8024,13 @@ function applyMouseMode(mode){
     updateSelectionUI();
   }
 
+  function cancelBuildPlacement(){
+    if (!state.build || !state.build.active) return;
+    state.build.active = false;
+    state.build.kind = null;
+    state.build.lane = null;
+  }
+
   function sellSelectedBuildings(){
     for (const id of [...state.selection]){
       const b=getEntityById(id);
@@ -8052,6 +8059,9 @@ function applyMouseMode(mode){
           break;
         case "queueUnit":
           queueUnit(a.kind);
+          break;
+        case "cancelBuild":
+          cancelBuildPlacement();
           break;
         case "toggleRepair":
           toggleRepair();
