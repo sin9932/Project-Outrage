@@ -508,25 +508,31 @@
     function aiUseIFVPassengers() {
       // Ensure engineer/sniper are IFV-passengers (AI preference: no independent ops).
       const eIFVs = units.filter(u => u.alive && u.team === TEAM.ENEMY && u.kind === "ifv");
+      const emptyIFVs = eIFVs.filter(u => !u.passengerId);
       const eInf = units.filter(u => u.alive && u.team === TEAM.ENEMY && (u.kind === "engineer" || u.kind === "sniper") && !u.inTransport && !u.hidden);
 
-      // Boarding logic (IFV moves to passenger; passenger should not chase IFV)
-      for (const inf of eInf) {
-        // Find nearest empty IFV
-        let best = null, bestD = Infinity;
-        for (const ifv of eIFVs) {
-          if (!ifv.alive || ifv.passengerId) continue;
+      if (!emptyIFVs.length || !eInf.length) return;
+
+      // Pair IFVs to the nearest waiting passenger (one-to-one).
+      const infPool = eInf.slice();
+      for (const ifv of emptyIFVs) {
+        if (!infPool.length) break;
+        let bestIdx = -1;
+        let bestD = Infinity;
+        for (let i = 0; i < infPool.length; i++) {
+          const inf = infPool[i];
           const d2 = dist2(inf.x, inf.y, ifv.x, ifv.y);
-          if (d2 < bestD) { bestD = d2; best = ifv; }
+          if (d2 < bestD) { bestD = d2; bestIdx = i; }
         }
-        if (!best) break;
+        if (bestIdx < 0) break;
+        const inf = infPool.splice(bestIdx, 1)[0];
         const d = Math.sqrt(bestD);
         if (d <= 140) {
-          boardUnitIntoIFV(inf, best);
+          boardUnitIntoIFV(inf, ifv);
         } else {
           // Move IFV toward the infantry to pick up
-          best.order = { type: "move", x: inf.x, y: inf.y };
-          best.target = null;
+          ifv.order = { type: "move", x: inf.x, y: inf.y };
+          ifv.target = null;
           // Passenger should hold position and wait for pickup (do NOT chase IFV).
           inf.order = { type: "move", x: inf.x, y: inf.y, tx: null, ty: null };
           inf.target = null;
