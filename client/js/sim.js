@@ -67,6 +67,7 @@
     const canEnterTile = r.canEnterTile;
     const canEnterTileGoal = r.canEnterTileGoal;
     const isSqueezedTile = r.isSqueezedTile;
+    const isReservedByOther = r.isReservedByOther;
     
     
     const spawnTrailPuff = r.spawnTrailPuff;

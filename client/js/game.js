@@ -3036,6 +3036,7 @@ const __ou_sim = (window.OUSim && typeof window.OUSim.create==="function")
       canEnterTile,
       canEnterTileGoal,
       isSqueezedTile,
+      isReservedByOther,
       idx,
       setPathTo,
       followPath,
