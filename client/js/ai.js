@@ -484,25 +484,21 @@
           if (fac.buildQ.length < 1) fac.buildQ.push({ kind: "harvester", t: 0, tNeed: getBaseBuildTime("harvester") / pf, cost: COST.harvester, paid: 0 });
           return;
         }
-        const wantVeh = poor ? 3 : (rich ? 6 : 4);
+        const wantVeh = poor ? 4 : (rich ? 8 : 5);
         // Mix IFV + tanks. Tanks are mainline; IFV is support (passenger carriers / utility).
         while (fac.buildQ.length < wantVeh) {
           const countIFV = eIFV.length;
           const countTank = units.filter(u => u.alive && u.team === TEAM.ENEMY && u.kind === "tank").length;
-          const desiredIFV = 3 + Math.floor((eEng.length + eSnp.length) / 2);
+          const desiredIFV = Math.max(2, Math.floor((eEng.length + eSnp.length) / 4));
           const needIFV = (countIFV < desiredIFV);
 
           // Also bias to tanks in general
           const roll = Math.random();
-          if (needIFV && roll < 0.90) {
+          if (needIFV && roll < 0.35) {
             fac.buildQ.push({ kind: "ifv", t: 0, tNeed: getBaseBuildTime("ifv") / pf, cost: COST.ifv, paid: 0 });
           } else {
-            // Avoid tank spam: only sprinkle tanks occasionally.
-            if (countTank < Math.max(2, Math.floor(countIFV / 3))) {
-              fac.buildQ.push({ kind: "tank", t: 0, tNeed: getBaseBuildTime("tank") / pf, cost: COST.tank, paid: 0 });
-            } else {
-              fac.buildQ.push({ kind: "ifv", t: 0, tNeed: getBaseBuildTime("ifv") / pf, cost: COST.ifv, paid: 0 });
-            }
+            // Tank-rush baseline: always prioritize tanks.
+            fac.buildQ.push({ kind: "tank", t: 0, tNeed: getBaseBuildTime("tank") / pf, cost: COST.tank, paid: 0 });
           }
           if (poor) break;
         }
