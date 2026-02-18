@@ -288,7 +288,7 @@
   const LITE_TANK = { ok:false, bodyIdle:null, bodyMov:null, muzzleIdle:null, muzzleMov:null };
   const HARVESTER = { ok:false, idle:null, mov:null };
   let TANK_DIR_TO_IDLE_IDX, MUZZLE_DIR_TO_IDLE_IDX;
-  let getUnitSpec, getTeamCroppedSprite;
+  let getUnitSpec;
 
   function bindEnv(env){
     canvas = env.canvas; ctx = env.ctx; cam = env.cam; state = env.state;
@@ -331,7 +331,6 @@
     TANK_DIR_TO_IDLE_IDX = env.TANK_DIR_TO_IDLE_IDX;
     MUZZLE_DIR_TO_IDLE_IDX = env.MUZZLE_DIR_TO_IDLE_IDX;
     getUnitSpec = env.getUnitSpec;
-    getTeamCroppedSprite = env.getTeamCroppedSprite;
   }
 
   // Kick off lite tank atlas loads early (non-blocking)
