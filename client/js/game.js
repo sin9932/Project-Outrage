@@ -1105,62 +1105,7 @@ function isBlockedWorldPointEx(u, x, y, padExtra){
   }
 
 // Enter check for combat/docking goals: relax building padding so infantry can stand close enough to shoot.
-function canEnterTileGoal(u, tx, ty, t){
-    if (!inMap(tx,ty)) return false;
-    if (!isWalkableTile(tx,ty)) return false;
-    if (isSqueezedTile(tx,ty)) return false;
 
-    // When attacking a building, we must allow tight approach.
-    // Generic collision checks (unit radius vs building rect) can reject valid near-edge tiles,
-    // causing the infamous in-place jitter/dance. For building targets:
-    // - forbid tiles INSIDE the building footprint
-    // - otherwise skip the world-point collision check
-    const isB = !!(t && BUILD[t.kind]);
-    if (isB && t && t.tx!=null && t.ty!=null && t.tw!=null && t.th!=null){
-      if (tx>=t.tx && tx<(t.tx+t.tw) && ty>=t.ty && ty<(t.ty+t.th)) return false;
-    } else {
-      const c = tileToWorldCenter(tx,ty);
-      if (isBlockedWorldPoint(u, c.x, c.y)) return false;
-    }
-
-    // tile occupancy / yielding rules (same as canEnterTile)
-    const i = idx(tx,ty);
-// Infantry sub-slot capacity: allow up to 4 infantry per tile (same-team).
-{
-  const ucls = (UNIT[u.kind] && UNIT[u.kind].cls) ? UNIT[u.kind].cls : "";
-  if (ucls==="inf"){
-    if (occVeh[i] > 0) return false;
-    if (occTeam[i]!==0 && occTeam[i]!==u.team) return false;
-    if (occInf[i] >= INF_SLOT_MAX) return false;
-    // do not use occId/occTeam single-occupant gate for infantry
-    return true;
-  }
-}
-    if (occTeam[i]===0) return true;
-    if (occTeam[i]===u.team && occId[i]===u.id) return true;
-
-    const otherId = occId[i];
-    if (otherId!=null){
-      const other = getEntityById(otherId);
-      if (other && other.alive && other.type==="unit"){
-        const ocls = (UNIT[other.kind] && UNIT[other.kind].cls) ? UNIT[other.kind].cls : "";
-        const ucls = (UNIT[u.kind] && UNIT[u.kind].cls) ? UNIT[u.kind].cls : "";
-        if (ucls==="veh" && ocls!=="veh"){
-          // vehicles can push through infantry only if that infantry yields
-        } else if (ucls!=="veh" && ocls==="veh"){
-          if (!other.yieldCd || other.yieldCd<=0){
-            other.yieldCd = 0.18;
-            // nudge the infantry one step aside
-            const step = findNearestFreeStep(other);
-            if (step){
-              setPathTo(other, (step.tx+0.5)*TILE, (step.ty+0.5)*TILE);
-            }
-          }
-        }
-      }
-    }
-    return (occTeam[i]===0);
-  }
 
 
   const occInf = new Uint8Array(MAP_W*MAP_H);
@@ -1235,73 +1180,10 @@ function tileToWorldSubslot(tx, ty, slot){
 
   // Find a nearby free tile for a short "yield" step (used when infantry yields to vehicles).
   // Returns {tx,ty} or null.
-  function findNearestFreeStep(u){
-    if (!u) return null;
-    const s = snapWorldToTileCenter(u.x, u.y);
-    const baseTx = s.tx, baseTy = s.ty;
-
-    // Search a few rings around the unit. Keep it small/cheap.
-    for (let r=1; r<=4; r++){
-      let best = null;
-      let bestD = 1e9;
-
-      for (let dy=-r; dy<=r; dy++){
-        for (let dx=-r; dx<=r; dx++){
-          if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
-          const tx = baseTx + dx;
-          const ty = baseTy + dy;
-          if (!inMap(tx,ty)) continue;
-          if (!isWalkableTile(tx,ty)) continue;
-          if (isSqueezedTile(tx,ty)) continue;
-
-          const i = idx(tx,ty);
-          if (occAll[i] !== 0) continue;              // don't step onto occupied tiles
-          if (isReservedByOther(u, tx, ty)) continue; // avoid reserved tiles
-
-          // Keep the step away from building padding for this unit (prevents corner-bounce).
-          const c = tileToWorldCenter(tx,ty);
-          if (isBlockedWorldPoint(u, c.x, c.y)) continue;
-
-          const d = dx*dx + dy*dy;
-          if (d < bestD){
-            bestD = d;
-            best = {tx, ty};
-          }
-        }
-      }
-      if (best) return best;
-    }
-    return null;
-  }
+  
 
 
-function canEnterTile(u, tx, ty){
-    if (!inMap(tx,ty)) return false;
-    if (!isWalkableTile(tx,ty)) return false;
-    if (isSqueezedTile(tx,ty)) return false;
-    // Reject tiles whose center is too close to a building footprint for this unit.
-    // This prevents "bouncing" when a waypoint lands in a 1-tile gap between buildings.
-    {
-      const c = tileToWorldCenter(tx,ty);
-      if (isBlockedWorldPoint(u, c.x, c.y)) return false;
-    }
-    // Harvesters have priority (others yield), but we still prevent stacking.
-    if (u.kind==="harvester"){
-      const i = idx(tx,ty);
-      if (isReservedByOther(u, tx, ty)) return false;
-      return occAll[i] < 1;
-    }
-    if (isReservedByOther(u, tx, ty)) return false;
-    const i = idx(tx,ty);
-    const cls = (UNIT[u.kind] && UNIT[u.kind].cls) ? UNIT[u.kind].cls : "";
-    if (cls==="veh") return occAll[i] < 1;
-    if (cls==="inf") {
-      if (occVeh[i] > 0) return false;
-      if (occTeam[i]!==0 && occTeam[i]!==u.team) return false;
-      return occInf[i] < INF_SLOT_MAX;
-    }
-    return occAll[i] < 2;
-  }
+
 
 function heuristic(ax,ay,bx,by){
     const dx=Math.abs(ax-bx), dy=Math.abs(ay-by);
@@ -1309,205 +1191,11 @@ function heuristic(ax,ay,bx,by){
     return D*(dx+dy) + (D2-2*D)*Math.min(dx,dy);
   }
 
-  function aStarPath(sx,sy,gx,gy, maxNodes=12000){
-    if (!inMap(sx,sy) || !inMap(gx,gy)) return null;
-    if (!isWalkableTile(gx,gy)) return null;
-
-    const W=MAP_W, H=MAP_H;
-    const N=W*H;
-
-    const open = new Int32Array(N);
-    let openN=0;
-
-    const inOpen = new Uint8Array(N);
-    const closed = new Uint8Array(N);
-    const gScore = new Int32Array(N);
-    const fScore = new Int32Array(N);
-    const came = new Int32Array(N);
-
-    for (let i=0;i<N;i++){ gScore[i]=1e9; fScore[i]=1e9; came[i]=-1; }
-
-    const s = sy*W+sx;
-    const g = gy*W+gx;
-
-    gScore[s]=0;
-    fScore[s]=heuristic(sx,sy,gx,gy);
-    open[openN++]=s;
-    inOpen[s]=1;
-
-    const dirs = [
-        [ 1, 0, 10],[-1, 0, 10],[ 0, 1, 10],[ 0,-1, 10],
-        [ 1, 1, 14],[ 1,-1, 14],[-1, 1, 14],[-1,-1, 14],
-      ];
-    let nodes=0;
-
-    while (openN>0 && nodes<maxNodes){
-      nodes++;
-
-      let bestI=0;
-      let bestF=fScore[open[0]];
-      for (let i=1;i<openN;i++){
-        const n=open[i];
-        const f=fScore[n];
-        if (f<bestF){ bestF=f; bestI=i; }
-      }
-      const cur = open[bestI];
-      open[bestI]=open[--openN];
-      inOpen[cur]=0;
-
-      if (cur===g) break;
-      closed[cur]=1;
-
-      const cx=cur%W, cy=(cur/W)|0;
-
-      for (const [dx,dy,cost] of dirs){
-        const nx=cx+dx, ny=cy+dy;
-        if (!inMap(nx,ny)) continue;
-
-        // Prevent "corner cutting" when moving diagonally past blocked tiles.
-        if (dx!==0 && dy!==0){
-          if (!isWalkableTile(cx+dx, cy) || !isWalkableTile(cx, cy+dy)) continue;
-        }
-
-        const ni=ny*W+nx;
-        if (closed[ni]) continue;
-        if (!isWalkableTile(nx,ny)) continue;
-
-        const tent = gScore[cur] + cost;
-        if (tent < gScore[ni]){
-          came[ni]=cur;
-          gScore[ni]=tent;
-          fScore[ni]=tent + heuristic(nx,ny,gx,gy);
-          if (!inOpen[ni]){
-            open[openN++]=ni;
-            inOpen[ni]=1;
-            if (openN>=N-4) break;
-          }
-        }
-      }
-    }
-
-    if (came[g]===-1 && g!==s) return null;
-
-    const path=[];
-    let cur=g;
-    path.push(cur);
-    while (cur!==s){
-      cur=came[cur];
-      if (cur===-1) break;
-      path.push(cur);
-    }
-    path.reverse();
-
-    const out=[];
-    let last=-1;
-    for (let i=0;i<path.length;i++){
-      const n=path[i];
-      if (n===last) continue;
-      last=n;
-      out.push({tx:n%W, ty:(n/W)|0});
-    }
-    return out;
-  }
+  
 
   // Occupancy-aware A* for unit movement: treats other friendly units' occupied/reserved tiles as blocked.
   // This prevents infantry "강행돌파" into occupied tiles and reduces vehicle oscillation at chokepoints.
-  function aStarPathOcc(u, sx, sy, gx, gy){
-    if (!inMap(sx,sy) || !inMap(gx,gy)) return null;
-    const W=MAP_W, H=MAP_H, N=W*H;
-    const s=sy*W+sx, g=gy*W+gx;
-    if (s===g) return [{tx:sx, ty:sy}];
-
-    const open = new Int32Array(N);
-    const inOpen = new Uint8Array(N);
-    const closed = new Uint8Array(N);
-    const came = new Int32Array(N);
-    const gScore = new Float32Array(N);
-    const fScore = new Float32Array(N);
-    for (let i=0;i<N;i++){ came[i]=-1; gScore[i]=1e9; fScore[i]=1e9; }
-
-    function heuristic(x,y, tx,ty){ return Math.abs(x-tx)+Math.abs(y-ty); }
-
-    open[0]=s; inOpen[s]=1;
-    gScore[s]=0; fScore[s]=heuristic(sx,sy,gx,gy);
-    let openN=1;
-
-    const dirs = [
-      [1,0,1],[-1,0,1],[0,1,1],[0,-1,1],
-      [1,1,1.42],[1,-1,1.42],[-1,1,1.42],[-1,-1,1.42],
-    ];
-
-    while (openN>0){
-      // pop best fScore
-      let bestI=0, best=open[0], bestF=fScore[best];
-      for (let i=1;i<openN;i++){
-        const n=open[i];
-        const f=fScore[n];
-        if (f<bestF){ bestF=f; best=n; bestI=i; }
-      }
-      openN--;
-      open[bestI]=open[openN];
-      inOpen[best]=0;
-
-      const cx=best%W, cy=(best/W)|0;
-      if (best===g) break;
-      closed[best]=1;
-
-      for (let di=0;di<dirs.length;di++){
-        const nx=cx+dirs[di][0], ny=cy+dirs[di][1];
-        if (!inMap(nx,ny)) continue;
-        
-        // Prevent "corner cutting" when moving diagonally past blocked tiles.
-        if (dirs[di][0]!==0 && dirs[di][1]!==0){
-          if (!isWalkableTile(cx+dirs[di][0], cy) || !isWalkableTile(cx, cy+dirs[di][1])) continue;
-        }
-const ni=ny*W+nx;
-        if (closed[ni]) continue;
-        if (!isWalkableTile(nx,ny)) continue;
-
-        // Occupancy and reservation as obstacles (except allow current tile and goal tile).
-        if (!(nx===sx && ny===sy) && !(nx===gx && ny===gy)){
-          if (!canEnterTile(u, nx, ny)) continue;
-          if (isReservedByOther(u, nx, ny)) continue;
-        }
-
-        const cost=dirs[di][2];
-        const tent=gScore[best]+cost;
-        if (tent < gScore[ni]){
-          came[ni]=best;
-          gScore[ni]=tent;
-          fScore[ni]=tent + heuristic(nx,ny,gx,gy);
-          if (!inOpen[ni]){
-            open[openN++]=ni;
-            inOpen[ni]=1;
-            if (openN>=N-4) break;
-          }
-        }
-      }
-    }
-
-    if (came[g]===-1 && g!==s) return null;
-
-    const path=[];
-    let cur=g;
-    path.push(cur);
-    while (cur!==s){
-      cur=came[cur];
-      if (cur===-1) break;
-      path.push(cur);
-    }
-    path.reverse();
-
-    const out=[];
-    let last=-1;
-    for (let i=0;i<path.length;i++){
-      const n=path[i];
-      if (n===last) continue;
-      last=n;
-      out.push({tx:n%W, ty:(n/W)|0});
-    }
-    return out;
-  }
+  
 
 
   // Alias expected by sanityCheck
@@ -1515,67 +1203,7 @@ const ni=ny*W+nx;
     return aStarPath(sx,sy,gx,gy);
   }
 
-  function setPathTo(u, goalX, goalY){
-    // Temporary separation offset to reduce clump jitter
-    if (u.sepCd && u.sepCd>0){ goalX += (u.sepOx||0); goalY += (u.sepOy||0); }
-    const sTx=tileOfX(u.x), sTy=tileOfY(u.y);
-    let gTx=tileOfX(goalX), gTy=tileOfY(goalY);
-
-    if (!isWalkableTile(gTx,gTy)){
-      let found=false;
-      for (let r=1;r<=4 && !found;r++){
-        for (let dy=-r;dy<=r && !found;dy++){
-          for (let dx=-r;dx<=r && !found;dx++){
-            const tx=gTx+dx, ty=gTy+dy;
-            if (!inMap(tx,ty)) continue;
-            if (isWalkableTile(tx,ty)){ gTx=tx; gTy=ty; found=true; }
-          }
-        }
-      }
-      if (!found) return false;
-    }
-
-
-    // If the goal tile is crowded, we only "snap" to a nearby free tile for non-combat move orders.
-    // For combat orders we intentionally keep the goal stable and allow compression; otherwise backliners can "dance".
-    const _combatOrder = (u && u.order && (u.order.type==="attack" || u.order.type==="attackmove"));
-    if (true){
-      if (!canEnterTile(u, gTx, gTy)){
-        let best=null, bestD=1e9;
-        for (let r=1;r<=6;r++){
-          for (let dy=-r;dy<=r;dy++){
-            for (let dx=-r;dx<=r;dx++){
-              const tx=gTx+dx, ty=gTy+dy;
-              if (!inMap(tx,ty)) continue;
-              if (!isWalkableTile(tx,ty)) continue;
-              if (!canEnterTile(u, tx, ty)) continue;
-              const d = dx*dx+dy*dy;
-              if (d<bestD){ bestD=d; best={tx,ty}; }
-            }
-          }
-          if (best) break;
-        }
-        if (best){ gTx=best.tx; gTy=best.ty; }
-      }
-    }
-// Persist intended goal tile for repath/anti-jitter decisions.
-    u.order = u.order || {type:"move"};
-    u.order.tx = gTx; u.order.ty = gTy;
-    u.order.x = (gTx+0.5)*TILE; u.order.y = (gTy+0.5)*TILE;
-    const path=aStarPathOcc(u, sTx, sTy, gTx, gTy);
-    u.path=path;
-    u.pathI=0;
-    // Avoid the classic 'backstep' when a new order is issued.
-    // If the path begins with our current tile, skip it so we immediately head toward the next tile
-    // instead of re-centering on the current tile first.
-    u.holdPos = false;
-    if (u.path && u.path.length>1){
-      const p0 = u.path[0];
-      if (p0 && p0.tx===sTx && p0.ty===sTy) u.pathI = 1;
-    }
-    u.lastGoalTx=gTx; u.lastGoalTy=gTy;
-    return !!path;
-  }
+  
 
   
   function findBypassStep(u, fromTx, fromTy, toTx, toTy){
@@ -2890,12 +2518,8 @@ const __ou_sim = (window.OUSim && typeof window.OUSim.create==="function")
       tileToWorldCenter,
       inMap,
       isWalkableTile,
-      canEnterTile,
-      canEnterTileGoal,
-      isSqueezedTile,
       isReservedByOther,
       idx,
-      setPathTo,
       followPath,
       
       tileToWorldSubslot,
@@ -3064,6 +2688,9 @@ function canEnterTileGoal(u, tx, ty, t){
   if (__ou_sim && typeof __ou_sim.canEnterTileGoal === "function") return __ou_sim.canEnterTileGoal(u, tx, ty, t);
   return false;
 }
+
+
+
 function heuristic(ax,ay,bx,by){
   if (__ou_sim && typeof __ou_sim.heuristic === "function") return __ou_sim.heuristic(ax,ay,bx,by);
   return 0;
@@ -3076,6 +2703,12 @@ function aStarPathOcc(u, sx, sy, gx, gy){
   if (__ou_sim && typeof __ou_sim.aStarPathOcc === "function") return __ou_sim.aStarPathOcc(u, sx, sy, gx, gy);
   return null;
 }
+function setPathTo(u, goalX, goalY){
+  if (__ou_sim && typeof __ou_sim.setPathTo === "function") return __ou_sim.setPathTo(u, goalX, goalY);
+  return false;
+}
+
+
 
 // Progress accessors (calculation in ou_economy; UI draws only)
 state.getBuildProgress = function(kind, laneKey){
@@ -5974,6 +5607,8 @@ window.unboardIFV = tryUnloadIFV;
 window.resolveUnitOverlaps = resolveUnitOverlaps;
 
 })();
+
+
 
 
 

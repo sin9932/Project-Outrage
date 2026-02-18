@@ -63,7 +63,6 @@
     const tileToWorldCenter = r.tileToWorldCenter;
     const inMap = r.inMap;
     const idx = r.idx;
-    const setPathTo = r.setPathTo;
     const followPath = r.followPath;
     
     
@@ -1313,7 +1312,7 @@
       return out;
     }
 
-    function aStarPathOcc(u, sx, sy, gx, gy){
+  function aStarPathOcc(u, sx, sy, gx, gy){
       if (!inMap(sx,sy) || !inMap(gx,gy)) return null;
       const W=MAP_W, H=MAP_H, N=W*H;
       const s=sy*W+sx, g=gy*W+gx;
@@ -1401,8 +1400,70 @@
         last=n;
         out.push({tx:n%W, ty:(n/W)|0});
       }
-      return out;
+    return out;
+  }
+
+  // Path setter (moved from game.js)
+  function setPathTo(u, goalX, goalY){
+    // Temporary separation offset to reduce clump jitter
+    if (u.sepCd && u.sepCd>0){ goalX += (u.sepOx||0); goalY += (u.sepOy||0); }
+    const sTx=tileOfX(u.x), sTy=tileOfY(u.y);
+    let gTx=tileOfX(goalX), gTy=tileOfY(goalY);
+
+    if (!isWalkableTile(gTx,gTy)){
+      let found=false;
+      for (let r=1;r<=4 && !found;r++){
+        for (let dy=-r;dy<=r && !found;dy++){
+          for (let dx=-r;dx<=r && !found;dx++){
+            const tx=gTx+dx, ty=gTy+dy;
+            if (!inMap(tx,ty)) continue;
+            if (isWalkableTile(tx,ty)){ gTx=tx; gTy=ty; found=true; }
+          }
+        }
+      }
+      if (!found) return false;
     }
+
+    // If the goal tile is crowded, we only "snap" to a nearby free tile for non-combat move orders.
+    // For combat orders we intentionally keep the goal stable and allow compression; otherwise backliners can "dance".
+    const _combatOrder = (u && u.order && (u.order.type==="attack" || u.order.type==="attackmove"));
+    if (true){
+      if (!canEnterTile(u, gTx, gTy)){
+        let best=null, bestD=1e9;
+        for (let r=1;r<=6;r++){
+          for (let dy=-r;dy<=r;dy++){
+            for (let dx=-r;dx<=r;dx++){
+              const tx=gTx+dx, ty=gTy+dy;
+              if (!inMap(tx,ty)) continue;
+              if (!isWalkableTile(tx,ty)) continue;
+              if (!canEnterTile(u, tx, ty)) continue;
+              const d = dx*dx+dy*dy;
+              if (d<bestD){ bestD=d; best={tx,ty}; }
+            }
+          }
+          if (best) break;
+        }
+        if (best){ gTx=best.tx; gTy=best.ty; }
+      }
+    }
+    // Persist intended goal tile for repath/anti-jitter decisions.
+    u.order = u.order || {type:"move"};
+    u.order.tx = gTx; u.order.ty = gTy;
+    u.order.x = (gTx+0.5)*TILE; u.order.y = (gTy+0.5)*TILE;
+    const path=aStarPathOcc(u, sTx, sTy, gTx, gTy);
+    u.path=path;
+    u.pathI=0;
+    // Avoid the classic 'backstep' when a new order is issued.
+    // If the path begins with our current tile, skip it so we immediately head toward the next tile
+    // instead of re-centering on the current tile first.
+    u.holdPos = false;
+    if (u.path && u.path.length>1){
+      const p0 = u.path[0];
+      if (p0 && p0.tx===sTx && p0.ty===sTy) u.pathI = 1;
+    }
+    u.lastGoalTx=gTx; u.lastGoalTy=gTy;
+    return !!path;
+  }
 
     function findNearestRefinery(team, wx, wy){
       let best=null, bestD=1e9;
@@ -3009,6 +3070,7 @@
       heuristic,
       aStarPath,
       aStarPathOcc,
+      setPathTo,
       clearReservation,
       settleInfantryToSubslot,
       findNearestFreePoint,
