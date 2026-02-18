@@ -3,12 +3,47 @@
 (function(){
   "use strict";
 
+  // TV noise for minimap when low power (kept inside render.js)
+  function drawMiniNoise(mmCtx, W, H){
+    if (!mmCtx) return;
+    const s = 96; // small buffer, scaled up
+    if (!drawMiniNoise._canvas){
+      drawMiniNoise._canvas = document.createElement("canvas");
+      drawMiniNoise._ctx = drawMiniNoise._canvas.getContext("2d", { willReadFrequently: true });
+    }
+    const c = drawMiniNoise._canvas;
+    const cctx = drawMiniNoise._ctx;
+    if (c.width!==s || c.height!==s){ c.width=s; c.height=s; }
+
+    if (!drawMiniNoise._img || drawMiniNoise._img.width !== s){
+      drawMiniNoise._img = cctx.createImageData(s,s);
+    }
+    const d = drawMiniNoise._img.data;
+    for (let i=0; i<d.length; i+=4){
+      const v = (Math.random()*255)|0;
+      d[i]=v; d[i+1]=v; d[i+2]=v; d[i+3]=255;
+    }
+    cctx.putImageData(drawMiniNoise._img,0,0);
+
+    mmCtx.save();
+    mmCtx.imageSmoothingEnabled = false;
+    mmCtx.globalAlpha = 0.95;
+    mmCtx.drawImage(c, 0,0, W,H);
+    mmCtx.globalAlpha = 1;
+    mmCtx.fillStyle="rgba(0,0,0,0.35)";
+    mmCtx.fillRect(0,0,W,H);
+    mmCtx.fillStyle="rgba(255,210,110,0.9)";
+    mmCtx.font="bold 12px system-ui";
+    mmCtx.fillText("LOW POWER", 10, 20);
+    mmCtx.restore();
+  }
+
   function drawMini(env){
     if (!env) return;
     const {
       fitMini, mmCanvas, mmCtx, TEAM, WORLD_W, WORLD_H, MAP_W, MAP_H, TILE,
       explored, visible, ore, units, buildings, state,
-      idx, inMap, tileOfX, tileOfY, hasRadarAlive, isUnderPower, drawMinimapNoise
+      idx, inMap, tileOfX, tileOfY, hasRadarAlive, isUnderPower
     } = env;
 
     if (typeof fitMini === "function") fitMini();
@@ -30,7 +65,7 @@
 
     const lowPower = isUnderPower && isUnderPower(TEAM.PLAYER);
     if (lowPower){
-      if (typeof drawMinimapNoise === "function") drawMinimapNoise(W,H);
+      drawMiniNoise(mmCtx, W, H);
       return;
     }
 

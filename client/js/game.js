@@ -167,38 +167,6 @@ function fitMini() {
   window.addEventListener("resize", fitMini);
   fitMini();
 
-  // TV noise for minimap when low power
-  const mmNoise = document.createElement("canvas");
-  const mmNoiseCtx = mmNoise.getContext("2d", { willReadFrequently: true });
-  let mmNoiseT = 0;
-  function drawMinimapNoise(W,H){
-    const s = 96; // small buffer, scaled up
-    if (mmNoise.width!==s || mmNoise.height!==s){ mmNoise.width=s; mmNoise.height=s; }
-    // Avoid getImageData readback every frame (Chrome warns about performance).
-    // We allocate once and just rewrite the pixels.
-    if (!drawMinimapNoise._img || drawMinimapNoise._img.width !== s){
-      drawMinimapNoise._img = mmNoiseCtx.createImageData(s,s);
-    }
-    const d = drawMinimapNoise._img.data;
-    // refresh every frame (cheap due to small buffer)
-    for (let i=0; i<d.length; i+=4){
-      const v = (Math.random()*255)|0;
-      d[i]=v; d[i+1]=v; d[i+2]=v; d[i+3]=255;
-    }
-    mmNoiseCtx.putImageData(drawMinimapNoise._img,0,0);
-    mmCtx.save();
-    mmCtx.imageSmoothingEnabled = false;
-    mmCtx.globalAlpha = 0.95;
-    mmCtx.drawImage(mmNoise, 0,0, W,H);
-    mmCtx.globalAlpha = 1;
-    mmCtx.fillStyle="rgba(0,0,0,0.35)";
-    mmCtx.fillRect(0,0,W,H);
-    mmCtx.fillStyle="rgba(255,210,110,0.9)";
-    mmCtx.font="bold 12px system-ui";
-    mmCtx.fillText("LOW POWER", 10, 20);
-    mmCtx.restore();
-  }
-
   function getPointerCanvasPx(e) {
     const rect = canvas.getBoundingClientRect();
     // Use actual canvas-to-CSS scale to avoid selection/drag offset on different DPR/zoom.
@@ -10707,8 +10675,7 @@ function sanityCheck(){
           tileOfX,
           tileOfY,
           hasRadarAlive,
-          isUnderPower,
-          drawMinimapNoise
+          isUnderPower
         });
       }
     }
