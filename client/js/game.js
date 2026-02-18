@@ -7368,9 +7368,7 @@ const keys=new Set();
           if (!BUILD[t.kind]){ toast("건물만 수리 가능"); return; }
           if (t.team!==TEAM.PLAYER){ toast("수리 불가"); return; }
           if (t.hp >= t.hpMax-0.5){ toast("수리 불필요"); return; }
-          t.repairOn = !t.repairOn;
-          toast(t.repairOn ? "수리 시작" : "수리 취소");
-          updateSelectionUI();
+          enqueueEcon({ type:"toggleRepairById", id: t.id });
           return;
         }
         if (state.mouseMode==="sell"){
@@ -8037,6 +8035,15 @@ function applyMouseMode(mode){
         case "toggleRepair":
           toggleRepair();
           break;
+        case "toggleRepairById": {
+          const b = getEntityById(a.id);
+          if (b && b.alive && b.team===TEAM.PLAYER && BUILD[b.kind] && !b.civ){
+            b.repairOn = !b.repairOn;
+            toast(b.repairOn ? "수리 시작" : "수리 취소");
+            updateSelectionUI();
+          }
+          break;
+        }
         case "sellSelected":
           sellSelectedBuildings();
           break;
