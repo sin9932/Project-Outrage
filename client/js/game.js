@@ -4140,6 +4140,7 @@ const __ou_sim = (window.OUSim && typeof window.OUSim.create==="function")
       DEFENSE,
       BUILD,
       UNIT,
+      terrain,
       TILE,
       WORLD_W,
       WORLD_H,

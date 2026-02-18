@@ -24,10 +24,11 @@
 
     const TEAM = r.TEAM || {};
     const POWER = r.POWER || {};
-    const DEFENSE = r.DEFENSE || {};
-    const BUILD = r.BUILD || {};
-    const UNIT = r.UNIT || {};
-    const TILE = r.TILE || 48;
+    const DEFENSE = r.DEFENSE || {};
+    const BUILD = r.BUILD || {};
+    const UNIT = r.UNIT || {};
+    const terrain = r.terrain || [];
+    const TILE = r.TILE || 48;
     const WORLD_W = r.WORLD_W || 0;
     const WORLD_H = r.WORLD_H || 0;
     const state = r.state || {};
