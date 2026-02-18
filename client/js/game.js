@@ -10784,6 +10784,12 @@ function updateInfDeathFx(){
     ctx.restore();
   }
 
+  function isEntSelectedOrHovered(ent){
+    if (!ent) return false;
+    return (state.selection && state.selection.has(ent.id)) ||
+      (state.hover && state.hover.entId === ent.id);
+  }
+
 
 
 
@@ -11346,10 +11352,11 @@ let rX = ent.x, rY = ent.y;
         const yy = p.y - (Math.max(ent.tw,ent.th)*ISO_Y*z) - 22*z;
         // C&C-ish segmented building HP bar (blocks)
         // Show only when hovered or selected
-        const showHp = (state.selection && state.selection.has(ent.id)) || (state.hover && state.hover.entId===ent.id);
+        const showHp = isEntSelectedOrHovered(ent);
         if (showHp) drawBuildingHpBlocks(ent);
 
-        drawLabel(`${NAME_KO[ent.kind]||ent.kind}`, p.x, yy-14);
+        // Building name only when selected/hovered (matches selection panel intent)
+        if (showHp) drawLabel(`${NAME_KO[ent.kind]||ent.kind}`, p.x, yy-14);
         if (ent.grp) drawGroupBadge(p.x + ISO_X*(ent.tw*0.55), yy-14, ent.grp);
 
         if (state.selection.has(ent.id)){
@@ -11464,7 +11471,7 @@ let rX = ent.x, rY = ent.y;
         }
         ctx.restore();
         // Segmented HP blocks under unit (only when hovered or selected)
-        const showHp = (state.selection && state.selection.has(ent.id)) || (state.hover && state.hover.entId===ent.id);
+        const showHp = isEntSelectedOrHovered(ent);
         if (showHp) drawUnitHpBlocks(ent, p);
 
         if (ent.grp) drawGroupBadge(p.x + ent.r*0.85, p.y - ent.r*0.85, ent.grp);

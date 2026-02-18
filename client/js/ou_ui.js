@@ -157,7 +157,10 @@ if (r.uiPowerBar && !r.__powerTipInstalled){
             const ents = [];
             for (const id of ids){
               const ent = getEntityById && isFn(getEntityById) ? getEntityById(id) : null;
-              if (ent) ents.push(ent);
+              if (!ent) continue;
+              if (ent.alive === false) continue;
+              if (ent.hidden || ent.inTransport) continue;
+              ents.push(ent);
             }
 
             if (!ents.length){
