@@ -835,15 +835,19 @@ function ensureBadge(btn){
       if (mode==="repair"){
         el.textContent = "REPAIR";
         el.className = "pill warn";
+        el.style.display = "";
       } else if (mode==="sell"){
         el.textContent = "SELL";
         el.className = "pill warn";
+        el.style.display = "";
       } else if (anyReady){
         el.textContent = "BUILD";
         el.className = "pill ok";
+        el.style.display = "";
       } else {
-        el.textContent = "NORMAL";
+        el.textContent = "";
         el.className = "pill";
+        el.style.display = "none";
       }
 
       // Blink tabs when build lane has ready items
