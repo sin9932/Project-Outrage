@@ -924,36 +924,6 @@ function getBaseBuildTime(kind){
       BARRACKS_ATLAS._loading = false;
     }
   }
-
-  function drawBarracksSprite(ctx, ent, s){
-    const atp = (window.PO && window.PO.atlasTP) || null;
-    if (!atp || !atp.drawFrame) return false;
-    if (!BARRACKS_ATLAS._ready){
-      ensureBarracksAtlasLoaded();
-      return false;
-    }
-
-    const atlas = BARRACKS_ATLAS.atlases.idle;
-    const frames = BARRACKS_ATLAS.frames.idle;
-    if (!atlas || !frames || frames.length === 0) return false;
-
-    const fps = 8;
-    const idx = Math.floor(((performance.now() / 1000) * fps) % frames.length);
-    const frameName = frames[idx];
-
-    const b = (atp.getFrameBounds && atp.getFrameBounds(atlas, frameName)) || { x0: 0, y0: 0, x1: 0, y1: 0, w: 0, h: 0 };
-    // drawFrame() positions by the frame pivot; getFrameBounds() gives bounds relative to that pivot.
-    // Align sprite bottom-center to the building world position (isoToScreen output).
-    const dx = Math.round(s.x - (b.x0 + b.w * 0.5));
-    const dy = Math.round(s.y - b.y1);
-
-    atp.drawFrame(ctx, atlas, frameName, dx, dy, { scale: 1 });
-    return true;
-  }
-
-
-  
-
   // === Sprite tuning knobs (YOU edit these) ===
   // pivotNudge is in SOURCE pixels (bbox-space, before scaling).
   // offsetNudge is in SCREEN pixels (after scaling, before zoom).
@@ -1236,86 +1206,6 @@ function getBaseBuildTime(kind){
 
     _teamSpriteCache.set(key, cvs);
     return cvs;
-  }
-
-  function drawBuildingSprite(ent){
-    if (ent && ent.kind === 'barracks') {
-      const s = isoToScreen(ent.x, ent.y);
-      if (drawBarracksSprite(ctx, ent, s)) return true;
-    }
-
-    const cfg = BUILD_SPRITE[ent.kind];
-    if (!cfg) return false;
-    const img = cfg.img;
-    if (!img || !img.complete || !img.naturalWidth || !img.naturalHeight) return false;
-
-    const z = cam.zoom || 1;
-
-    // Footprint width in SCREEN pixels for current tile size:
-    // isometric footprint width = (tw + th) * ISO_X
-    const footprintW = (ent.tw + ent.th) * ISO_X;
-
-    // Use the cropped bbox as our "source size" to fit-to-footprint scaling.
-    const tune = SPRITE_TUNE[ent.kind] || {};
-    const crop = cfg.crop || { x: 0, y: 0, w: img.naturalWidth, h: img.naturalHeight };
-    const scale = (footprintW / (crop.w || img.naturalWidth)) * (tune.scaleMul ?? 1.0);
-
-    const dw = crop.w * scale * z;
-    const dh = crop.h * scale * z;
-
-    // Anchor point (matches your placement box math)
-
-    const anchorMode = tune.anchor || "south";
-
-    let anchorX, anchorY;
-    if (anchorMode === "center") {
-      // Footprint center in tile-space
-      const cx = (ent.tx + ent.tw * 0.5) * TILE;
-      const cy = (ent.ty + ent.th * 0.5) * TILE;
-      const cW = worldToScreen(cx, cy);
-      anchorX = cW.x;
-      anchorY = cW.y;
-    } else {
-      // Footprint SOUTH corner (tx+tw, ty+th)
-      const southW = worldToScreen((ent.tx + ent.tw) * TILE, (ent.ty + ent.th) * TILE);
-      anchorX = southW.x;
-      anchorY = southW.y;
-    }
-
-    // Pivot is bbox-space (source crop). Defaults depend on anchor mode.
-    const basePivotX = (cfg.pivot?.x ?? (crop.w * 0.5));
-    const basePivotY = (cfg.pivot?.y ?? (anchorMode === "center" ? (crop.h * 0.5) : crop.h));
-
-    const nudgeX = (tune.pivotNudge?.x ?? 0);
-    const nudgeY = (tune.pivotNudge?.y ?? 0);
-
-    const px = (basePivotX + nudgeX) * scale * z;
-    const py = (basePivotY + nudgeY) * scale * z;
-
-    const dx = (anchorX - px) + ((tune.offsetNudge?.x ?? 0) * z);
-    const dy = (anchorY - py) + ((tune.offsetNudge?.y ?? 0) * z);
-
-    ctx.save();
-    ctx.imageSmoothingEnabled = true;
-
-    let srcImg = img;
-    let sx = crop.x, sy = crop.y, sw = crop.w, sh = crop.h;
-
-    if (cfg.teamColor) {
-      const tinted = _getTeamCroppedSprite(img, crop, ent.team ?? TEAM.PLAYER);
-      if (tinted) {
-        srcImg = tinted;
-        sx = 0; sy = 0; sw = crop.w; sh = crop.h;
-      }
-    }
-
-    ctx.drawImage(
-      srcImg,
-      sx, sy, sw, sh,
-      dx, dy, dw, dh
-    );
-    ctx.restore();
-    return true;
   }
 
   // === Large explosion FX (exp1) atlas (json + png) ===
@@ -9248,8 +9138,8 @@ function draw(){
         TANK_DIR_TO_IDLE_IDX: _dirToIdleIdx,
         MUZZLE_DIR_TO_IDLE_IDX: _muzzleDirToIdleIdx,
         getUnitSpec: (kind)=> (window.G && G.Units && typeof G.Units.getSpec==="function") ? G.Units.getSpec(kind) : null,
+        SPRITE_TUNE,
         getTeamCroppedSprite: _getTeamCroppedSprite,
-        drawBuildingSprite,
         worldVecToDir8,
         isUnderPower, clamp,
         INF_IMG, SNIP_IMG,
@@ -10171,6 +10061,8 @@ window.unboardIFV = tryUnloadIFV;
 window.resolveUnitOverlaps = resolveUnitOverlaps;
 
 })();
+
+
 
 
 

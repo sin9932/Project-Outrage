@@ -264,6 +264,8 @@
   let EXP1_IMG, EXP1_FRAMES, EXP1_PIVOT_X, EXP1_PIVOT_Y, EXP1_Y_OFFSET, exp1Fxs;
   let smokeWaves, smokePuffs, dustPuffs, dmgSmokePuffs, bloodStains, bloodPuffs;
   let explosions;
+  let drawBuildingSprite;
+  let SPRITE_TUNE, getTeamCroppedSprite;
   let INF_DIE_IMG, SNIP_DIE_IMG, INF_TEAM_SHEET_DIE, SNIP_DIE_TEAM_SHEET;
   let INF_SPRITE_SCALE, buildInfTeamSheet;
   let INF_IMG, INF_ATK_IMG;
@@ -303,6 +305,9 @@
     dustPuffs = env.dustPuffs || []; dmgSmokePuffs = env.dmgSmokePuffs || [];
     bloodStains = env.bloodStains || []; bloodPuffs = env.bloodPuffs || [];
     explosions = env.explosions || [];
+    SPRITE_TUNE = env.SPRITE_TUNE || {};
+    getTeamCroppedSprite = env.getTeamCroppedSprite;
+    drawBuildingSprite = env.drawBuildingSprite || drawBuildingSprite;
     INF_DIE_IMG = env.INF_DIE_IMG;
     SNIP_DIE_IMG = env.SNIP_DIE_IMG;
     INF_TEAM_SHEET_DIE = env.INF_TEAM_SHEET_DIE;
@@ -772,6 +777,71 @@
     else if (dir===6) return drawSniperMoveSheet(ctx, px, py, alpha, teamId, t, SNIP_MOV_S_IMG,  SNIP_TEAM_SHEET_MOV_S,  6);
     else if (dir===7) return drawSniperMoveSheet(ctx, px, py, alpha, teamId, t, SNIP_MOV_SE_IMG, SNIP_TEAM_SHEET_MOV_SE, 7);
     return drawSniperSprite(ctx, px, py, dir, alpha, teamId);
+  }
+
+  function drawBuildingSpriteLocal(ent){
+    const cfg = BUILD_SPRITE[ent.kind];
+    if (!cfg) return false;
+    const img = cfg.img;
+    if (!img || !img.complete || !img.naturalWidth || !img.naturalHeight) return false;
+
+    const z = cam.zoom || 1;
+    const footprintW = (ent.tw + ent.th) * ISO_X;
+
+    const tune = SPRITE_TUNE[ent.kind] || {};
+    const crop = cfg.crop || { x: 0, y: 0, w: img.naturalWidth, h: img.naturalHeight };
+    const scale = (footprintW / (crop.w || img.naturalWidth)) * (tune.scaleMul ?? 1.0);
+
+    const dw = crop.w * scale * z;
+    const dh = crop.h * scale * z;
+
+    const anchorMode = tune.anchor || "south";
+    let anchorX, anchorY;
+    if (anchorMode === "center") {
+      const cx = (ent.tx + ent.tw * 0.5) * TILE;
+      const cy = (ent.ty + ent.th * 0.5) * TILE;
+      const cW = worldToScreen(cx, cy);
+      anchorX = cW.x;
+      anchorY = cW.y;
+    } else {
+      const southW = worldToScreen((ent.tx + ent.tw) * TILE, (ent.ty + ent.th) * TILE);
+      anchorX = southW.x;
+      anchorY = southW.y;
+    }
+
+    const basePivotX = (cfg.pivot?.x ?? (crop.w * 0.5));
+    const basePivotY = (cfg.pivot?.y ?? (anchorMode === "center" ? (crop.h * 0.5) : crop.h));
+
+    const nudgeX = (tune.pivotNudge?.x ?? 0);
+    const nudgeY = (tune.pivotNudge?.y ?? 0);
+
+    const px = (basePivotX + nudgeX) * scale * z;
+    const py = (basePivotY + nudgeY) * scale * z;
+
+    const dx = (anchorX - px) + ((tune.offsetNudge?.x ?? 0) * z);
+    const dy = (anchorY - py) + ((tune.offsetNudge?.y ?? 0) * z);
+
+    ctx.save();
+    ctx.imageSmoothingEnabled = true;
+
+    let srcImg = img;
+    let sx = crop.x, sy = crop.y, sw = crop.w, sh = crop.h;
+
+    if (cfg.teamColor && typeof getTeamCroppedSprite === "function") {
+      const tinted = getTeamCroppedSprite(img, crop, ent.team ?? TEAM.PLAYER);
+      if (tinted) {
+        srcImg = tinted;
+        sx = 0; sy = 0; sw = crop.w; sh = crop.h;
+      }
+    }
+
+    ctx.drawImage(
+      srcImg,
+      sx, sy, sw, sh,
+      dx, dy, dw, dh
+    );
+    ctx.restore();
+    return true;
   }
 
   function drawLiteTankSprite(u, p){
@@ -1939,7 +2009,8 @@
 
         if (BUILD_SPRITE[ent.kind]){
           drawFootprintDiamond(ent, "rgba(0,0,0,0.22)", "rgba(0,0,0,0)");
-          drawBuildingSprite(ent);
+          if (typeof drawBuildingSprite === "function") drawBuildingSprite(ent);
+          else drawBuildingSpriteLocal(ent);
         } else if (window.PO && PO.buildings && PO.buildings.drawBuilding) {
           const helpers = { worldToScreen, ISO_X, ISO_Y, drawFootprintDiamond };
           const drew = PO.buildings.drawBuilding(ent, ctx, cam, helpers, state);
