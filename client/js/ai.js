@@ -634,6 +634,8 @@
       const engs = eUnits.filter(u => u.kind === "engineer");
       const snipers = eUnits.filter(u => u.kind === "sniper");
       const idleIFVs = units.filter(u => u.alive && u.team === TEAM.ENEMY && u.kind === "ifv" && !u.passengerId);
+      const playerInf = units.filter(u => u.alive && u.team === TEAM.PLAYER && (UNIT[u.kind] && UNIT[u.kind].cls === "inf") && !u.inTransport && !u.hidden);
+      const playerHasInf = playerInf.length > 0;
 
       // Engineer harassment (value-aware) - keep trying to capture high-value and sell.
       if (engs.length && state.t > 140 && combat.length >= 4) {
@@ -783,6 +785,15 @@
 
       // Snipers should avoid solo engagements and prefer IFV usage.
       if (snipers.length) {
+        // If no player infantry, stay in defensive posture near rally.
+        if (!playerHasInf) {
+          for (const s of snipers) {
+            if (s.inTransport) continue;
+            s.order = { type: "move", x: ai.rally.x, y: ai.rally.y, tx: null, ty: null };
+            setPathTo(s, ai.rally.x, ai.rally.y);
+            s.repathCd = 0.35;
+          }
+        }
         for (const s of snipers) {
           if (s.inTransport) continue;
           const prey = aiPickPlayerInfantry();
