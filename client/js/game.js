@@ -943,21 +943,6 @@ function getBaseBuildTime(kind){
   const EXP1_PNG  = ASSET.sprite.eff.exp1.png;
   const EXP1_JSON = ASSET.sprite.eff.exp1.json;
 
-  // === Team palette swap (magenta -> team color) ===
-  // Recolors magenta-ish pixels in the infantry sheet into the team's color.
-  // Performance: builds one recolored cached sheet per team (draw-time stays fast).
-  const INF_TEAM_SHEET_IDLE = new Map(); // teamId -> <canvas>
-  const INF_TEAM_SHEET_ATK  = new Map(); // teamId -> <canvas>
-  const INF_TEAM_SHEET_DIE  = new Map(); // teamId -> <canvas>
-  const INF_TEAM_SHEET_MOV  = new Map(); // teamId -> <canvas>
-  const INF_TEAM_SHEET_MOV_NE = new Map(); // teamId -> <canvas>
-  const INF_TEAM_SHEET_MOV_N  = new Map(); // teamId -> <canvas>
-  const INF_TEAM_SHEET_MOV_NW = new Map(); // teamId -> <canvas>
-  const INF_TEAM_SHEET_MOV_W  = new Map(); // teamId -> <canvas>
-  const INF_TEAM_SHEET_MOV_SW = new Map(); // teamId -> <canvas>
-  const INF_TEAM_SHEET_MOV_S  = new Map(); // teamId -> <canvas>
-  const INF_TEAM_SHEET_MOV_SE = new Map(); // teamId -> <canvas>
-
   // Scale for in-game rendering (used by render.js)
   const INF_SPRITE_SCALE = 0.12;
 
@@ -984,78 +969,6 @@ function getBaseBuildTime(kind){
     const sy = (dx + dy) * (ISO_Y / TILE);
     return vecToDir8(sx, sy);
   }
-
-  // Sniper team palette caches
-  const SNIP_TEAM_SHEET = new Map();
-  const SNIP_TEAM_SHEET_MOV    = new Map();
-  const SNIP_TEAM_SHEET_MOV_NE = new Map();
-  const SNIP_TEAM_SHEET_MOV_N  = new Map();
-  const SNIP_TEAM_SHEET_MOV_NW = new Map();
-  const SNIP_TEAM_SHEET_MOV_W  = new Map();
-  const SNIP_TEAM_SHEET_MOV_SW = new Map();
-  const SNIP_TEAM_SHEET_MOV_S  = new Map();
-  const SNIP_TEAM_SHEET_MOV_SE = new Map();
-  const SNIP_DIE_TEAM_SHEET = new Map();
-
-  function hexToRgb(hex){
-    if (!hex) return null;
-    const h = String(hex).trim();
-    const m = /^#?([0-9a-f]{6})$/i.exec(h);
-    if (!m) return null;
-    const n = parseInt(m[1],16);
-    return [(n>>16)&255, (n>>8)&255, n&255];
-  }
-  function isMagentaish(r,g,b){
-    // More tolerant magenta detector (catches dark magenta shading too).
-    // Idea: magenta has R and B both noticeably higher than G, and enough saturation.
-    const maxv = (r>g ? (r>b?r:b) : (g>b?g:b));
-    const minv = (r<g ? (r<b?r:b) : (g<b?g:b));
-    const sat = maxv - minv; // simple saturation proxy
-    if (maxv < 40) return false;      // too dark to care (noise)
-    if (sat < 25) return false;       // too gray
-    if (r < g + 18) return false;     // R not above G enough
-    if (b < g + 18) return false;     // B not above G enough
-    if (Math.abs(r - b) > 140) return false; // keep near-magenta (avoid pure red/blue)
-    return true;
-  }
-  function buildInfTeamSheet(srcImg, cacheMap, teamId){
-  if (!cacheMap) cacheMap = INF_TEAM_SHEET_IDLE;
-  if (cacheMap.has(teamId)) return cacheMap.get(teamId);
-  if (!srcImg || !srcImg.complete || !srcImg.naturalWidth) return srcImg;
-
-  // Pick teamId color from existing UI colors if available.
-  let col = "#ffffff";
-  try{
-    if (teamId===TEAM.PLAYER) col = state?.colors?.player || state?.player?.color || "#66aaff";
-    else if (teamId===TEAM.ENEMY) col = state?.colors?.enemy || state?.enemy?.color || "#ff5555";
-    else col = "#cccccc";
-  }catch(_err){ col = "#ffffff"; }
-  const rgb = hexToRgb(col) || [255,255,255];
-
-  const c = document.createElement('canvas');
-  c.width = srcImg.naturalWidth;
-  c.height = srcImg.naturalHeight;
-  const cctx = c.getContext('2d', { willReadFrequently:true });
-  cctx.drawImage(srcImg, 0, 0);
-
-  const imgd = cctx.getImageData(0,0,c.width,c.height);
-  const d = imgd.data;
-  for (let i=0;i<d.length;i+=4){
-    const a = d[i+3];
-    if (a===0) continue;
-    const r=d[i], g=d[i+1], b=d[i+2];
-    if (!isMagentaish(r,g,b)) continue;
-
-    // Keep shading by mapping magenta brightness to team color brightness.
-    const shade = Math.max(0, Math.min(1, (r + b) / 510));
-    d[i  ] = (rgb[0] * shade) | 0;
-    d[i+1] = (rgb[1] * shade) | 0;
-    d[i+2] = (rgb[2] * shade) | 0;
-  }
-  cctx.putImageData(imgd,0,0);
-  cacheMap.set(teamId, c);
-  return c;
-}
 
 function buildingWorldFromTileOrigin(tx,ty,tw,th){
     const w=tw*TILE, h=th*TILE;
@@ -8273,10 +8186,7 @@ function draw(){
         explosions,
         INF_DIE_PNG,
         SNIP_DIE_PNG,
-        INF_TEAM_SHEET_DIE,
-        SNIP_DIE_TEAM_SHEET,
         INF_SPRITE_SCALE,
-        buildInfTeamSheet,
         INF_IDLE_PNG,
         INF_ATK_PNG,
         INF_MOV_PNG,
@@ -8297,25 +8207,6 @@ function draw(){
         SNIP_MOV_S_PNG,
         SNIP_MOV_SE_PNG,
         REPAIR_WRENCH_PNG,
-        INF_TEAM_SHEET_IDLE,
-        INF_TEAM_SHEET_ATK,
-        INF_TEAM_SHEET_MOV,
-        INF_TEAM_SHEET_MOV_NE,
-        INF_TEAM_SHEET_MOV_N,
-        INF_TEAM_SHEET_MOV_NW,
-        INF_TEAM_SHEET_MOV_W,
-        INF_TEAM_SHEET_MOV_SW,
-        INF_TEAM_SHEET_MOV_S,
-        INF_TEAM_SHEET_MOV_SE,
-        SNIP_TEAM_SHEET,
-        SNIP_TEAM_SHEET_MOV,
-        SNIP_TEAM_SHEET_MOV_NE,
-        SNIP_TEAM_SHEET_MOV_N,
-        SNIP_TEAM_SHEET_MOV_NW,
-        SNIP_TEAM_SHEET_MOV_W,
-        SNIP_TEAM_SHEET_MOV_SW,
-        SNIP_TEAM_SHEET_MOV_S,
-        SNIP_TEAM_SHEET_MOV_SE,
         TANK_DIR_TO_IDLE_IDX: _dirToIdleIdx,
         MUZZLE_DIR_TO_IDLE_IDX: _muzzleDirToIdleIdx,
         getUnitSpec: (kind)=> (window.G && G.Units && typeof G.Units.getSpec==="function") ? G.Units.getSpec(kind) : null,
@@ -8552,8 +8443,12 @@ if (__ou_ui && typeof __ou_ui.bindPregameStart === "function"){
 
     // Apply chosen colors to team palette (for magenta->team recolor) and clear caches.
     try{
-      const prgb = hexToRgb(state.colors.player) || [80,180,255];
-      const ergb = hexToRgb(state.colors.enemy)  || [255,60,60];
+      const prgb = (typeof OURender !== "undefined" && OURender.hexToRgb)
+        ? (OURender.hexToRgb(state.colors.player) || [80,180,255])
+        : [80,180,255];
+      const ergb = (typeof OURender !== "undefined" && OURender.hexToRgb)
+        ? (OURender.hexToRgb(state.colors.enemy) || [255,60,60])
+        : [255,60,60];
       if (window.OURender && typeof OURender.setTeamAccent === "function"){
         OURender.setTeamAccent({ player: prgb, enemy: ergb, neutral: [170,170,170] });
       }
@@ -8561,28 +8456,9 @@ if (__ou_ui && typeof __ou_ui.bindPregameStart === "function"){
         OURender.clearTeamSpriteCache();
       }
 
-      // Sprite recolor caches are keyed only by teamId, so must be cleared when colors change.
-      INF_TEAM_SHEET_IDLE.clear();
-      INF_TEAM_SHEET_ATK.clear();
-      INF_TEAM_SHEET_DIE.clear();
-      INF_TEAM_SHEET_MOV.clear();
-      INF_TEAM_SHEET_MOV_NE.clear();
-      INF_TEAM_SHEET_MOV_N.clear();
-      INF_TEAM_SHEET_MOV_NW.clear();
-      INF_TEAM_SHEET_MOV_W.clear();
-      INF_TEAM_SHEET_MOV_SW.clear();
-      INF_TEAM_SHEET_MOV_S.clear();
-      INF_TEAM_SHEET_MOV_SE.clear();
-      SNIP_TEAM_SHEET.clear();
-      SNIP_TEAM_SHEET_MOV.clear();
-      SNIP_TEAM_SHEET_MOV_NE.clear();
-      SNIP_TEAM_SHEET_MOV_N.clear();
-      SNIP_TEAM_SHEET_MOV_NW.clear();
-      SNIP_TEAM_SHEET_MOV_W.clear();
-      SNIP_TEAM_SHEET_MOV_SW.clear();
-      SNIP_TEAM_SHEET_MOV_S.clear();
-      SNIP_TEAM_SHEET_MOV_SE.clear();
-      SNIP_DIE_TEAM_SHEET.clear();
+      if (window.OURender && typeof OURender.clearInfTeamSheetCache === "function"){
+        OURender.clearInfTeamSheetCache();
+      }
     }catch(_e){}
 
 
