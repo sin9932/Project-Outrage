@@ -1630,52 +1630,6 @@ function getBaseBuildTime(kind){
       u.turretTurn = null;
     }
   }
-
-  function _tankBodyFrameName(u){
-    const prefix = (u.kind==="harvester") ? "hav" : "lightank";
-    if (u.bodyTurn && u.bodyTurn.frameNum){
-      return prefix + "_mov" + u.bodyTurn.frameNum + ".png";
-    }
-    const idx = _dirToIdleIdx[u.bodyDir ?? u.dir ?? 6] || 1;
-    return prefix + "_idle" + idx + ".png";
-  }
-
-  function _tankMuzzleFrameName(u){
-    if (u.turretTurn && u.turretTurn.frameNum){
-      return "tank_muzzle_mov" + u.turretTurn.frameNum + ".png";
-    }
-    const idx = _muzzleDirToIdleIdx[u.turretDir ?? u.dir ?? 6] || 1;
-    return "tank_muzzle_idle" + idx + ".png";
-  }
-
-  function _drawTPFrame(atlas, filename, screenX, screenY, scale, team, anchorOverride=null, offsetOverride=null){
-    if (!atlas || !atlas.img || !atlas.img.complete || !atlas.frames) return false;
-    const fr = atlas.frames.get(filename);
-    if (!fr) return false;
-
-    const crop = fr.frame || fr;
-    const sss = fr.spriteSourceSize || { x:0, y:0, w: crop.w, h: crop.h };
-    const srcS = fr.sourceSize || { w: crop.w, h: crop.h };
-    const anc = anchorOverride || fr.anchor || { x:0.5, y:0.5 };
-
-    const sx = (crop.x|0), sy = (crop.y|0), sw = (crop.w|0), sh = (crop.h|0);
-
-    // Team tint only inside this cropped rect
-    let srcImg = atlas.img;
-    let ssx = sx, ssy = sy;
-    const tinted = _getTeamCroppedSprite(atlas.img, { x:sx, y:sy, w:sw, h:sh }, team);
-    if (tinted){
-      srcImg = tinted;
-      ssx = 0; ssy = 0;
-    }
-
-    const dx = screenX - (anc.x * srcS.w * scale) + (sss.x * scale);
-    const dy = screenY - (anc.y * srcS.h * scale) + (sss.y * scale);
-    const odx = (offsetOverride && offsetOverride.x) ? (offsetOverride.x * scale) : 0;
-    const ody = (offsetOverride && offsetOverride.y) ? (offsetOverride.y * scale) : 0;
-    ctx.drawImage(srcImg, ssx, ssy, sw, sh, dx + odx, dy + ody, sw*scale, sh*scale);
-    return true;
-  }
 // Kick off lite tank atlas loads early (non-blocking)
   ;(async()=>{
     try{
@@ -9397,10 +9351,8 @@ function draw(){
         HARVESTER_BASE_SCALE,
         LITE_TANK_TURRET_ANCHOR,
         LITE_TANK_TURRET_NUDGE,
-        drawTPFrame: _drawTPFrame,
-        tankBodyFrameName: _tankBodyFrameName,
-        tankMuzzleFrameName: _tankMuzzleFrameName,
         getUnitSpec: (kind)=> (window.G && G.Units && typeof G.Units.getSpec==="function") ? G.Units.getSpec(kind) : null,
+        getTeamCroppedSprite: _getTeamCroppedSprite,
         drawBuildingSprite,
         worldVecToDir8,
         isUnderPower, clamp,
@@ -10323,6 +10275,9 @@ window.unboardIFV = tryUnloadIFV;
 window.resolveUnitOverlaps = resolveUnitOverlaps;
 
 })();
+
+
+
 
 
 

@@ -227,7 +227,7 @@
   let INF_IDLE_ATLAS;
   let LITE_TANK, HARVESTER, LITE_TANK_BASE_SCALE, HARVESTER_BASE_SCALE;
   let LITE_TANK_TURRET_ANCHOR, LITE_TANK_TURRET_NUDGE;
-  let drawTPFrame, tankBodyFrameName, tankMuzzleFrameName, getUnitSpec;
+  let getUnitSpec, getTeamCroppedSprite;
 
   function bindEnv(env){
     canvas = env.canvas; ctx = env.ctx; cam = env.cam; state = env.state;
@@ -270,10 +270,57 @@
     HARVESTER_BASE_SCALE = env.HARVESTER_BASE_SCALE;
     LITE_TANK_TURRET_ANCHOR = env.LITE_TANK_TURRET_ANCHOR;
     LITE_TANK_TURRET_NUDGE = env.LITE_TANK_TURRET_NUDGE;
-    drawTPFrame = env.drawTPFrame;
-    tankBodyFrameName = env.tankBodyFrameName;
-    tankMuzzleFrameName = env.tankMuzzleFrameName;
     getUnitSpec = env.getUnitSpec;
+    getTeamCroppedSprite = env.getTeamCroppedSprite;
+  }
+
+  function tankBodyFrameName(u){
+    const prefix = (u.kind==="harvester") ? "hav" : "lightank";
+    if (u.bodyTurn && u.bodyTurn.frameNum){
+      return prefix + "_mov" + u.bodyTurn.frameNum + ".png";
+    }
+    const idx = (u.bodyDir ?? u.dir ?? 6);
+    const map = { 2:1, 1:2, 0:3, 7:4, 6:5, 5:6, 4:7, 3:8 };
+    return prefix + "_idle" + (map[idx] || 1) + ".png";
+  }
+
+  function tankMuzzleFrameName(u){
+    if (u.turretTurn && u.turretTurn.frameNum){
+      return "tank_muzzle_mov" + u.turretTurn.frameNum + ".png";
+    }
+    const idx = (u.turretDir ?? u.dir ?? 6);
+    const map = { 2:1, 1:2, 0:3, 7:4, 6:5, 5:6, 4:7, 3:8 };
+    return "tank_muzzle_idle" + (map[idx] || 1) + ".png";
+  }
+
+  function drawTPFrame(atlas, filename, screenX, screenY, scale, team, anchorOverride=null, offsetOverride=null){
+    if (!atlas || !atlas.img || !atlas.img.complete || !atlas.frames) return false;
+    const fr = atlas.frames.get(filename);
+    if (!fr) return false;
+
+    const crop = fr.frame || fr;
+    const sss = fr.spriteSourceSize || { x:0, y:0, w: crop.w, h: crop.h };
+    const srcS = fr.sourceSize || { w: crop.w, h: crop.h };
+    const anc = anchorOverride || fr.anchor || { x:0.5, y:0.5 };
+
+    const sx = (crop.x|0), sy = (crop.y|0), sw = (crop.w|0), sh = (crop.h|0);
+
+    let srcImg = atlas.img;
+    let ssx = sx, ssy = sy;
+    const tinted = (typeof getTeamCroppedSprite === "function")
+      ? getTeamCroppedSprite(atlas.img, { x:sx, y:sy, w:sw, h:sh }, team)
+      : null;
+    if (tinted){
+      srcImg = tinted;
+      ssx = 0; ssy = 0;
+    }
+
+    const dx = screenX - (anc.x * srcS.w * scale) + (sss.x * scale);
+    const dy = screenY - (anc.y * srcS.h * scale) + (sss.y * scale);
+    const odx = (offsetOverride && offsetOverride.x) ? (offsetOverride.x * scale) : 0;
+    const ody = (offsetOverride && offsetOverride.y) ? (offsetOverride.y * scale) : 0;
+    ctx.drawImage(srcImg, ssx, ssy, sw, sh, dx + odx, dy + ody, sw*scale, sh*scale);
+    return true;
   }
 
   function getSnipDieTeamSheet(teamId){
