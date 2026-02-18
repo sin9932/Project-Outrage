@@ -1920,6 +1920,9 @@ function getBaseBuildTime(kind){
   const INF_TEAM_SHEET_MOV_S  = new Map(); // teamId -> <canvas>
   const INF_TEAM_SHEET_MOV_SE = new Map(); // teamId -> <canvas>
 
+  // Scale for in-game rendering (used by render.js)
+  const INF_SPRITE_SCALE = 0.12;
+
   // Sniper team palette caches
   const SNIP_TEAM_SHEET = new Map();
   const SNIP_TEAM_SHEET_MOV    = new Map();
