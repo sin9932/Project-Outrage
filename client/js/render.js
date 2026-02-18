@@ -176,6 +176,9 @@
   let terrain, ore, explored, visible, BUILD, DEFENSE, BUILD_SPRITE, NAME_KO, POWER;
   let worldToScreen, tileToWorldCenter, idx, inMap, clamp, getEntityById;
   let REPAIR_WRENCH_IMG, repairWrenches;
+  let EXP1_IMG, EXP1_FRAMES, EXP1_PIVOT_X, EXP1_PIVOT_Y, EXP1_Y_OFFSET, exp1Fxs;
+  let smokeWaves, smokePuffs, dustPuffs, dmgSmokePuffs, bloodStains, bloodPuffs;
+  let explosions;
 
   function bindEnv(env){
     canvas = env.canvas; ctx = env.ctx; cam = env.cam; state = env.state;
@@ -185,6 +188,13 @@
     worldToScreen = env.worldToScreen; tileToWorldCenter = env.tileToWorldCenter; idx = env.idx; inMap = env.inMap;
     clamp = env.clamp; getEntityById = env.getEntityById;
     REPAIR_WRENCH_IMG = env.REPAIR_WRENCH_IMG; repairWrenches = env.repairWrenches || [];
+    EXP1_IMG = env.EXP1_IMG; EXP1_FRAMES = env.EXP1_FRAMES;
+    EXP1_PIVOT_X = env.EXP1_PIVOT_X; EXP1_PIVOT_Y = env.EXP1_PIVOT_Y; EXP1_Y_OFFSET = env.EXP1_Y_OFFSET;
+    exp1Fxs = env.exp1Fxs || [];
+    smokeWaves = env.smokeWaves || []; smokePuffs = env.smokePuffs || [];
+    dustPuffs = env.dustPuffs || []; dmgSmokePuffs = env.dmgSmokePuffs || [];
+    bloodStains = env.bloodStains || []; bloodPuffs = env.bloodPuffs || [];
+    explosions = env.explosions || [];
   }
 
   function drawIsoTile(tx,ty,type){
@@ -825,23 +835,354 @@
 
       ctx.restore();
     }
+
+
+
+  function drawExplosions(ctx){
+    if (!explosions.length) return;
+    const z = (typeof cam !== "undefined" && cam && typeof cam.zoom==="number") ? cam.zoom : 1;
+
+    for (const e of explosions){
+      const p = worldToScreen(e.x, e.y);
+      const k = clamp(1 - (e.t / Math.max(0.001, e.ttl)), 0, 1);
+
+      ctx.save();
+      ctx.globalCompositeOperation = "lighter";
+      ctx.globalAlpha = 0.95 * Math.pow(k, 0.55);
+      const R = (TILE*2.60*e.size) * z;
+      const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, R);
+      g.addColorStop(0.0, "rgba(255,255,235,0.92)");
+      g.addColorStop(0.28, "rgba(255,220,120,0.70)");
+      g.addColorStop(0.62, "rgba(255,170,70,0.28)");
+      g.addColorStop(1.0, "rgba(255,140,50,0.0)");
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, R, 0, Math.PI*2);
+      ctx.fill();
+
+      ctx.globalAlpha = 0.85 * Math.pow(k, 0.35);
+      const R2 = (TILE*1.25*e.size) * z;
+      const g2 = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, R2);
+      g2.addColorStop(0.0, "rgba(255,255,255,0.95)");
+      g2.addColorStop(0.5, "rgba(255,245,210,0.55)");
+      g2.addColorStop(1.0, "rgba(255,220,140,0.0)");
+      ctx.fillStyle = g2;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, R2, 0, Math.PI*2);
+      ctx.fill();
+
+      for (const prt of e.parts){
+        const pp = worldToScreen(prt.x, prt.y);
+        const a = clamp(prt.life / Math.max(0.001, prt.ttl), 0, 1);
+
+        if (prt.kind==="streak"){
+          const len = (TILE*1.40*e.size) * z * (0.7 + (1-a)*1.2);
+          const dx = (prt.vx) * 0.006 * z;
+          const dy = (prt.vy) * 0.006 * z;
+          const norm = Math.hypot(dx,dy) || 1;
+          const ux = dx/norm, uy = dy/norm;
+          ctx.globalAlpha = 0.70 * a;
+          ctx.lineWidth = prt.w * z;
+          ctx.strokeStyle = "rgba(255,230,150,1)";
+          ctx.beginPath();
+          ctx.moveTo(pp.x - ux*len, pp.y - uy*len);
+          ctx.lineTo(pp.x + ux*len*0.15, pp.y + uy*len*0.15);
+          ctx.stroke();
+        } else if (prt.kind==="ember"){
+          const rr = (prt.r * z) * (0.35 + (1-a)*0.25);
+          ctx.globalAlpha = 0.65 * a;
+          const ge = ctx.createRadialGradient(pp.x, pp.y, 0, pp.x, pp.y, rr);
+          ge.addColorStop(0.0, "rgba(255,210,120,0.85)");
+          ge.addColorStop(0.45, "rgba(255,170,70,0.28)");
+          ge.addColorStop(1.0, "rgba(0,0,0,0)");
+          ctx.fillStyle = ge;
+          ctx.beginPath();
+          ctx.arc(pp.x, pp.y, rr, 0, Math.PI*2);
+          ctx.fill();
+        } else if (prt.kind==="flame"){
+          const rr = (prt.r * z) * (0.65 + (1-a)*0.6);
+          const lift = (prt.rise||0) * z;
+          ctx.globalAlpha = 0.55 * a;
+          const gf = ctx.createRadialGradient(pp.x, pp.y - lift, 0, pp.x, pp.y - lift, rr);
+          gf.addColorStop(0.0, "rgba(255,180,80,0.45)");
+          gf.addColorStop(0.45, "rgba(255,120,40,0.25)");
+          gf.addColorStop(1.0, "rgba(0,0,0,0)");
+          ctx.fillStyle = gf;
+          ctx.beginPath();
+          ctx.arc(pp.x, pp.y - lift, rr, 0, Math.PI*2);
+          ctx.fill();
+        }
+      }
+
+      ctx.restore();
+    }
+  }
+
+  function drawExp1Fxs(ctx){
+    if (!exp1Fxs.length) return;
+    if (!EXP1_FRAMES || !EXP1_FRAMES.length) return;
+    if (!EXP1_IMG || !EXP1_IMG.complete) return;
+
+    const z = (typeof cam !== "undefined" && cam && typeof cam.zoom==="number") ? cam.zoom : 1;
+
+    ctx.save();
+    ctx.globalCompositeOperation = "lighter";
+    ctx.globalAlpha = 1;
+
+    for (const fx of exp1Fxs){
+      const age = state.t - fx.t0;
+      const fi = Math.floor(age / Math.max(0.001, fx.frameDur));
+      if (fi < 0 || fi >= EXP1_FRAMES.length) continue;
+
+      const fr = EXP1_FRAMES[fi];
+      const p = worldToScreen(fx.x, fx.y);
+
+      const dw = (fr.sw ?? fr.w) * fx.scale * z;
+      const dh = (fr.sh ?? fr.h) * fx.scale * z;
+
+      const dx = p.x - dw * EXP1_PIVOT_X;
+      const dy = p.y - dh * EXP1_PIVOT_Y + (EXP1_Y_OFFSET * z);
+
+      const ox = (fr.ox ?? 0) * fx.scale * z;
+      const oy = (fr.oy ?? 0) * fx.scale * z;
+      const fw = fr.w * fx.scale * z;
+      const fh = fr.h * fx.scale * z;
+
+      ctx.drawImage(EXP1_IMG, fr.x, fr.y, fr.w, fr.h, dx + ox, dy + oy, fw, fh);
+    }
+
+    ctx.restore();
+  }
+
+  function drawSmokeWaves(ctx){
+    if (!smokeWaves.length) return;
+    const z = (typeof cam !== "undefined" && cam && typeof cam.zoom==="number") ? cam.zoom : 1;
+
+    const pr = (seed, n)=>{
+      const x = Math.sin((seed + n) * 12.9898) * 43758.5453;
+      return x - Math.floor(x);
+    };
+
+    for (const w of smokeWaves){
+      const p = worldToScreen(w.x, w.y);
+      const t = clamp(w.t / Math.max(0.001, w.ttl), 0, 1);
+      const ease = 1 - Math.pow(1 - t, 4);
+
+      const R0 = (TILE * 0.10) * z;
+      const R1 = (TILE * 1.05 * w.size) * z;
+      const R  = R0 + (R1 - R0) * ease;
+
+      const aBase = 0.32 * Math.pow(1 - t, 0.60);
+
+      const squash = (w.squash ?? 0.62);
+      const th = (TILE * 0.34 * w.size) * z;
+
+      ctx.save();
+      ctx.globalCompositeOperation = "source-over";
+
+      ctx.translate(p.x, p.y);
+      ctx.scale(1, squash);
+
+      for (let k=0;k<3;k++){
+        const jx = (pr(w.seed, 10+k)-0.5) * (TILE * 0.09 * w.size) * z;
+        const jy = (pr(w.seed, 20+k)-0.5) * (TILE * 0.09 * w.size) * z;
+        const rr = 1 + (pr(w.seed, 30+k)-0.5) * 0.07;
+
+        const a = aBase * (0.66 - k*0.16);
+
+        ctx.shadowColor = "rgba(0,0,0,0.22)";
+        ctx.shadowBlur  = 28 * z;
+
+        const inner = Math.max(0, (R*rr) - th*0.55);
+        const outer = (R*rr) + th*1.45;
+
+        const g = ctx.createRadialGradient(jx, jy, inner, jx, jy, outer);
+        g.addColorStop(0.00, "rgba(0,0,0,0)");
+        g.addColorStop(0.42, `rgba(110,110,110,${a*0.10})`);
+        g.addColorStop(0.60, `rgba(85,85,85,${a*0.22})`);
+        g.addColorStop(0.80, `rgba(70,70,70,${a*0.18})`);
+        g.addColorStop(1.00, "rgba(0,0,0,0)");
+
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.arc(jx, jy, outer, 0, Math.PI*2);
+        ctx.fill();
+      }
+
+      ctx.shadowBlur = 18 * z;
+      for (let i=0;i<12;i++){
+        const ang = (i/12) * (Math.PI*2) + pr(w.seed, 100+i)*0.70;
+        const rad = R * (0.86 + pr(w.seed, 130+i)*0.24);
+
+        const x = Math.cos(ang) * rad;
+        const y = Math.sin(ang) * rad;
+
+        const r = (TILE * (0.10 + pr(w.seed, 160+i)*0.12) * w.size) * z;
+        const a = aBase * 0.14 * (0.6 + pr(w.seed, 190+i)*0.9);
+
+        const g = ctx.createRadialGradient(x, y, 0, x, y, r*2.4);
+        g.addColorStop(0.0, `rgba(150,150,150,${a*0.20})`);
+        g.addColorStop(0.5, `rgba(90,90,90,${a*0.18})`);
+        g.addColorStop(1.0, "rgba(0,0,0,0)");
+
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.arc(x, y, r*2.4, 0, Math.PI*2);
+        ctx.fill();
+      }
+
+      ctx.restore();
+    }
+  }
+
+  function drawSmokePuffs(ctx){
+    if (!smokePuffs.length) return;
+    const z = (typeof cam !== "undefined" && cam && typeof cam.zoom==="number") ? cam.zoom : 1;
+
+    for (const s of smokePuffs){
+      const p = worldToScreen(s.x, s.y);
+      const t = clamp(s.t / Math.max(0.001, s.ttl), 0, 1);
+
+      const r = (s.r0 + s.grow * t) * z;
+      const a = s.a0 * Math.pow(1 - t, 0.65);
+
+      ctx.save();
+      ctx.globalCompositeOperation = "source-over";
+      ctx.globalAlpha = a;
+
+      const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, r*2.2);
+      g.addColorStop(0.0, "rgba(120,120,120,0.12)");
+      g.addColorStop(0.45, "rgba(90,90,90,0.10)");
+      g.addColorStop(1.0, "rgba(0,0,0,0)");
+      ctx.fillStyle = g;
+
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, r*2.2, 0, Math.PI*2);
+      ctx.fill();
+
+      ctx.restore();
+    }
+  }
+
+  function drawDustPuffs(ctx){
+    if (!dustPuffs.length) return;
+    const z = (typeof cam !== "undefined" && cam && typeof cam.zoom==="number") ? cam.zoom : 1;
+    ctx.save();
+    for (const p of dustPuffs){
+      const k = p.t / p.ttl;
+      const a = (1-k) * p.a0;
+      const r = (p.r0 + p.grow*k) * z;
+      const s = worldToScreen(p.x, p.y);
+      ctx.fillStyle = `rgba(220, 205, 175, ${a})`;
+      ctx.beginPath();
+      ctx.ellipse(s.x, s.y, r*1.45, r*1.00, 0, 0, Math.PI*2);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  function drawDmgSmokePuffs(ctx){
+    if (!dmgSmokePuffs.length) return;
+    const z = (typeof cam !== "undefined" && cam && typeof cam.zoom==="number") ? cam.zoom : 1;
+    ctx.save();
+    for (const p of dmgSmokePuffs){
+      const k = p.t / p.ttl;
+      const a = (1-k) * p.a0;
+      const r = (p.r0 + p.grow*k) * z;
+      const s = worldToScreen(p.x, p.y);
+      ctx.fillStyle = `rgba(160, 160, 160, ${a})`;
+      ctx.beginPath();
+      ctx.ellipse(s.x, s.y, r*1.05, r*0.95, 0, 0, Math.PI*2);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  function drawBlood(ctx){
+    const z = (typeof cam !== "undefined" && cam && typeof cam.zoom==="number") ? cam.zoom : 1;
+
+    for (const s of bloodStains){
+      const p = worldToScreen(s.x, s.y);
+      const t = clamp(s.t / Math.max(0.001, s.ttl), 0, 1);
+      const a = s.a0 * Math.pow(1 - t, 0.55);
+      const r = (s.r0 + s.grow * t) * z;
+
+      ctx.save();
+      ctx.globalCompositeOperation = "source-over";
+      ctx.globalAlpha = a;
+
+      ctx.translate(p.x, p.y);
+      ctx.scale(1, s.squash ?? 0.58);
+
+      const g = ctx.createRadialGradient(0, 0, 0, 0, 0, r);
+      g.addColorStop(0.0, "rgba(80, 0, 0, 0.55)");
+      g.addColorStop(0.35, "rgba(60, 0, 0, 0.35)");
+      g.addColorStop(1.0, "rgba(0, 0, 0, 0.0)");
+      ctx.fillStyle = g;
+
+      ctx.beginPath();
+      ctx.arc(0, 0, r, 0, Math.PI*2);
+      ctx.fill();
+      ctx.restore();
+    }
+
+    for (const b of bloodPuffs){
+      const p = worldToScreen(b.x, b.y);
+      const t = clamp(b.t / Math.max(0.001, b.ttl), 0, 1);
+      const a = b.a0 * Math.pow(1 - t, 0.70);
+
+      const r = (b.r0 + b.grow * t) * z;
+      const yLift = (b.rise || 0) * z;
+
+      ctx.save();
+      ctx.globalCompositeOperation = "source-over";
+      ctx.globalAlpha = a;
+
+      if (b.kind === "droplet"){
+        const rr = Math.max(2, r*0.35);
+        const g = ctx.createRadialGradient(p.x, p.y - yLift, 0, p.x, p.y - yLift, rr*2.2);
+        g.addColorStop(0.0, "rgba(160, 0, 0, 0.65)");
+        g.addColorStop(0.45, "rgba(120, 0, 0, 0.28)");
+        g.addColorStop(1.0, "rgba(0,0,0,0)");
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y - yLift, rr*2.2, 0, Math.PI*2);
+        ctx.fill();
+      } else {
+        const g = ctx.createRadialGradient(p.x, p.y - yLift, 0, p.x, p.y - yLift, r);
+        g.addColorStop(0.0, "rgba(120, 0, 0, 0.28)");
+        g.addColorStop(0.35, "rgba(70, 0, 0, 0.16)");
+        g.addColorStop(1.0, "rgba(0,0,0,0)");
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y - yLift, r, 0, Math.PI*2);
+        ctx.fill();
+      }
+
+      ctx.restore();
+    }
+  }
   }
 
   function drawMain(env){
     if (!env) return;
     bindEnv(env);
     const {
+
+
+
+
       canvas, ctx, cam, state, TEAM, MAP_W, MAP_H, TILE, ISO_X, ISO_Y,
       terrain, ore, explored, visible, BUILD, DEFENSE, BUILD_SPRITE, NAME_KO,
       units, buildings, bullets, traces, impacts, fires, healMarks, flashes, casings,
       gameOver, POWER,
+      EXP1_IMG, EXP1_FRAMES, EXP1_PIVOT_X, EXP1_PIVOT_Y, EXP1_Y_OFFSET, exp1Fxs,
+      smokeWaves, smokePuffs, dustPuffs, dmgSmokePuffs, bloodStains, bloodPuffs,
       updateMoney, updateProdBadges,
       inMap, idx, tileToWorldCenter, worldToScreen,
       getEntityById, REPAIR_WRENCH_IMG, repairWrenches,
       snapHoverToTileOrigin, buildingWorldFromTileOrigin, inBuildRadius, isBlockedFootprint, footprintBlockedMask,
       updateInfDeathFx, updateSnipDeathFx, drawInfDeathFxOne, drawSnipDeathFxOne,
-      drawExplosions, drawSmokeWaves, drawDustPuffs, drawExp1Fxs,
-      drawSmokePuffs, drawDmgSmokePuffs, drawBlood,
       rectFromDrag, refreshPrimaryBuildingBadgesUI,
       drawLiteTankSprite, drawHarvesterSprite,
       drawInfantrySprite, drawInfantryMoveEast, drawInfantryMoveNE, drawInfantryMoveN, drawInfantryMoveNW, drawInfantryMoveW, drawInfantryMoveSW, drawInfantryMoveS, drawInfantryMoveSE,
@@ -851,6 +1192,10 @@
       isUnderPower, clamp,
       INF_IMG, SNIP_IMG,
       infDeathFxs = [], snipDeathFxs = []
+    
+    
+    
+    
     } = env;
 
     const W=canvas.width, H=canvas.height;
