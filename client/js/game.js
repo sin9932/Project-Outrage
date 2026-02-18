@@ -9791,7 +9791,18 @@ if (state.selection.size>0 && inMap(tx,ty) && ore[idx(tx,ty)]>0){
     btn.addEventListener("contextmenu", (ev)=>{
       ev.preventDefault();
       const lane = state.buildLane ? state.buildLane[laneKey] : null;
-      if (!lane || !lane.queue || lane.queue.kind !== kind) return;
+      if (!lane) return;
+
+      // If build is READY (waiting for placement), allow cancel + refund.
+      if (lane.ready === kind){
+        const refund = COST[kind] || 0;
+        if (refund > 0) state.player.money += refund;
+        lane.ready = null;
+        toast("취소 + 환불");
+        return;
+      }
+
+      if (!lane.queue || lane.queue.kind !== kind) return;
       if (!lane.queue.paused){
         lane.queue.paused = true;
         toast("대기");
