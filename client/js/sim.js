@@ -47,8 +47,9 @@
     const state = r.state || {};
     const ore = r.ore || [];
 
-    const clamp = r.clamp;
-    const rnd = r.rnd;
+    const clamp = r.clamp;
+    const rnd = r.rnd;
+    const getFogEnabled = r.getFogEnabled;
     const getPowerFactor = r.getPowerFactor;
     const isUnderPower = r.isUnderPower;
     const getEntityById = r.getEntityById;
@@ -1083,6 +1084,60 @@
         if (d2<=r2 && d2<bestD){ best=b; bestD=d2; }
       }
       return best;
+    }
+
+    function revealCircle(team, wx, wy, radius){
+      const t0x=clamp(((wx-radius)/TILE)|0,0,MAP_W-1);
+      const t1x=clamp(((wx+radius)/TILE)|0,0,MAP_W-1);
+      const t0y=clamp(((wy-radius)/TILE)|0,0,MAP_H-1);
+      const t1y=clamp(((wy+radius)/TILE)|0,0,MAP_H-1);
+      const r2=radius*radius;
+      for (let ty=t0y; ty<=t1y; ty++){
+        for (let tx=t0x; tx<=t1x; tx++){
+          const cx=(tx)*TILE, cy=(ty)*TILE;
+          if (dist2(wx,wy,cx,cy)<=r2){
+            const i=idx(tx,ty);
+            visible[team][i]=1;
+            explored[team][i]=1;
+          }
+        }
+      }
+    }
+
+    function updateVision(){
+      const fogOn = (typeof getFogEnabled==="function") ? !!getFogEnabled() : true;
+      if (!fogOn){
+        visible[TEAM.PLAYER].fill(1); explored[TEAM.PLAYER].fill(1);
+        visible[TEAM.ENEMY].fill(1);  explored[TEAM.ENEMY].fill(1);
+        return;
+      }
+      visible[TEAM.PLAYER].fill(0);
+      visible[TEAM.ENEMY].fill(0);
+
+      for (const b of buildings){
+        if (!b.alive) continue;
+        if (b.civ) continue;
+        const v = BUILD[b.kind]?.vision || 0;
+        if (v>0 && (b.team===TEAM.PLAYER || b.team===TEAM.ENEMY)) {
+          revealCircle(b.team,b.x,b.y,v);
+        }
+        if (b.team===TEAM.PLAYER || b.team===TEAM.ENEMY){
+          const t=b.team;
+          for (let ty=b.ty; ty<b.ty+b.th; ty++){
+            for (let tx=b.tx; tx<b.tx+b.tw; tx++){
+              if (!inMap(tx,ty)) continue;
+              const i=idx(tx,ty);
+              visible[t][i]=1;
+              explored[t][i]=1;
+            }
+          }
+        }
+      }
+
+      for (const u of units){
+        if (!u.alive) continue;
+        revealCircle(u.team,u.x,u.y, UNIT[u.kind].vision||200);
+      }
     }
 
     function isHitscanUnit(u){
@@ -2238,7 +2293,8 @@
       tickSim,
       clearOcc,
       resolveUnitOverlaps,
-      getStandoffPoint
+      getStandoffPoint,
+      updateVision
     };
   };
 })(window);
