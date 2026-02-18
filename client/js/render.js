@@ -216,6 +216,15 @@
   let explosions;
   let INF_DIE_IMG, SNIP_DIE_IMG, INF_TEAM_SHEET_DIE, SNIP_DIE_TEAM_SHEET;
   let INF_SPRITE_SCALE, buildInfTeamSheet;
+  let INF_IMG, INF_ATK_IMG;
+  let INF_MOV_IMG, INF_MOV_NE_IMG, INF_MOV_N_IMG, INF_MOV_NW_IMG, INF_MOV_W_IMG, INF_MOV_SW_IMG, INF_MOV_S_IMG, INF_MOV_SE_IMG;
+  let SNIP_IMG;
+  let SNIP_MOV_IMG, SNIP_MOV_NE_IMG, SNIP_MOV_N_IMG, SNIP_MOV_NW_IMG, SNIP_MOV_W_IMG, SNIP_MOV_SW_IMG, SNIP_MOV_S_IMG, SNIP_MOV_SE_IMG;
+  let INF_TEAM_SHEET_IDLE, INF_TEAM_SHEET_ATK, INF_TEAM_SHEET_MOV, INF_TEAM_SHEET_MOV_NE, INF_TEAM_SHEET_MOV_N, INF_TEAM_SHEET_MOV_NW;
+  let INF_TEAM_SHEET_MOV_W, INF_TEAM_SHEET_MOV_SW, INF_TEAM_SHEET_MOV_S, INF_TEAM_SHEET_MOV_SE;
+  let SNIP_TEAM_SHEET, SNIP_TEAM_SHEET_MOV, SNIP_TEAM_SHEET_MOV_NE, SNIP_TEAM_SHEET_MOV_N, SNIP_TEAM_SHEET_MOV_NW;
+  let SNIP_TEAM_SHEET_MOV_W, SNIP_TEAM_SHEET_MOV_SW, SNIP_TEAM_SHEET_MOV_S, SNIP_TEAM_SHEET_MOV_SE;
+  let INF_IDLE_ATLAS;
 
   function bindEnv(env){
     canvas = env.canvas; ctx = env.ctx; cam = env.cam; state = env.state;
@@ -238,6 +247,20 @@
     SNIP_DIE_TEAM_SHEET = env.SNIP_DIE_TEAM_SHEET;
     INF_SPRITE_SCALE = env.INF_SPRITE_SCALE;
     buildInfTeamSheet = env.buildInfTeamSheet;
+    INF_IMG = env.INF_IMG;
+    INF_ATK_IMG = env.INF_ATK_IMG;
+    INF_MOV_IMG = env.INF_MOV_IMG; INF_MOV_NE_IMG = env.INF_MOV_NE_IMG; INF_MOV_N_IMG = env.INF_MOV_N_IMG; INF_MOV_NW_IMG = env.INF_MOV_NW_IMG;
+    INF_MOV_W_IMG = env.INF_MOV_W_IMG; INF_MOV_SW_IMG = env.INF_MOV_SW_IMG; INF_MOV_S_IMG = env.INF_MOV_S_IMG; INF_MOV_SE_IMG = env.INF_MOV_SE_IMG;
+    SNIP_IMG = env.SNIP_IMG;
+    SNIP_MOV_IMG = env.SNIP_MOV_IMG; SNIP_MOV_NE_IMG = env.SNIP_MOV_NE_IMG; SNIP_MOV_N_IMG = env.SNIP_MOV_N_IMG; SNIP_MOV_NW_IMG = env.SNIP_MOV_NW_IMG;
+    SNIP_MOV_W_IMG = env.SNIP_MOV_W_IMG; SNIP_MOV_SW_IMG = env.SNIP_MOV_SW_IMG; SNIP_MOV_S_IMG = env.SNIP_MOV_S_IMG; SNIP_MOV_SE_IMG = env.SNIP_MOV_SE_IMG;
+    INF_TEAM_SHEET_IDLE = env.INF_TEAM_SHEET_IDLE; INF_TEAM_SHEET_ATK = env.INF_TEAM_SHEET_ATK; INF_TEAM_SHEET_MOV = env.INF_TEAM_SHEET_MOV;
+    INF_TEAM_SHEET_MOV_NE = env.INF_TEAM_SHEET_MOV_NE; INF_TEAM_SHEET_MOV_N = env.INF_TEAM_SHEET_MOV_N; INF_TEAM_SHEET_MOV_NW = env.INF_TEAM_SHEET_MOV_NW;
+    INF_TEAM_SHEET_MOV_W = env.INF_TEAM_SHEET_MOV_W; INF_TEAM_SHEET_MOV_SW = env.INF_TEAM_SHEET_MOV_SW; INF_TEAM_SHEET_MOV_S = env.INF_TEAM_SHEET_MOV_S; INF_TEAM_SHEET_MOV_SE = env.INF_TEAM_SHEET_MOV_SE;
+    SNIP_TEAM_SHEET = env.SNIP_TEAM_SHEET; SNIP_TEAM_SHEET_MOV = env.SNIP_TEAM_SHEET_MOV; SNIP_TEAM_SHEET_MOV_NE = env.SNIP_TEAM_SHEET_MOV_NE; SNIP_TEAM_SHEET_MOV_N = env.SNIP_TEAM_SHEET_MOV_N;
+    SNIP_TEAM_SHEET_MOV_NW = env.SNIP_TEAM_SHEET_MOV_NW; SNIP_TEAM_SHEET_MOV_W = env.SNIP_TEAM_SHEET_MOV_W; SNIP_TEAM_SHEET_MOV_SW = env.SNIP_TEAM_SHEET_MOV_SW;
+    SNIP_TEAM_SHEET_MOV_S = env.SNIP_TEAM_SHEET_MOV_S; SNIP_TEAM_SHEET_MOV_SE = env.SNIP_TEAM_SHEET_MOV_SE;
+    INF_IDLE_ATLAS = env.INF_IDLE_ATLAS;
   }
 
   function getSnipDieTeamSheet(teamId){
@@ -302,6 +325,301 @@
     const dy = Math.round(y - dh/2);
     ctx.drawImage(sheet, rd.sx, rd.sy, rd.sw, rd.sh, dx, dy, dw, dh);
     ctx.restore();
+  }
+
+  // -------------------------
+  // Infantry/Sniper sprite draw (moved from game.js)
+  // -------------------------
+  const INF_DIR_OFFSET = 0; // user-calibrated sprite index offset
+  function infRemapDir(dir){
+    dir = (dir|0) % 8; if (dir<0) dir += 8;
+    let d = (dir + INF_DIR_OFFSET) % 8; if (d<0) d += 8;
+    return d;
+  }
+
+  // The PNG contains 8 poses (idle), arranged in a 3x3 grid with the bottom-right cell empty.
+  // Order definition (USER-LOCKED): start at top-left and go right:
+  // [0]=동(E), [1]=동북(NE), [2]=북(N), [3]=북서(NW), [4]=서(W), [5]=남서(SW), [6]=남(S), [7]=동남(SE)
+  // Bounding boxes were auto-trimmed from the provided file (inf_idle_tex.png 1800x1800).
+  const LOCAL_INF_IDLE_ATLAS = [
+    { x:226, y: 90, w:199, h:420 }, // 0 E
+    { x:794, y: 89, w:204, h:436 }, // 1 NE
+    { x:1363,y: 90, w:245, h:425 }, // 2 N
+    { x:207, y:689, w:204, h:436 }, // 3 NW
+    { x:776, y:690, w:199, h:420 }, // 4 W
+    { x:1398,y:691, w:209, h:429 }, // 5 SW
+    { x:191, y:1289,w:283, h:422 }, // 6 S (front)
+    { x:809, y:1291,w:209, h:429 }, // 7 SE
+  ];
+
+  // === Infantry attack atlas (auto-trim from 3x3 grid; bottom-right empty) ===
+  let INF_ATK_ATLAS = null;
+  // === Sniper atlas/cache ===
+  let SNIP_IDLE_ATLAS = null;
+
+  function buildAtlasFromGrid(img, cols=3, rows=3){
+    if (!img || !img.complete || !img.naturalWidth) return null;
+    const W = img.naturalWidth, H = img.naturalHeight;
+    const cellW = Math.floor(W/cols), cellH = Math.floor(H/rows);
+
+    const c = document.createElement("canvas");
+    c.width=W; c.height=H;
+    const cctx=c.getContext("2d",{willReadFrequently:true});
+    cctx.clearRect(0,0,W,H);
+    cctx.drawImage(img,0,0);
+
+    const atlas=[];
+    for (let i=0;i<8;i++){
+      const cx = i % cols;
+      const cy = (i/cols)|0;
+      const x0 = cx*cellW, y0 = cy*cellH;
+      const imgd = cctx.getImageData(x0,y0,cellW,cellH);
+      const d = imgd.data;
+
+      let minx=cellW, miny=cellH, maxx=-1, maxy=-1;
+      for (let y=0; y<cellH; y++){
+        for (let x=0; x<cellW; x++){
+          const a = d[(y*cellW + x)*4 + 3];
+          if (a>0){
+            if (x<minx) minx=x;
+            if (y<miny) miny=y;
+            if (x>maxx) maxx=x;
+            if (y>maxy) maxy=y;
+          }
+        }
+      }
+      if (maxx<0){
+        atlas.push({x:x0, y:y0, w:1, h:1});
+      } else {
+        const pad=2;
+        minx=Math.max(0, minx-pad); miny=Math.max(0, miny-pad);
+        maxx=Math.min(cellW-1, maxx+pad); maxy=Math.min(cellH-1, maxy+pad);
+        atlas.push({x:x0+minx, y:y0+miny, w:(maxx-minx+1), h:(maxy-miny+1)});
+      }
+    }
+    return atlas;
+  }
+
+  function ensureSnipAtlases(){
+    if (!SNIP_IMG || !SNIP_IMG.complete || !SNIP_IMG.naturalWidth) return;
+    if (!SNIP_IDLE_ATLAS){
+      SNIP_IDLE_ATLAS = buildAtlasFromGrid(SNIP_IMG,3,3);
+    }
+  }
+
+  function ensureInfAtlases(){
+    if (!INF_ATK_ATLAS && INF_ATK_IMG && INF_ATK_IMG.complete && INF_ATK_IMG.naturalWidth){
+      INF_ATK_ATLAS = buildAtlasFromGrid(INF_ATK_IMG, 3, 3);
+    }
+  }
+
+  function drawInfantrySprite(ctx, px, py, dir, alpha, teamId, isFiring=false){
+    ensureInfAtlases();
+    const atlas = (isFiring && INF_ATK_ATLAS) ? INF_ATK_ATLAS : (INF_IDLE_ATLAS || LOCAL_INF_IDLE_ATLAS);
+    const img   = (isFiring && INF_ATK_ATLAS) ? INF_ATK_IMG   : INF_IMG;
+    const cache = (isFiring && INF_ATK_ATLAS) ? INF_TEAM_SHEET_ATK : INF_TEAM_SHEET_IDLE;
+
+    const f = atlas[infRemapDir(dir)] || atlas[6];
+    const z = (typeof cam !== "undefined" && cam && typeof cam.zoom==="number") ? cam.zoom : 1;
+    const sc = INF_SPRITE_SCALE * z;
+    const dw = f.w * sc, dh = f.h * sc;
+
+    // Pivot: bottom-center (feet)
+    const pivotX = f.w * 0.5;
+    const pivotY = f.h * 1.0;
+
+    const dx = Math.floor(px - pivotX*sc);
+    const dy = Math.floor(py - pivotY*sc);
+
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.imageSmoothingEnabled = true;
+    ctx.drawImage(buildInfTeamSheet(img, cache, teamId), f.x, f.y, f.w, f.h, dx, dy, dw, dh);
+    ctx.restore();
+  }
+
+  function drawSniperSprite(ctx, wx, wy, dir, alpha=1, teamId=0){
+    ensureSnipAtlases();
+    if (!SNIP_IDLE_ATLAS || !SNIP_IDLE_ATLAS[dir]) return;
+
+    const atlas = SNIP_IDLE_ATLAS;
+    const f = atlas[dir];
+
+    const sheet = buildInfTeamSheet(SNIP_IMG, SNIP_TEAM_SHEET, teamId);
+    const sheetW = (sheet && (sheet.naturalWidth || sheet.width)) || 0;
+    if (!sheetW) return;
+
+    const z = (typeof cam !== "undefined" && cam && typeof cam.zoom==="number") ? cam.zoom : 1;
+    const scale = INF_SPRITE_SCALE * z;
+    const dx = Math.round(wx - (f.w * scale)/2);
+    const dy = Math.round(wy - (f.h * scale));
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.imageSmoothingEnabled = true;
+    ctx.drawImage(sheet, f.x, f.y, f.w, f.h, dx, dy, f.w*scale, f.h*scale);
+    ctx.restore();
+  }
+
+  function drawInfantryMoveEast(ctx, px, py, alpha, teamId, t){
+    if (!INF_MOV_IMG || !INF_MOV_IMG.complete || !INF_MOV_IMG.naturalWidth) {
+      drawInfantrySprite(ctx, px, py, 0, alpha, teamId, false);
+      return;
+    }
+    const z = (typeof cam !== "undefined" && cam && typeof cam.zoom==="number") ? cam.zoom : 1;
+    const sc = INF_SPRITE_SCALE * z * 1.0;
+    const TILEW = 600, TILEH = 600;
+    const cols = Math.max(1, Math.floor(INF_MOV_IMG.naturalWidth / TILEW));
+    const frameDur = 0.04;
+    const phase = ((teamId||0)*0.37 + (Math.abs(((px*0.01)|0)+((py*0.01)|0))%97)*0.011);
+    const fi = (Math.floor((t + phase) / frameDur) % 6 + 6) % 6;
+
+    const sx = (fi % cols) * TILEW;
+    const sy = Math.floor(fi / cols) * TILEH;
+
+    const dw = TILEW * sc, dh = TILEH * sc;
+
+    const pivotX = TILEW * 0.5;
+    const FEET_NUDGE = 52;
+    const pivotY = TILEH * 1.0 - FEET_NUDGE;
+
+    const dx = Math.floor(px - pivotX*sc);
+    const dy = Math.floor(py - pivotY*sc);
+
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.imageSmoothingEnabled = true;
+    ctx.drawImage(buildInfTeamSheet(INF_MOV_IMG, INF_TEAM_SHEET_MOV, teamId), sx, sy, TILEW, TILEH, dx, dy, dw, dh);
+    ctx.restore();
+  }
+
+  function drawInfantryMoveNE(ctx, px, py, alpha, teamId, t){
+    if (!INF_MOV_NE_IMG || !INF_MOV_NE_IMG.complete || !INF_MOV_NE_IMG.naturalWidth) {
+      drawInfantrySprite(ctx, px, py, 1, alpha, teamId, false);
+      return;
+    }
+    const z = (typeof cam !== "undefined" && cam && typeof cam.zoom==="number") ? cam.zoom : 1;
+    const sc = INF_SPRITE_SCALE * z * 1.0;
+    const TILEW = 600, TILEH = 600;
+    const cols = Math.max(1, Math.floor(INF_MOV_NE_IMG.naturalWidth / TILEW));
+    const frameDur = 0.04;
+    const phase = ((teamId||0)*0.37 + (Math.abs(((px*0.01)|0)+((py*0.01)|0))%97)*0.011);
+    const fi = (Math.floor((t + phase) / frameDur) % 6 + 6) % 6;
+
+    const sx = (fi % cols) * TILEW;
+    const sy = Math.floor(fi / cols) * TILEH;
+
+    const dw = TILEW * sc, dh = TILEH * sc;
+
+    const pivotX = TILEW * 0.5;
+    const FEET_NUDGE = 52;
+    const pivotY = TILEH * 1.0 - FEET_NUDGE;
+
+    const dx = Math.floor(px - pivotX*sc);
+    const dy = Math.floor(py - pivotY*sc);
+
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.imageSmoothingEnabled = true;
+    ctx.drawImage(buildInfTeamSheet(INF_MOV_NE_IMG, INF_TEAM_SHEET_MOV_NE, teamId), sx, sy, TILEW, TILEH, dx, dy, dw, dh);
+    ctx.restore();
+  }
+
+  function drawInfantryMoveSheet(ctx, px, py, alpha, teamId, t, img, cache, fallbackDir){
+    if (!img || !img.complete || !img.naturalWidth) {
+      drawInfantrySprite(ctx, px, py, fallbackDir, alpha, teamId, false);
+      return;
+    }
+    const z = (typeof cam !== "undefined" && cam && typeof cam.zoom==="number") ? cam.zoom : 1;
+    const sc = INF_SPRITE_SCALE * z * 1.0;
+    const TILEW = 600, TILEH = 600;
+    const cols = Math.max(1, Math.floor(img.naturalWidth / TILEW));
+    const frameDur = 0.04;
+
+    const phase = ((teamId||0)*0.37 + (Math.abs(((px*0.01)|0)+((py*0.01)|0))%97)*0.011);
+    const fi = (Math.floor((t + phase) / frameDur) % 6 + 6) % 6;
+
+    const sx = (fi % cols) * TILEW;
+    const sy = Math.floor(fi / cols) * TILEH;
+
+    const dw = TILEW * sc, dh = TILEH * sc;
+
+    const pivotX = TILEW * 0.5;
+    const FEET_NUDGE = 52;
+    const pivotY = TILEH * 1.0 - FEET_NUDGE;
+
+    const dx = Math.floor(px - pivotX*sc);
+    const dy = Math.floor(py - pivotY*sc);
+
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.imageSmoothingEnabled = true;
+    ctx.drawImage(buildInfTeamSheet(img, cache, teamId), sx, sy, TILEW, TILEH, dx, dy, dw, dh);
+    ctx.restore();
+  }
+
+  function drawInfantryMoveN(ctx, px, py, alpha, teamId, t){
+    return drawInfantryMoveSheet(ctx, px, py, alpha, teamId, t, INF_MOV_N_IMG, INF_TEAM_SHEET_MOV_N, 2);
+  }
+  function drawInfantryMoveNW(ctx, px, py, alpha, teamId, t){
+    return drawInfantryMoveSheet(ctx, px, py, alpha, teamId, t, INF_MOV_NW_IMG, INF_TEAM_SHEET_MOV_NW, 3);
+  }
+  function drawInfantryMoveW(ctx, px, py, alpha, teamId, t){
+    return drawInfantryMoveSheet(ctx, px, py, alpha, teamId, t, INF_MOV_W_IMG, INF_TEAM_SHEET_MOV_W, 4);
+  }
+  function drawInfantryMoveSW(ctx, px, py, alpha, teamId, t){
+    return drawInfantryMoveSheet(ctx, px, py, alpha, teamId, t, INF_MOV_SW_IMG, INF_TEAM_SHEET_MOV_SW, 5);
+  }
+  function drawInfantryMoveS(ctx, px, py, alpha, teamId, t){
+    return drawInfantryMoveSheet(ctx, px, py, alpha, teamId, t, INF_MOV_S_IMG, INF_TEAM_SHEET_MOV_S, 6);
+  }
+  function drawInfantryMoveSE(ctx, px, py, alpha, teamId, t){
+    return drawInfantryMoveSheet(ctx, px, py, alpha, teamId, t, INF_MOV_SE_IMG, INF_TEAM_SHEET_MOV_SE, 7);
+  }
+
+  function drawSniperMoveSheet(ctx, px, py, alpha, teamId, t, img, cache, fallbackDir){
+    if (!img || !img.complete || !img.naturalWidth) {
+      drawSniperSprite(ctx, px, py, fallbackDir, alpha, teamId);
+      return;
+    }
+    const z = (typeof cam !== "undefined" && cam && typeof cam.zoom==="number") ? cam.zoom : 1;
+    const sc = INF_SPRITE_SCALE * z * 1.0;
+    const TILEW = 600, TILEH = 600;
+    const cols = Math.max(1, Math.floor(img.naturalWidth / TILEW));
+    const frames = 12;
+    const frameDur = 0.04;
+
+    const phase = ((teamId||0)*0.37 + (Math.abs(((px*0.01)|0)+((py*0.01)|0))%97)*0.011);
+    const fi = (Math.floor((t + phase) / frameDur) % frames + frames) % frames;
+
+    const sx = (fi % cols) * TILEW;
+    const sy = Math.floor(fi / cols) * TILEH;
+
+    const dw = TILEW * sc, dh = TILEH * sc;
+
+    const pivotX = TILEW * 0.5;
+    const FEET_NUDGE = 52;
+    const pivotY = TILEH * 1.0 - FEET_NUDGE;
+
+    const dx = Math.floor(px - pivotX*sc);
+    const dy = Math.floor(py - pivotY*sc);
+
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.imageSmoothingEnabled = true;
+    ctx.drawImage(buildInfTeamSheet(img, cache, teamId), sx, sy, TILEW, TILEH, dx, dy, dw, dh);
+    ctx.restore();
+  }
+
+  function drawSniperMoveByDir(ctx, px, py, dir, alpha, teamId, t){
+    if (dir===0)      return drawSniperMoveSheet(ctx, px, py, alpha, teamId, t, SNIP_MOV_IMG,    SNIP_TEAM_SHEET_MOV,    0);
+    else if (dir===1) return drawSniperMoveSheet(ctx, px, py, alpha, teamId, t, SNIP_MOV_NE_IMG, SNIP_TEAM_SHEET_MOV_NE, 1);
+    else if (dir===2) return drawSniperMoveSheet(ctx, px, py, alpha, teamId, t, SNIP_MOV_N_IMG,  SNIP_TEAM_SHEET_MOV_N,  2);
+    else if (dir===3) return drawSniperMoveSheet(ctx, px, py, alpha, teamId, t, SNIP_MOV_NW_IMG, SNIP_TEAM_SHEET_MOV_NW, 3);
+    else if (dir===4) return drawSniperMoveSheet(ctx, px, py, alpha, teamId, t, SNIP_MOV_W_IMG,  SNIP_TEAM_SHEET_MOV_W,  4);
+    else if (dir===5) return drawSniperMoveSheet(ctx, px, py, alpha, teamId, t, SNIP_MOV_SW_IMG, SNIP_TEAM_SHEET_MOV_SW, 5);
+    else if (dir===6) return drawSniperMoveSheet(ctx, px, py, alpha, teamId, t, SNIP_MOV_S_IMG,  SNIP_TEAM_SHEET_MOV_S,  6);
+    else if (dir===7) return drawSniperMoveSheet(ctx, px, py, alpha, teamId, t, SNIP_MOV_SE_IMG, SNIP_TEAM_SHEET_MOV_SE, 7);
+    return drawSniperSprite(ctx, px, py, dir, alpha, teamId);
   }
 
   function drawIsoTile(tx,ty,type){
@@ -1517,9 +1835,9 @@
               const v2 = (ent.vx||0)*(ent.vx||0) + (ent.vy||0)*(ent.vy||0);
               const moving = isMoveOrder || v2 > 0.0004 || (ent.path && ent.path.length>0);
               if (!firing && moving){
-                spriteDraw.drawSniperMoveByDir(ctx, p.x, p.y, infDir, a, ent.team, state.t);
+                drawSniperMoveByDir(ctx, p.x, p.y, infDir, a, ent.team, state.t);
               } else {
-                spriteDraw.drawSniperSprite(ctx, p.x, p.y, infDir, a, ent.team);
+                drawSniperSprite(ctx, p.x, p.y, infDir, a, ent.team);
               }
             } else {
               const firing = ((ent.fireHoldT||0)>0);
@@ -1527,17 +1845,17 @@
               const v2 = (ent.vx||0)*(ent.vx||0) + (ent.vy||0)*(ent.vy||0);
               const moving = isMoveOrder || v2 > 0.0004 || (ent.path && ent.path.length>0);
               if (!firing && moving){
-                if (infDir===0)      spriteDraw.drawInfantryMoveEast(ctx, p.x, p.y, a, ent.team, state.t);
-                else if (infDir===1) spriteDraw.drawInfantryMoveNE(ctx, p.x, p.y, a, ent.team, state.t);
-                else if (infDir===2) spriteDraw.drawInfantryMoveN(ctx,  p.x, p.y, a, ent.team, state.t);
-                else if (infDir===3) spriteDraw.drawInfantryMoveNW(ctx, p.x, p.y, a, ent.team, state.t);
-                else if (infDir===4) spriteDraw.drawInfantryMoveW(ctx,  p.x, p.y, a, ent.team, state.t);
-                else if (infDir===5) spriteDraw.drawInfantryMoveSW(ctx, p.x, p.y, a, ent.team, state.t);
-                else if (infDir===6) spriteDraw.drawInfantryMoveS(ctx,  p.x, p.y, a, ent.team, state.t);
-                else if (infDir===7) spriteDraw.drawInfantryMoveSE(ctx, p.x, p.y, a, ent.team, state.t);
-                else                 spriteDraw.drawInfantrySprite(ctx, p.x, p.y, infDir, a, ent.team, firing);
+                if (infDir===0)      drawInfantryMoveEast(ctx, p.x, p.y, a, ent.team, state.t);
+                else if (infDir===1) drawInfantryMoveNE(ctx, p.x, p.y, a, ent.team, state.t);
+                else if (infDir===2) drawInfantryMoveN(ctx,  p.x, p.y, a, ent.team, state.t);
+                else if (infDir===3) drawInfantryMoveNW(ctx, p.x, p.y, a, ent.team, state.t);
+                else if (infDir===4) drawInfantryMoveW(ctx,  p.x, p.y, a, ent.team, state.t);
+                else if (infDir===5) drawInfantryMoveSW(ctx, p.x, p.y, a, ent.team, state.t);
+                else if (infDir===6) drawInfantryMoveS(ctx,  p.x, p.y, a, ent.team, state.t);
+                else if (infDir===7) drawInfantryMoveSE(ctx, p.x, p.y, a, ent.team, state.t);
+                else                 drawInfantrySprite(ctx, p.x, p.y, infDir, a, ent.team, firing);
               } else {
-                spriteDraw.drawInfantrySprite(ctx, p.x, p.y, infDir, a, ent.team, firing);
+                drawInfantrySprite(ctx, p.x, p.y, infDir, a, ent.team, firing);
               }
             }
           }
