@@ -21,6 +21,7 @@ ${e.message}
 ${e.filename}:${e.lineno}:${e.colno}
 </pre>`;
   });
+})();
 
   const canvas = document.getElementById("c");
   // FORCE fullscreen canvas (prevents tiny top-left render)
@@ -10407,7 +10408,6 @@ const audio = new Audio();
   audio.addEventListener("ended", ()=>{ /* monitor() handles */ });
 
   return { audio, start, next, prev, toggle, setVol, setMode, auto, monitor, mountUI };
-}
 })();
 // --- BGM compatibility shim (older code expects these) ---
 BGM._started = false;
@@ -10515,14 +10515,15 @@ function validateWorld(){
 
 function sanityCheck(){
     const must = [
-      'setPathTo','findPath','issueIFVRepair','boardUnitIntoIFV','unboardIFV','resolveUnitOverlaps'
+      "setPathTo","findPath","issueIFVRepair","boardUnitIntoIFV","unboardIFV","resolveUnitOverlaps"
     ];
-    const missing = must.filter(n=> typeof window[n] !== 'function');
+    const missing = must.filter(n=> typeof window[n] !== "function");
     if (missing.length){
-      console.error('SanityCheck: missing functions:', missing);
-      toast('스크립트 오류: '+missing.join(', '));
+      console.error("SanityCheck: missing functions:", missing);
+      toast("???? ??: " + missing.join(", "));
     }
   }
+
 
   function tick(now){
     fitCanvas();
