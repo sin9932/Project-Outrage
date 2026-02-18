@@ -2378,7 +2378,7 @@
     bindEnv(env);
     const {
       canvas, ctx, cam, state, TEAM, MAP_W, MAP_H, TILE, ISO_X, ISO_Y,
-      terrain, ore, explored, visible, BUILD, DEFENSE, BUILD_SPRITE, NAME_KO,
+      terrain, ore, explored, visible, BUILD, DEFENSE, NAME_KO,
       units, buildings, bullets, traces, impacts, fires, healMarks, flashes, casings,
       gameOver, POWER,
       smokeWaves, smokePuffs, dustPuffs, dmgSmokePuffs, bloodStains, bloodPuffs,
@@ -2397,6 +2397,8 @@
     ctx.clearRect(0,0,W,H);
     if (typeof updateMoney === "function") updateMoney(state.player.money);
     if (typeof updateProdBadges === "function") updateProdBadges();
+
+    const buildSprite = BUILD_SPRITE || BUILD_SPRITE_LOCAL;
 
     for (let s=0; s<=(MAP_W-1)+(MAP_H-1); s++){
       for (let ty=0; ty<MAP_H; ty++){
@@ -2525,7 +2527,7 @@
         if (ent.team===TEAM.PLAYER){ fill="rgba(10,40,70,0.9)"; stroke=state.colors.player; }
         if (ent.team===TEAM.ENEMY){  fill="rgba(70,10,10,0.9)"; stroke=state.colors.enemy; }
 
-        if (BUILD_SPRITE[ent.kind]){
+        if (buildSprite && buildSprite[ent.kind]){
           drawFootprintDiamond(ent, "rgba(0,0,0,0.22)", "rgba(0,0,0,0)");
           if (typeof drawBuildingSprite === "function") drawBuildingSprite(ent);
           else drawBuildingSpriteLocal(ent);
