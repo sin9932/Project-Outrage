@@ -471,7 +471,9 @@
         // Snipers: only if player infantry exists, cap at 2~3 total.
         if (playerHasInf && fac && bar.buildQ.length < 8) {
           const maxSnp = rich ? 3 : 2;
-          if ((eSnp.length + queuedSnp) < maxSnp) {
+          const totalSnp = eSnp.length + queuedSnp;
+          // Only build snipers if there is IFV capacity to use them.
+          if (totalSnp < maxSnp && eIFV.length > 0) {
             bar.buildQ.push({ kind: "sniper", t: 0, tNeed: getBaseBuildTime("sniper") / pf, cost: COST.sniper, paid: 0 });
           }
         }
@@ -528,11 +530,14 @@
         const inf = infPool.splice(bestIdx, 1)[0];
         const d = Math.sqrt(bestD);
         if (d <= 140) {
-          boardUnitIntoIFV(inf, ifv);
+          if (boardUnitIntoIFV(inf, ifv)) {
+            ifv._pickupTargetId = null;
+          }
         } else {
           // Move IFV toward the infantry to pick up
           ifv.order = { type: "move", x: inf.x, y: inf.y };
           ifv.target = null;
+          ifv._pickupTargetId = inf.id;
           // Passenger should hold position and wait for pickup (do NOT chase IFV).
           inf.order = { type: "move", x: inf.x, y: inf.y, tx: null, ty: null };
           inf.target = null;
@@ -594,6 +599,15 @@
       const eIFVs = units.filter(u => u.alive && u.team === TEAM.ENEMY && u.kind === "ifv" && !u.passengerId);
       const dp = aiDefendPoint();
       for (const ifv of eIFVs) {
+        // If we are actively picking up a passenger, don't override.
+        if (ifv._pickupTargetId) {
+          const t = units.find(u => u.alive && u.id === ifv._pickupTargetId && u.team === TEAM.ENEMY && !u.inTransport);
+          if (!t) {
+            ifv._pickupTargetId = null;
+          } else {
+            continue;
+          }
+        }
         // Override any attack/attackmove orders so empty IFVs don't rush.
         ifv.order = { type: "move", x: dp.x, y: dp.y };
         ifv.target = null;
@@ -675,7 +689,7 @@
 
       // Engineer harassment (value-aware) - keep trying to capture high-value and sell.
       if (engs.length && state.t > 140 && combat.length >= 4) {
-        if (playerDefenseHeavy()) {
+        if (playerDefenseHeavy() || idleIFVs.length > 0) {
           const dp = aiDefendPoint();
           for (const eng of engs) {
             if (eng.inTransport) continue;
@@ -831,7 +845,7 @@
       // Snipers should avoid solo engagements and prefer IFV usage.
       if (snipers.length) {
         // If no player infantry, stay in defensive posture near rally.
-        if (!playerHasInf) {
+        if (!playerHasInf || idleIFVs.length > 0) {
           const dp = aiDefendPoint();
           for (const s of snipers) {
             if (s.inTransport) continue;
@@ -842,6 +856,7 @@
         }
         for (const s of snipers) {
           if (s.inTransport) continue;
+          if (idleIFVs.length > 0) continue; // wait for IFV pickup
           const prey = aiPickPlayerInfantry();
           // Let IFVs come pick snipers up (do not chase IFVs).
           // No IFV available: target player infantry only (may move near tanks/turrets but doesn't target them).
