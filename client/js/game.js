@@ -718,18 +718,6 @@ function getBaseBuildTime(kind){
   // pivotNudge is in SOURCE pixels (bbox-space, before scaling).
   // offsetNudge is in SCREEN pixels (after scaling, before zoom).
   // anchor: "center" to stick the sprite to the 5x5 footprint center (what you asked).
-  const SPRITE_TUNE = {
-    hq: {
-      anchor: "center",
-      scaleMul: 1.20,
-      pivotNudge: { x: 0, y: 0 },
-      offsetNudge:{ x: 94, y: -26 }
-    }
-  };
-
-  // expose to module-backed building sprites
-  try{ window.PO = window.PO || {}; window.PO.SPRITE_TUNE = SPRITE_TUNE; }catch(_e){}
-
   // === In-game Sprite Tuner (mouse-adjust pivot/offset/scale) ===
   // Toggle with F2. While enabled and HQ is selected:
   // - Drag (LMB): move offset (screen px)
@@ -746,13 +734,12 @@ function getBaseBuildTime(kind){
   };
 
   function _tuneObj(kind){
-    if (!SPRITE_TUNE[kind]) SPRITE_TUNE[kind] = { anchor:"center", scaleMul:1.0, pivotNudge:{x:0,y:0}, offsetNudge:{x:0,y:0} };
-    const t = SPRITE_TUNE[kind];
-    if (!t.pivotNudge) t.pivotNudge = {x:0,y:0};
-    if (!t.offsetNudge) t.offsetNudge = {x:0,y:0};
-    if (t.scaleMul==null) t.scaleMul = 1.0;
-    if (!t.anchor) t.anchor = "center";
-    return t;
+    if (window.OURender && typeof OURender.getSpriteTune === "function"){
+      const all = OURender.getSpriteTune();
+      if (!all || !all[kind]) return null;
+      return all[kind];
+    }
+    return null;
   }
 
   function _selectedBuildingOfKind(kind){
@@ -768,35 +755,26 @@ function getBaseBuildTime(kind){
 
   function _saveTune(){
     try{
-      localStorage.setItem("SPRITE_TUNE", JSON.stringify(SPRITE_TUNE));
+      if (window.OURender && typeof OURender.getSpriteTune==="function"){
+        localStorage.setItem("SPRITE_TUNE", JSON.stringify(OURender.getSpriteTune() || {}));
+      }
     }catch(_e){}
   }
 
   function _loadTune(){
-    try{
-      const raw = localStorage.getItem("SPRITE_TUNE");
-      if (!raw) return;
-      const obj = JSON.parse(raw);
-      if (obj && typeof obj === "object"){
-        // shallow merge
-        for (const k in obj){
-          if (!obj[k]) continue;
-          SPRITE_TUNE[k] = Object.assign(_tuneObj(k), obj[k]);
-        }
-      }
-    }catch(_e){}
+    // handled in render.js
   }
 
   function _updateTuneOverlay(){
     if (!__ou_ui || typeof __ou_ui.updateTuneOverlay !== "function") return;
     const t = _tuneObj(TUNER.targetKind);
-    __ou_ui.updateTuneOverlay({ on: TUNER.on, targetKind: TUNER.targetKind, tune: t });
+    __ou_ui.updateTuneOverlay({ on: TUNER.on, targetKind: TUNER.targetKind, tune: t || {} });
   }
 
   async function _copyTune(){
     try{
       const t = _tuneObj(TUNER.targetKind);
-      const payload = JSON.stringify(t, null, 2);
+      const payload = JSON.stringify(t || {}, null, 2);
       await navigator.clipboard.writeText(payload);
       toast("TUNE 복사됨");
     }catch(_e){
@@ -805,11 +783,10 @@ function getBaseBuildTime(kind){
   }
 
   function _resetTune(){
-    const t = _tuneObj(TUNER.targetKind);
-    t.scaleMul = 1.0;
-    t.pivotNudge.x = 0; t.pivotNudge.y = 0;
-    t.offsetNudge.x = 0; t.offsetNudge.y = 0;
-    _saveTune();
+    const t = (window.OURender && typeof OURender.setSpriteTune==="function")
+      ? OURender.setSpriteTune(TUNER.targetKind, { scaleMul: 1.0, pivotNudge:{x:0,y:0}, offsetNudge:{x:0,y:0} })
+      : null;
+    if (t) _saveTune();
     _updateTuneOverlay();
     toast("TUNE 리셋");
   }
@@ -818,17 +795,7 @@ function getBaseBuildTime(kind){
   _loadTune();
 
   // apply HTML-provided preset (overrides persisted storage)
-  ;(function(){
-    try{
-      const preset = (typeof window !== "undefined") ? window.SPRITE_TUNE_PRESET : null;
-      if (!preset || typeof preset !== "object") return;
-      for (const k in preset){
-        if (!preset[k] || typeof preset[k] !== "object") continue;
-        SPRITE_TUNE[k] = Object.assign(_tuneObj(k), preset[k]);
-      }
-      _saveTune();
-    }catch(_e){}
-  })();
+  // preset load handled in render.js
   _updateTuneOverlay();
 
   // === TexturePacker "textures":[{frames:[...]}] atlas parser (trim + anchor aware) ===
@@ -7696,7 +7663,7 @@ const keys=new Set();
       TUNER.lastPy = p.y;
 
       const t = _tuneObj(TUNER.targetKind);
-      if (bSel){
+      if (bSel && t){
         const cfg = (window.OURender && typeof OURender.getBuildSpriteCfg === "function")
           ? OURender.getBuildSpriteCfg(TUNER.targetKind)
           : null;
@@ -7714,6 +7681,9 @@ const keys=new Set();
           // offsetNudge is in SCREEN px BEFORE zoom; draw multiplies by z
           t.offsetNudge.x += dx / z;
           t.offsetNudge.y += dy / z;
+        }
+        if (window.OURender && typeof OURender.setSpriteTune==="function"){
+          OURender.setSpriteTune(TUNER.targetKind, t);
         }
         _saveTune();
         _updateTuneOverlay();
@@ -7755,8 +7725,13 @@ const keys=new Set();
       const t = _tuneObj(TUNER.targetKind);
       const dir = (e.deltaY < 0) ? 1 : -1;
       const step = 0.02;
-      t.scaleMul = Math.max(0.10, Math.min(3.00, (t.scaleMul ?? 1.0) + dir * step));
-      _saveTune();
+      if (t){
+        t.scaleMul = Math.max(0.10, Math.min(3.00, (t.scaleMul ?? 1.0) + dir * step));
+        if (window.OURender && typeof OURender.setSpriteTune==="function"){
+          OURender.setSpriteTune(TUNER.targetKind, t);
+        }
+        _saveTune();
+      }
       _updateTuneOverlay();
       if (!bSel) toast("HQ 선택하고 Shift+휠");
       e.preventDefault();
@@ -8580,7 +8555,6 @@ function draw(){
         TANK_DIR_TO_IDLE_IDX: _dirToIdleIdx,
         MUZZLE_DIR_TO_IDLE_IDX: _muzzleDirToIdleIdx,
         getUnitSpec: (kind)=> (window.G && G.Units && typeof G.Units.getSpec==="function") ? G.Units.getSpec(kind) : null,
-        SPRITE_TUNE,
         worldVecToDir8,
         isUnderPower, clamp,
         infDeathFxs, snipDeathFxs

@@ -265,7 +265,7 @@
   let smokeWaves, smokePuffs, dustPuffs, dmgSmokePuffs, bloodStains, bloodPuffs;
   let explosions;
   let drawBuildingSprite;
-  let SPRITE_TUNE, getTeamCroppedSprite;
+  let getTeamCroppedSprite;
   let INF_DIE_IMG, SNIP_DIE_IMG, INF_TEAM_SHEET_DIE, SNIP_DIE_TEAM_SHEET;
   let infDeathFxs, snipDeathFxs;
   let INF_SPRITE_SCALE, buildInfTeamSheet;
@@ -286,6 +286,69 @@
     : "";
   const CON_YARD_IMG = new Image();
   if (CON_YARD_PNG) CON_YARD_IMG.src = CON_YARD_PNG;
+
+  // === Sprite tuning knobs (YOU edit these) ===
+  // pivotNudge is in SOURCE pixels (bbox-space, before scaling).
+  // offsetNudge is in SCREEN pixels (after scaling, before zoom).
+  // anchor: "center" to stick the sprite to the 5x5 footprint center (what you asked).
+  const SPRITE_TUNE = {
+    hq: {
+      anchor: "center",
+      scaleMul: 1.20,
+      pivotNudge: { x: 0, y: 0 },
+      offsetNudge:{ x: 94, y: -26 }
+    }
+  };
+
+  // expose to module-backed building sprites
+  try{ window.PO = window.PO || {}; window.PO.SPRITE_TUNE = SPRITE_TUNE; }catch(_e){}
+
+  function _tuneObj(kind){
+    if (!SPRITE_TUNE[kind]) SPRITE_TUNE[kind] = { anchor:"center", scaleMul:1.0, pivotNudge:{x:0,y:0}, offsetNudge:{x:0,y:0} };
+    const t = SPRITE_TUNE[kind];
+    if (!t.pivotNudge) t.pivotNudge = {x:0,y:0};
+    if (!t.offsetNudge) t.offsetNudge = {x:0,y:0};
+    if (t.scaleMul==null) t.scaleMul = 1.0;
+    if (!t.anchor) t.anchor = "center";
+    return t;
+  }
+
+  function _saveTune(){
+    try{
+      localStorage.setItem("SPRITE_TUNE", JSON.stringify(SPRITE_TUNE));
+    }catch(_e){}
+  }
+
+  function _loadTune(){
+    try{
+      const raw = localStorage.getItem("SPRITE_TUNE");
+      if (!raw) return;
+      const obj = JSON.parse(raw);
+      if (obj && typeof obj === "object"){
+        // shallow merge
+        for (const k in obj){
+          if (!obj[k]) continue;
+          SPRITE_TUNE[k] = Object.assign(_tuneObj(k), obj[k]);
+        }
+      }
+    }catch(_e){}
+  }
+
+  // load persisted tuning once
+  _loadTune();
+
+  // apply HTML-provided preset (overrides persisted storage)
+  ;(function(){
+    try{
+      const preset = (typeof window !== "undefined") ? window.SPRITE_TUNE_PRESET : null;
+      if (!preset || typeof preset !== "object") return;
+      for (const k in preset){
+        if (!preset[k] || typeof preset[k] !== "object") continue;
+        SPRITE_TUNE[k] = Object.assign(_tuneObj(k), preset[k]);
+      }
+      _saveTune();
+    }catch(_e){}
+  })();
 
   const BUILD_SPRITE_LOCAL = {
     hq: {
@@ -687,7 +750,7 @@
     explosions = env.explosions || [];
     infDeathFxs = env.infDeathFxs || [];
     snipDeathFxs = env.snipDeathFxs || [];
-    SPRITE_TUNE = env.SPRITE_TUNE || {};
+    // Local SPRITE_TUNE is authoritative (loaded from storage/preset)
     getTeamCroppedSprite = env.getTeamCroppedSprite || _getTeamCroppedSprite;
     drawBuildingSprite = env.drawBuildingSprite || drawBuildingSprite;
     INF_DIE_IMG = env.INF_DIE_IMG || _ensureImg(INF_DIE_IMG, env.INF_DIE_PNG);
@@ -2980,6 +3043,29 @@
     _teamSpriteCache.clear();
   }
 
+  function getSpriteTune(){
+    return SPRITE_TUNE;
+  }
+
+  function setSpriteTune(kind, patch){
+    if (!kind) return null;
+    const t = _tuneObj(kind);
+    if (patch && typeof patch === "object"){
+      if (patch.anchor) t.anchor = patch.anchor;
+      if (patch.scaleMul != null) t.scaleMul = patch.scaleMul;
+      if (patch.pivotNudge){
+        t.pivotNudge.x = patch.pivotNudge.x ?? t.pivotNudge.x;
+        t.pivotNudge.y = patch.pivotNudge.y ?? t.pivotNudge.y;
+      }
+      if (patch.offsetNudge){
+        t.offsetNudge.x = patch.offsetNudge.x ?? t.offsetNudge.x;
+        t.offsetNudge.y = patch.offsetNudge.y ?? t.offsetNudge.y;
+      }
+    }
+    _saveTune();
+    return t;
+  }
+
   function getBuildSpriteCfg(kind){
     const src = BUILD_SPRITE || BUILD_SPRITE_LOCAL;
     return (src && src[kind]) ? src[kind] : null;
@@ -3016,6 +3102,8 @@
   window.OURender.draw = drawMain;
   window.OURender.setTeamAccent = setTeamAccent;
   window.OURender.clearTeamSpriteCache = clearTeamSpriteCache;
+  window.OURender.getSpriteTune = getSpriteTune;
+  window.OURender.setSpriteTune = setSpriteTune;
   window.OURender.getBuildSpriteCfg = getBuildSpriteCfg;
   window.OURender.getBuildSpriteKinds = getBuildSpriteKinds;
   window.OURender.adjustExp1Pivot = adjustExp1Pivot;
