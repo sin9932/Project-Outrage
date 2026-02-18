@@ -703,16 +703,10 @@ function getBaseBuildTime(kind){
 
   // === Infantry sprite (idle 8-dir) embedded ===
   const INF_IDLE_PNG = ASSET.sprite.unit.inf.idle;
-  const INF_IMG = new Image();
-  INF_IMG.src = INF_IDLE_PNG;
 
   // === Sniper idle sprite (8-dir) embedded ===
   const SNIP_IDLE_PNG = ASSET.sprite.unit.snip.idle;
   const SNIP_DIE_PNG = ASSET.sprite.unit.snip.die;
-  const SNIP_IMG = new Image();
-  SNIP_IMG.src = SNIP_IDLE_PNG;
-  const SNIP_DIE_IMG = new Image();
-  SNIP_DIE_IMG.src = SNIP_DIE_PNG;
 
   // === Construction Yard (HQ) sprite (5x5 footprint) ===
   // Source: asset/sprite/const/normal/con_yard_n.png
@@ -1086,75 +1080,45 @@ function getBaseBuildTime(kind){
   const SNIP_MOV_SW_PNG = ASSET.sprite.unit.snip.mov.SW;
   const SNIP_MOV_W_PNG  = ASSET.sprite.unit.snip.mov.W;
 
-  const SNIP_MOV_IMG    = new Image(); SNIP_MOV_IMG.src    = SNIP_MOV_PNG;
-  const SNIP_MOV_N_IMG  = new Image(); SNIP_MOV_N_IMG.src  = SNIP_MOV_N_PNG;
-  const SNIP_MOV_NE_IMG = new Image(); SNIP_MOV_NE_IMG.src = SNIP_MOV_NE_PNG;
-  const SNIP_MOV_NW_IMG = new Image(); SNIP_MOV_NW_IMG.src = SNIP_MOV_NW_PNG;
-  const SNIP_MOV_S_IMG  = new Image(); SNIP_MOV_S_IMG.src  = SNIP_MOV_S_PNG;
-  const SNIP_MOV_SE_IMG = new Image(); SNIP_MOV_SE_IMG.src = SNIP_MOV_SE_PNG;
-  const SNIP_MOV_SW_IMG = new Image(); SNIP_MOV_SW_IMG.src = SNIP_MOV_SW_PNG;
-  const SNIP_MOV_W_IMG  = new Image(); SNIP_MOV_W_IMG.src  = SNIP_MOV_W_PNG;
 
 
 
   // === Infantry sprite (attack 8-dir) embedded ===
   const INF_ATK_PNG = ASSET.sprite.unit.inf.atk;
-  const INF_ATK_IMG = new Image();
-  INF_ATK_IMG.src = INF_ATK_PNG;
 
   // === Repair wrench FX sprite sheet (7 frames, 602x602 each) ===
   const REPAIR_WRENCH_PNG = ASSET.sprite.unit.inf.wrench;
-  const REPAIR_WRENCH_IMG = new Image();
-  REPAIR_WRENCH_IMG.src = REPAIR_WRENCH_PNG;
 
 
 
   // === Infantry death FX sprite sheet (7 frames, 1200x1200 each) ===
   const INF_DIE_PNG = ASSET.sprite.unit.inf.die;
-  const INF_DIE_IMG = new Image();
-  INF_DIE_IMG.src = INF_DIE_PNG;
 
 
 
   // === Infantry movement sprite (east) 6f (600x600 tiles) embedded ===
   const INF_MOV_PNG = ASSET.sprite.unit.inf.mov.E;
-  const INF_MOV_IMG = new Image();
-  INF_MOV_IMG.src = INF_MOV_PNG;
 
   // === Infantry move NE (north-east) 6-frame sheet (600x600 each) ===
   const INF_MOV_NE_PNG = ASSET.sprite.unit.inf.mov.NE;
-  const INF_MOV_NE_IMG = new Image();
-  INF_MOV_NE_IMG.src = INF_MOV_NE_PNG;
 
   // === Infantry move N (north) 6-frame sheet (600x600 each) ===
   const INF_MOV_N_PNG = ASSET.sprite.unit.inf.mov.N;
-  const INF_MOV_N_IMG = new Image();
-  INF_MOV_N_IMG.src = INF_MOV_N_PNG;
 
   // === Infantry move NW (north-west) 6-frame sheet (600x600 each) ===
   const INF_MOV_NW_PNG = ASSET.sprite.unit.inf.mov.NW;
-  const INF_MOV_NW_IMG = new Image();
-  INF_MOV_NW_IMG.src = INF_MOV_NW_PNG;
 
   // === Infantry move W (west) 6-frame sheet (600x600 each) ===
   const INF_MOV_W_PNG = ASSET.sprite.unit.inf.mov.W;
-  const INF_MOV_W_IMG = new Image();
-  INF_MOV_W_IMG.src = INF_MOV_W_PNG;
 
   // === Infantry move SW (south-west) 6-frame sheet (600x600 each) ===
   const INF_MOV_SW_PNG = ASSET.sprite.unit.inf.mov.SW;
-  const INF_MOV_SW_IMG = new Image();
-  INF_MOV_SW_IMG.src = INF_MOV_SW_PNG;
 
   // === Infantry move S (south) 6-frame sheet (600x600 each) ===
   const INF_MOV_S_PNG = ASSET.sprite.unit.inf.mov.S;
-  const INF_MOV_S_IMG = new Image();
-  INF_MOV_S_IMG.src = INF_MOV_S_PNG;
 
   // === Infantry move SE (south-east) 6-frame sheet (600x600 each) ===
   const INF_MOV_SE_PNG = ASSET.sprite.unit.inf.mov.SE;
-  const INF_MOV_SE_IMG = new Image();
-  INF_MOV_SE_IMG.src = INF_MOV_SE_PNG;
 
   // EXP1 asset urls (render.js loads/parses)
   const EXP1_PNG  = ASSET.sprite.eff.exp1.png;
@@ -8626,38 +8590,39 @@ function draw(){
         updateMoney: (__ou_ui && typeof __ou_ui.updateMoney === "function") ? __ou_ui.updateMoney : null,
         updateProdBadges,
         inMap, idx, tileToWorldCenter, worldToScreen,
-        getEntityById, REPAIR_WRENCH_IMG, repairWrenches,
+        getEntityById, repairWrenches,
         snapHoverToTileOrigin, buildingWorldFromTileOrigin, inBuildRadius, isBlockedFootprint, footprintBlockedMask,
         rectFromDrag, refreshPrimaryBuildingBadgesUI,
         exp1Fxs,
         EXP1_PNG, EXP1_JSON,
         smokeWaves, smokePuffs, dustPuffs, dmgSmokePuffs, bloodStains, bloodPuffs,
         explosions,
-        INF_DIE_IMG,
-        SNIP_DIE_IMG,
+        INF_DIE_PNG,
+        SNIP_DIE_PNG,
         INF_TEAM_SHEET_DIE,
         SNIP_DIE_TEAM_SHEET,
         INF_SPRITE_SCALE,
         buildInfTeamSheet,
-        INF_IMG,
-        INF_ATK_IMG,
-        INF_MOV_IMG,
-        INF_MOV_NE_IMG,
-        INF_MOV_N_IMG,
-        INF_MOV_NW_IMG,
-        INF_MOV_W_IMG,
-        INF_MOV_SW_IMG,
-        INF_MOV_S_IMG,
-        INF_MOV_SE_IMG,
-        SNIP_IMG,
-        SNIP_MOV_IMG,
-        SNIP_MOV_NE_IMG,
-        SNIP_MOV_N_IMG,
-        SNIP_MOV_NW_IMG,
-        SNIP_MOV_W_IMG,
-        SNIP_MOV_SW_IMG,
-        SNIP_MOV_S_IMG,
-        SNIP_MOV_SE_IMG,
+        INF_IDLE_PNG,
+        INF_ATK_PNG,
+        INF_MOV_PNG,
+        INF_MOV_NE_PNG,
+        INF_MOV_N_PNG,
+        INF_MOV_NW_PNG,
+        INF_MOV_W_PNG,
+        INF_MOV_SW_PNG,
+        INF_MOV_S_PNG,
+        INF_MOV_SE_PNG,
+        SNIP_IDLE_PNG,
+        SNIP_MOV_PNG,
+        SNIP_MOV_NE_PNG,
+        SNIP_MOV_N_PNG,
+        SNIP_MOV_NW_PNG,
+        SNIP_MOV_W_PNG,
+        SNIP_MOV_SW_PNG,
+        SNIP_MOV_S_PNG,
+        SNIP_MOV_SE_PNG,
+        REPAIR_WRENCH_PNG,
         INF_TEAM_SHEET_IDLE,
         INF_TEAM_SHEET_ATK,
         INF_TEAM_SHEET_MOV,
@@ -8683,7 +8648,6 @@ function draw(){
         SPRITE_TUNE,
         worldVecToDir8,
         isUnderPower, clamp,
-        INF_IMG, SNIP_IMG,
         infDeathFxs, snipDeathFxs
       });
     }

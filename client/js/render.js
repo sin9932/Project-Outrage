@@ -629,6 +629,14 @@
   let TANK_DIR_TO_IDLE_IDX, MUZZLE_DIR_TO_IDLE_IDX;
   let getUnitSpec;
 
+  function _ensureImg(cur, url){
+    if (cur) return cur;
+    if (!url) return cur;
+    const img = new Image();
+    img.src = url;
+    return img;
+  }
+
   function bindEnv(env){
     canvas = env.canvas; ctx = env.ctx; cam = env.cam; state = env.state;
     TEAM = env.TEAM; MAP_W = env.MAP_W; MAP_H = env.MAP_H; TILE = env.TILE; ISO_X = env.ISO_X; ISO_Y = env.ISO_Y;
@@ -636,7 +644,8 @@
     BUILD = env.BUILD; DEFENSE = env.DEFENSE; BUILD_SPRITE = env.BUILD_SPRITE; NAME_KO = env.NAME_KO; POWER = env.POWER;
     worldToScreen = env.worldToScreen; tileToWorldCenter = env.tileToWorldCenter; idx = env.idx; inMap = env.inMap;
     clamp = env.clamp; getEntityById = env.getEntityById;
-    REPAIR_WRENCH_IMG = env.REPAIR_WRENCH_IMG; repairWrenches = env.repairWrenches || [];
+    REPAIR_WRENCH_IMG = env.REPAIR_WRENCH_IMG || _ensureImg(REPAIR_WRENCH_IMG, env.REPAIR_WRENCH_PNG);
+    repairWrenches = env.repairWrenches || [];
     exp1Fxs = env.exp1Fxs || [];
     if (env.EXP1_PNG && !EXP1_PNG){
       EXP1_PNG = env.EXP1_PNG;
@@ -655,19 +664,31 @@
     SPRITE_TUNE = env.SPRITE_TUNE || {};
     getTeamCroppedSprite = env.getTeamCroppedSprite || _getTeamCroppedSprite;
     drawBuildingSprite = env.drawBuildingSprite || drawBuildingSprite;
-    INF_DIE_IMG = env.INF_DIE_IMG;
-    SNIP_DIE_IMG = env.SNIP_DIE_IMG;
+    INF_DIE_IMG = env.INF_DIE_IMG || _ensureImg(INF_DIE_IMG, env.INF_DIE_PNG);
+    SNIP_DIE_IMG = env.SNIP_DIE_IMG || _ensureImg(SNIP_DIE_IMG, env.SNIP_DIE_PNG);
     INF_TEAM_SHEET_DIE = env.INF_TEAM_SHEET_DIE;
     SNIP_DIE_TEAM_SHEET = env.SNIP_DIE_TEAM_SHEET;
     INF_SPRITE_SCALE = env.INF_SPRITE_SCALE;
     buildInfTeamSheet = env.buildInfTeamSheet;
-    INF_IMG = env.INF_IMG;
-    INF_ATK_IMG = env.INF_ATK_IMG;
-    INF_MOV_IMG = env.INF_MOV_IMG; INF_MOV_NE_IMG = env.INF_MOV_NE_IMG; INF_MOV_N_IMG = env.INF_MOV_N_IMG; INF_MOV_NW_IMG = env.INF_MOV_NW_IMG;
-    INF_MOV_W_IMG = env.INF_MOV_W_IMG; INF_MOV_SW_IMG = env.INF_MOV_SW_IMG; INF_MOV_S_IMG = env.INF_MOV_S_IMG; INF_MOV_SE_IMG = env.INF_MOV_SE_IMG;
-    SNIP_IMG = env.SNIP_IMG;
-    SNIP_MOV_IMG = env.SNIP_MOV_IMG; SNIP_MOV_NE_IMG = env.SNIP_MOV_NE_IMG; SNIP_MOV_N_IMG = env.SNIP_MOV_N_IMG; SNIP_MOV_NW_IMG = env.SNIP_MOV_NW_IMG;
-    SNIP_MOV_W_IMG = env.SNIP_MOV_W_IMG; SNIP_MOV_SW_IMG = env.SNIP_MOV_SW_IMG; SNIP_MOV_S_IMG = env.SNIP_MOV_S_IMG; SNIP_MOV_SE_IMG = env.SNIP_MOV_SE_IMG;
+    INF_IMG = env.INF_IMG || _ensureImg(INF_IMG, env.INF_IDLE_PNG);
+    INF_ATK_IMG = env.INF_ATK_IMG || _ensureImg(INF_ATK_IMG, env.INF_ATK_PNG);
+    INF_MOV_IMG = env.INF_MOV_IMG || _ensureImg(INF_MOV_IMG, env.INF_MOV_PNG);
+    INF_MOV_NE_IMG = env.INF_MOV_NE_IMG || _ensureImg(INF_MOV_NE_IMG, env.INF_MOV_NE_PNG);
+    INF_MOV_N_IMG = env.INF_MOV_N_IMG || _ensureImg(INF_MOV_N_IMG, env.INF_MOV_N_PNG);
+    INF_MOV_NW_IMG = env.INF_MOV_NW_IMG || _ensureImg(INF_MOV_NW_IMG, env.INF_MOV_NW_PNG);
+    INF_MOV_W_IMG = env.INF_MOV_W_IMG || _ensureImg(INF_MOV_W_IMG, env.INF_MOV_W_PNG);
+    INF_MOV_SW_IMG = env.INF_MOV_SW_IMG || _ensureImg(INF_MOV_SW_IMG, env.INF_MOV_SW_PNG);
+    INF_MOV_S_IMG = env.INF_MOV_S_IMG || _ensureImg(INF_MOV_S_IMG, env.INF_MOV_S_PNG);
+    INF_MOV_SE_IMG = env.INF_MOV_SE_IMG || _ensureImg(INF_MOV_SE_IMG, env.INF_MOV_SE_PNG);
+    SNIP_IMG = env.SNIP_IMG || _ensureImg(SNIP_IMG, env.SNIP_IDLE_PNG);
+    SNIP_MOV_IMG = env.SNIP_MOV_IMG || _ensureImg(SNIP_MOV_IMG, env.SNIP_MOV_PNG);
+    SNIP_MOV_NE_IMG = env.SNIP_MOV_NE_IMG || _ensureImg(SNIP_MOV_NE_IMG, env.SNIP_MOV_NE_PNG);
+    SNIP_MOV_N_IMG = env.SNIP_MOV_N_IMG || _ensureImg(SNIP_MOV_N_IMG, env.SNIP_MOV_N_PNG);
+    SNIP_MOV_NW_IMG = env.SNIP_MOV_NW_IMG || _ensureImg(SNIP_MOV_NW_IMG, env.SNIP_MOV_NW_PNG);
+    SNIP_MOV_W_IMG = env.SNIP_MOV_W_IMG || _ensureImg(SNIP_MOV_W_IMG, env.SNIP_MOV_W_PNG);
+    SNIP_MOV_SW_IMG = env.SNIP_MOV_SW_IMG || _ensureImg(SNIP_MOV_SW_IMG, env.SNIP_MOV_SW_PNG);
+    SNIP_MOV_S_IMG = env.SNIP_MOV_S_IMG || _ensureImg(SNIP_MOV_S_IMG, env.SNIP_MOV_S_PNG);
+    SNIP_MOV_SE_IMG = env.SNIP_MOV_SE_IMG || _ensureImg(SNIP_MOV_SE_IMG, env.SNIP_MOV_SE_PNG);
     INF_TEAM_SHEET_IDLE = env.INF_TEAM_SHEET_IDLE; INF_TEAM_SHEET_ATK = env.INF_TEAM_SHEET_ATK; INF_TEAM_SHEET_MOV = env.INF_TEAM_SHEET_MOV;
     INF_TEAM_SHEET_MOV_NE = env.INF_TEAM_SHEET_MOV_NE; INF_TEAM_SHEET_MOV_N = env.INF_TEAM_SHEET_MOV_N; INF_TEAM_SHEET_MOV_NW = env.INF_TEAM_SHEET_MOV_NW;
     INF_TEAM_SHEET_MOV_W = env.INF_TEAM_SHEET_MOV_W; INF_TEAM_SHEET_MOV_SW = env.INF_TEAM_SHEET_MOV_SW; INF_TEAM_SHEET_MOV_S = env.INF_TEAM_SHEET_MOV_S; INF_TEAM_SHEET_MOV_SE = env.INF_TEAM_SHEET_MOV_SE;
