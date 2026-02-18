@@ -2537,7 +2537,7 @@
           drawFootprintPrism(ent, fill, stroke);
         }
 
-        if (ent.kind==="turret" && POWER.turretUse>0 && isUnderPower(ent.team)){
+        if (ent.kind==="turret" && POWER && POWER.turretUse>0 && isUnderPower(ent.team)){
           const blink = (Math.floor(state.t*6)%2)===0;
           if (blink){
             drawFootprintPrism(ent, "rgba(0,0,0,0.55)", "rgba(0,0,0,0)");
