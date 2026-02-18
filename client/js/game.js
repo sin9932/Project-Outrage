@@ -9856,6 +9856,11 @@ function tickSidebarBuild(dt){
     }
   }
 
+function updatePowerBar() {
+  if (!__ou_ui || !__ou_ui.updatePowerBar) return;
+  __ou_ui.updatePowerBar({ state, clamp });
+}
+
   function updateSelectionUI() {
   if (!__ou_ui || !__ou_ui.updateSelectionUI) return;
   __ou_ui.updateSelectionUI({
