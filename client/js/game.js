@@ -497,7 +497,7 @@ function getBaseBuildTime(kind){
   const ASSET = {
     music: {
       peace: ["asset/music/peace1.mp3","asset/music/peace2.mp3","asset/music/peace3.mp3","asset/music/peace4.mp3"],
-      battle:["asset/music/battle1.mp3","asset/music/battle2.mp3","asset/music/battle3.mp3","asset/music/battle4.mp3","asset/music/battle5.mp3"],
+    battle:["asset/music/battle1.mp3","asset/music/battle2.mp3","asset/music/battle3.mp3","asset/music/battle4.mp3","asset/music/battle5.mp3","asset/music/Bring it on!.mp3","asset/music/Bring of the new age.mp3"],
       all:   [] // filled below
     },
     sprite: {
