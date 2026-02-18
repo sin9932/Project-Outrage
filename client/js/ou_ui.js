@@ -336,81 +336,76 @@ function ensureBadge(btn){
     function updateProdBars(env){
       env = env || {};
       const { state, buildings, TEAM, clamp, prodFIFO, NAME_KO } = env;
-      if (!state || !buildings || !TEAM || !isFn(clamp)) return;
+      if (!state || !isFn(clamp)) return;
 
-      // Building lanes
-      function lanePct(lane){
-        if (!lane) return 0;
-        if (lane.ready) return 1;
-        if (lane.queue){
-          const c = lane.queue.cost || 1;
-          return clamp((lane.queue.paid||0)/c, 0, 1);
-        }
-        if (lane.fifo && lane.fifo.length) return 0.01;
-        return 0;
-      }
+      // Building lanes (prefer state.getLaneStatus)
+      const laneStatus = (k)=> (state.getLaneStatus && isFn(state.getLaneStatus)) ? state.getLaneStatus(k) : null;
+      const mainSt = laneStatus("main");
+      const defSt  = laneStatus("def");
 
-      const mainLane = state.buildLane && state.buildLane.main;
-      const defLane  = state.buildLane && state.buildLane.def;
-
-      if (r.qFillMain) r.qFillMain.style.width = `${lanePct(mainLane)*100}%`;
-      if (r.qFillDef)  r.qFillDef.style.width  = `${lanePct(defLane)*100}%`;
+      const lanePct = (st)=> st ? clamp(st.pct||0, 0, 1) : 0;
+      if (r.qFillMain) r.qFillMain.style.width = `${lanePct(mainSt)*100}%`;
+      if (r.qFillDef)  r.qFillDef.style.width  = `${lanePct(defSt)*100}%`;
 
       if (r.qTxtMain){
-        r.qTxtMain.textContent = (mainLane && mainLane.ready) ? `READY: ${(NAME_KO && NAME_KO[mainLane.ready]) ? NAME_KO[mainLane.ready] : mainLane.ready}` :
-          (mainLane && mainLane.queue) ? `${(NAME_KO && NAME_KO[mainLane.queue.kind]) ? NAME_KO[mainLane.queue.kind] : mainLane.queue.kind} ${Math.round(lanePct(mainLane)*100)}%` :
-          (mainLane && mainLane.fifo && mainLane.fifo.length) ? `예약 ${mainLane.fifo.length}` : "-";
+        r.qTxtMain.textContent = (mainSt && mainSt.ready) ? `READY: ${(NAME_KO && NAME_KO[mainSt.ready]) ? NAME_KO[mainSt.ready] : mainSt.ready}` :
+          (mainSt && mainSt.queue) ? `${(NAME_KO && NAME_KO[mainSt.queue]) ? NAME_KO[mainSt.queue] : mainSt.queue} ${Math.round(lanePct(mainSt)*100)}%` :
+          (mainSt && mainSt.fifoLen) ? `예약 ${mainSt.fifoLen}` : "-";
       }
       if (r.qTxtDef){
-        r.qTxtDef.textContent = (defLane && defLane.ready) ? `READY: ${(NAME_KO && NAME_KO[defLane.ready]) ? NAME_KO[defLane.ready] : defLane.ready}` :
-          (defLane && defLane.queue) ? `${(NAME_KO && NAME_KO[defLane.queue.kind]) ? NAME_KO[defLane.queue.kind] : defLane.queue.kind} ${Math.round(lanePct(defLane)*100)}%` :
-          (defLane && defLane.fifo && defLane.fifo.length) ? `예약 ${defLane.fifo.length}` : "-";
+        r.qTxtDef.textContent = (defSt && defSt.ready) ? `READY: ${(NAME_KO && NAME_KO[defSt.ready]) ? NAME_KO[defSt.ready] : defSt.ready}` :
+          (defSt && defSt.queue) ? `${(NAME_KO && NAME_KO[defSt.queue]) ? NAME_KO[defSt.queue] : defSt.queue} ${Math.round(lanePct(defSt)*100)}%` :
+          (defSt && defSt.fifoLen) ? `예약 ${defSt.fifoLen}` : "-";
       }
 
-      // Unit producers: pick the producer with the highest progress (front queue)
-      const pBarr = buildings.filter(b=>b.alive && !b.civ && b.team===TEAM.PLAYER && b.kind==="barracks");
-      const pFac  = buildings.filter(b=>b.alive && !b.civ && b.team===TEAM.PLAYER && b.kind==="factory");
-
-      const curBarr = pBarr.reduce((best,b)=>{
-        if (!b.buildQ || !b.buildQ.length) return best;
-        const q=b.buildQ[0]; const pct=clamp((q.paid||0)/((q.cost||1)),0,1);
-        if (!best) return b;
-        const qb=best.buildQ[0]; const pctb=clamp((qb.paid||0)/((qb.cost||1)),0,1);
-        return (pct>pctb)?b:best;
-      }, null);
-
-      const curFac  = pFac.reduce((best,b)=>{
-        if (!b.buildQ || !b.buildQ.length) return best;
-        const q=b.buildQ[0]; const pct=clamp((q.paid||0)/((q.cost||1)),0,1);
-        if (!best) return b;
-        const qb=best.buildQ[0]; const pctb=clamp((qb.paid||0)/((qb.cost||1)),0,1);
-        return (pct>pctb)?b:best;
-      }, null);
-
-      function unitPctFromProducer(prod){
-        if (!prod || !prod.buildQ || !prod.buildQ.length) return 0;
-        if (prod.team!==TEAM.PLAYER) return 0;
-        const q = prod.buildQ[0];
-        const c = q.cost || 1;
-        return clamp((q.paid||0)/c, 0, 1);
+      // Unit producers (prefer state.getProducerStatus)
+      let infPct = 0, vehPct = 0, fifoB = 0, fifoF = 0, qBarr = 0, qFac = 0;
+      if (state.getProducerStatus && isFn(state.getProducerStatus)){
+        const b = state.getProducerStatus("barracks");
+        const f = state.getProducerStatus("factory");
+        if (b){ infPct = clamp(b.pct||0,0,1); fifoB = b.fifoLen||0; qBarr = b.queueLen||0; }
+        if (f){ vehPct = clamp(f.pct||0,0,1); fifoF = f.fifoLen||0; qFac = f.queueLen||0; }
+      } else if (buildings && TEAM){
+        // fallback (legacy)
+        const pBarr = buildings.filter(b=>b.alive && !b.civ && b.team===TEAM.PLAYER && b.kind==="barracks");
+        const pFac  = buildings.filter(b=>b.alive && !b.civ && b.team===TEAM.PLAYER && b.kind==="factory");
+        const curBarr = pBarr.reduce((best,b)=>{
+          if (!b.buildQ || !b.buildQ.length) return best;
+          const q=b.buildQ[0]; const pct=clamp((q.paid||0)/((q.cost||1)),0,1);
+          if (!best) return b;
+          const qb=best.buildQ[0]; const pctb=clamp((qb.paid||0)/((qb.cost||1)),0,1);
+          return (pct>pctb)?b:best;
+        }, null);
+        const curFac  = pFac.reduce((best,b)=>{
+          if (!b.buildQ || !b.buildQ.length) return best;
+          const q=b.buildQ[0]; const pct=clamp((q.paid||0)/((q.cost||1)),0,1);
+          if (!best) return b;
+          const qb=best.buildQ[0]; const pctb=clamp((qb.paid||0)/((qb.cost||1)),0,1);
+          return (pct>pctb)?b:best;
+        }, null);
+        const unitPctFromProducer = (prod)=>{
+          if (!prod || !prod.buildQ || !prod.buildQ.length) return 0;
+          if (prod.team!==TEAM.PLAYER) return 0;
+          const q = prod.buildQ[0];
+          const c = q.cost || 1;
+          return clamp((q.paid||0)/c, 0, 1);
+        };
+        infPct = unitPctFromProducer(curBarr);
+        vehPct = unitPctFromProducer(curFac);
+        fifoB = (prodFIFO && prodFIFO.barracks) ? prodFIFO.barracks.length : 0;
+        fifoF = (prodFIFO && prodFIFO.factory)  ? prodFIFO.factory.length  : 0;
+        qBarr = curBarr ? (curBarr.buildQ ? curBarr.buildQ.length : 0) : 0;
+        qFac  = curFac  ? (curFac.buildQ ? curFac.buildQ.length : 0) : 0;
       }
-
-      const infPct = unitPctFromProducer(curBarr);
-      const vehPct = unitPctFromProducer(curFac);
 
       if (r.qFillInf) r.qFillInf.style.width = `${infPct*100}%`;
       if (r.qFillVeh) r.qFillVeh.style.width = `${vehPct*100}%`;
 
-      const fifoB = (prodFIFO && prodFIFO.barracks) ? prodFIFO.barracks.length : 0;
-      const fifoF = (prodFIFO && prodFIFO.factory)  ? prodFIFO.factory.length  : 0;
-
       if (r.qTxtInf){
-        r.qTxtInf.textContent = (fifoB || (curBarr && curBarr.buildQ && curBarr.buildQ.length)) ?
-          `예약 ${fifoB + (curBarr ? curBarr.buildQ.length : 0)}` : "-";
+        r.qTxtInf.textContent = (fifoB || qBarr) ? `예약 ${fifoB + qBarr}` : "-";
       }
       if (r.qTxtVeh){
-        r.qTxtVeh.textContent = (fifoF || (curFac && curFac.buildQ && curFac.buildQ.length)) ?
-          `예약 ${fifoF + (curFac ? curFac.buildQ.length : 0)}` : "-";
+        r.qTxtVeh.textContent = (fifoF || qFac) ? `예약 ${fifoF + qFac}` : "-";
       }
     }
 
