@@ -2653,7 +2653,14 @@
       clearOcc,
       resolveUnitOverlaps,
       getStandoffPoint,
-      updateVision
+      updateVision,
+      clearReservation,
+      settleInfantryToSubslot,
+      findNearestFreePoint,
+      findNearestRefinery,
+      getDockPoint,
+      getClosestPointOnBuilding,
+      dist2PointToRect
     };
   };
 })(window);

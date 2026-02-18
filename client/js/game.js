@@ -3067,6 +3067,35 @@ function resolveUnitOverlaps(){
 function updateVision(){
   if (__ou_sim && typeof __ou_sim.updateVision === "function") return __ou_sim.updateVision();
 }
+function clearReservation(u){
+  if (__ou_sim && typeof __ou_sim.clearReservation === "function") return __ou_sim.clearReservation(u);
+}
+function settleInfantryToSubslot(u, dt){
+  if (__ou_sim && typeof __ou_sim.settleInfantryToSubslot === "function") return __ou_sim.settleInfantryToSubslot(u, dt);
+}
+function findNearestFreePoint(wx, wy, u, r=3){
+  if (__ou_sim && typeof __ou_sim.findNearestFreePoint === "function") return __ou_sim.findNearestFreePoint(wx, wy, u, r);
+  return {x: wx, y: wy, found: false};
+}
+function findNearestRefinery(team, wx, wy){
+  if (__ou_sim && typeof __ou_sim.findNearestRefinery === "function") return __ou_sim.findNearestRefinery(team, wx, wy);
+  return null;
+}
+function getDockPoint(b, u){
+  if (__ou_sim && typeof __ou_sim.getDockPoint === "function") return __ou_sim.getDockPoint(b, u);
+  return {x: b.x, y: b.y};
+}
+function getClosestPointOnBuilding(b, u){
+  if (__ou_sim && typeof __ou_sim.getClosestPointOnBuilding === "function") return __ou_sim.getClosestPointOnBuilding(b, u);
+  return {x: b.x, y: b.y};
+}
+function dist2PointToRect(px,py, rx,ry,rw,rh){
+  if (__ou_sim && typeof __ou_sim.dist2PointToRect === "function") return __ou_sim.dist2PointToRect(px,py,rx,ry,rw,rh);
+  const hx=rw*0.5, hy=rh*0.5;
+  const dx=Math.max(Math.abs(px-rx)-hx, 0);
+  const dy=Math.max(Math.abs(py-ry)-hy, 0);
+  return dx*dx + dy*dy;
+}
 
 // Progress accessors (calculation in ou_economy; UI draws only)
 state.getBuildProgress = function(kind, laneKey){
