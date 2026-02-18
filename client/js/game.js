@@ -9846,6 +9846,16 @@ function refreshPrimaryBuildingBadgesUI(){
   __ou_ui.refreshPrimaryBuildingBadgesUI({ state });
 }
 
+function tickSidebarBuild(dt){
+    // Economy: build lanes tick moved to ou_economy (money drain + progress + ready state).
+    // Must run even when OUUI is active, otherwise build buttons appear to do nothing.
+    if (__ou_econ && __ou_econ.tickBuildLanes) __ou_econ.tickBuildLanes(dt);
+
+    if (__ou_ui && typeof __ou_ui.updateBuildModeUI === "function"){
+      __ou_ui.updateBuildModeUI({ state });
+    }
+  }
+
   function updateSelectionUI() {
   if (!__ou_ui || !__ou_ui.updateSelectionUI) return;
   __ou_ui.updateSelectionUI({
