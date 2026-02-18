@@ -8181,6 +8181,24 @@ function tickSidebarBuild(dt){
     }
   }
 
+function tickEconomyPre(dt){
+    // Economy actions that must run at the start of a tick (requests + queues + build lanes).
+    processEconActions();
+    feedProducers();
+    tickSidebarBuild(dt);
+    tickEnemySidebarBuild(dt);
+  }
+
+function tickEconomyPost(dt){
+    // Economy actions that run after UI/vision updates (production + repairs + passive ore).
+    tickProduction(dt);
+    const m2 = (DEBUG_MONEY && state && state.player) ? (state.player.money || 0) : null;
+    tickRepairs(dt);
+    const m3 = (DEBUG_MONEY && state && state.player) ? (state.player.money || 0) : null;
+    tickCivOreGen(dt);
+    return { m2, m3 };
+  }
+
 function updatePowerBar() {
   if (!__ou_ui || !__ou_ui.updatePowerBar) return;
   __ou_ui.updatePowerBar({ state, clamp });
@@ -9010,16 +9028,12 @@ function sanityCheck(){
       if (keys.has("arrowdown")) cam.y += sp;
       clampCamera();
 
-      processEconActions();
-      feedProducers();
-
       let _m0 = 0, _m1 = 0, _m2 = 0, _m3 = 0;
       if (DEBUG_MONEY && state && state.player) _m0 = state.player.money || 0;
 
-      tickSidebarBuild(dt);
+      tickEconomyPre(dt);
 
       if (DEBUG_MONEY && state && state.player) _m1 = state.player.money || 0;
-      tickEnemySidebarBuild(dt);
 
       // UI: sidebar buttons + overlays are handled in ou_ui.js
       if (__ou_ui && typeof __ou_ui.updateSidebarButtons === "function") {
@@ -9036,10 +9050,11 @@ function sanityCheck(){
 
 
       updateVision();
-      tickProduction(dt);
-      if (DEBUG_MONEY && state && state.player) _m2 = state.player.money || 0;
-      tickRepairs(dt);
-      if (DEBUG_MONEY && state && state.player) _m3 = state.player.money || 0;
+      const _eco = tickEconomyPost(dt);
+      if (DEBUG_MONEY && state && state.player){
+        _m2 = (_eco && _eco.m2 != null) ? _eco.m2 : (state.player.money || 0);
+        _m3 = (_eco && _eco.m3 != null) ? _eco.m3 : (state.player.money || 0);
+      }
 
       if (DEBUG_MONEY && state && state.player){
         const dBuild = _m1 - _m0;
@@ -9049,7 +9064,6 @@ function sanityCheck(){
           console.log(`[money] build:${dBuild.toFixed(2)} prod:${dProd.toFixed(2)} repair:${dRep.toFixed(2)} t=${state.t.toFixed(2)} money=${(state.player.money||0).toFixed(2)}`);
         }
       }
-      tickCivOreGen(dt);
       tickUnits(dt);
       tickTurrets(dt);
       tickBullets(dt);
