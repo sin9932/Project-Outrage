@@ -1268,29 +1268,6 @@ function tileToWorldSubslot(tx, ty, slot){
   return w;
 }
 
-  function isReservedByOther(u, tx, ty){
-  if (!inMap(tx,ty)) return false;
-  const cls = (UNIT[u.kind] && UNIT[u.kind].cls) ? UNIT[u.kind].cls : "";
-  // Infantry uses sub-slots (up to 4 per tile). Reservations cause artificial "dancing" in groups,
-  // so we disable reservation blocking for infantry.
-  if (cls==="inf") return false;
-  const i = idx(tx,ty);
-  const rid = occResId[i]|0;
-  return (rid!==0 && rid!==u.id);
-}
-  function reserveTile(u, tx, ty){
-    if (!inMap(tx,ty)) return false;
-    const cls = (UNIT[u.kind] && UNIT[u.kind].cls) ? UNIT[u.kind].cls : "";
-    if (cls==="inf") { u.resTx=-1; u.resTy=-1; return true; }
-    const i = idx(tx,ty);
-    const rid = occResId[i]|0;
-    if (rid===0 || rid===u.id){
-      occResId[i]=u.id;
-      u.resTx = tx; u.resTy = ty; // persist reservation across frames (rebuilt in clearOcc)
-      return true;
-    }
-    return false;
-  }
 
   const MAX_INF_PER_TILE = 1;
   const MAX_VEH_PER_TILE = 1;
@@ -3140,6 +3117,14 @@ function dist2PointToRect(px,py, rx,ry,rw,rh){
   const dx=Math.max(Math.abs(px-rx)-hx, 0);
   const dy=Math.max(Math.abs(py-ry)-hy, 0);
   return dx*dx + dy*dy;
+}
+function isReservedByOther(u, tx, ty){
+  if (__ou_sim && typeof __ou_sim.isReservedByOther === "function") return __ou_sim.isReservedByOther(u, tx, ty);
+  return false;
+}
+function reserveTile(u, tx, ty){
+  if (__ou_sim && typeof __ou_sim.reserveTile === "function") return __ou_sim.reserveTile(u, tx, ty);
+  return false;
 }
 
 // Progress accessors (calculation in ou_economy; UI draws only)

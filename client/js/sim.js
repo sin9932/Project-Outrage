@@ -67,7 +67,6 @@
     const canEnterTile = r.canEnterTile;
     const canEnterTileGoal = r.canEnterTileGoal;
     const isSqueezedTile = r.isSqueezedTile;
-    const isReservedByOther = r.isReservedByOther;
     
     
     const spawnTrailPuff = r.spawnTrailPuff;
@@ -1080,6 +1079,29 @@
         if (canEnterTileGoal(u, tx, ty, b) || (tx===uTx && ty===uTy)) return c;
       }
       return candidates[candidates.length-1];
+    }
+
+    function isReservedByOther(u, tx, ty){
+      if (!inMap(tx,ty)) return false;
+      const cls = (UNIT[u.kind] && UNIT[u.kind].cls) ? UNIT[u.kind].cls : "";
+      if (cls==="inf") return false;
+      const i = idx(tx,ty);
+      const rid = occResId[i]|0;
+      return (rid!==0 && rid!==u.id);
+    }
+
+    function reserveTile(u, tx, ty){
+      if (!inMap(tx,ty)) return false;
+      const cls = (UNIT[u.kind] && UNIT[u.kind].cls) ? UNIT[u.kind].cls : "";
+      if (cls==="inf") { u.resTx=-1; u.resTy=-1; return true; }
+      const i = idx(tx,ty);
+      const rid = occResId[i]|0;
+      if (rid===0 || rid===u.id){
+        occResId[i]=u.id;
+        u.resTx = tx; u.resTy = ty;
+        return true;
+      }
+      return false;
     }
 
     function findNearestRefinery(team, wx, wy){
@@ -2655,6 +2677,8 @@
       resolveUnitOverlaps,
       getStandoffPoint,
       updateVision,
+      isReservedByOther,
+      reserveTile,
       clearReservation,
       settleInfantryToSubslot,
       findNearestFreePoint,
