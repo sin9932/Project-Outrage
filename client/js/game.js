@@ -5139,36 +5139,6 @@ function updateSmoke(dt){
   }
 }
 
-    // 링 가장자리의 옅은 연무 덩이(연기 느낌)
-    ctx.shadowBlur = 18 * z;
-    for (let i=0;i<12;i++){
-      const ang = (i/12) * (Math.PI*2) + pr(w.seed, 100+i)*0.70;
-      const rad = R * (0.86 + pr(w.seed, 130+i)*0.24);
-
-      const x = Math.cos(ang) * rad;
-      const y = Math.sin(ang) * rad;
-
-      const r = (TILE * (0.10 + pr(w.seed, 160+i)*0.12) * w.size) * z;
-      const a = aBase * 0.14 * (0.6 + pr(w.seed, 190+i)*0.9);
-
-      const g = ctx.createRadialGradient(x, y, 0, x, y, r*2.4);
-      g.addColorStop(0.0, `rgba(150,150,150,${a*0.20})`);
-      g.addColorStop(0.5, `rgba(90,90,90,${a*0.18})`);
-      g.addColorStop(1.0, "rgba(0,0,0,0)");
-
-      ctx.fillStyle = g;
-      ctx.beginPath();
-      ctx.arc(x, y, r*2.4, 0, Math.PI*2);
-      ctx.fill();
-    }
-
-    ctx.restore();
-  }
-}
-  }
-
-
-
 // ===== Blood particles (infantry death) =====
 // - Uses the same "soft radial particle" style as smoke puffs, but tinted red/brown.
 // - Two layers:
