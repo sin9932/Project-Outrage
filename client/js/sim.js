@@ -83,13 +83,126 @@
     const _effDist = r._effDist;
     const _tankUpdateTurret = r._tankUpdateTurret;
     const boardUnitIntoIFV = r.boardUnitIntoIFV;
-    const isEnemyInf = r.isEnemyInf;
-    const spawnTurretMGTracers = r.spawnTurretMGTracers;
-    const applyDamage = r.applyDamage;
-    const applyAreaDamageAt = r.applyAreaDamageAt;
-    const segIntersectsCircle = r.segIntersectsCircle;
-    const segIntersectsAABB = r.segIntersectsAABB;
-    const updateExplosions = r.updateExplosions;
+    const applyDamage = r.applyDamage;
+    const updateExplosions = r.updateExplosions;
+
+    function segIntersectsCircle(ax,ay,bx,by, cx,cy, r){
+      // segment AB to circle C
+      const vx = bx-ax, vy = by-ay;
+      const wx = cx-ax, wy = cy-ay;
+      const c1 = vx*wx + vy*wy;
+      if (c1 <= 0){
+        const d2 = (cx-ax)*(cx-ax) + (cy-ay)*(cy-ay);
+        return d2 <= r*r;
+      }
+      const c2 = vx*vx + vy*vy;
+      if (c2 <= c1){
+        const d2 = (cx-bx)*(cx-bx) + (cy-by)*(cy-by);
+        return d2 <= r*r;
+      }
+      const b = c1 / c2;
+      const px = ax + b*vx, py = ay + b*vy;
+      const d2 = (cx-px)*(cx-px) + (cy-py)*(cy-py);
+      return d2 <= r*r;
+    }
+
+    function segIntersectsAABB(ax,ay,bx,by, x0,y0,x1,y1){
+      // Liang-Barsky
+      const dx = bx-ax, dy = by-ay;
+      let t0 = 0, t1 = 1;
+      const p = [-dx, dx, -dy, dy];
+      const q = [ax-x0, x1-ax, ay-y0, y1-ay];
+      for (let i=0;i<4;i++){
+        const pi = p[i], qi = q[i];
+        if (pi === 0){
+          if (qi < 0) return false;
+        } else {
+          const r = qi / pi;
+          if (pi < 0){
+            if (r > t1) return false;
+            if (r > t0) t0 = r;
+          } else {
+            if (r < t0) return false;
+            if (r < t1) t1 = r;
+          }
+        }
+      }
+      return true;
+    }
+
+    function applyAreaDamageAt(x,y, radius, dmg, srcId=null, srcTeam=null){
+      const r2 = radius*radius;
+      for (const u of units){
+        if (!u.alive || u.inTransport || u.hidden) continue;
+        if (dist2(x,y,u.x,u.y) <= r2){ applyDamage(u, dmg, srcId, srcTeam); }
+      }
+      for (const b of buildings){
+        if (!b.alive || b.civ) continue;
+        if (dist2(x,y,b.x,b.y) <= r2){ applyDamage(b, dmg, srcId, srcTeam); }
+      }
+    }
+
+    function isEnemyInf(e){
+      if (!e || !e.alive) return false;
+      if (BUILD[e.kind]) return false;
+      return (UNIT[e.kind]?.cls==="inf");
+    }
+
+    function spawnTurretMGTracers(shooter, target){
+      const fx = (DEFENSE.turret && DEFENSE.turret.fx) ? DEFENSE.turret.fx : null;
+
+      const dx = target.x - shooter.x;
+      const dy = target.y - shooter.y;
+      const d = Math.hypot(dx, dy) || 1;
+      const nx = dx/d, ny = dy/d;
+
+      const blips = fx ? fx.blips : 4;
+      const gap = fx ? fx.blipGap : 0.06;
+
+      const tracerLife = 0.055;
+      const muzzleLife = 0.060;
+
+      for (let i=0;i<blips;i++){
+        const delay = i*gap;
+
+        // turret: straight line (no shotgun spread)
+        const mx = shooter.x + nx*(12 + Math.random()*3);
+        const my = shooter.y + ny*(12 + Math.random()*3);
+
+        spawnTrace(mx, my, target.x, target.y, shooter.team, {
+          kind:"tmg",
+          life:tracerLife,
+          delay,
+          fx
+        });
+
+        // strong muzzle flash (radial gradient in draw)
+        flashes.push({
+          x: shooter.x + nx*14,
+          y: shooter.y + ny*14,
+          r: (fx ? fx.muzzleR : 42) * (0.92 + Math.random()*0.18),
+          a: fx ? fx.muzzleA : 0.45,
+          life: muzzleLife,
+          delay
+        });
+
+        // impact sparks (small, quick)
+        const sparks = 4;
+        for (let k=0;k<sparks;k++){
+          const ang = Math.random()*Math.PI*2;
+          const spd = 120 + Math.random()*220;
+          impacts.push({
+            x: target.x + (Math.random()*2-1)*10,
+            y: target.y + (Math.random()*2-1)*10,
+            vx: Math.cos(ang)*spd,
+            vy: Math.sin(ang)*spd,
+            a: fx ? fx.impactA : 0.55,
+            life: 0.10 + Math.random()*0.06,
+            delay
+          });
+        }
+      }
+    }
 
     function buildingAnyExplored(viewerTeam, b){
       // Consider a building "known/visible" if any tile in its footprint is explored.

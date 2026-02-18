@@ -2319,48 +2319,6 @@ const nx=u.x+ax*step, ny=u.y+ay*step;
     return dx*dx + dy*dy;
   }
 
-  // Segment vs circle (swept bullet collision to avoid tunneling at high speed).
-  function segIntersectsCircle(ax,ay,bx,by, cx,cy, r){
-    const abx = bx-ax, aby = by-ay;
-    const acx = cx-ax, acy = cy-ay;
-    const ab2 = abx*abx + aby*aby;
-    if (ab2 <= 1e-9){
-      const dx = ax-cx, dy = ay-cy;
-      return (dx*dx + dy*dy) <= r*r;
-    }
-    let t = (acx*abx + acy*aby) / ab2;
-    t = Math.max(0, Math.min(1, t));
-    const px = ax + abx*t, py = ay + aby*t;
-    const dx = px-cx, dy = py-cy;
-    return (dx*dx + dy*dy) <= r*r;
-  }
-
-  // Segment vs AABB (Liang-Barsky). Returns true if intersects.
-  function segIntersectsAABB(ax,ay,bx,by, x0,y0,x1,y1){
-    let t0 = 0, t1 = 1;
-    const dx = bx-ax, dy = by-ay;
-
-    const clip = (p,q)=>{
-      if (Math.abs(p) < 1e-12) return q >= 0;
-      const r = q / p;
-      if (p < 0){
-        if (r > t1) return false;
-        if (r > t0) t0 = r;
-      } else {
-        if (r < t0) return false;
-        if (r < t1) t1 = r;
-      }
-      return true;
-    };
-
-    if (!clip(-dx, ax - x0)) return false;
-    if (!clip( dx, x1 - ax)) return false;
-    if (!clip(-dy, ay - y0)) return false;
-    if (!clip( dy, y1 - ay)) return false;
-    return true;
-  }
-
-
 function getClosestPointOnBuilding(b, u){
     // Return a walkable "dock" point just OUTSIDE the building footprint.
     // This avoids engineers trying to path into blocked tiles (building interior).
@@ -3123,63 +3081,6 @@ function spawnSniperTracer(shooter, target){
   flashes.push({ x: f0.x, y: f0.y, r: 18 + Math.random()*6, life: 0.045, delay: 0 });
 }
 
-function spawnTurretMGTracers(shooter, target){
-  const fx = (DEFENSE.turret && DEFENSE.turret.fx) ? DEFENSE.turret.fx : null;
-
-  const dx = target.x - shooter.x;
-  const dy = target.y - shooter.y;
-  const d = Math.hypot(dx, dy) || 1;
-  const nx = dx/d, ny = dy/d;
-
-  const blips = fx ? fx.blips : 4;
-  const gap = fx ? fx.blipGap : 0.06;
-
-  const tracerLife = 0.055;
-  const muzzleLife = 0.060;
-
-  for (let i=0;i<blips;i++){
-    const delay = i*gap;
-
-    // turret: straight line (no shotgun spread)
-    const mx = shooter.x + nx*(12 + Math.random()*3);
-    const my = shooter.y + ny*(12 + Math.random()*3);
-
-    spawnTrace(mx, my, target.x, target.y, shooter.team, {
-      kind:"tmg",
-      life:tracerLife,
-      delay,
-      fx
-    });
-
-    // strong muzzle flash (radial gradient in draw)
-    flashes.push({
-      x: shooter.x + nx*14,
-      y: shooter.y + ny*14,
-      r: (fx ? fx.muzzleR : 42) * (0.92 + Math.random()*0.18),
-      a: fx ? fx.muzzleA : 0.45,
-      life: muzzleLife,
-      delay
-    });
-
-    // impact sparks (small, quick)
-    const sparks = 4;
-    for (let k=0;k<sparks;k++){
-      const ang = Math.random()*Math.PI*2;
-      const spd = 120 + Math.random()*220;
-      impacts.push({
-        x: target.x + (Math.random()*2-1)*10,
-        y: target.y + (Math.random()*2-1)*10,
-        vx: Math.cos(ang)*spd,
-        vy: Math.sin(ang)*spd,
-        a: fx ? fx.impactA : 0.55,
-        life: 0.10 + Math.random()*0.06,
-        delay
-      });
-    }
-  }
-}
-
-
   function applyDamage(target, dmg, srcId=null, srcTeam=null){
     if (!target || !target.alive) return;
     if (target.attackable === false) return;
@@ -3707,20 +3608,6 @@ function updateBlood(dt){
     }
   }
 
-  // Small area damage around a point (used for force-fire on ground).
-  function applyAreaDamageAt(x,y, radius, dmg, srcId=null, srcTeam=null){
-    const r2 = radius*radius;
-    for (const u of units){
-      if (!u.alive || u.inTransport || u.hidden) continue;
-      if (dist2(x,y,u.x,u.y) <= r2){ applyDamage(u, dmg, srcId, srcTeam); }
-    }
-    for (const b of buildings){
-      if (!b.alive || b.civ) continue;
-      // Buildings: use center distance
-      if (dist2(x,y,b.x,b.y) <= r2){ applyDamage(b, dmg, srcId, srcTeam); }
-    }
-  }
-
   function hasControllableAssets(team){
     // Controllable assets: any alive unit OR any alive non-civil building (including captured).
     const hasU = units.some(u=>u.alive && u.team===team);
@@ -3923,7 +3810,6 @@ const __ou_sim = (window.OUSim && typeof window.OUSim.create==="function")
       spawnTrailPuff,
       spawnDmgSmokePuff,
       applyDamage,
-      applyAreaDamageAt,
       crushInfantry,
       findNearestFreePoint,
       findNearestRefinery,
@@ -3934,12 +3820,8 @@ const __ou_sim = (window.OUSim && typeof window.OUSim.create==="function")
       getStandoffPoint,
       _effDist,
       _tankUpdateTurret,
-      isEnemyInf,
       boardUnitIntoIFV,
       // turret/bullet deps
-      spawnTurretMGTracers,
-      segIntersectsCircle,
-      segIntersectsAABB,
       updateExplosions
     })
   : null;
@@ -4935,15 +4817,6 @@ if (u.kind!=="infantry") continue;
     }
   }
 }
-
-function isEnemyInf(e){
-  if (!e || !e.alive) return false;
-  if (BUILD[e.kind]) return false;
-  return (UNIT[e.kind]?.cls==="inf");
-}
-
-
-
 
 
 const ai={
