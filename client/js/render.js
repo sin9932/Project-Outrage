@@ -6,6 +6,25 @@
   function _parseTPTexturesAtlas(json){
     if (!json) return null;
     const out = new Map();
+    let image = null;
+    // TexturePacker "multi" format uses textures[0].frames (array)
+    if (json.textures && json.textures.length){
+      const tex = json.textures[0];
+      image = tex.image || null;
+      const framesArr = tex.frames || [];
+      for (const fr of framesArr){
+        if (!fr || !fr.filename) continue;
+        const frame = fr.frame || fr;
+        const sss = fr.spriteSourceSize || { x:0, y:0, w: frame.w, h: frame.h };
+        const src = fr.sourceSize || { w: frame.w, h: frame.h };
+        out.set(fr.filename, {
+          frame: { x:frame.x|0, y:frame.y|0, w:frame.w|0, h:frame.h|0 },
+          spriteSourceSize: { x:sss.x|0, y:sss.y|0, w:sss.w|0, h:sss.h|0 },
+          sourceSize: { w:src.w|0, h:src.h|0 }
+        });
+      }
+      return { image, frames: out };
+    }
     const frames = json.frames || json;
     for (const [name, fr] of Object.entries(frames)){
       if (!fr) continue;
@@ -18,7 +37,7 @@
         sourceSize: { w:src.w|0, h:src.h|0 }
       });
     }
-    return { image: json.meta && json.meta.image, frames: out };
+    return { image: (json.meta && json.meta.image) || null, frames: out };
   }
 
   async function _loadTPAtlasFromUrl(jsonUrl, baseDir){
