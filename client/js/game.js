@@ -9841,6 +9841,11 @@ if (btnSelAllKind) btnSelAllKind.onclick = ()=>selectAllUnitsScreenThenMap();
     state.suppressClickUntil = state.t + 0.12;
 }
 
+function refreshPrimaryBuildingBadgesUI(){
+  if (!__ou_ui || !__ou_ui.refreshPrimaryBuildingBadgesUI) return;
+  __ou_ui.refreshPrimaryBuildingBadgesUI({ state });
+}
+
   function updateSelectionUI() {
   if (!__ou_ui || !__ou_ui.updateSelectionUI) return;
   __ou_ui.updateSelectionUI({
