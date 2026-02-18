@@ -62,7 +62,6 @@
     const findNearestEnemyFor = r.findNearestEnemyFor;
     const findNearestAttackMoveTargetFor = r.findNearestAttackMoveTargetFor;
     const clearReservation = r.clearReservation;
-    const clearOcc = r.clearOcc;
     const settleInfantryToSubslot = r.settleInfantryToSubslot;
     const isHitscanUnit = r.isHitscanUnit;
     const hitscanShot = r.hitscanShot;
@@ -83,7 +82,6 @@
     const getStandoffPoint = r.getStandoffPoint;
     const _effDist = r._effDist;
     const _tankUpdateTurret = r._tankUpdateTurret;
-    const resolveUnitOverlaps = r.resolveUnitOverlaps;
     const boardUnitIntoIFV = r.boardUnitIntoIFV;
     const isEnemyInf = r.isEnemyInf;
     const spawnTurretMGTracers = r.spawnTurretMGTracers;
