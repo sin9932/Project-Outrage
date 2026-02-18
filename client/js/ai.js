@@ -324,6 +324,8 @@
 
     function aiCommandAttackWave(list, target) {
       for (const u of list) {
+        // Don't override engineer-IFV harassment/capture logic.
+        if (u.kind === "ifv" && u.passengerId && u.passKind === "engineer") continue;
         u.order = { type: "attack", x: u.x, y: u.y, tx: null, ty: null };
         u.target = target ? target.id : null;
         if (target) setPathTo(u, target.x, target.y);
@@ -644,6 +646,7 @@
           if (squad.length < 3) {
             const pool = combat
               .filter(u => u.kind !== "harvester" && u.kind !== "engineer")
+              .filter(u => !(u.kind === "ifv" && u.passengerId && u.passKind === "engineer"))
               .filter(u => !squad.includes(u))
               // Prefer units that are not currently committed to a main-base attack
               .filter(u => !(ai.mode === "attack" && u.order && u.order.type === "attack"))
