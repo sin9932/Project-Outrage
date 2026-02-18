@@ -521,6 +521,7 @@ function fitMini() {
   const impacts=[]; // MG bullet impact sparks
   const fires=[]; // building fire particles (low HP)
   const explosions=[]; // building destruction explosions
+  const exp1Fxs = []; // large explosion sprite fx (rendered in render.js)
 
   const healMarks=[]; // red-cross marks for repairs
   const flashes=[]; // muzzle flashes
@@ -906,130 +907,6 @@ function getBaseBuildTime(kind){
   })();
   _updateTuneOverlay();
 
-  // === Large explosion FX (exp1) atlas (json + png) ===
-  const EXP1_PNG  = ASSET.sprite.eff.exp1.png;
-  const EXP1_JSON = ASSET.sprite.eff.exp1.json;
-  const EXP1_IMG = new Image();
-  EXP1_IMG.src = EXP1_PNG;
-
-  // Parsed frames: [{x,y,w,h}]
-  let EXP1_FRAMES = null;
-
-  // Runtime fx instances
-  const exp1Fxs = [];
-
-  // EXP1 pivot tuning:
-  // (fx.x, fx.y) is "바닥 정중앙" 기준. 아래 값으로 폭발 중심을 맞춘다.
-  // pivot: 0..1 (0=left/top, 1=right/bottom)
-  let EXP1_PIVOT_X = 0.50;
-  let EXP1_PIVOT_Y = 0.52;
-  // screen-pixel offset (scaled by zoom). negative = up
-  let EXP1_Y_OFFSET = -8;
-
-  function _parseAtlasFrames(json){
-    // Return: [{x,y,w,h}] sorted in a stable order.
-    // Supports: Aseprite array, TexturePacker dict, plus "frames" nested in common wrappers.
-    const tryParseFramesValue = (fr)=>{
-      try{
-        if (!fr) return null;
-
-        // Aseprite: frames is array
-        if (Array.isArray(fr)){
-          const arr = fr.map((it, idx)=>({
-            name: it?.filename ?? String(idx),
-            // frame rect inside atlas
-            x: (it?.frame?.x ?? it?.x ?? 0) | 0,
-            y: (it?.frame?.y ?? it?.y ?? 0) | 0,
-            w: (it?.frame?.w ?? it?.w ?? 0) | 0,
-            h: (it?.frame?.h ?? it?.h ?? 0) | 0,
-
-            // trim-aware offsets (Aseprite/TexturePacker style)
-            ox: (it?.spriteSourceSize?.x ?? it?.spriteSourceSizeX ?? 0) | 0,
-            oy: (it?.spriteSourceSize?.y ?? it?.spriteSourceSizeY ?? 0) | 0,
-            sw: (it?.sourceSize?.w ?? it?.sourceW ?? (it?.frame?.w ?? it?.w ?? 0)) | 0,
-            sh: (it?.sourceSize?.h ?? it?.sourceH ?? (it?.frame?.h ?? it?.h ?? 0)) | 0
-          })).filter(f=>f.w>0 && f.h>0 && f.sw>0 && f.sh>0);
-
-          // Sort by trailing number if possible
-          arr.sort((a,b)=>{
-            const na = (a.name.match(/(\d+)(?!.*\d)/)||[])[1];
-            const nb = (b.name.match(/(\d+)(?!.*\d)/)||[])[1];
-            if (na!=null && nb!=null) return (+na) - (+nb);
-            return a.name.localeCompare(b.name);
-          });
-
-          return arr.map(({x,y,w,h,ox,oy,sw,sh})=>({x,y,w,h,ox,oy,sw,sh}));
-        }
-
-        // TexturePacker: frames is dict
-        if (typeof fr === "object"){
-          const keys = Object.keys(fr);
-          keys.sort((a,b)=>{
-            const na = (a.match(/(\d+)(?!.*\d)/)||[])[1];
-            const nb = (b.match(/(\d+)(?!.*\d)/)||[])[1];
-            if (na!=null && nb!=null) return (+na) - (+nb);
-            return a.localeCompare(b);
-          });
-          const arr = [];
-          for (const k of keys){
-            const v = fr[k];
-            const f = v && (v.frame || v);
-            if (!f) continue;
-            const x = (f.x ?? 0) | 0;
-            const y = (f.y ?? 0) | 0;
-            const w = (f.w ?? 0) | 0;
-            const h = (f.h ?? 0) | 0;
-            if (w>0 && h>0){
-              const sss = v && (v.spriteSourceSize || v.spriteSource || v.spritesourcesize);
-              const ss  = v && (v.sourceSize || v.source || v.sourcesize);
-              const ox = (sss && (sss.x ?? sss[0]) ? (sss.x ?? sss[0]) : 0) | 0;
-              const oy = (sss && (sss.y ?? sss[1]) ? (sss.y ?? sss[1]) : 0) | 0;
-              const sw = (ss && (ss.w ?? ss[0]) ? (ss.w ?? ss[0]) : w) | 0;
-              const sh = (ss && (ss.h ?? ss[1]) ? (ss.h ?? ss[1]) : h) | 0;
-              arr.push({x,y,w,h, ox,oy, sw,sh});
-            }
-          }
-          return arr.length ? arr : null;
-        }
-      }catch(_e){}
-      return null;
-    };
-
-    try{
-      // 1) Standard top-level
-      let out = tryParseFramesValue(json && json.frames);
-      if (out && out.length) return out;
-
-      // 2) Deep search for any nested `.frames` field
-      const candidates = [];
-      const walk = (node, depth)=>{
-        if (!node || depth > 8) return;
-        if (typeof node !== "object") return;
-        if (Array.isArray(node)){
-          for (const it of node) walk(it, depth+1);
-          return;
-        }
-        if (node.frames){
-          const cand = tryParseFramesValue(node.frames);
-          if (cand && cand.length) candidates.push(cand);
-        }
-        for (const k in node){
-          if (!Object.prototype.hasOwnProperty.call(node, k)) continue;
-          if (k === "frames") continue;
-          walk(node[k], depth+1);
-        }
-      };
-      walk(json, 0);
-
-      if (candidates.length){
-        candidates.sort((a,b)=>b.length - a.length);
-        return candidates[0];
-      }
-    }catch(_e){}
-    return null;
-  }
-
-
   // === TexturePacker "textures":[{frames:[...]}] atlas parser (trim + anchor aware) ===
   const _dirToIdleIdx = { 6:1, 7:2, 0:3, 1:4, 2:5, 3:6, 4:7, 5:8 }; // dir8 -> idle1..8
   const _muzzleDirToIdleIdx = { 2:1, 1:2, 0:3, 7:4, 6:5, 5:6, 4:7, 3:8 }; // dir8 -> tank_muzzle_idle1..8 (N..)
@@ -1158,27 +1035,11 @@ function getBaseBuildTime(kind){
       u.turretTurn = null;
     }
   }
-// Kick off json load early (non-blocking)
-  ;(async()=>{
-    try{
-      const r = await fetch(EXP1_JSON, {cache:"no-store"});
-      if (!r.ok) throw new Error("HTTP "+r.status);
-      const j = await r.json();
-      EXP1_FRAMES = _parseAtlasFrames(j);
-      if (!EXP1_FRAMES || !EXP1_FRAMES.length){
-        console.warn("[EXP1] frames parse failed");
-      } else {
-        //console.log("[EXP1] frames:", EXP1_FRAMES.length);
-      }
-    }catch(e){
-      console.warn("[EXP1] load failed:", e);
-      EXP1_FRAMES = null;
-    }
-  })();
-
   function spawnExp1FxAt(wx, wy, scale=1.0, frameDur=0.05){
     // If not ready yet, just skip (base particle explosion still happens).
-    if (!EXP1_FRAMES || !EXP1_FRAMES.length) return;
+    if (window.OURender && typeof OURender.isExp1Ready === "function"){
+      if (!OURender.isExp1Ready()) return;
+    }
     exp1Fxs.push({ x: wx, y: wy, t0: state.t, scale, frameDur });
   }
 
@@ -3877,8 +3738,10 @@ try{
       // NOTE: scaled down to keep it on-screen.
       let sc = 1.0;
       try{
-        if (EXP1_FRAMES && EXP1_FRAMES.length){
-          const fr0 = EXP1_FRAMES[0];
+        const fr0 = (window.OURender && typeof OURender.getExp1Frame0 === "function")
+          ? OURender.getExp1Frame0()
+          : null;
+        if (fr0){
           const bw = (b.w || (b.tw*TILE) || (TILE*4));
           const bh = (b.h || (b.th*TILE) || (TILE*4));
           const sx = bw / Math.max(1, fr0.w);
@@ -7754,14 +7617,46 @@ const keys=new Set();
 
     // DEBUG: EXP1 pivot tuning (only while kill-mode is ON)
     if (DEBUG_KILL_BUILDINGS){
-      if (e.key === "["){ EXP1_PIVOT_Y = Math.max(0, +(EXP1_PIVOT_Y - 0.05).toFixed(2)); try{ toast(`EXP1_PIVOT_Y=${EXP1_PIVOT_Y}`);}catch(_e){} e.preventDefault(); return; }
-      if (e.key === "]"){ EXP1_PIVOT_Y = Math.min(1, +(EXP1_PIVOT_Y + 0.05).toFixed(2)); try{ toast(`EXP1_PIVOT_Y=${EXP1_PIVOT_Y}`);}catch(_e){} e.preventDefault(); return; }
-      if (e.key === ";"){ EXP1_PIVOT_X = Math.max(0, +(EXP1_PIVOT_X - 0.05).toFixed(2)); try{ toast(`EXP1_PIVOT_X=${EXP1_PIVOT_X}`);}catch(_e){} e.preventDefault(); return; }
-      if (e.key === "'"){ EXP1_PIVOT_X = Math.min(1, +(EXP1_PIVOT_X + 0.05).toFixed(2)); try{ toast(`EXP1_PIVOT_X=${EXP1_PIVOT_X}`);}catch(_e){} e.preventDefault(); return; }
-      if (e.key === "-"){ EXP1_Y_OFFSET = Math.max(-200, EXP1_Y_OFFSET - 2); try{ toast(`EXP1_Y_OFFSET=${EXP1_Y_OFFSET}`);}catch(_e){} e.preventDefault(); return; }
-      if (e.key === "="){ EXP1_Y_OFFSET = Math.min(200, EXP1_Y_OFFSET + 2); try{ toast(`EXP1_Y_OFFSET=${EXP1_Y_OFFSET}`);}catch(_e){} e.preventDefault(); return; }
+      if (e.key === "["){
+        const v = (window.OURender && typeof OURender.adjustExp1Pivot==="function")
+          ? OURender.adjustExp1Pivot({ dy: -0.05 }) : null;
+        try{ if (v) toast(`EXP1_PIVOT_Y=${v.y}`);}catch(_e){}
+        e.preventDefault(); return;
+      }
+      if (e.key === "]"){
+        const v = (window.OURender && typeof OURender.adjustExp1Pivot==="function")
+          ? OURender.adjustExp1Pivot({ dy: +0.05 }) : null;
+        try{ if (v) toast(`EXP1_PIVOT_Y=${v.y}`);}catch(_e){}
+        e.preventDefault(); return;
+      }
+      if (e.key === ";"){
+        const v = (window.OURender && typeof OURender.adjustExp1Pivot==="function")
+          ? OURender.adjustExp1Pivot({ dx: -0.05 }) : null;
+        try{ if (v) toast(`EXP1_PIVOT_X=${v.x}`);}catch(_e){}
+        e.preventDefault(); return;
+      }
+      if (e.key === "'"){
+        const v = (window.OURender && typeof OURender.adjustExp1Pivot==="function")
+          ? OURender.adjustExp1Pivot({ dx: +0.05 }) : null;
+        try{ if (v) toast(`EXP1_PIVOT_X=${v.x}`);}catch(_e){}
+        e.preventDefault(); return;
+      }
+      if (e.key === "-"){
+        const v = (window.OURender && typeof OURender.adjustExp1Pivot==="function")
+          ? OURender.adjustExp1Pivot({ dyOff: -2 }) : null;
+        try{ if (v) toast(`EXP1_Y_OFFSET=${v.yOff}`);}catch(_e){}
+        e.preventDefault(); return;
+      }
+      if (e.key === "="){
+        const v = (window.OURender && typeof OURender.adjustExp1Pivot==="function")
+          ? OURender.adjustExp1Pivot({ dyOff: +2 }) : null;
+        try{ if (v) toast(`EXP1_Y_OFFSET=${v.yOff}`);}catch(_e){}
+        e.preventDefault(); return;
+      }
       if (e.key.toLowerCase() === "r"){
-        EXP1_PIVOT_X = 0.50; EXP1_PIVOT_Y = 0.52; EXP1_Y_OFFSET = -8;
+        if (window.OURender && typeof OURender.resetExp1Pivot==="function"){
+          OURender.resetExp1Pivot();
+        }
         try{ toast(`EXP1 pivot reset`);}catch(_e){}
         e.preventDefault(); return;
       }
@@ -8769,7 +8664,7 @@ function draw(){
         getEntityById, REPAIR_WRENCH_IMG, repairWrenches,
         snapHoverToTileOrigin, buildingWorldFromTileOrigin, inBuildRadius, isBlockedFootprint, footprintBlockedMask,
         rectFromDrag, refreshPrimaryBuildingBadgesUI,
-        EXP1_IMG, EXP1_FRAMES, EXP1_PIVOT_X, EXP1_PIVOT_Y, EXP1_Y_OFFSET, exp1Fxs,
+        exp1Fxs,
         smokeWaves, smokePuffs, dustPuffs, dmgSmokePuffs, bloodStains, bloodPuffs,
         explosions,
         INF_DIE_IMG,

@@ -261,7 +261,7 @@
   let terrain, ore, explored, visible, BUILD, DEFENSE, BUILD_SPRITE, NAME_KO, POWER;
   let worldToScreen, tileToWorldCenter, idx, inMap, clamp, getEntityById;
   let REPAIR_WRENCH_IMG, repairWrenches;
-  let EXP1_IMG, EXP1_FRAMES, EXP1_PIVOT_X, EXP1_PIVOT_Y, EXP1_Y_OFFSET, exp1Fxs;
+  let exp1Fxs;
   let smokeWaves, smokePuffs, dustPuffs, dmgSmokePuffs, bloodStains, bloodPuffs;
   let explosions;
   let drawBuildingSprite;
@@ -278,6 +278,22 @@
   let SNIP_TEAM_SHEET, SNIP_TEAM_SHEET_MOV, SNIP_TEAM_SHEET_MOV_NE, SNIP_TEAM_SHEET_MOV_N, SNIP_TEAM_SHEET_MOV_NW;
   let SNIP_TEAM_SHEET_MOV_W, SNIP_TEAM_SHEET_MOV_SW, SNIP_TEAM_SHEET_MOV_S, SNIP_TEAM_SHEET_MOV_SE;
   let INF_IDLE_ATLAS;
+  // === Large explosion FX (exp1) atlas (json + png) ===
+  const EXP1_PNG  = ASSET.sprite.eff.exp1.png;
+  const EXP1_JSON = ASSET.sprite.eff.exp1.json;
+  const EXP1_IMG = new Image();
+  EXP1_IMG.src = EXP1_PNG;
+
+  // Parsed frames: [{x,y,w,h}]
+  let EXP1_FRAMES = null;
+
+  // EXP1 pivot tuning:
+  // (fx.x, fx.y) is "바닥 정중앙" 기준. 아래 값으로 폭발 중심을 맞춘다.
+  // pivot: 0..1 (0=left/top, 1=right/bottom)
+  let EXP1_PIVOT_X = 0.50;
+  let EXP1_PIVOT_Y = 0.52;
+  // screen-pixel offset (scaled by zoom). negative = up
+  let EXP1_Y_OFFSET = -8;
   // === Team palette (accent recolor) ===
   // You can override from HTML by defining:
   //   window.TEAM_ACCENT = { PLAYER:[r,g,b], ENEMY:[r,g,b], NEUTRAL:[r,g,b] };
@@ -459,6 +475,127 @@
     return cvs;
   }
 
+  function _parseAtlasFrames(json){
+    // Return: [{x,y,w,h}] sorted in a stable order.
+    // Supports: Aseprite array, TexturePacker dict, plus "frames" nested in common wrappers.
+    const tryParseFramesValue = (fr)=>{
+      try{
+        if (!fr) return null;
+
+        // Aseprite: frames is array
+        if (Array.isArray(fr)){
+          const arr = fr.map((it, idx)=>({
+            name: it?.filename ?? String(idx),
+            // frame rect inside atlas
+            x: (it?.frame?.x ?? it?.x ?? 0) | 0,
+            y: (it?.frame?.y ?? it?.y ?? 0) | 0,
+            w: (it?.frame?.w ?? it?.w ?? 0) | 0,
+            h: (it?.frame?.h ?? it?.h ?? 0) | 0,
+
+            // trim-aware offsets (Aseprite/TexturePacker style)
+            ox: (it?.spriteSourceSize?.x ?? it?.spriteSourceSizeX ?? 0) | 0,
+            oy: (it?.spriteSourceSize?.y ?? it?.spriteSourceSizeY ?? 0) | 0,
+            sw: (it?.sourceSize?.w ?? it?.sourceW ?? (it?.frame?.w ?? it?.w ?? 0)) | 0,
+            sh: (it?.sourceSize?.h ?? it?.sourceH ?? (it?.frame?.h ?? it?.h ?? 0)) | 0
+          })).filter(f=>f.w>0 && f.h>0 && f.sw>0 && f.sh>0);
+
+          // Sort by trailing number if possible
+          arr.sort((a,b)=>{
+            const na = (a.name.match(/(\d+)(?!.*\d)/)||[])[1];
+            const nb = (b.name.match(/(\d+)(?!.*\d)/)||[])[1];
+            if (na!=null && nb!=null) return (+na) - (+nb);
+            return a.name.localeCompare(b.name);
+          });
+
+          return arr.map(({x,y,w,h,ox,oy,sw,sh})=>({x,y,w,h,ox,oy,sw,sh}));
+        }
+
+        // TexturePacker: frames is dict
+        if (typeof fr === "object"){
+          const keys = Object.keys(fr);
+          keys.sort((a,b)=>{
+            const na = (a.match(/(\d+)(?!.*\d)/)||[])[1];
+            const nb = (b.match(/(\d+)(?!.*\d)/)||[])[1];
+            if (na!=null && nb!=null) return (+na) - (+nb);
+            return a.localeCompare(b);
+          });
+          const arr = [];
+          for (const k of keys){
+            const v = fr[k];
+            const f = v && (v.frame || v);
+            if (!f) continue;
+            const x = (f.x ?? 0) | 0;
+            const y = (f.y ?? 0) | 0;
+            const w = (f.w ?? 0) | 0;
+            const h = (f.h ?? 0) | 0;
+            if (w>0 && h>0){
+              const sss = v && (v.spriteSourceSize || v.spriteSource || v.spritesourcesize);
+              const ss  = v && (v.sourceSize || v.source || v.sourcesize);
+              const ox = (sss && (sss.x ?? sss[0]) ? (sss.x ?? sss[0]) : 0) | 0;
+              const oy = (sss && (sss.y ?? sss[1]) ? (sss.y ?? sss[1]) : 0) | 0;
+              const sw = (ss && (ss.w ?? ss[0]) ? (ss.w ?? ss[0]) : w) | 0;
+              const sh = (ss && (ss.h ?? ss[1]) ? (ss.h ?? ss[1]) : h) | 0;
+              arr.push({x,y,w,h, ox,oy, sw,sh});
+            }
+          }
+          return arr.length ? arr : null;
+        }
+      }catch(_e){}
+      return null;
+    };
+
+    try{
+      // 1) Standard top-level
+      let out = tryParseFramesValue(json && json.frames);
+      if (out && out.length) return out;
+
+      // 2) Deep search for any nested `.frames` field
+      const candidates = [];
+      const walk = (node, depth)=>{
+        if (!node || depth > 8) return;
+        if (typeof node !== "object") return;
+        if (Array.isArray(node)){
+          for (const it of node) walk(it, depth+1);
+          return;
+        }
+        if (node.frames){
+          const cand = tryParseFramesValue(node.frames);
+          if (cand && cand.length) candidates.push(cand);
+        }
+        for (const k in node){
+          if (!Object.prototype.hasOwnProperty.call(node, k)) continue;
+          if (k === "frames") continue;
+          walk(node[k], depth+1);
+        }
+      };
+      walk(json, 0);
+
+      if (candidates.length){
+        candidates.sort((a,b)=>b.length - a.length);
+        return candidates[0];
+      }
+    }catch(_e){}
+    return null;
+  }
+
+  // Kick off exp1 atlas load early (non-blocking)
+  ;(async()=>{
+    try{
+      const r = await fetch(EXP1_JSON, {cache:"no-store"});
+      if (!r.ok) throw new Error("HTTP "+r.status);
+      const j = await r.json();
+      EXP1_FRAMES = _parseAtlasFrames(j);
+      if (!EXP1_FRAMES || !EXP1_FRAMES.length){
+        console.warn("[EXP1] frames parse failed");
+      } else {
+        //console.log("[EXP1] frames:", EXP1_FRAMES.length);
+      }
+    }catch(e){
+      console.warn("[EXP1] load failed:", e);
+      EXP1_FRAMES = null;
+    }
+  })();
+
   // Expose team palette helpers for other modules (e.g. buildings.js)
   try{
     window.applyTeamPaletteToImage = window.applyTeamPaletteToImage || _applyTeamPaletteToImage;
@@ -489,8 +626,6 @@
     worldToScreen = env.worldToScreen; tileToWorldCenter = env.tileToWorldCenter; idx = env.idx; inMap = env.inMap;
     clamp = env.clamp; getEntityById = env.getEntityById;
     REPAIR_WRENCH_IMG = env.REPAIR_WRENCH_IMG; repairWrenches = env.repairWrenches || [];
-    EXP1_IMG = env.EXP1_IMG; EXP1_FRAMES = env.EXP1_FRAMES;
-    EXP1_PIVOT_X = env.EXP1_PIVOT_X; EXP1_PIVOT_Y = env.EXP1_PIVOT_Y; EXP1_Y_OFFSET = env.EXP1_Y_OFFSET;
     exp1Fxs = env.exp1Fxs || [];
     smokeWaves = env.smokeWaves || []; smokePuffs = env.smokePuffs || [];
     dustPuffs = env.dustPuffs || []; dmgSmokePuffs = env.dmgSmokePuffs || [];
@@ -1927,7 +2062,7 @@
   }
 
   function drawExp1Fxs(ctx){
-    if (!exp1Fxs.length) return;
+    if (!exp1Fxs || !exp1Fxs.length) return;
     if (!EXP1_FRAMES || !EXP1_FRAMES.length) return;
     if (!EXP1_IMG || !EXP1_IMG.complete) return;
 
@@ -2179,7 +2314,6 @@
       terrain, ore, explored, visible, BUILD, DEFENSE, BUILD_SPRITE, NAME_KO,
       units, buildings, bullets, traces, impacts, fires, healMarks, flashes, casings,
       gameOver, POWER,
-      EXP1_IMG, EXP1_FRAMES, EXP1_PIVOT_X, EXP1_PIVOT_Y, EXP1_Y_OFFSET, exp1Fxs,
       smokeWaves, smokePuffs, dustPuffs, dmgSmokePuffs, bloodStains, bloodPuffs,
       updateMoney, updateProdBadges,
       inMap, idx, tileToWorldCenter, worldToScreen,
@@ -2778,10 +2912,35 @@
     _teamSpriteCache.clear();
   }
 
+  function adjustExp1Pivot(opts){
+    if (!opts) return { x: EXP1_PIVOT_X, y: EXP1_PIVOT_Y, yOff: EXP1_Y_OFFSET };
+    if (typeof opts.dx === "number") EXP1_PIVOT_X = clamp(EXP1_PIVOT_X + opts.dx, 0, 1);
+    if (typeof opts.dy === "number") EXP1_PIVOT_Y = clamp(EXP1_PIVOT_Y + opts.dy, 0, 1);
+    if (typeof opts.dyOff === "number") EXP1_Y_OFFSET = clamp(EXP1_Y_OFFSET + opts.dyOff, -200, 200);
+    return { x: EXP1_PIVOT_X, y: EXP1_PIVOT_Y, yOff: EXP1_Y_OFFSET };
+  }
+
+  function resetExp1Pivot(){
+    EXP1_PIVOT_X = 0.50; EXP1_PIVOT_Y = 0.52; EXP1_Y_OFFSET = -8;
+    return { x: EXP1_PIVOT_X, y: EXP1_PIVOT_Y, yOff: EXP1_Y_OFFSET };
+  }
+
+  function isExp1Ready(){
+    return !!(EXP1_FRAMES && EXP1_FRAMES.length);
+  }
+
+  function getExp1Frame0(){
+    return (EXP1_FRAMES && EXP1_FRAMES.length) ? EXP1_FRAMES[0] : null;
+  }
+
   window.OURender = window.OURender || {};
   window.OURender.drawMini = drawMini;
   window.OURender.draw = drawMain;
   window.OURender.setTeamAccent = setTeamAccent;
   window.OURender.clearTeamSpriteCache = clearTeamSpriteCache;
+  window.OURender.adjustExp1Pivot = adjustExp1Pivot;
+  window.OURender.resetExp1Pivot = resetExp1Pivot;
+  window.OURender.isExp1Ready = isExp1Ready;
+  window.OURender.getExp1Frame0 = getExp1Frame0;
 })();
 
