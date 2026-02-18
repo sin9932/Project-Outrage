@@ -4185,7 +4185,9 @@ const __ou_sim = (window.OUSim && typeof window.OUSim.create==="function")
       getStandoffPoint,
       _effDist,
       _tankUpdateTurret,
-      resolveUnitOverlaps,\r?\n      isEnemyInf,\r?\n      boardUnitIntoIFV,
+      resolveUnitOverlaps,
+      isEnemyInf,
+      boardUnitIntoIFV,
       // turret/bullet deps
       spawnTurretMGTracers,
       segIntersectsCircle,
@@ -7695,6 +7697,8 @@ window.unboardIFV = tryUnloadIFV;
 window.resolveUnitOverlaps = resolveUnitOverlaps;
 
 })();
+
+
 
 
 
