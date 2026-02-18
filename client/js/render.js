@@ -193,7 +193,8 @@
       drawBuildingSprite, drawPrimaryBadgeForSelectedBuilding, drawLabel,
       worldVecToDir8,
       isUnderPower, clamp,
-      INF_IMG, SNIP_IMG
+      INF_IMG, SNIP_IMG,
+      infDeathFxs = [], snipDeathFxs = []
     } = env;
 
     const W=canvas.width, H=canvas.height;
@@ -292,13 +293,13 @@
     const drawables=[];
     for (const b of buildings) if (b.alive) drawables.push(b);
     for (const u of units) if (u.alive) drawables.push(u);
-    for (let i=0;i<env.infDeathFxs.length;i++){
-      const fx=env.infDeathFxs[i];
+    for (let i=0;i<infDeathFxs.length;i++){
+      const fx=infDeathFxs[i];
       if (!fx || !fx._rd) continue;
       drawables.push({ id: 9000000+i, kind: "_fx_inf_die", alive: true, team: fx.team, x: fx.x, y: fx.y, fxRef: fx });
     }
-    for (let i=0;i<env.snipDeathFxs.length;i++){
-      const fx=env.snipDeathFxs[i];
+    for (let i=0;i<snipDeathFxs.length;i++){
+      const fx=snipDeathFxs[i];
       if (!fx || !fx._rd) continue;
       drawables.push({ id: 9100000+i, kind: "_fx_snip_die", alive: true, team: fx.team, x: fx.x, y: fx.y, fxRef: fx });
     }

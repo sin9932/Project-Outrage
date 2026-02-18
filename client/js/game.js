@@ -10972,7 +10972,8 @@ function draw(){
         drawBuildingSprite, drawPrimaryBadgeForSelectedBuilding, drawLabel,
         worldVecToDir8,
         isUnderPower, clamp,
-        INF_IMG, SNIP_IMG
+        INF_IMG, SNIP_IMG,
+        infDeathFxs, snipDeathFxs
       });
     }
   }
