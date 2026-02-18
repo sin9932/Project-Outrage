@@ -9861,6 +9861,10 @@ function updatePowerBar() {
   __ou_ui.updatePowerBar({ state, clamp });
 }
 
+function pushClickWave(wx, wy, color){
+  state.fx.clicks.push({ x:wx, y:wy, color, t0: state.t, life: 0.4 });
+}
+
   function updateSelectionUI() {
   if (!__ou_ui || !__ou_ui.updateSelectionUI) return;
   __ou_ui.updateSelectionUI({
