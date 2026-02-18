@@ -188,11 +188,12 @@
         if (pb) { tx = pb.x; ty = pb.y; }
       }
       if (ehq) {
-        ai.rally.x = ehq.x + (tx - ehq.x) * 0.42 + rnd(-TILE * 2.0, TILE * 2.0);
-        ai.rally.y = ehq.y + (ty - ehq.y) * 0.42 + rnd(-TILE * 2.0, TILE * 2.0);
+        // Keep rally closer to enemy base to avoid overextension.
+        ai.rally.x = ehq.x + (tx - ehq.x) * 0.25 + rnd(-TILE * 1.2, TILE * 1.2);
+        ai.rally.y = ehq.y + (ty - ehq.y) * 0.25 + rnd(-TILE * 1.2, TILE * 1.2);
       } else {
-        ai.rally.x = tx + rnd(-TILE * 2.0, TILE * 2.0);
-        ai.rally.y = ty + rnd(-TILE * 2.0, TILE * 2.0);
+        ai.rally.x = tx + rnd(-TILE * 1.2, TILE * 1.2);
+        ai.rally.y = ty + rnd(-TILE * 1.2, TILE * 1.2);
       }
       ai.rally.x = clamp(ai.rally.x, 0, WORLD_W);
       ai.rally.y = clamp(ai.rally.y, 0, WORLD_H);
@@ -423,8 +424,8 @@
 
       // Don't queue endlessly: keep a rolling queue size.
       // IMPORTANT: do NOT subtract money here. Production drains money gradually in tickBuildingQueues().
-      const poor = e.money < 250;
-      const rich = e.money > 900;
+      const poor = e.money < 200;
+      const rich = e.money > 800;
 
       const playerInf = units.filter(u => u.alive && u.team === TEAM.PLAYER && (UNIT[u.kind] && UNIT[u.kind].cls === "inf") && !u.inTransport && !u.hidden);
       const playerHasInf = playerInf.length > 0;
@@ -441,20 +442,20 @@
         const queuedSnp = countQueued(bar.buildQ, "sniper");
 
         // If no player infantry on map, stop basic infantry/sniper production and focus vehicles.
-        const wantInf = playerHasInf ? (poor ? 2 : 4) : 0;
-        while (bar.buildQ.length < 6 && queuedInf + (bar.buildQ.filter(it => it.kind === "infantry").length) < wantInf) {
+        const wantInf = playerHasInf ? (poor ? 3 : 6) : 0;
+        while (bar.buildQ.length < 8 && (eUnits.filter(u => u.kind==="infantry").length + queuedInf) < wantInf) {
           bar.buildQ.push({ kind: "infantry", t: 0, tNeed: getBaseBuildTime("infantry") / pf, cost: COST.infantry, paid: 0 });
           if (poor) break; // conserve
         }
 
         // Engineers: keep them cycling for IFV capture play.
-        const desiredEng = Math.max(4, Math.min(10, 2 + eIFV.length * 2));
-        if (bar.buildQ.length < 6 && (eEng.length + queuedEng) < desiredEng) {
+        const desiredEng = Math.max(5, Math.min(12, 3 + eIFV.length * 2));
+        if (bar.buildQ.length < 8 && (eEng.length + queuedEng) < desiredEng) {
           bar.buildQ.push({ kind: "engineer", t: 0, tNeed: getBaseBuildTime("engineer") / pf, cost: COST.engineer, paid: 0 });
         }
 
         // Snipers: only if player infantry exists, cap at 2~3 total.
-        if (playerHasInf && fac && bar.buildQ.length < 6) {
+        if (playerHasInf && fac && bar.buildQ.length < 8) {
           const maxSnp = rich ? 3 : 2;
           if ((eSnp.length + queuedSnp) < maxSnp) {
             bar.buildQ.push({ kind: "sniper", t: 0, tNeed: getBaseBuildTime("sniper") / pf, cost: COST.sniper, paid: 0 });
@@ -469,7 +470,7 @@
           if (fac.buildQ.length < 1) fac.buildQ.push({ kind: "harvester", t: 0, tNeed: getBaseBuildTime("harvester") / pf, cost: COST.harvester, paid: 0 });
           return;
         }
-        const wantVeh = poor ? 2 : (rich ? 5 : 3);
+        const wantVeh = poor ? 3 : (rich ? 6 : 4);
         // Mix IFV + tanks. Tanks are mainline; IFV is support (passenger carriers / utility).
         while (fac.buildQ.length < wantVeh) {
           const countIFV = eIFV.length;
@@ -479,7 +480,7 @@
 
           // Also bias to tanks in general
           const roll = Math.random();
-          if (needIFV && roll < 0.92) {
+          if (needIFV && roll < 0.90) {
             fac.buildQ.push({ kind: "ifv", t: 0, tNeed: getBaseBuildTime("ifv") / pf, cost: COST.ifv, paid: 0 });
           } else {
             // Avoid tank spam: only sprinkle tanks occasionally.
