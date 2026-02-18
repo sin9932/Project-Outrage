@@ -313,30 +313,6 @@
     return t;
   }
 
-  function _saveTune(){
-    try{
-      localStorage.setItem("SPRITE_TUNE", JSON.stringify(SPRITE_TUNE));
-    }catch(_e){}
-  }
-
-  function _loadTune(){
-    try{
-      const raw = localStorage.getItem("SPRITE_TUNE");
-      if (!raw) return;
-      const obj = JSON.parse(raw);
-      if (obj && typeof obj === "object"){
-        // shallow merge
-        for (const k in obj){
-          if (!obj[k]) continue;
-          SPRITE_TUNE[k] = Object.assign(_tuneObj(k), obj[k]);
-        }
-      }
-    }catch(_e){}
-  }
-
-  // load persisted tuning once
-  _loadTune();
-
   // apply HTML-provided preset (overrides persisted storage)
   ;(function(){
     try{
@@ -346,7 +322,6 @@
         if (!preset[k] || typeof preset[k] !== "object") continue;
         SPRITE_TUNE[k] = Object.assign(_tuneObj(k), preset[k]);
       }
-      _saveTune();
     }catch(_e){}
   })();
 
@@ -3043,29 +3018,6 @@
     _teamSpriteCache.clear();
   }
 
-  function getSpriteTune(){
-    return SPRITE_TUNE;
-  }
-
-  function setSpriteTune(kind, patch){
-    if (!kind) return null;
-    const t = _tuneObj(kind);
-    if (patch && typeof patch === "object"){
-      if (patch.anchor) t.anchor = patch.anchor;
-      if (patch.scaleMul != null) t.scaleMul = patch.scaleMul;
-      if (patch.pivotNudge){
-        t.pivotNudge.x = patch.pivotNudge.x ?? t.pivotNudge.x;
-        t.pivotNudge.y = patch.pivotNudge.y ?? t.pivotNudge.y;
-      }
-      if (patch.offsetNudge){
-        t.offsetNudge.x = patch.offsetNudge.x ?? t.offsetNudge.x;
-        t.offsetNudge.y = patch.offsetNudge.y ?? t.offsetNudge.y;
-      }
-    }
-    _saveTune();
-    return t;
-  }
-
   function getBuildSpriteCfg(kind){
     const src = BUILD_SPRITE || BUILD_SPRITE_LOCAL;
     return (src && src[kind]) ? src[kind] : null;
@@ -3102,8 +3054,6 @@
   window.OURender.draw = drawMain;
   window.OURender.setTeamAccent = setTeamAccent;
   window.OURender.clearTeamSpriteCache = clearTeamSpriteCache;
-  window.OURender.getSpriteTune = getSpriteTune;
-  window.OURender.setSpriteTune = setSpriteTune;
   window.OURender.getBuildSpriteCfg = getBuildSpriteCfg;
   window.OURender.getBuildSpriteKinds = getBuildSpriteKinds;
   window.OURender.adjustExp1Pivot = adjustExp1Pivot;
