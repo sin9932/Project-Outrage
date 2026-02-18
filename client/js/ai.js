@@ -210,6 +210,12 @@
     function aiEnemyCenters() {
       return buildings.filter(b => b.alive && !b.civ && b.team === TEAM.ENEMY && b.provideR > 0);
     }
+    function aiDefendPoint() {
+      const ehq = buildings.find(b => b.alive && !b.civ && b.team === TEAM.ENEMY && b.kind === "hq");
+      if (ehq) return { x: ehq.x, y: ehq.y };
+      const center = aiEnemyCenters()[0];
+      return center ? { x: center.x, y: center.y } : { x: WORLD_W * 0.5, y: WORLD_H * 0.5 };
+    }
     function playerDefenseHeavy() {
       const tur = buildings.filter(b => b.alive && !b.civ && b.team === TEAM.PLAYER && b.kind === "turret").length;
       return tur >= 4;
@@ -519,6 +525,10 @@
           // Move IFV toward the infantry to pick up
           best.order = { type: "move", x: inf.x, y: inf.y };
           best.target = null;
+          // Passenger should hold position and wait for pickup (do NOT chase IFV).
+          inf.order = { type: "move", x: inf.x, y: inf.y, tx: null, ty: null };
+          inf.target = null;
+          inf.repathCd = 0.5;
         }
       }
 
@@ -657,11 +667,12 @@
 
       // Engineer harassment (value-aware) - keep trying to capture high-value and sell.
       if (engs.length && state.t > 140 && combat.length >= 4) {
-        if (playerDefenseHeavy()) {
+        if (playerDefenseHeavy() || idleIFVs.length > 0) {
+          const dp = aiDefendPoint();
           for (const eng of engs) {
             if (eng.inTransport) continue;
-            eng.order = { type: "move", x: ai.rally.x, y: ai.rally.y, tx: null, ty: null };
-            setPathTo(eng, ai.rally.x, ai.rally.y);
+            eng.order = { type: "move", x: dp.x, y: dp.y, tx: null, ty: null };
+            setPathTo(eng, dp.x, dp.y);
             eng.repathCd = 0.35;
           }
         } else {
@@ -806,10 +817,11 @@
       if (snipers.length) {
         // If no player infantry, stay in defensive posture near rally.
         if (!playerHasInf) {
+          const dp = aiDefendPoint();
           for (const s of snipers) {
             if (s.inTransport) continue;
-            s.order = { type: "move", x: ai.rally.x, y: ai.rally.y, tx: null, ty: null };
-            setPathTo(s, ai.rally.x, ai.rally.y);
+            s.order = { type: "move", x: dp.x, y: dp.y, tx: null, ty: null };
+            setPathTo(s, dp.x, dp.y);
             s.repathCd = 0.35;
           }
         }
