@@ -726,27 +726,6 @@ function getBaseBuildTime(kind){
     }
   }
 
-  function _tankUpdateTurret(u, desiredDir, dt){
-    if (u.turretDir == null) u.turretDir = (u.dir!=null ? u.dir : 6);
-
-    if (desiredDir == null || desiredDir === u.turretDir){
-      u.turretTurn = null;
-      return;
-    }
-
-    if (!u.turretTurn || u.turretTurn.fromDir==null || u.turretTurn.toDir==null){
-      const step = _turnStepTowardTurret(u.turretDir, desiredDir);
-      u.turretTurn = { fromDir: u.turretDir, toDir: step.nextDir, stepDir: step.stepDir, t: 0 };
-    }
-
-    const { done, frameNum } = _advanceTurnState(u.turretTurn, u.turretTurn.fromDir, u.turretTurn.toDir, dt, 0.045, _turretTurnFrameNum);
-    u.turretTurn.frameNum = frameNum;
-
-    if (done){
-      u.turretDir = u.turretTurn.toDir;
-      u.turretTurn = null;
-    }
-  }
   function spawnExp1FxAt(wx, wy, scale=1.0, frameDur=0.05){
     // If not ready yet, just skip (base particle explosion still happens).
     if (window.OURender && typeof OURender.isExp1Ready === "function"){
@@ -1312,9 +1291,6 @@ function tileToWorldSubslot(tx, ty, slot){
     }
     return false;
   }
-  function clearReservation(u){
-    u.resTx = null; u.resTy = null;
-  }
 
   const MAX_INF_PER_TILE = 1;
   const MAX_VEH_PER_TILE = 1;
@@ -1403,25 +1379,6 @@ function canEnterTile(u, tx, ty){
       return occInf[i] < INF_SLOT_MAX;
     }
     return occAll[i] < 2;
-  }
-
-  function findNearestFreePoint(wx, wy, u, r=3){
-    const cx=tileOfX(wx), cy=tileOfY(wy);
-    let bestX=wx, bestY=wy, bestD=1e18, found=false;
-    for (let dy=-r; dy<=r; dy++){
-      for (let dx=-r; dx<=r; dx++){
-        const tx=cx+dx, ty=cy+dy;
-        if (!isWalkableTile(tx,ty)) continue;
-        // allow staying on current tile
-        const curTx=tileOfX(u.x), curTy=tileOfY(u.y);
-        if (!(tx===curTx && ty===curTy) && !canEnterTile(u,tx,ty)) continue;
-        const pTile=tileToWorldCenter(tx,ty);
-              const px=pTile.x, py=pTile.y;
-        const dd=dist2(wx,wy,px,py);
-        if (dd<bestD){ bestD=dd; bestX=px; bestY=py; found=true; }
-      }
-    }
-    return {x:bestX,y:bestY,found};
   }
 
 function heuristic(ax,ay,bx,by){
@@ -1752,43 +1709,6 @@ const ni=ny*W+nx;
 
   // Infantry settle: when multiple infantry share a tile and a unit has "arrived",
   // keep it glued to its sub-slot to prevent post-arrival vibration.
-  function settleInfantryToSubslot(u, dt){
-    const cls = (UNIT[u.kind] && UNIT[u.kind].cls) ? UNIT[u.kind].cls : "";
-    if (cls!=="inf") return;
-    if (!u.alive || u.inTransport) return;
-    if (u.target!=null) return;
-    const ot = u.order && u.order.type;
-    if (ot!=="idle" && ot!=="guard") return;
-
-    const tx = tileOfX(u.x), ty = tileOfY(u.y);
-    if (!inMap(tx,ty)) return;
-
-    // Ensure we have a valid subSlot assigned (filled in clearOcc()).
-    const ss = (u.subSlot==null) ? 0 : (u.subSlot & 3);
-    const sp = tileToWorldSubslot(tx, ty, ss);
-
-    // Critically-damped snap (no overshoot).
-    const dx = sp.x - u.x, dy = sp.y - u.y;
-    const d2 = dx*dx + dy*dy;
-    if (d2 < 0.25){
-      u.x = sp.x; u.y = sp.y;
-      u.vx = 0; u.vy = 0;
-      u.holdPos = true;
-      return;
-    }
-
-    // Move at a capped rate so we don't introduce new jitter.
-    const d = Math.sqrt(d2);
-    const maxStep = 120 * dt; // px/s
-    const step = Math.min(maxStep, d);
-    const nx = dx / (d||1), ny = dy / (d||1);
-    u.x += nx * step;
-    u.y += ny * step;
-
-    // Kill residual drift
-    u.vx = 0; u.vy = 0;
-    u.holdPos = true;
-  }
 function followPath(u, dt){
     // HARD STOP: if unit is effectively idle/guard with no target, it must not drift.
     if (u && u.order && (u.order.type==="idle" || u.order.type==="guard") && u.target==null){
@@ -2270,153 +2190,7 @@ const nx=u.x+ax*step, ny=u.y+ay*step;
     return true;
   }
 
-  function findNearestRefinery(team, wx, wy){
-    let best=null, bestD=Infinity;
-    for (const b of buildings){
-      if (!b.alive || b.civ) continue;
-      if (b.team!==team) continue;
-      if (b.kind!=="refinery") continue;
-      const d=dist2(wx,wy,b.x,b.y);
-      if (d<bestD){ bestD=d; best=b; }
-    }
-    return best;
-  }
-
-  function getDockPoint(b, u){
-    const pad= 18 + (u?.r||0);
-    const points = [
-      {x: b.x + b.w/2 + pad, y: b.y},
-      {x: b.x - b.w/2 - pad, y: b.y},
-      {x: b.x, y: b.y + b.h/2 + pad},
-      {x: b.x, y: b.y - b.h/2 - pad},
-    ];
-    const uTx = u ? tileOfX(u.x) : -999;
-    const uTy = u ? tileOfY(u.y) : -999;
-
-    // Prefer a walkable AND currently enterable tile to reduce refinery "stutter".
-    for (const p of points){
-      const tx=(p.x/TILE)|0, ty=(p.y/TILE)|0;
-      if (!inMap(tx,ty)) continue;
-      if (!isWalkableTile(tx,ty)) continue;
-      if (!u) return p;
-      if (canEnterTile(u, tx, ty) || (tx===uTx && ty===uTy)) return p;
-    }
-
-    // Fallback: first walkable point
-    for (const p of points){
-      const tx=(p.x/TILE)|0, ty=(p.y/TILE)|0;
-      if (inMap(tx,ty) && isWalkableTile(tx,ty)) return p;
-    }
-    return points[0];
-  }
-
-
-  
-  function dist2PointToRect(px,py, rx,ry,rw,rh){
-    const hx=rw*0.5, hy=rh*0.5;
-    const dx=Math.max(Math.abs(px-rx)-hx, 0);
-    const dy=Math.max(Math.abs(py-ry)-hy, 0);
-    return dx*dx + dy*dy;
-  }
-
-function getClosestPointOnBuilding(b, u){
-    // Return a walkable "dock" point just OUTSIDE the building footprint.
-    // This avoids engineers trying to path into blocked tiles (building interior).
-    const x0 = b.tx*TILE, y0 = b.ty*TILE;
-    const x1 = (b.tx + b.tw)*TILE, y1 = (b.ty + b.th)*TILE;
-
-    // Closest point on the rectangle (inside allowed), then push outward.
-    const cx = clamp(u.x, x0, x1);
-    const cy = clamp(u.y, y0, y1);
-
-    // Determine which side is closest for a stable outward normal.
-    const dl = Math.abs(cx - x0), dr = Math.abs(x1 - cx);
-    const dt = Math.abs(cy - y0), db = Math.abs(y1 - cy);
-
-    const pad = 18; // keep outside of footprint
-    let ox = 0, oy = 0;
-    const m = Math.min(dl, dr, dt, db);
-    if (m === dl) ox = -pad;
-    else if (m === dr) ox = pad;
-    else if (m === dt) oy = -pad;
-    else oy = pad;
-
-    // Final position
-    let px = cx + ox;
-    let py = cy + oy;
-
-    // If the chosen cell isn't enterable, try the 4 cardinal dock points (like refinery docking).
-    const pad2 = 18 + (u?.r||0);
-    const candidates = [
-      {x: x1 + pad2, y: cy},
-      {x: x0 - pad2, y: cy},
-      {x: cx, y: y1 + pad2},
-      {x: cx, y: y0 - pad2},
-      {x: px, y: py},
-    ];
-    const uTx = u ? tileOfX(u.x) : -999;
-    const uTy = u ? tileOfY(u.y) : -999;
-    for (const c of candidates){
-      const tx=(c.x/TILE)|0, ty=(c.y/TILE)|0;
-      if (!inMap(tx,ty)) continue;
-      if (!isWalkableTile(tx,ty)) continue;
-      if (!u) return c;
-      if (canEnterTileGoal(u, tx, ty, b) || (tx===uTx && ty===uTy)) return c;
-    }
-    // Fallback even if not enterable (should be rare)
-    return candidates[candidates.length-1];
-  }
-
-
-
-  function recomputePower(){
-  // Prefer economy module's power calc, but fall back if missing/NaN/0/0 while buildings exist.
-  if (__ou_econ && typeof __ou_econ.recomputePower === "function"){
-    try { __ou_econ.recomputePower(); }
-    catch(e){ console.warn("[power] econ recomputePower failed", e); }
-  }
-
-  const p = state.player || (state.player = {});
-  const e = state.enemy  || (state.enemy  = {});
-  const hasPlayerBld = buildings.some(b => b && b.alive && !b.civ && b.team === TEAM.PLAYER);
-  const hasEnemyBld  = buildings.some(b => b && b.alive && !b.civ && b.team === TEAM.ENEMY);
-
-  const pOk = Number.isFinite(p.powerProd) && Number.isFinite(p.powerUse);
-  const eOk = Number.isFinite(e.powerProd) && Number.isFinite(e.powerUse);
-  const suspiciousP = hasPlayerBld && ((p.powerProd|0) === 0 && (p.powerUse|0) === 0);
-  const suspiciousE = hasEnemyBld  && ((e.powerProd|0) === 0 && (e.powerUse|0) === 0);
-
-  if (!pOk || !eOk || suspiciousP || suspiciousE){
-    // Local fallback (matches ou_economy logic)
-    function calc(team){
-      let prod = 0, use = 0;
-      for (const b of buildings){
-        if (!b || !b.alive || b.team !== team || b.civ) continue;
-        if (b.kind === "hq")      prod += (POWER.hqProd || 0);
-        if (b.kind === "power")   prod += (POWER.powerPlant || 0);
-        if (b.kind === "refinery")use  += (POWER.refineryUse || 0);
-        if (b.kind === "barracks")use  += (POWER.barracksUse || 0);
-        if (b.kind === "factory") use  += (POWER.factoryUse || 0);
-        if (b.kind === "radar")   use  += (POWER.radarUse || 0);
-        if (b.kind === "turret")  use  += (POWER.turretUse || 0);
-      }
-      return { prod, use };
-    }
-    const pp = calc(TEAM.PLAYER);
-    p.powerProd = pp.prod;
-    p.powerUse  = pp.use;
-    const ee = calc(TEAM.ENEMY);
-    e.powerProd = ee.prod;
-    e.powerUse  = ee.use;
-  }
-
-  // Keep queues consistent with current prerequisites.
-  if (__ou_econ && typeof __ou_econ.validateTechQueues === "function"){
-    try { __ou_econ.validateTechQueues(); } catch(_){}
-  }
-}
-  
-  function validateTechQueues(){
+    function validateTechQueues(){
     return (__ou_econ && __ou_econ.validateTechQueues) ? __ou_econ.validateTechQueues() : undefined;
   }
 
@@ -3266,20 +3040,16 @@ const __ou_sim = (window.OUSim && typeof window.OUSim.create==="function")
       setPathTo,
       followPath,
       
-      clearReservation,
-      settleInfantryToSubslot,
+      tileToWorldSubslot,
+      snapWorldToTileCenter,
+      isBlockedWorldPoint,
+      buildOcc,
       // spawnBullet/spawnTrace/mg/sniper now live in sim
       spawnTrailPuff,
       spawnDmgSmokePuff,
       applyDamage,
       crushInfantry,
-      findNearestFreePoint,
-      findNearestRefinery,
-      getDockPoint,
-      getClosestPointOnBuilding,
-      dist2PointToRect,
       captureBuilding,
-      _tankUpdateTurret,
       boardUnitIntoIFV,
       // turret/bullet deps
       updateExplosions
@@ -6738,6 +6508,7 @@ window.unboardIFV = tryUnloadIFV;
 window.resolveUnitOverlaps = resolveUnitOverlaps;
 
 })();
+
 
 
 

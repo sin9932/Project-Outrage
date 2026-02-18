@@ -67,20 +67,19 @@
     const canEnterTile = r.canEnterTile;
     const canEnterTileGoal = r.canEnterTileGoal;
     const isSqueezedTile = r.isSqueezedTile;
-    const clearReservation = r.clearReservation;
-    const settleInfantryToSubslot = r.settleInfantryToSubslot;
     
     
     const spawnTrailPuff = r.spawnTrailPuff;
     const spawnDmgSmokePuff = r.spawnDmgSmokePuff;
     const crushInfantry = r.crushInfantry;
-    const findNearestFreePoint = r.findNearestFreePoint;
-    const findNearestRefinery = r.findNearestRefinery;
-    const getDockPoint = r.getDockPoint;
-    const getClosestPointOnBuilding = r.getClosestPointOnBuilding;
-    const dist2PointToRect = r.dist2PointToRect;
     const captureBuilding = r.captureBuilding;
-    const _tankUpdateTurret = r._tankUpdateTurret;
+    const buildOcc = r.buildOcc;
+    const tileToWorldSubslot = r.tileToWorldSubslot;
+    const snapWorldToTileCenter = r.snapWorldToTileCenter;
+    const isBlockedWorldPoint = r.isBlockedWorldPoint;
+    const _advanceTurnState = r._advanceTurnState;
+    const _turnStepTowardTurret = r._turnStepTowardTurret;
+    const _turretTurnFrameNum = r._turretTurnFrameNum;
     const boardUnitIntoIFV = r.boardUnitIntoIFV;
     const applyDamage = r.applyDamage;
     const isWalkableTile = r.isWalkableTile;
@@ -1038,6 +1037,243 @@
         return {x:gx, y:gy};
       }
       return {x:u.x, y:u.y};
+    }
+
+    function dist2PointToRect(px,py, rx,ry,rw,rh){
+      const hx=rw*0.5, hy=rh*0.5;
+      const dx=Math.max(Math.abs(px-rx)-hx, 0);
+      const dy=Math.max(Math.abs(py-ry)-hy, 0);
+      return dx*dx + dy*dy;
+    }
+
+    function getClosestPointOnBuilding(b, u){
+      const x0 = b.tx*TILE, y0 = b.ty*TILE;
+      const x1 = (b.tx+b.tw)*TILE, y1 = (b.ty+b.th)*TILE;
+      const pad = (u && u.r) ? u.r*0.45 : TILE*0.20;
+      const px = clamp(u ? u.x : (x0+x1)*0.5, x0-pad, x1+pad);
+      const py = clamp(u ? u.y : (y0+y1)*0.5, y0-pad, y1+pad);
+      return {x:px, y:py};
+    }
+
+    function getDockPoint(b, u){
+      const x0 = b.tx*TILE, y0 = b.ty*TILE;
+      const x1 = (b.tx+b.tw)*TILE, y1 = (b.ty+b.th)*TILE;
+      const cx = (x0+x1)*0.5, cy = (y0+y1)*0.5;
+      const pad = (u && u.r) ? u.r*0.65 : TILE*0.25;
+      const px = clamp(u ? u.x : cx, x0-pad, x1+pad);
+      const py = clamp(u ? u.y : cy, y0-pad, y1+pad);
+      const candidates = [
+        {x: x1 + pad, y: cy},
+        {x: x0 - pad, y: cy},
+        {x: cx, y: y1 + pad},
+        {x: cx, y: y0 - pad},
+        {x: px, y: py},
+      ];
+      const uTx = u ? tileOfX(u.x) : -999;
+      const uTy = u ? tileOfY(u.y) : -999;
+      for (const c of candidates){
+        const tx=(c.x/TILE)|0, ty=(c.y/TILE)|0;
+        if (!inMap(tx,ty)) continue;
+        if (!isWalkableTile(tx,ty)) continue;
+        if (!u) return c;
+        if (canEnterTileGoal(u, tx, ty, b) || (tx===uTx && ty===uTy)) return c;
+      }
+      return candidates[candidates.length-1];
+    }
+
+    function findNearestRefinery(team, wx, wy){
+      let best=null, bestD=1e9;
+      for (const b of buildings){
+        if (!b.alive || b.team!==team || b.kind!=="refinery") continue;
+        const d2 = dist2(wx,wy,b.x,b.y);
+        if (d2<bestD){ bestD=d2; best=b; }
+      }
+      return best;
+    }
+
+    function findNearestFreePoint(wx, wy, u, r=3){
+      const cx=tileOfX(wx), cy=tileOfY(wy);
+      let bestX=wx, bestY=wy, bestD=1e18, found=false;
+      for (let dy=-r; dy<=r; dy++){
+        for (let dx=-r; dx<=r; dx++){
+          const tx=cx+dx, ty=cy+dy;
+          if (!isWalkableTile(tx,ty)) continue;
+          const curTx=tileOfX(u.x), curTy=tileOfY(u.y);
+          if (!(tx===curTx && ty===curTy) && !canEnterTile(u,tx,ty)) continue;
+          const pTile=tileToWorldCenter(tx,ty);
+          const px=pTile.x, py=pTile.y;
+          const dd=dist2(wx,wy,px,py);
+          if (dd<bestD){ bestD=dd; bestX=px; bestY=py; found=true; }
+        }
+      }
+      return {x:bestX,y:bestY,found};
+    }
+
+    function clearReservation(u){
+      u.resTx = null; u.resTy = null;
+    }
+
+    function settleInfantryToSubslot(u, dt){
+      const cls = (UNIT[u.kind] && UNIT[u.kind].cls) ? UNIT[u.kind].cls : "";
+      if (cls!=="inf") return;
+      if (!u.alive || u.inTransport) return;
+      if (u.target!=null) return;
+      const ot = u.order && u.order.type;
+      if (ot!=="idle" && ot!=="guard") return;
+
+      const tx = tileOfX(u.x), ty = tileOfY(u.y);
+      if (!inMap(tx,ty)) return;
+
+      const ss = (u.subSlot==null) ? 0 : (u.subSlot & 3);
+      const sp = tileToWorldSubslot(tx, ty, ss);
+
+      const dx = sp.x - u.x, dy = sp.y - u.y;
+      const d2 = dx*dx + dy*dy;
+      if (d2 < 0.25){
+        u.x = sp.x; u.y = sp.y;
+        u.vx = 0; u.vy = 0;
+        u.holdPos = true;
+        return;
+      }
+
+      const d = Math.sqrt(d2);
+      const maxStep = 120 * dt;
+      const step = Math.min(maxStep, d);
+      const nx = dx / (d||1), ny = dy / (d||1);
+      u.x += nx * step;
+      u.y += ny * step;
+
+      u.vx = 0; u.vy = 0;
+      u.holdPos = true;
+    }
+
+    function dist2PointToRect(px,py, rx,ry,rw,rh){
+      const hx=rw*0.5, hy=rh*0.5;
+      const dx=Math.max(Math.abs(px-rx)-hx, 0);
+      const dy=Math.max(Math.abs(py-ry)-hy, 0);
+      return dx*dx + dy*dy;
+    }
+
+    function getClosestPointOnBuilding(b, u){
+      const x0 = b.tx*TILE, y0 = b.ty*TILE;
+      const x1 = (b.tx+b.tw)*TILE, y1 = (b.ty+b.th)*TILE;
+      const pad = (u && u.r) ? u.r*0.45 : TILE*0.20;
+      const px = clamp(u ? u.x : (x0+x1)*0.5, x0-pad, x1+pad);
+      const py = clamp(u ? u.y : (y0+y1)*0.5, y0-pad, y1+pad);
+      return {x:px, y:py};
+    }
+
+    function getDockPoint(b, u){
+      const x0 = b.tx*TILE, y0 = b.ty*TILE;
+      const x1 = (b.tx+b.tw)*TILE, y1 = (b.ty+b.th)*TILE;
+      const cx = (x0+x1)*0.5, cy = (y0+y1)*0.5;
+      const pad = (u && u.r) ? u.r*0.65 : TILE*0.25;
+      const px = clamp(u ? u.x : cx, x0-pad, x1+pad);
+      const py = clamp(u ? u.y : cy, y0-pad, y1+pad);
+      const candidates = [
+        {x: x1 + pad, y: cy},
+        {x: x0 - pad, y: cy},
+        {x: cx, y: y1 + pad},
+        {x: cx, y: y0 - pad},
+        {x: px, y: py},
+      ];
+      const uTx = u ? tileOfX(u.x) : -999;
+      const uTy = u ? tileOfY(u.y) : -999;
+      for (const c of candidates){
+        const tx=(c.x/TILE)|0, ty=(c.y/TILE)|0;
+        if (!inMap(tx,ty)) continue;
+        if (!isWalkableTile(tx,ty)) continue;
+        if (!u) return c;
+        if (canEnterTileGoal(u, tx, ty, b) || (tx===uTx && ty===uTy)) return c;
+      }
+      return candidates[candidates.length-1];
+    }
+
+    function findNearestRefinery(team, wx, wy){
+      let best=null, bestD=1e9;
+      for (const b of buildings){
+        if (!b.alive || b.team!==team || b.kind!=="refinery") continue;
+        const d2 = dist2(wx,wy,b.x,b.y);
+        if (d2<bestD){ bestD=d2; best=b; }
+      }
+      return best;
+    }
+
+    function findNearestFreePoint(wx, wy, u, r=3){
+      let best=null, bestD=1e9;
+      for (let dy=-r; dy<=r; dy++){
+        for (let dx=-r; dx<=r; dx++){
+          const tx = ((wx/TILE)|0) + dx;
+          const ty = ((wy/TILE)|0) + dy;
+          if (!inMap(tx,ty)) continue;
+          if (!isWalkableTile(tx,ty)) continue;
+          if (isSqueezedTile(tx,ty)) continue;
+          if (isReservedByOther(u, tx, ty)) continue;
+          const i=idx(tx,ty);
+          if (occAll[i]!==0) continue;
+          const c = tileToWorldCenter(tx,ty);
+          if (isBlockedWorldPoint && isBlockedWorldPoint(u, c.x, c.y)) continue;
+          const d = dx*dx + dy*dy;
+          if (d < bestD){ bestD=d; best={x:c.x, y:c.y}; }
+        }
+      }
+      return best;
+    }
+
+    function clearReservation(u){
+      u.resTx = null; u.resTy = null;
+    }
+
+    function settleInfantryToSubslot(u, dt){
+      const cls = (UNIT[u.kind] && UNIT[u.kind].cls) ? UNIT[u.kind].cls : "";
+      if (cls!=="inf") return;
+      if (!u.alive || u.inTransport) return;
+      if (u.target!=null) return;
+      const ot = u.order && u.order.type;
+      if (ot!=="idle" && ot!=="guard") return;
+
+      const tx = tileOfX(u.x), ty = tileOfY(u.y);
+      if (!inMap(tx,ty)) return;
+
+      const ss = (u.subSlot==null) ? 0 : (u.subSlot & 3);
+      const sp = tileToWorldSubslot(tx, ty, ss);
+
+      const dx = sp.x - u.x, dy = sp.y - u.y;
+      const d2 = dx*dx + dy*dy;
+      if (d2 < 0.25){
+        u.x = sp.x; u.y = sp.y;
+        u.vx = 0; u.vy = 0;
+        u.holdPos = true;
+        return;
+      }
+
+      const d = Math.sqrt(d2);
+      const maxStep = 120 * dt;
+      const step = Math.min(maxStep, d);
+      const nx = dx / (d||1), ny = dy / (d||1);
+      u.x += nx * step;
+      u.y += ny * step;
+
+      u.vx = 0; u.vy = 0;
+      u.holdPos = true;
+    }
+
+    function _tankUpdateTurret(u, desiredDir, dt){
+      if (u.turretDir == null) u.turretDir = (u.dir!=null ? u.dir : 6);
+      if (desiredDir == null || desiredDir === u.turretDir){
+        u.turretTurn = null;
+        return;
+      }
+      if (!u.turretTurn || u.turretTurn.fromDir==null || u.turretTurn.toDir==null){
+        const step = _turnStepTowardTurret(u.turretDir, desiredDir);
+        u.turretTurn = { fromDir: u.turretDir, toDir: step.nextDir, stepDir: step.stepDir, t: 0 };
+      }
+      const { done, frameNum } = _advanceTurnState(u.turretTurn, u.turretTurn.fromDir, u.turretTurn.toDir, dt, 0.045, _turretTurnFrameNum);
+      u.turretTurn.frameNum = frameNum;
+      if (done){
+        u.turretDir = u.turretTurn.toDir;
+        u.turretTurn = null;
+      }
     }
 
     function findNearestEnemyFor(team, wx, wy, radius, infOnly=false, unitOnly=false){
