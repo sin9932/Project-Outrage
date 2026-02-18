@@ -276,6 +276,7 @@ function fitMini() {
   // references `state` before this declaration finishes initializing.
   var state = {
     t: 0,
+    speedMul: 1,
     suppressClickUntil: 0,
     debug: { fastProd: false },
     player: { money: 10000, powerProd: 0, powerUse: 0 },
@@ -4097,6 +4098,15 @@ const keys=new Set();
       applyMouseMode(state.mouseMode==="sell" ? "normal" : "sell");
       toast(state.mouseMode==="sell" ? "매각 모드" : "매각 해제");
     }
+    if (e.key === "]"){
+      const speeds = [1, 2, 4];
+      const cur = state.speedMul || 1;
+      const idx = speeds.indexOf(cur);
+      state.speedMul = speeds[(idx+1) % speeds.length];
+      toast(`시간 x${state.speedMul}`);
+      e.preventDefault();
+      return;
+    }
     if (k==="s") stopUnits();
     if (k==="x") scatterUnits();
     if (k==="a") selectSameType();
@@ -5778,7 +5788,9 @@ function sanityCheck(){
     last=now;
 
     if (running && !gameOver && !pauseMenuOpen){
-      state.t += dt;
+      const speedMul = state.speedMul || 1;
+      const simDt = dt * speedMul;
+      state.t += simDt;
 
       // Finalize barracks selling AFTER reverse-build animation completes
       let _needPower=false, _needElim=false;
@@ -5802,10 +5814,10 @@ function sanityCheck(){
       if (_needPower) recomputePower();
       if (_needElim)  checkElimination();
 
-      updateCamShake(dt);
+      updateCamShake(simDt);
       
-      updateSmoke(dt);
-      updateBlood(dt);
+      updateSmoke(simDt);
+      updateBlood(simDt);
 
 
       const sp = cam.speed*dt;
@@ -5818,7 +5830,7 @@ function sanityCheck(){
       let _m0 = 0, _m1 = 0, _m2 = 0, _m3 = 0;
       if (DEBUG_MONEY && state && state.player) _m0 = state.player.money || 0;
 
-      tickEconomyPre(dt);
+      tickEconomyPre(simDt);
 
       if (DEBUG_MONEY && state && state.player) _m1 = state.player.money || 0;
 
@@ -5837,7 +5849,7 @@ function sanityCheck(){
 
 
       updateVision();
-      const _eco = tickEconomyPost(dt);
+      const _eco = tickEconomyPost(simDt);
       if (DEBUG_MONEY && state && state.player){
         _m2 = (_eco && _eco.m2 != null) ? _eco.m2 : (state.player.money || 0);
         _m3 = (_eco && _eco.m3 != null) ? _eco.m3 : (state.player.money || 0);
@@ -5852,7 +5864,7 @@ function sanityCheck(){
         }
       }
       if (__ou_sim && typeof __ou_sim.tickSim === "function"){
-        __ou_sim.tickSim(dt);
+        __ou_sim.tickSim(simDt);
       } else {
         // sim.js missing: avoid hard crash
         if (state && !state._simMissingWarned){
