@@ -1443,66 +1443,6 @@ function getBaseBuildTime(kind){
 
 
   // === TexturePacker "textures":[{frames:[...]}] atlas parser (trim + anchor aware) ===
-  function _parseTPTexturesAtlas(json){
-    // Returns: { image: string|null, frames: Map<filename, frameObj> }
-    // frameObj includes: frame{x,y,w,h}, spriteSourceSize{x,y,w,h}, sourceSize{w,h}, anchor{x,y}
-    try{
-      if (!json || !Array.isArray(json.textures) || !json.textures.length) return null;
-      const tex = json.textures[0];
-      const image = tex.image || (json.meta && json.meta.image) || null;
-      const framesArr = tex.frames || [];
-      const map = new Map();
-      for (const fr of framesArr){
-        if (!fr || !fr.filename || !fr.frame) continue;
-        map.set(fr.filename, fr);
-      }
-      return { image, frames: map };
-    }catch(_e){
-      return null;
-    }
-  }
-
-  async function _loadTPAtlasFromUrl(jsonUrl, baseDir){
-    // baseDir: prefix to prepend to atlas image name.
-    const r = await fetch(jsonUrl, { cache:"no-store" });
-    if (!r.ok) throw new Error("HTTP "+r.status);
-    const j = await r.json();
-    const parsed = _parseTPTexturesAtlas(j);
-    if (!parsed || !parsed.frames || !parsed.frames.size) throw new Error("atlas parse failed");
-    const imgName = parsed.image || null;
-    if (!imgName) throw new Error("atlas image missing");
-    const img = new Image();
-    img.src = (baseDir || "") + imgName;
-    return { img, frames: parsed.frames, image: imgName };
-  }
-
-  // === Lite Tank (RA2-style hull turn + independent turret) ===
-  const LITE_TANK_BASE = "asset/sprite/unit/tank/lite_tank/";
-  const LITE_TANK_BASE_SCALE = 0.13; // base scale for TILE=48, sourceSize=600 (tweak via Units.UNIT.tank.spriteScale)
-  const LITE_TANK = {
-    ok:false,
-    bodyIdle:null,
-    bodyMov:null,
-    muzzleIdle:null,
-    muzzleMov:null
-  };
-
-  // Harvester (no turret) uses same 8-dir + 32-frame turning law as lite tank hull.
-  const HARVESTER_BASE = "asset/sprite/unit/tank/harvester/";
-  const HARVESTER_BASE_SCALE = 0.13; // match lite tank baseline; tweak via Units.UNIT.harvester.spriteScale
-  const HARVESTER = {
-    ok:false,
-    idle:null,
-    mov:null
-  };
-
-
-  // Force turret frames to align to the same ground pivot as the hull.
-  // TexturePacker anchors differ between hull and turret; using a shared anchor prevents the turret from sitting on the ground.
-  const LITE_TANK_TURRET_ANCHOR = { x: 0.5, y: 0.555 };
-  const LITE_TANK_TURRET_NUDGE  = { x: 0,   y: 0   }; // source-pixel nudges (optional)
-
-
   const _dirToIdleIdx = { 6:1, 7:2, 0:3, 1:4, 2:5, 3:6, 4:7, 5:8 }; // dir8 -> idle1..8
   const _muzzleDirToIdleIdx = { 2:1, 1:2, 0:3, 7:4, 6:5, 5:6, 4:7, 3:8 }; // dir8 -> tank_muzzle_idle1..8 (N..)
 
@@ -1630,47 +1570,7 @@ function getBaseBuildTime(kind){
       u.turretTurn = null;
     }
   }
-// Kick off lite tank atlas loads early (non-blocking)
-  ;(async()=>{
-    try{
-      const [bodyIdle, bodyMov, muzzleIdle, muzzleMov] = await Promise.all([
-        _loadTPAtlasFromUrl(LITE_TANK_BASE + "lite_tank.json", LITE_TANK_BASE),
-        _loadTPAtlasFromUrl(LITE_TANK_BASE + "lite_tank_body_mov.json", LITE_TANK_BASE),
-        _loadTPAtlasFromUrl(LITE_TANK_BASE + "lite_tank_muzzle.json", LITE_TANK_BASE),
-        _loadTPAtlasFromUrl(LITE_TANK_BASE + "lite_tank_muzzle_mov.json", LITE_TANK_BASE),
-      ]);
-      LITE_TANK.bodyIdle = bodyIdle;
-      LITE_TANK.bodyMov = bodyMov;
-      LITE_TANK.muzzleIdle = muzzleIdle;
-      LITE_TANK.muzzleMov = muzzleMov;
-      LITE_TANK.ok = true;
-      console.log("[lite_tank] atlases ready");
-    }catch(e){
-      console.warn("[lite_tank] atlas load failed:", e);
-      LITE_TANK.ok = false;
-    }
-  })();
-
-  // Kick off harvester atlas loads early (non-blocking)
-  ;(async()=>{
-    try{
-      const [idle, mov] = await Promise.all([
-        _loadTPAtlasFromUrl(HARVESTER_BASE + "harvester_idle.json", HARVESTER_BASE),
-        _loadTPAtlasFromUrl(HARVESTER_BASE + "harvester_mov.json", HARVESTER_BASE),
-      ]);
-      HARVESTER.idle = idle;
-      HARVESTER.mov = mov;
-      HARVESTER.ok = true;
-      console.log("[sprite] harvester atlases loaded");
-    }catch(err){
-      console.warn("[sprite] harvester atlas load failed", err);
-    }
-  })();
-;
-
-
-
-  // Kick off json load early (non-blocking)
+// Kick off json load early (non-blocking)
   ;(async()=>{
     try{
       const r = await fetch(EXP1_JSON, {cache:"no-store"});
@@ -9345,12 +9245,6 @@ function draw(){
         SNIP_TEAM_SHEET_MOV_SW,
         SNIP_TEAM_SHEET_MOV_S,
         SNIP_TEAM_SHEET_MOV_SE,
-        LITE_TANK,
-        HARVESTER,
-        LITE_TANK_BASE_SCALE,
-        HARVESTER_BASE_SCALE,
-        LITE_TANK_TURRET_ANCHOR,
-        LITE_TANK_TURRET_NUDGE,
         TANK_DIR_TO_IDLE_IDX: _dirToIdleIdx,
         MUZZLE_DIR_TO_IDLE_IDX: _muzzleDirToIdleIdx,
         getUnitSpec: (kind)=> (window.G && G.Units && typeof G.Units.getSpec==="function") ? G.Units.getSpec(kind) : null,
@@ -10277,6 +10171,8 @@ window.unboardIFV = tryUnloadIFV;
 window.resolveUnitOverlaps = resolveUnitOverlaps;
 
 })();
+
+
 
 
 

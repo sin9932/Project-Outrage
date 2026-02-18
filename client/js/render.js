@@ -3,6 +3,37 @@
 (function(){
   "use strict";
 
+  function _parseTPTexturesAtlas(json){
+    if (!json) return null;
+    const out = new Map();
+    const frames = json.frames || json;
+    for (const [name, fr] of Object.entries(frames)){
+      if (!fr) continue;
+      const frame = fr.frame || fr;
+      const sss = fr.spriteSourceSize || { x:0, y:0, w: frame.w, h: frame.h };
+      const src = fr.sourceSize || { w: frame.w, h: frame.h };
+      out.set(name, {
+        frame: { x:frame.x|0, y:frame.y|0, w:frame.w|0, h:frame.h|0 },
+        spriteSourceSize: { x:sss.x|0, y:sss.y|0, w:sss.w|0, h:sss.h|0 },
+        sourceSize: { w:src.w|0, h:src.h|0 }
+      });
+    }
+    return { image: json.meta && json.meta.image, frames: out };
+  }
+
+  async function _loadTPAtlasFromUrl(jsonUrl, baseDir){
+    const r = await fetch(jsonUrl, { cache:"no-store" });
+    if (!r.ok) throw new Error("HTTP "+r.status);
+    const j = await r.json();
+    const parsed = _parseTPTexturesAtlas(j);
+    if (!parsed || !parsed.frames || !parsed.frames.size) throw new Error("atlas parse failed");
+    const imgName = parsed.image || null;
+    if (!imgName) throw new Error("atlas image missing");
+    const img = new Image();
+    img.src = (baseDir || "") + imgName;
+    return { img, frames: parsed.frames, image: imgName };
+  }
+
   // TV noise for minimap when low power (kept inside render.js)
   function drawMiniNoise(mmCtx, W, H){
     if (!mmCtx) return;
@@ -225,8 +256,15 @@
   let SNIP_TEAM_SHEET, SNIP_TEAM_SHEET_MOV, SNIP_TEAM_SHEET_MOV_NE, SNIP_TEAM_SHEET_MOV_N, SNIP_TEAM_SHEET_MOV_NW;
   let SNIP_TEAM_SHEET_MOV_W, SNIP_TEAM_SHEET_MOV_SW, SNIP_TEAM_SHEET_MOV_S, SNIP_TEAM_SHEET_MOV_SE;
   let INF_IDLE_ATLAS;
-  let LITE_TANK, HARVESTER, LITE_TANK_BASE_SCALE, HARVESTER_BASE_SCALE;
-  let LITE_TANK_TURRET_ANCHOR, LITE_TANK_TURRET_NUDGE;
+  const LITE_TANK_BASE = "asset/sprite/unit/tank/lite_tank/";
+  const HARVESTER_BASE = "asset/sprite/unit/tank/harvester/";
+  const LITE_TANK_BASE_SCALE = 0.13;
+  const HARVESTER_BASE_SCALE = 0.13;
+  const LITE_TANK_TURRET_ANCHOR = { x: 0.5, y: 0.555 };
+  const LITE_TANK_TURRET_NUDGE  = { x: 0,   y: 0   };
+
+  const LITE_TANK = { ok:false, bodyIdle:null, bodyMov:null, muzzleIdle:null, muzzleMov:null };
+  const HARVESTER = { ok:false, idle:null, mov:null };
   let TANK_DIR_TO_IDLE_IDX, MUZZLE_DIR_TO_IDLE_IDX;
   let getUnitSpec, getTeamCroppedSprite;
 
@@ -265,17 +303,48 @@
     SNIP_TEAM_SHEET_MOV_NW = env.SNIP_TEAM_SHEET_MOV_NW; SNIP_TEAM_SHEET_MOV_W = env.SNIP_TEAM_SHEET_MOV_W; SNIP_TEAM_SHEET_MOV_SW = env.SNIP_TEAM_SHEET_MOV_SW;
     SNIP_TEAM_SHEET_MOV_S = env.SNIP_TEAM_SHEET_MOV_S; SNIP_TEAM_SHEET_MOV_SE = env.SNIP_TEAM_SHEET_MOV_SE;
     INF_IDLE_ATLAS = env.INF_IDLE_ATLAS;
-    LITE_TANK = env.LITE_TANK;
-    HARVESTER = env.HARVESTER;
-    LITE_TANK_BASE_SCALE = env.LITE_TANK_BASE_SCALE;
-    HARVESTER_BASE_SCALE = env.HARVESTER_BASE_SCALE;
-    LITE_TANK_TURRET_ANCHOR = env.LITE_TANK_TURRET_ANCHOR;
-    LITE_TANK_TURRET_NUDGE = env.LITE_TANK_TURRET_NUDGE;
     TANK_DIR_TO_IDLE_IDX = env.TANK_DIR_TO_IDLE_IDX;
     MUZZLE_DIR_TO_IDLE_IDX = env.MUZZLE_DIR_TO_IDLE_IDX;
     getUnitSpec = env.getUnitSpec;
     getTeamCroppedSprite = env.getTeamCroppedSprite;
   }
+
+  // Kick off lite tank atlas loads early (non-blocking)
+  ;(async()=>{
+    try{
+      const [bodyIdle, bodyMov, muzzleIdle, muzzleMov] = await Promise.all([
+        _loadTPAtlasFromUrl(LITE_TANK_BASE + "lite_tank.json", LITE_TANK_BASE),
+        _loadTPAtlasFromUrl(LITE_TANK_BASE + "lite_tank_body_mov.json", LITE_TANK_BASE),
+        _loadTPAtlasFromUrl(LITE_TANK_BASE + "lite_tank_muzzle.json", LITE_TANK_BASE),
+        _loadTPAtlasFromUrl(LITE_TANK_BASE + "lite_tank_muzzle_mov.json", LITE_TANK_BASE),
+      ]);
+      LITE_TANK.bodyIdle = bodyIdle;
+      LITE_TANK.bodyMov = bodyMov;
+      LITE_TANK.muzzleIdle = muzzleIdle;
+      LITE_TANK.muzzleMov = muzzleMov;
+      LITE_TANK.ok = true;
+      console.log("[lite_tank] atlases ready");
+    }catch(e){
+      console.warn("[lite_tank] atlas load failed:", e);
+      LITE_TANK.ok = false;
+    }
+  })();
+
+  // Kick off harvester atlas loads early (non-blocking)
+  ;(async()=>{
+    try{
+      const [idle, mov] = await Promise.all([
+        _loadTPAtlasFromUrl(HARVESTER_BASE + "harvester_idle.json", HARVESTER_BASE),
+        _loadTPAtlasFromUrl(HARVESTER_BASE + "harvester_mov.json", HARVESTER_BASE),
+      ]);
+      HARVESTER.idle = idle;
+      HARVESTER.mov = mov;
+      HARVESTER.ok = true;
+      console.log("[sprite] harvester atlases loaded");
+    }catch(err){
+      console.warn("[sprite] harvester atlas load failed", err);
+    }
+  })();
 
   function tankBodyFrameName(u){
     const prefix = (u.kind==="harvester") ? "hav" : "lightank";
