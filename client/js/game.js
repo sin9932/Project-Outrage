@@ -4955,9 +4955,9 @@ const refund = Math.floor((COST[b.kind]||0) * 0.5);
     b.hp = Math.max(1, b.hp);
     b.repairOn=false;
 
-    // Enemy engineer AI: ALWAYS sell captured buildings immediately.
+    // Enemy engineer AI: ALWAYS sell captured buildings (defer via econ queue for consistency).
     if (engineer.team===TEAM.ENEMY){
-      sellBuilding(b);
+      enqueueEcon({ type:"sellByIdAny", id: b.id });
     }
 
     recomputePower();
@@ -8084,6 +8084,13 @@ if (state.selection.size>0 && inMap(tx,ty) && ore[idx(tx,ty)]>0){
             sellBuilding(b);
             toast("매각");
             updateSelectionUI();
+          }
+          break;
+        }
+        case "sellByIdAny": {
+          const b = getEntityById(a.id);
+          if (b && b.alive && BUILD[b.kind] && !b.civ){
+            sellBuilding(b);
           }
           break;
         }
