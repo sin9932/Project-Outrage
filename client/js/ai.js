@@ -735,8 +735,8 @@
       if (state.t >= (ai.harassNext || 0)) {
         ai.harassNext = state.t + rnd(18, 26);
 
-        const pHarvs = units.filter(u => u.alive && u.team === TEAM.PLAYER && u.kind === "harvester");
-        if (pHarvs.length) {
+        const pInf = units.filter(u => u.alive && u.team === TEAM.PLAYER && (UNIT[u.kind] && UNIT[u.kind].cls === "inf") && !u.inTransport && !u.hidden);
+        if (pInf.length) {
           // Keep a persistent small squad
           if (!ai.harassSquadIds) ai.harassSquadIds = [];
           let squad = ai.harassSquadIds
@@ -745,16 +745,22 @@
 
           // Refill squad up to 3
           if (squad.length < 3) {
-          const pool = combat
-            .filter(u => u.kind !== "harvester" && u.kind !== "engineer")
-            .filter(u => u.kind !== "sniper")
-            // avoid tank trickle-harass; use only IFVs with passengers
-            .filter(u => u.kind === "ifv" && u.passengerId)
-            .filter(u => !(u.kind === "ifv" && u.passKind === "engineer"))
-            .filter(u => !squad.includes(u))
-            // Prefer units that are not currently committed to a main-base attack
-            .filter(u => !(ai.mode === "attack" && u.order && u.order.type === "attack"))
+            const poolIFV = combat
+              .filter(u => u.kind === "ifv" && u.passengerId)
+              .filter(u => !(u.kind === "ifv" && u.passKind === "engineer"))
+              .filter(u => !squad.includes(u))
+              .filter(u => !(ai.mode === "attack" && u.order && u.order.type === "attack"))
               .sort((a, b) => dist2(ai.rally.x, ai.rally.y, a.x, a.y) - dist2(ai.rally.x, ai.rally.y, b.x, b.y));
+            const poolTank = combat
+              .filter(u => u.kind === "tank")
+              .filter(u => !squad.includes(u))
+              .filter(u => !(ai.mode === "attack" && u.order && u.order.type === "attack"))
+              .sort((a, b) => a.id - b.id);
+            const pool = poolIFV.slice();
+            // Only allow tanks for harass if we can send a small group (2-3).
+            if (poolTank.length >= 2) {
+              pool.push(...poolTank.slice(0, 3));
+            }
             while (squad.length < 3 && pool.length) {
               const u = pool.shift();
               squad.push(u);
@@ -764,9 +770,9 @@
           ai.harassSquadIds = squad.map(u => u.id);
 
           if (squad.length) {
-            // Target the nearest player harvester to our rally
+            // Target the nearest player infantry to our rally
             let bestH = null, bestD = Infinity;
-            for (const h of pHarvs) {
+            for (const h of pInf) {
               const d = dist2(ai.rally.x, ai.rally.y, h.x, h.y);
               if (d < bestD) { bestD = d; bestH = h; }
             }
