@@ -1923,6 +1923,30 @@ function getBaseBuildTime(kind){
   // Scale for in-game rendering (used by render.js)
   const INF_SPRITE_SCALE = 0.12;
 
+  // Convert a movement vector (dx,dy) to our 8-dir index (E,NE,N,NW,W,SW,S,SE).
+  // Note: screen/world coordinates use +y = down. North is dy < 0.
+  function vecToDir8(dx, dy){
+    if (!dx && !dy) return 6; // default South/front
+    const ang = Math.atan2(dy, dx); // -PI..PI
+    const targets = [0, -45, -90, -135, 180, 135, 90, 45];
+    const deg = ang * 180 / Math.PI;
+    let bestI = 0, bestD = 1e9;
+    for (let i=0;i<8;i++){
+      let d = deg - targets[i];
+      d = ((d + 540) % 360) - 180;
+      const ad = Math.abs(d);
+      if (ad < bestD){ bestD = ad; bestI = i; }
+    }
+    return bestI;
+  }
+
+  // Convert a world/tile-space vector to a screen-space direction, then map to our 8-dir index.
+  function worldVecToDir8(dx, dy){
+    const sx = (dx - dy) * (ISO_X / TILE);
+    const sy = (dx + dy) * (ISO_Y / TILE);
+    return vecToDir8(sx, sy);
+  }
+
   // Sniper team palette caches
   const SNIP_TEAM_SHEET = new Map();
   const SNIP_TEAM_SHEET_MOV    = new Map();
