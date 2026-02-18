@@ -115,6 +115,14 @@ if (r.uiPowerBar && !r.__powerTipInstalled){
         if (typeof hp !== "number" || typeof mx !== "number" || mx <= 0) return null;
         return Math.max(0, Math.min(1, hp / mx));
       };
+      const hpText = (ent)=>{
+        if (!ent) return "";
+        const hp = ent.hp;
+        const mx = ent.hpMax;
+        if (typeof hp !== "number" || typeof mx !== "number") return "";
+        if (!Number.isFinite(hp) || !Number.isFinite(mx) || mx <= 0) return "";
+        return `${Math.round(hp)}/${Math.round(mx)}`;
+      };
 
       // Selected ids (supports both legacy state.sel[] and current state.selection Set)
       let selIds = [];
@@ -168,7 +176,7 @@ if (r.uiPowerBar && !r.__powerTipInstalled){
             } else if (selIds.length <= 1){
               const e0 = ents[0];
               const n = nameOf(e0) || "선택됨";
-              const hp = (typeof e0.hp === "number" && typeof e0.hpMax === "number") ? `${e0.hp}/${e0.hpMax}` : "";
+              const hp = hpText(e0);
               r.uiSelInfo.textContent = hp ? `[${n}] HP ${hp}` : `[${n}]`;
             } else {
               // multi-select summary + list (old behavior friendly)
@@ -185,7 +193,7 @@ if (r.uiPowerBar && !r.__powerTipInstalled){
               for (let i=0;i<ents.length && i<MAX;i++){
                 const e = ents[i];
                 const n = nameOf(e) || "unknown";
-                const hp = (typeof e.hp === "number" && typeof e.hpMax === "number") ? `${e.hp}/${e.hpMax}` : "";
+                const hp = hpText(e);
                 list.push(hp ? `- ${n}  (${hp})` : `- ${n}`);
               }
               if (ents.length > MAX) list.push(`- ... +${ents.length - MAX}`);
