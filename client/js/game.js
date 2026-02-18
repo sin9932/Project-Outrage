@@ -4891,6 +4891,23 @@ function sellBuilding(b){
     // Prevent double-sell spam while animation is running
     if ((b.kind==="barracks" && b._barrackSelling) || (b.kind==="power" && b._powerSelling)) return;
 
+    // If selling a producer with an active queue, refund paid progress and clear the queue.
+    if (b.team===TEAM.PLAYER && b.buildQ && b.buildQ.length){
+      let qRefund=0;
+      for (const q of b.buildQ){
+        qRefund += (q && q.paid) ? q.paid : 0;
+        if (q && q.kind && prodTotal && prodTotal[q.kind]!=null){
+          prodTotal[q.kind] = Math.max(0, (prodTotal[q.kind]||0)-1);
+        }
+      }
+      if (qRefund>0){
+        state.player.money += qRefund;
+        state.player.money = Math.round(state.player.money||0);
+      }
+      b.buildQ.length = 0;
+      updateProdBadges();
+    }
+
 const refund = Math.floor((COST[b.kind]||0) * 0.5);
     if (b.team===TEAM.PLAYER) state.player.money += refund;
     else state.enemy.money += refund;
