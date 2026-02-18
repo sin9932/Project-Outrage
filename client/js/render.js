@@ -2389,8 +2389,7 @@
       rectFromDrag, refreshPrimaryBuildingBadgesUI,
       drawBuildingSprite,
       worldVecToDir8,
-      isUnderPower, clamp,
-      INF_IMG, SNIP_IMG
+      isUnderPower, clamp
     } = env;
 
     const W=canvas.width, H=canvas.height;
