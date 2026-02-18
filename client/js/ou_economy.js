@@ -150,6 +150,8 @@
         q.t += delta;
 
         if (q.t >= tNeed - 1e-6){
+          const overPaid = (q.paid||0) - costTotal;
+          if (overPaid > 0) state.player.money += overPaid;
           q.t = tNeed; q.paid = costTotal;
           lane.ready = q.kind;
           lane.queue = null;
@@ -377,7 +379,9 @@
           q.t += delta;
 
           if (q.t >= tNeed - 1e-6){
-            // snap to complete
+            // snap to complete (refund any float overpay)
+            const overPaid = (q.paid||0) - costTotal;
+            if (overPaid > 0) teamWallet.money += overPaid;
             q.t = tNeed;
             q.paid = costTotal;
 
