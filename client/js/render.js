@@ -278,6 +278,27 @@
   let SNIP_TEAM_SHEET, SNIP_TEAM_SHEET_MOV, SNIP_TEAM_SHEET_MOV_NE, SNIP_TEAM_SHEET_MOV_N, SNIP_TEAM_SHEET_MOV_NW;
   let SNIP_TEAM_SHEET_MOV_W, SNIP_TEAM_SHEET_MOV_SW, SNIP_TEAM_SHEET_MOV_S, SNIP_TEAM_SHEET_MOV_SE;
   let INF_IDLE_ATLAS;
+  // === Construction Yard (HQ) sprite (5x5 footprint) ===
+  let CON_YARD_PNG = (ASSET_REF && ASSET_REF.sprite && ASSET_REF.sprite.const && ASSET_REF.sprite.const.normal)
+    ? ASSET_REF.sprite.const.normal.con_yard
+    : "";
+  const CON_YARD_IMG = new Image();
+  if (CON_YARD_PNG) CON_YARD_IMG.src = CON_YARD_PNG;
+
+  const BUILD_SPRITE_LOCAL = {
+    hq: {
+      img: CON_YARD_IMG,
+      // We draw ONLY the non-transparent bbox (crop), so all numbers below are bbox-relative.
+      // Measured from con_yard_n.png:
+      //  bbox: x=256, y=130, w=1536, h=1251
+      //  south-tip pivot (full image): x≈1016.5, y=1380
+      //  pivot in bbox-space: x≈760.5, y=1250
+      crop:  { x: 256, y: 130, w: 1536, h: 1251 },
+      pivot: null, // pivot is controlled via SPRITE_TUNE (see below)
+      teamColor: true // apply team palette to accent pixels
+    }
+  };
+
   // === Large explosion FX (exp1) atlas (json + png) ===
   const ASSET_REF = (typeof window !== "undefined" && window.ASSET) ? window.ASSET : null;
   let EXP1_PNG  = (ASSET_REF && ASSET_REF.sprite && ASSET_REF.sprite.eff && ASSET_REF.sprite.eff.exp1)
@@ -641,12 +662,16 @@
     canvas = env.canvas; ctx = env.ctx; cam = env.cam; state = env.state;
     TEAM = env.TEAM; MAP_W = env.MAP_W; MAP_H = env.MAP_H; TILE = env.TILE; ISO_X = env.ISO_X; ISO_Y = env.ISO_Y;
     terrain = env.terrain; ore = env.ore; explored = env.explored; visible = env.visible;
-    BUILD = env.BUILD; DEFENSE = env.DEFENSE; BUILD_SPRITE = env.BUILD_SPRITE; NAME_KO = env.NAME_KO; POWER = env.POWER;
+    BUILD = env.BUILD; DEFENSE = env.DEFENSE; BUILD_SPRITE = env.BUILD_SPRITE || BUILD_SPRITE_LOCAL; NAME_KO = env.NAME_KO; POWER = env.POWER;
     worldToScreen = env.worldToScreen; tileToWorldCenter = env.tileToWorldCenter; idx = env.idx; inMap = env.inMap;
     clamp = env.clamp; getEntityById = env.getEntityById;
     REPAIR_WRENCH_IMG = env.REPAIR_WRENCH_IMG || _ensureImg(REPAIR_WRENCH_IMG, env.REPAIR_WRENCH_PNG);
     repairWrenches = env.repairWrenches || [];
     exp1Fxs = env.exp1Fxs || [];
+    if (env.CON_YARD_PNG && !CON_YARD_PNG){
+      CON_YARD_PNG = env.CON_YARD_PNG;
+      CON_YARD_IMG.src = CON_YARD_PNG;
+    }
     if (env.EXP1_PNG && !EXP1_PNG){
       EXP1_PNG = env.EXP1_PNG;
       EXP1_IMG.src = EXP1_PNG;
@@ -2952,6 +2977,16 @@
     _teamSpriteCache.clear();
   }
 
+  function getBuildSpriteCfg(kind){
+    const src = BUILD_SPRITE || BUILD_SPRITE_LOCAL;
+    return (src && src[kind]) ? src[kind] : null;
+  }
+
+  function getBuildSpriteKinds(){
+    const src = BUILD_SPRITE || BUILD_SPRITE_LOCAL;
+    return src ? Object.keys(src) : [];
+  }
+
   function adjustExp1Pivot(opts){
     if (!opts) return { x: EXP1_PIVOT_X, y: EXP1_PIVOT_Y, yOff: EXP1_Y_OFFSET };
     if (typeof opts.dx === "number") EXP1_PIVOT_X = clamp(EXP1_PIVOT_X + opts.dx, 0, 1);
@@ -2978,6 +3013,8 @@
   window.OURender.draw = drawMain;
   window.OURender.setTeamAccent = setTeamAccent;
   window.OURender.clearTeamSpriteCache = clearTeamSpriteCache;
+  window.OURender.getBuildSpriteCfg = getBuildSpriteCfg;
+  window.OURender.getBuildSpriteKinds = getBuildSpriteKinds;
   window.OURender.adjustExp1Pivot = adjustExp1Pivot;
   window.OURender.resetExp1Pivot = resetExp1Pivot;
   window.OURender.isExp1Ready = isExp1Ready;

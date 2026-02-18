@@ -713,77 +713,7 @@ function getBaseBuildTime(kind){
   // Measured (offline) from the PNG:
   //  - non-transparent bbox width ≈ 1536px
   //  - pivot is SOUTH corner center (bottom-most point) at x=1024, y=1381 (in original image px)
-  const CON_YARD_IMG = new Image();
-  CON_YARD_IMG.src = ASSET.sprite.const.normal.con_yard;
-
-  const BUILD_SPRITE = {
-    hq: {
-      img: CON_YARD_IMG,
-      // We draw ONLY the non-transparent bbox (crop), so all numbers below are bbox-relative.
-      // Measured from con_yard_n.png:
-      //  bbox: x=256, y=130, w=1536, h=1251
-      //  south-tip pivot (full image): x≈1016.5, y=1380
-      //  pivot in bbox-space: x≈760.5, y=1250
-      crop:  { x: 256, y: 130, w: 1536, h: 1251 },
-      pivot: null, // pivot is controlled via SPRITE_TUNE (see below)
-      teamColor: true // apply team palette to accent pixels
-    }
-  };
-  // --- Barracks (animated atlas; kind = "barracks", asset folder = "barrack") ---
-  const BARRACKS_ATLAS = {
-    idle:  { json: 'asset/sprite/const/normal/barrack/barrack_idle.json',  base: 'asset/sprite/const/normal/barrack/' },
-    build: { json: 'asset/sprite/const/const_anim/barrack/barrack_const.json', base: 'asset/sprite/const/const_anim/barrack/' },
-    die:   { json: 'asset/sprite/const/distruct/barrack/barrack_distruct.json', base: 'asset/sprite/const/distruct/barrack/' },
-    _loading: false,
-    _ready: false,
-    atlases: { idle: null, build: null, die: null },
-    frames:  { idle: null, build: null, die: null }
-  };
-
-  function _barracksSortFrames(frames){
-    if (!frames || !frames.length) return frames || [];
-    const num = (s)=>{
-      const m = String(s).match(/(\d+)(?!.*\d)/);
-      return m ? parseInt(m[1], 10) : -1;
-    };
-    return frames.slice().sort((a,b)=>{
-      const na = num(a), nb = num(b);
-      if (na !== -1 && nb !== -1 && na !== nb) return na - nb;
-      return String(a).localeCompare(String(b));
-    });
-  }
-
-  async function ensureBarracksAtlasLoaded(){
-    if (BARRACKS_ATLAS._ready || BARRACKS_ATLAS._loading) return;
-    BARRACKS_ATLAS._loading = true;
-    try{
-      const atp = (window.PO && window.PO.atlasTP) || null;
-      if (!atp || !atp.loadAtlasTPMulti || !atp.listFramesByPrefix) throw new Error('atlasTP not ready');
-
-      const loadOne = async (slotKey, def)=>{
-        try{
-          const atlas = await atp.loadAtlasTPMulti(def.json, def.base);
-          const frames = _barracksSortFrames(atp.listFramesByPrefix(atlas, ''));
-          if (!frames || frames.length === 0) throw new Error('no frames in atlas');
-          BARRACKS_ATLAS.atlases[slotKey] = atlas;
-          BARRACKS_ATLAS.frames[slotKey] = frames;
-          return true;
-        }catch(e){
-          console.warn(`[barracks] atlas load failed (${slotKey})`, def.json, e);
-          return false;
-        }
-      };
-
-      const okIdle = await loadOne('idle', BARRACKS_ATLAS.idle);
-      await loadOne('build', BARRACKS_ATLAS.build);
-      await loadOne('die', BARRACKS_ATLAS.die);
-
-      BARRACKS_ATLAS._ready = !!okIdle;
-      if (BARRACKS_ATLAS._ready) console.log('[barracks] atlases ready');
-    } finally {
-      BARRACKS_ATLAS._loading = false;
-    }
-  }
+  const CON_YARD_PNG = ASSET.sprite.const.normal.con_yard;
   // === Sprite tuning knobs (YOU edit these) ===
   // pivotNudge is in SOURCE pixels (bbox-space, before scaling).
   // offsetNudge is in SCREEN pixels (after scaling, before zoom).
@@ -7524,7 +7454,9 @@ const keys=new Set();
       try{
         let kinds = [];
         // 1) sprite-backed kinds (HQ etc)
-        kinds = kinds.concat(Object.keys(BUILD_SPRITE||{}));
+        if (window.OURender && typeof OURender.getBuildSpriteKinds === "function"){
+          kinds = kinds.concat(OURender.getBuildSpriteKinds() || []);
+        }
         // 2) module-backed kinds (barracks etc)
         if (window.PO && PO.buildings && typeof PO.buildings.tunerKinds === "function"){
           kinds = kinds.concat(PO.buildings.tunerKinds());
@@ -7765,7 +7697,9 @@ const keys=new Set();
 
       const t = _tuneObj(TUNER.targetKind);
       if (bSel){
-        const cfg = BUILD_SPRITE[TUNER.targetKind];
+        const cfg = (window.OURender && typeof OURender.getBuildSpriteCfg === "function")
+          ? OURender.getBuildSpriteCfg(TUNER.targetKind)
+          : null;
         const img = cfg && cfg.img;
         const crop = (cfg && cfg.crop) ? cfg.crop : { x:0, y:0, w:(img?img.naturalWidth:1), h:(img?img.naturalHeight:1) };
         const footprintW = (bSel.tw + bSel.th) * ISO_X;
@@ -8584,7 +8518,7 @@ function draw(){
     if (window.OURender && typeof window.OURender.draw === "function"){
       window.OURender.draw({
         canvas, ctx, cam, state, TEAM, MAP_W, MAP_H, TILE, ISO_X, ISO_Y,
-        terrain, ore, explored, visible, BUILD, DEFENSE, BUILD_SPRITE, NAME_KO,
+        terrain, ore, explored, visible, BUILD, DEFENSE, NAME_KO,
         units, buildings, bullets, traces, impacts, fires, healMarks, flashes, casings,
         gameOver, POWER,
         updateMoney: (__ou_ui && typeof __ou_ui.updateMoney === "function") ? __ou_ui.updateMoney : null,
@@ -8595,6 +8529,7 @@ function draw(){
         rectFromDrag, refreshPrimaryBuildingBadgesUI,
         exp1Fxs,
         EXP1_PNG, EXP1_JSON,
+        CON_YARD_PNG,
         smokeWaves, smokePuffs, dustPuffs, dmgSmokePuffs, bloodStains, bloodPuffs,
         explosions,
         INF_DIE_PNG,
