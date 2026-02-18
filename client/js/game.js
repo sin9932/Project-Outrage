@@ -1,4 +1,4 @@
-;(function(){
+﻿;(function(){
   // Debug/validation mode: add ?debug=1 to URL
   const DEV_VALIDATE = /(?:\?|&)debug=1(?:&|$)/.test(location.search);
   const DEV_VALIDATE_THROW = false; // if true, throws on first invariant failure
@@ -35,9 +35,13 @@ ${e.filename}:${e.lineno}:${e.colno}
   const ctx = canvas.getContext("2d");
   const mmCanvas = document.getElementById("mmc");
   const mmCtx = mmCanvas.getContext("2d");
-  const $ = (id) => document.getElementById(id);
 
   // fps UI is handled in ou_ui.js
+
+  // [refactor] UI helpers extracted -> ou_ui.js (Stage 4)
+  const __ou_ui = (window.OUUI && typeof window.OUUI.create === "function")
+    ? window.OUUI.create()
+    : null;
 
   function toast(text, dur=1.0){
     if (__ou_ui && typeof __ou_ui.toast === "function"){
@@ -45,64 +49,7 @@ ${e.filename}:${e.lineno}:${e.colno}
     }
   }
 
-  const uiRadarStat = $("radarStat");
-  const uiMmHint = $("mmHint");
-  const uiPowerFill = $("powerFill");
-  const uiPowerNeed = $("powerNeed");
-  // Power tooltip element is owned by ou_ui.js
-  // Power tooltip is handled in ou_ui.js
-
-  const qFillMain = $("qFillMain");
-  const qFillDef  = $("qFillDef");
-  const qFillInf  = $("qFillInf");
-  const qFillVeh  = $("qFillVeh");
-  const qTxtMain = $("qTxtMain");
-  const qTxtDef  = $("qTxtDef");
-  const qTxtInf  = $("qTxtInf");
-  const qTxtVeh  = $("qTxtVeh");
-
-  const badgeBar = $("badgeBar");
-  const badgeFac = $("badgeFac");
-
-  const btnRef = $("bRef");
-  const btnPow = $("bPow");
-  const btnBar = $("bBar");
-  const btnFac = $("bFac");
-  const btnTur = $("bTur");
-  const btnWall = $("bWall") || $("btnWall");
-    const btnRad = $("bRad");
-  const btnCan = $("bCan");
-  const btnToHQ = $("toHQ");
-  const btnSell = $("sell");
-
-  const btnInf = $("pInf");
-  const btnEng = $("pEng");
-  const btnSnp = $("pSnp");
-  const btnTnk = $("pTnk");
-  const btnHar = $("pHar");
-  const btnIFV = $("pIFV");
-  // [refactor] UI helpers extracted -> ou_ui.js (Stage 4)
-  const __ou_ui = (window.OUUI && typeof window.OUUI.create === "function")
-    ? window.OUUI.create()
-    : null;
-
-  const btnRepair = $("repair");
-  const btnStop = $("stop");
-  const btnScatter = $("scatter");
-  const btnCancelSel = $("cancelSel");
-  const btnSelAllKind = $("selAllKind");
-  const btnRepair2 = $("repair2");
-  const btnStop2 = $("stop2");
-  const btnScatter2 = $("scatter2");
-
   // Sidebar button UI is managed by ou_ui.js. Keep game.js free of DOM mutations here.
-
-  const pregame = $("pregame");
-  const startBtn = $("startBtn");
-  const pColorInput = $("pColor");
-  const eColorInput = $("eColor");
-  const fogOffChk = $("fogOff");
-  const fastProdChk = $("fastProd");
 
   let spawnChoice = "left";
   let startMoney = 10000;
@@ -9536,13 +9483,6 @@ if (state.selection.size>0 && inMap(tx,ty) && ore[idx(tx,ty)]>0){
     enqueueEcon({ type:"setBuild", kind });
   }
 
-  btnRef.onclick=()=>setBuild("refinery");
-  btnPow.onclick=()=>setBuild("power");
-  btnBar.onclick=()=>setBuild("barracks");
-  btnFac.onclick=()=>setBuild("factory");
-  btnTur.onclick=()=>setBuild("turret");
-  btnRad.onclick=()=>{ if(!hasBuilding(TEAM.PLAYER,"refinery")){ toast("레이더는 정제소가 필요함"); return; } setBuild("radar"); };
-
   function _applyLaneRClick(laneKey, kind){
     const lane = state.buildLane ? state.buildLane[laneKey] : null;
     if (!lane) return;
@@ -9592,29 +9532,6 @@ if (state.selection.size>0 && inMap(tx,ty) && ore[idx(tx,ty)]>0){
   }
 
   // Right-click on the currently building item: 1st = pause(대기, no spending), 2nd = cancel + refund spent cost.
-  function attachLaneRClick(btn, laneKey, kind){
-    if (!btn) return;
-    btn.addEventListener("contextmenu", (ev)=>{
-      ev.preventDefault();
-      enqueueEcon({ type:"laneRClick", laneKey, kind });
-    });
-  }
-  attachLaneRClick(btnPow, "main", "power");
-  attachLaneRClick(btnRef, "main", "refinery");
-  attachLaneRClick(btnBar, "main", "barracks");
-  attachLaneRClick(btnFac, "main", "factory");
-  attachLaneRClick(btnRad, "main", "radar");
-  attachLaneRClick(btnTur, "def", "turret");
-  if (btnCan) btnCan.onclick = ()=>cancelBuild();
-  if (btnToHQ) btnToHQ.onclick = ()=>goToHQ();
-  if (btnSell) btnSell.onclick = ()=>enqueueEcon({ type:"sellSelected" });
-
-  btnInf.onclick=()=>enqueueEcon({ type:"queueUnit", kind:"infantry" });
-  btnEng.onclick=()=>enqueueEcon({ type:"queueUnit", kind:"engineer" });
-  btnSnp.onclick=()=>enqueueEcon({ type:"queueUnit", kind:"sniper" });
-  btnTnk.onclick=()=>enqueueEcon({ type:"queueUnit", kind:"tank" });
-  btnHar.onclick=()=>enqueueEcon({ type:"queueUnit", kind:"harvester" });
-  btnIFV.onclick=()=>enqueueEcon({ type:"queueUnit", kind:"ifv" });
 
   function _applyUnitRClick(kind){
     const need = kindToProducer(kind);
@@ -9678,33 +9595,6 @@ if (state.selection.size>0 && inMap(tx,ty) && ore[idx(tx,ty)]>0){
   }
 
   // Unit production right-click: 1st = pause(대기), 2nd (while paused) = cancel + refund spent.
-  function attachUnitRClick(btn, kind){
-    if (!btn) return;
-    btn.addEventListener("contextmenu", (ev)=>{
-      ev.preventDefault();
-      enqueueEcon({ type:"unitRClick", kind });
-    });
-  }
-  attachUnitRClick(btnInf, "infantry");
-  attachUnitRClick(btnEng, "engineer");
-  attachUnitRClick(btnSnp, "sniper");
-  attachUnitRClick(btnTnk, "tank");
-  attachUnitRClick(btnHar, "harvester");
-  attachUnitRClick(btnIFV, "ifv");
-  if (btnCancelSel) btnCancelSel.onclick = ()=>{ state.selection.clear(); updateSelectionUI(); };
-  if (btnRepair) btnRepair.onclick = ()=>enqueueEcon({ type:"toggleRepair" });
-  if (btnStop) btnStop.onclick = ()=>stopUnits();
-  if (btnScatter) btnScatter.onclick = ()=>scatterUnits();
-  
-  // Duplicate command buttons in VEH panel
-  if (btnRepair2) btnRepair2.onclick = ()=>enqueueEcon({ type:"toggleRepair" });
-  if (btnStop2) btnStop2.onclick = ()=>stopUnits();
-  if (btnScatter2) btnScatter2.onclick = ()=>scatterUnits();
-
-  
-  // Repair/Sell cursor modes (RA2 style)
-  const btnRepairMode = $("btnRepairMode");
-  const btnSellMode   = $("btnSellMode");
 
 function applyMouseMode(mode){
     state.mouseMode = mode;
@@ -9713,17 +9603,30 @@ function applyMouseMode(mode){
     }
   }
 
-  if (btnRepairMode){
-    btnRepairMode.onclick = ()=>{
-      applyMouseMode(state.mouseMode==="repair" ? "normal" : "repair");
-      toast(state.mouseMode==="repair" ? "수리 모드" : "수리 해제");
-    };
-  }
-  if (btnSellMode){
-    btnSellMode.onclick = ()=>{
-      applyMouseMode(state.mouseMode==="sell" ? "normal" : "sell");
-      toast(state.mouseMode==="sell" ? "매각 모드" : "매각 해제");
-    };
+  if (__ou_ui && typeof __ou_ui.bindGameButtons === "function"){
+    __ou_ui.bindGameButtons({
+      onSetBuild: (kind)=>setBuild(kind),
+      onRadarBuild: ()=>{ if(!hasBuilding(TEAM.PLAYER,"refinery")){ toast("레이더는 정제소가 필요함"); return; } setBuild("radar"); },
+      onLaneRClick: (laneKey, kind)=>enqueueEcon({ type:"laneRClick", laneKey, kind }),
+      onQueueUnit: (kind)=>enqueueEcon({ type:"queueUnit", kind }),
+      onUnitRClick: (kind)=>enqueueEcon({ type:"unitRClick", kind }),
+      onCancelBuild: ()=>cancelBuild(),
+      onGoToHQ: ()=>goToHQ(),
+      onSellSelected: ()=>enqueueEcon({ type:"sellSelected" }),
+      onCancelSel: ()=>{ state.selection.clear(); updateSelectionUI(); },
+      onToggleRepair: ()=>enqueueEcon({ type:"toggleRepair" }),
+      onStopUnits: ()=>stopUnits(),
+      onScatterUnits: ()=>scatterUnits(),
+      onToggleRepairMode: ()=>{
+        applyMouseMode(state.mouseMode==="repair" ? "normal" : "repair");
+        toast(state.mouseMode==="repair" ? "수리 모드" : "수리 해제");
+      },
+      onToggleSellMode: ()=>{
+        applyMouseMode(state.mouseMode==="sell" ? "normal" : "sell");
+        toast(state.mouseMode==="sell" ? "매각 모드" : "매각 해제");
+      },
+      onSelectAllKind: ()=>selectAllUnitsScreenThenMap()
+    });
   }
 
 
@@ -9739,7 +9642,6 @@ function applyMouseMode(mode){
     __ou_ui.bindProdTabClicks({ onSelect: setProdCat });
   }
   setProdCat("main");
-if (btnSelAllKind) btnSelAllKind.onclick = ()=>selectAllUnitsScreenThenMap();
 
   function toggleRepair(){
     for (const id of state.selection){
@@ -10172,9 +10074,10 @@ function spawnStartingUnits(){
 }
 
 
-startBtn.addEventListener("click", async () => {
-    state.colors.player = pColorInput.value;
-    state.colors.enemy  = eColorInput.value;
+if (__ou_ui && typeof __ou_ui.bindPregameStart === "function"){
+  __ou_ui.bindPregameStart({ onStart: async (payload) => {
+    if (payload && payload.playerColor) state.colors.player = payload.playerColor;
+    if (payload && payload.enemyColor) state.colors.enemy  = payload.enemyColor;
 
     // Apply chosen colors to team palette (for magenta->team recolor) and clear caches.
     try{
@@ -10199,11 +10102,11 @@ startBtn.addEventListener("click", async () => {
     }catch(_e){}
 
 
-    fogEnabled = !(fogOffChk && fogOffChk.checked);
+    fogEnabled = !(payload && payload.fogOff);
 
     // Debug: player-only instant production/build completion (1s)
     state.debug = state.debug || {};
-    state.debug.fastProd = !!(fastProdChk && fastProdChk.checked);
+    state.debug.fastProd = !!(payload && payload.fastProd);
 
     START_MONEY = startMoney;
     state.player.money = START_MONEY;
@@ -10214,18 +10117,18 @@ startBtn.addEventListener("click", async () => {
     try {
       if (window.PO && PO.buildings && typeof PO.buildings.preload === "function") {
         if (__ou_ui && typeof __ou_ui.setPregameLoading === "function"){
-          __ou_ui.setPregameLoading({ startBtn, loading: true });
+          __ou_ui.setPregameLoading({ loading: true });
         }
         await PO.buildings.preload();
         if (__ou_ui && typeof __ou_ui.setPregameLoading === "function"){
-          __ou_ui.setPregameLoading({ startBtn, loading: false });
+          __ou_ui.setPregameLoading({ loading: false });
         }
       }
     } catch (e) {
       console.error("[preload] building assets failed", e);
       alert("Asset preload failed. Check DevTools Console/Network.\n" + (e && e.message ? e.message : e));
       if (__ou_ui && typeof __ou_ui.setPregameLoading === "function"){
-        __ou_ui.setPregameLoading({ startBtn, loading: false, forceEnable: true });
+        __ou_ui.setPregameLoading({ loading: false, forceEnable: true });
       }
       return;
     }
@@ -10233,12 +10136,13 @@ startBtn.addEventListener("click", async () => {
     placeStart(spawnChoice);
     spawnStartingUnits();
     if (__ou_ui && typeof __ou_ui.hidePregame === "function"){
-      __ou_ui.hidePregame({ pregame });
+      __ou_ui.hidePregame({});
     }
     // Start BGM on user gesture (autoplay-safe)
     BGM.userStart();
     running = true;
-  });
+  }});
+}
 
   let last=performance.now();
   let fpsAcc=0, fpsN=0, fpsT=0;
@@ -10855,3 +10759,4 @@ window.unboardIFV = tryUnloadIFV;
 window.resolveUnitOverlaps = resolveUnitOverlaps;
 
 })();
+

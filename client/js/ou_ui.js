@@ -1215,6 +1215,144 @@ function ensureBadge(btn){
       bind(r.btnIFV, "ifv");
     }
 
+    function bindGameButtons(env){
+      env = env || {};
+      const onSetBuild = env.onSetBuild;
+      const onRadarBuild = env.onRadarBuild;
+      const onLaneRClick = env.onLaneRClick;
+      const onQueueUnit = env.onQueueUnit;
+      const onUnitRClick = env.onUnitRClick;
+      const onCancelBuild = env.onCancelBuild;
+      const onGoToHQ = env.onGoToHQ;
+      const onSellSelected = env.onSellSelected;
+      const onCancelSel = env.onCancelSel;
+      const onToggleRepair = env.onToggleRepair;
+      const onStopUnits = env.onStopUnits;
+      const onScatterUnits = env.onScatterUnits;
+      const onToggleRepairMode = env.onToggleRepairMode;
+      const onToggleSellMode = env.onToggleSellMode;
+      const onSelectAllKind = env.onSelectAllKind;
+
+      if (!bindGameButtons._bound) bindGameButtons._bound = new WeakMap();
+      const bound = bindGameButtons._bound;
+      const bindOnce = (btn, evt, key, fn)=>{
+        if (!btn || typeof fn !== "function") return;
+        let set = bound.get(btn);
+        if (!set){ set = new Set(); bound.set(btn, set); }
+        const tag = evt + ":" + key;
+        if (set.has(tag)) return;
+        set.add(tag);
+        btn.addEventListener(evt, fn);
+      };
+
+      const $ = (id)=>document.getElementById(id);
+      const btnRef = $("bRef");
+      const btnPow = $("bPow");
+      const btnBar = $("bBar");
+      const btnFac = $("bFac");
+      const btnTur = $("bTur");
+      const btnRad = $("bRad");
+      const btnCan = $("bCan");
+      const btnToHQ = $("toHQ");
+      const btnSell = $("sell");
+
+      const btnInf = $("pInf");
+      const btnEng = $("pEng");
+      const btnSnp = $("pSnp");
+      const btnTnk = $("pTnk");
+      const btnHar = $("pHar");
+      const btnIFV = $("pIFV");
+
+      const btnRepair = $("repair");
+      const btnStop = $("stop");
+      const btnScatter = $("scatter");
+      const btnCancelSel = $("cancelSel");
+      const btnSelAllKind = $("selAllKind");
+      const btnRepair2 = $("repair2");
+      const btnStop2 = $("stop2");
+      const btnScatter2 = $("scatter2");
+
+      const btnRepairMode = $("btnRepairMode");
+      const btnSellMode   = $("btnSellMode");
+
+      bindOnce(btnRef, "click", "setBuild:refinery", ()=>onSetBuild && onSetBuild("refinery"));
+      bindOnce(btnPow, "click", "setBuild:power", ()=>onSetBuild && onSetBuild("power"));
+      bindOnce(btnBar, "click", "setBuild:barracks", ()=>onSetBuild && onSetBuild("barracks"));
+      bindOnce(btnFac, "click", "setBuild:factory", ()=>onSetBuild && onSetBuild("factory"));
+      bindOnce(btnTur, "click", "setBuild:turret", ()=>onSetBuild && onSetBuild("turret"));
+      bindOnce(btnRad, "click", "setBuild:radar", ()=>onRadarBuild ? onRadarBuild() : (onSetBuild && onSetBuild("radar")));
+
+      bindOnce(btnPow, "contextmenu", "laneRClick:power", (ev)=>{ ev.preventDefault(); onLaneRClick && onLaneRClick("main", "power"); });
+      bindOnce(btnRef, "contextmenu", "laneRClick:refinery", (ev)=>{ ev.preventDefault(); onLaneRClick && onLaneRClick("main", "refinery"); });
+      bindOnce(btnBar, "contextmenu", "laneRClick:barracks", (ev)=>{ ev.preventDefault(); onLaneRClick && onLaneRClick("main", "barracks"); });
+      bindOnce(btnFac, "contextmenu", "laneRClick:factory", (ev)=>{ ev.preventDefault(); onLaneRClick && onLaneRClick("main", "factory"); });
+      bindOnce(btnRad, "contextmenu", "laneRClick:radar", (ev)=>{ ev.preventDefault(); onLaneRClick && onLaneRClick("main", "radar"); });
+      bindOnce(btnTur, "contextmenu", "laneRClick:turret", (ev)=>{ ev.preventDefault(); onLaneRClick && onLaneRClick("def", "turret"); });
+
+      bindOnce(btnCan, "click", "cancelBuild", ()=>onCancelBuild && onCancelBuild());
+      bindOnce(btnToHQ, "click", "goToHQ", ()=>onGoToHQ && onGoToHQ());
+      bindOnce(btnSell, "click", "sellSelected", ()=>onSellSelected && onSellSelected());
+
+      bindOnce(btnInf, "click", "queueUnit:infantry", ()=>onQueueUnit && onQueueUnit("infantry"));
+      bindOnce(btnEng, "click", "queueUnit:engineer", ()=>onQueueUnit && onQueueUnit("engineer"));
+      bindOnce(btnSnp, "click", "queueUnit:sniper", ()=>onQueueUnit && onQueueUnit("sniper"));
+      bindOnce(btnTnk, "click", "queueUnit:tank", ()=>onQueueUnit && onQueueUnit("tank"));
+      bindOnce(btnHar, "click", "queueUnit:harvester", ()=>onQueueUnit && onQueueUnit("harvester"));
+      bindOnce(btnIFV, "click", "queueUnit:ifv", ()=>onQueueUnit && onQueueUnit("ifv"));
+
+      bindOnce(btnInf, "contextmenu", "unitRClick:infantry", (ev)=>{ ev.preventDefault(); onUnitRClick && onUnitRClick("infantry"); });
+      bindOnce(btnEng, "contextmenu", "unitRClick:engineer", (ev)=>{ ev.preventDefault(); onUnitRClick && onUnitRClick("engineer"); });
+      bindOnce(btnSnp, "contextmenu", "unitRClick:sniper", (ev)=>{ ev.preventDefault(); onUnitRClick && onUnitRClick("sniper"); });
+      bindOnce(btnTnk, "contextmenu", "unitRClick:tank", (ev)=>{ ev.preventDefault(); onUnitRClick && onUnitRClick("tank"); });
+      bindOnce(btnHar, "contextmenu", "unitRClick:harvester", (ev)=>{ ev.preventDefault(); onUnitRClick && onUnitRClick("harvester"); });
+      bindOnce(btnIFV, "contextmenu", "unitRClick:ifv", (ev)=>{ ev.preventDefault(); onUnitRClick && onUnitRClick("ifv"); });
+
+      bindOnce(btnCancelSel, "click", "cancelSel", ()=>onCancelSel && onCancelSel());
+      bindOnce(btnRepair, "click", "toggleRepair", ()=>onToggleRepair && onToggleRepair());
+      bindOnce(btnStop, "click", "stopUnits", ()=>onStopUnits && onStopUnits());
+      bindOnce(btnScatter, "click", "scatterUnits", ()=>onScatterUnits && onScatterUnits());
+
+      bindOnce(btnRepair2, "click", "toggleRepair:veh", ()=>onToggleRepair && onToggleRepair());
+      bindOnce(btnStop2, "click", "stopUnits:veh", ()=>onStopUnits && onStopUnits());
+      bindOnce(btnScatter2, "click", "scatterUnits:veh", ()=>onScatterUnits && onScatterUnits());
+
+      bindOnce(btnRepairMode, "click", "repairMode", ()=>onToggleRepairMode && onToggleRepairMode());
+      bindOnce(btnSellMode, "click", "sellMode", ()=>onToggleSellMode && onToggleSellMode());
+
+      bindOnce(btnSelAllKind, "click", "selAllKind", ()=>onSelectAllKind && onSelectAllKind());
+    }
+
+    function bindPregameStart(env){
+      env = env || {};
+      const onStart = env.onStart;
+      const $ = (id)=>document.getElementById(id);
+      const startBtn = env.startBtn || $("startBtn");
+      if (!startBtn || typeof onStart !== "function") return;
+      if (!bindPregameStart._bound) bindPregameStart._bound = new WeakSet();
+      const bound = bindPregameStart._bound;
+      if (bound.has(startBtn)) return;
+      bound.add(startBtn);
+
+      const pColorInput = env.pColorInput || $("pColor");
+      const eColorInput = env.eColorInput || $("eColor");
+      const fogOffChk = env.fogOffChk || $("fogOff");
+      const fastProdChk = env.fastProdChk || $("fastProd");
+
+      startBtn.addEventListener("click", async ()=>{
+        const payload = {
+          playerColor: pColorInput ? pColorInput.value : null,
+          enemyColor: eColorInput ? eColorInput.value : null,
+          fogOff: !!(fogOffChk && fogOffChk.checked),
+          fastProd: !!(fastProdChk && fastProdChk.checked)
+        };
+        try{
+          await onStart(payload);
+        }catch(err){
+          console.error("[pregame] start failed", err);
+        }
+      });
+    }
+
 return {
       updateSelectionUI,
             updateSidebarButtons,
@@ -1230,6 +1368,8 @@ return {
             bindPriceTipsOnce,
             updateProdTabsUI,
             bindProdTabClicks,
+            bindGameButtons,
+            bindPregameStart,
             initPregameUI,
             setPregameLoading,
             hidePregame,
