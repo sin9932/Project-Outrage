@@ -883,6 +883,17 @@ function ensureBadge(btn){
       }
     }
 
+    function bindProdTabClicks(env){
+      env = env || {};
+      const onSelect = env.onSelect;
+      const tabBtns = env.tabBtns || r.tabBtns || Array.from(document.querySelectorAll(".tabbtn[data-cat]"));
+      for (const b of tabBtns){
+        if (!b) continue;
+        const cat = b.dataset ? b.dataset.cat : b.getAttribute("data-cat");
+        b.addEventListener("click", ()=>{ if (typeof onSelect === "function") onSelect(cat); });
+      }
+    }
+
     function initPregameUI(env){
       env = env || {};
       const onSpawnChange = env.onSpawnChange;
@@ -932,6 +943,195 @@ function ensureBadge(btn){
       env = env || {};
       const pregame = env.pregame || document.getElementById("pregame");
       if (pregame) pregame.style.display = "none";
+    }
+
+    function setSellLabel(env){
+      env = env || {};
+      const btn = env.btn || document.getElementById("sell");
+      if (btn && env.text != null) btn.textContent = String(env.text);
+    }
+
+    function updateFps(env){
+      env = env || {};
+      const el = env.el || document.getElementById("fps");
+      if (!el) return;
+      const v = (env.fps != null) ? Math.round(env.fps) : env.text;
+      if (v == null) return;
+      el.textContent = `${v} fps`;
+    }
+
+    function updateTuneOverlay(env){
+      env = env || {};
+      let el = document.getElementById("tuneOverlay");
+      if (!el){
+        el = document.createElement("div");
+        el.id = "tuneOverlay";
+        el.style.position = "fixed";
+        el.style.left = "12px";
+        el.style.top = "12px";
+        el.style.zIndex = "99999";
+        el.style.padding = "10px 12px";
+        el.style.borderRadius = "10px";
+        el.style.background = "rgba(0,0,0,0.62)";
+        el.style.border = "1px solid rgba(255,255,255,0.18)";
+        el.style.color = "#e6eef7";
+        el.style.font = "12px/1.35 system-ui, -apple-system, Segoe UI, Roboto, sans-serif";
+        el.style.pointerEvents = "none";
+        document.body.appendChild(el);
+      }
+
+      if (!env.on){
+        el.style.display = "none";
+        return;
+      }
+      el.style.display = "block";
+
+      const t = env.tune || {};
+      el.innerHTML =
+        "<b>SPRITE TUNER (F2)</b><br/>" +
+        "target: " + (env.targetKind || "") + "<br/>" +
+        "anchor: " + (t.anchor||"center") + "<br/>" +
+        "scaleMul: " + (t.scaleMul||1).toFixed(3) + "<br/>" +
+        "offsetNudge(px): " + (t.offsetNudge?.x||0).toFixed(1) + ", " + (t.offsetNudge?.y||0).toFixed(1) + "<br/>" +
+        "pivotNudge(src): " + (t.pivotNudge?.x||0).toFixed(1) + ", " + (t.pivotNudge?.y||0).toFixed(1) + "<br/>" +
+        "<span style='opacity:.85'>Drag=offset | Shift+Drag=pivot | Wheel=scale | R=reset | C=copy</span>";
+    }
+
+    // -------------------------
+    // Pause menu / BGM UI
+    // -------------------------
+    const _pm = { wired:false, refs:null };
+    function getPauseMenuRefs(){
+      if (_pm.refs) return _pm.refs;
+      _pm.refs = {
+        overlay: document.getElementById("pauseOverlay"),
+        track: document.getElementById("pmTrackName"),
+        prev: document.getElementById("pmPrev"),
+        play: document.getElementById("pmPlay"),
+        next: document.getElementById("pmNext"),
+        vol: document.getElementById("pmVol"),
+        volVal: document.getElementById("pmVolVal"),
+        bright: document.getElementById("pmBright"),
+        brightVal: document.getElementById("pmBrightVal"),
+        time: document.getElementById("pmTime"),
+        eq: document.getElementById("pmEQ"),
+        resume: document.getElementById("pmResume"),
+        exit: document.getElementById("pmExit")
+      };
+      return _pm.refs;
+    }
+
+    function setPauseMenuVisible(env){
+      env = env || {};
+      const refs = getPauseMenuRefs();
+      if (!refs.overlay) return;
+      const open = !!env.open;
+
+      refs.overlay.classList.toggle("show", open);
+      refs.overlay.style.display = open ? "flex" : "none";
+      refs.overlay.setAttribute("aria-hidden", open ? "false" : "true");
+
+      if (!open) return;
+
+      const bgm = env.bgm;
+      if (bgm && refs.track){
+        const n = (bgm.trackName || "(대기중)").replace(/\.[^/.]+$/,"");
+        refs.track.textContent = n;
+      }
+      if (bgm && refs.vol) refs.vol.value = String(bgm.master ?? bgm.audio?.volume ?? 0.7);
+
+      const bright = (typeof env.getBrightness === "function") ? env.getBrightness() : null;
+      if (refs.bright && bright != null) refs.bright.value = String(bright);
+      if (refs.brightVal && bright != null) refs.brightVal.textContent = Number(bright).toFixed(2);
+    }
+
+    function wirePauseMenuUI(env){
+      env = env || {};
+      const refs = getPauseMenuRefs();
+      if (!refs.overlay) return;
+      if (_pm.wired) return;
+      _pm.wired = true;
+
+      const bgm = env.bgm;
+      if (bgm && typeof bgm.mountUI === "function"){
+        // Build adapter so DOM mutations stay in ou_ui.js
+        const eqBars = [];
+        const adapter = {
+          init: () => {
+            if (refs.eq){
+              refs.eq.innerHTML = "";
+              const bars = 12;
+              for (let i=0;i<bars;i++){
+                const b = document.createElement("div");
+                b.className = "bar";
+                refs.eq.appendChild(b);
+                eqBars.push(b);
+              }
+            }
+          },
+          getEqCount: () => eqBars.length || 12,
+          setTrack: (name)=>{ if (refs.track) refs.track.textContent = String(name||""); },
+          setPlay: (playing)=>{ if (refs.play) refs.play.textContent = playing ? "⏸" : "▶"; },
+          setVol: (v)=>{ if (refs.vol) refs.vol.value = String(v ?? 0.7); },
+          setTime: (cur, dur)=>{
+            if (refs.time){
+              const fmt = (sec)=>{
+                if (!isFinite(sec) || sec < 0) return "0:00";
+                sec = Math.floor(sec);
+                const m = Math.floor(sec/60);
+                const s = sec%60;
+                return m + ":" + String(s).padStart(2,"0");
+              };
+              refs.time.textContent = fmt(cur) + " / " + fmt(dur);
+            }
+          },
+          setEqIdle: (vals)=>{
+            const n = Math.min(eqBars.length, vals.length);
+            for (let i=0;i<n;i++){
+              const v = vals[i];
+              eqBars[i].style.transform = `scaleY(${Number(v).toFixed(3)})`;
+            }
+          },
+          setEqBars: (vals)=>{
+            const n = Math.min(eqBars.length, vals.length);
+            for (let i=0;i<n;i++){
+              const v = vals[i];
+              eqBars[i].style.transform = `scaleY(${Number(v).toFixed(3)})`;
+            }
+          }
+        };
+        bgm.mountUI(adapter);
+      }
+
+      if (refs.vol) refs.vol.addEventListener("input", ()=>{
+        const v = parseFloat(refs.vol.value);
+        if (typeof env.onVol === "function") env.onVol(v);
+      });
+      if (refs.bright) refs.bright.addEventListener("input", ()=>{
+        const v = parseFloat(refs.bright.value);
+        if (refs.brightVal) refs.brightVal.textContent = (Number.isFinite(v) ? v : 1).toFixed(2);
+        if (typeof env.onBright === "function") env.onBright(v);
+      });
+      if (refs.resume) refs.resume.addEventListener("click", ()=>{ if (typeof env.onResume === "function") env.onResume(); });
+      if (refs.exit) refs.exit.addEventListener("click", ()=>{ if (typeof env.onExit === "function") env.onExit(); });
+      if (refs.prev) refs.prev.addEventListener("click", ()=>{ if (typeof env.onPrev === "function") env.onPrev(); });
+      if (refs.next) refs.next.addEventListener("click", ()=>{ if (typeof env.onNext === "function") env.onNext(); });
+      if (refs.play) refs.play.addEventListener("click", ()=>{ if (typeof env.onPlay === "function") env.onPlay(); });
+
+      // Keep pause menu open unless explicitly closed.
+      refs.overlay.addEventListener("mousedown", (e)=>{
+        e.stopPropagation();
+        if (e.target === refs.overlay) e.preventDefault();
+      });
+      refs.overlay.addEventListener("wheel", (e)=>{ e.stopPropagation(); }, { passive:false });
+    }
+
+    function isPauseOverlayTarget(target){
+      const refs = getPauseMenuRefs();
+      if (!refs.overlay || !target) return false;
+      if (target === refs.overlay) return true;
+      if (target.closest) return !!target.closest("#pauseOverlay");
+      return false;
     }
 
     function bindPriceTipsOnce(env){
@@ -1034,9 +1234,16 @@ return {
             updateBuildModeUI,
             bindPriceTipsOnce,
             updateProdTabsUI,
+            bindProdTabClicks,
             initPregameUI,
             setPregameLoading,
-            hidePregame
+            hidePregame,
+            setSellLabel,
+            updateFps,
+            updateTuneOverlay,
+            setPauseMenuVisible,
+            wirePauseMenuUI,
+            isPauseOverlayTarget
     };
   };
 })(window);

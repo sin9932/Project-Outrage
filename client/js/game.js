@@ -36,29 +36,12 @@ ${e.filename}:${e.lineno}:${e.colno}
   const mmCtx = mmCanvas.getContext("2d");
   const $ = (id) => document.getElementById(id);
 
-  const uiMoney = $("money");
-  const uiPower = $("power");
-  const uiFps = $("fps");
-  const uiBuildMode = $("buildMode");
-  const uiSelCount = $("selCount");
-  const uiSelInfo = $("selInfo");
-  const uiToast = $("toast");
+  // fps UI is handled in ou_ui.js
 
   function toast(text, dur=1.0){
-  if (__ou_ui && typeof __ou_ui.toast === "function"){
-    __ou_ui.toast(text, dur);
-    return;
-  }
-
-    if (!uiToast) return;
-    uiToast.textContent = text;
-    uiToast.style.display = "block";
-    uiToast.style.opacity = "1";
-    clearTimeout(toast._t);
-    toast._t = setTimeout(()=>{
-      uiToast.style.opacity="0";
-      setTimeout(()=>{ uiToast.style.display="none"; }, 140);
-    }, Math.max(250, dur*1000));
+    if (__ou_ui && typeof __ou_ui.toast === "function"){
+      __ou_ui.toast(text, dur);
+    }
   }
 
   const uiRadarStat = $("radarStat");
@@ -1019,26 +1002,6 @@ function getBaseBuildTime(kind){
     return null;
   }
 
-  function _ensureTuneOverlay(){
-    let el = document.getElementById("tuneOverlay");
-    if (el) return el;
-    el = document.createElement("div");
-    el.id = "tuneOverlay";
-    el.style.position = "fixed";
-    el.style.left = "12px";
-    el.style.top = "12px";
-    el.style.zIndex = "99999";
-    el.style.padding = "10px 12px";
-    el.style.borderRadius = "10px";
-    el.style.background = "rgba(0,0,0,0.62)";
-    el.style.border = "1px solid rgba(255,255,255,0.18)";
-    el.style.color = "#e6eef7";
-    el.style.font = "12px/1.35 system-ui, -apple-system, Segoe UI, Roboto, sans-serif";
-    el.style.pointerEvents = "none";
-    document.body.appendChild(el);
-    return el;
-  }
-
   function _saveTune(){
     try{
       localStorage.setItem("SPRITE_TUNE", JSON.stringify(SPRITE_TUNE));
@@ -1061,21 +1024,9 @@ function getBaseBuildTime(kind){
   }
 
   function _updateTuneOverlay(){
-    const el = _ensureTuneOverlay();
-    if (!TUNER.on){
-      el.style.display = "none";
-      return;
-    }
-    el.style.display = "block";
+    if (!__ou_ui || typeof __ou_ui.updateTuneOverlay !== "function") return;
     const t = _tuneObj(TUNER.targetKind);
-    el.innerHTML =
-      "<b>SPRITE TUNER (F2)</b><br/>" +
-      "target: " + TUNER.targetKind + "<br/>" +
-      "anchor: " + (t.anchor||"center") + "<br/>" +
-      "scaleMul: " + (t.scaleMul||1).toFixed(3) + "<br/>" +
-      "offsetNudge(px): " + (t.offsetNudge?.x||0).toFixed(1) + ", " + (t.offsetNudge?.y||0).toFixed(1) + "<br/>" +
-      "pivotNudge(src): " + (t.pivotNudge?.x||0).toFixed(1) + ", " + (t.pivotNudge?.y||0).toFixed(1) + "<br/>" +
-      "<span style='opacity:.85'>Drag=offset | Shift+Drag=pivot | Wheel=scale | R=reset | C=copy</span>";
+    __ou_ui.updateTuneOverlay({ on: TUNER.on, targetKind: TUNER.targetKind, tune: t });
   }
 
   async function _copyTune(){
@@ -9025,7 +8976,9 @@ const keys=new Set();
   const _ou_onKeyDown = (e)=>{
     // Pause menu: block gameplay hotkeys while open
     if (pauseMenuOpen){
-      const inOverlay = (e.target && (e.target.closest && e.target.closest("#pauseOverlay")));
+      const inOverlay = (__ou_ui && typeof __ou_ui.isPauseOverlayTarget === "function")
+        ? __ou_ui.isPauseOverlayTarget(e.target)
+        : false;
       if (e.key === "Escape" || e.key === "Esc" || e.code === "Escape" || e.keyCode === 27){
         togglePauseMenu(false);
         e.preventDefault();
@@ -9914,17 +9867,11 @@ if (state.selection.size>0 && inMap(tx,ty) && ore[idx(tx,ty)]>0){
   const btnRepairMode = $("btnRepairMode");
   const btnSellMode   = $("btnSellMode");
 
-  function applyMouseMode(mode){
-  if (__ou_ui && typeof __ou_ui.applyMouseMode === "function"){
-    __ou_ui.applyMouseMode({ state, mode });
-    return;
-  }
-
+function applyMouseMode(mode){
     state.mouseMode = mode;
-    document.body.classList.toggle("cursor-repair", mode==="repair");
-    document.body.classList.toggle("cursor-sell",   mode==="sell");
-    if (btnRepairMode) btnRepairMode.classList.toggle("on", mode==="repair");
-    if (btnSellMode)   btnSellMode.classList.toggle("on", mode==="sell");
+    if (__ou_ui && typeof __ou_ui.applyMouseMode === "function"){
+      __ou_ui.applyMouseMode({ state, mode });
+    }
   }
 
   if (btnRepairMode){
@@ -9942,22 +9889,15 @@ if (state.selection.size>0 && inMap(tx,ty) && ore[idx(tx,ty)]>0){
 
 
   // Production category tabs
-  const tabBtns = Array.from(document.querySelectorAll(".tabbtn"));
-  const panels = {
-    main: $("panelMain"),
-    def: $("panelDef"),
-    inf: $("panelInf"),
-    veh: $("panelVeh"),
-  };
   let prodCat = "main";
   function setProdCat(cat){
     prodCat = cat;
     if (__ou_ui && typeof __ou_ui.updateProdTabsUI === "function"){
-      __ou_ui.updateProdTabsUI({ tabBtns, panels, prodCat });
+      __ou_ui.updateProdTabsUI({ prodCat });
     }
   }
-  for (const b of tabBtns){
-    b.addEventListener("click", ()=>setProdCat(b.dataset.cat));
+  if (__ou_ui && typeof __ou_ui.bindProdTabClicks === "function"){
+    __ou_ui.bindProdTabClicks({ onSelect: setProdCat });
   }
   setProdCat("main");
 if (btnSelAllKind) btnSelAllKind.onclick = ()=>selectAllUnitsScreenThenMap();
@@ -10867,34 +10807,7 @@ function drawPathFx(){
 
     if (__ou_ui && typeof __ou_ui.updateBuildModeUI === "function"){
       __ou_ui.updateBuildModeUI({ state });
-      return;
     }
-
-// BuildMode pill (global placement state)
-    const anyReady = !!(state.buildLane.main.ready || state.buildLane.def.ready);
-    const anyBuilding = !!(state.buildLane.main.queue || state.buildLane.def.queue || (state.buildLane.main.fifo&&state.buildLane.main.fifo.length) || (state.buildLane.def.fifo&&state.buildLane.def.fifo.length));
-    if (state.build.active) {
-      uiBuildMode.textContent = "PLACE";
-      uiBuildMode.className = "pill ok";
-    } else if (anyReady) {
-      uiBuildMode.textContent = "READY";
-      uiBuildMode.className = "pill ok";
-    } else if (anyBuilding) {
-      uiBuildMode.textContent = "BUILD";
-      uiBuildMode.className = "pill";
-    } else {
-      uiBuildMode.textContent = "OFF";
-      uiBuildMode.className = "pill";
-    }
-
-    // Blink main/def tabs if there is a READY building waiting for placement.
-    try{
-      for (const b of tabBtns){
-        if (!b) continue;
-        if (b.dataset.cat==="main") b.classList.toggle("blink", !!state.buildLane.main.ready);
-        if (b.dataset.cat==="def")  b.classList.toggle("blink", !!state.buildLane.def.ready);
-      }
-    }catch(_e){}
   }
 
 
@@ -10920,10 +10833,8 @@ function draw(){
     const W=canvas.width, H=canvas.height;
     ctx.clearRect(0,0,W,H);
     if (__ou_ui && typeof __ou_ui.updateMoney === "function") {
-    __ou_ui.updateMoney(state.player.money);
-  } else {
-    uiMoney.textContent = "$ " + Math.floor(state.player.money);
-  }
+      __ou_ui.updateMoney(state.player.money);
+    }
     updateProdBadges();
 
     for (let s=0; s<=(MAP_W-1)+(MAP_H-1); s++){
@@ -11768,8 +11679,9 @@ for (let ty=0; ty<MAP_H; ty+=2){
   }
 
   function setButtonText() {
-    // Keep non-sidebar labels here if needed.
-    if (btnSell) btnSell.textContent = `매각(D)`;
+    if (__ou_ui && typeof __ou_ui.setSellLabel === "function"){
+      __ou_ui.setSellLabel({ text: "매각(D)" });
+    }
   }
 
   function clearWorld(){
@@ -12026,17 +11938,10 @@ startBtn.addEventListener("click", async () => {
       if (window.PO && PO.buildings && typeof PO.buildings.preload === "function") {
         if (__ou_ui && typeof __ou_ui.setPregameLoading === "function"){
           __ou_ui.setPregameLoading({ startBtn, loading: true });
-        } else {
-          const _oldTxt = startBtn.textContent;
-          startBtn.disabled = true;
-          startBtn.textContent = "LOADING...";
-          startBtn.dataset._oldTxt = _oldTxt;
         }
         await PO.buildings.preload();
         if (__ou_ui && typeof __ou_ui.setPregameLoading === "function"){
           __ou_ui.setPregameLoading({ startBtn, loading: false });
-        } else {
-          startBtn.textContent = startBtn.dataset._oldTxt || startBtn.textContent;
         }
       }
     } catch (e) {
@@ -12044,8 +11949,6 @@ startBtn.addEventListener("click", async () => {
       alert("Asset preload failed. Check DevTools Console/Network.\n" + (e && e.message ? e.message : e));
       if (__ou_ui && typeof __ou_ui.setPregameLoading === "function"){
         __ou_ui.setPregameLoading({ startBtn, loading: false, forceEnable: true });
-      } else {
-        startBtn.disabled = false;
       }
       return;
     }
@@ -12054,8 +11957,6 @@ startBtn.addEventListener("click", async () => {
     spawnStartingUnits();
     if (__ou_ui && typeof __ou_ui.hidePregame === "function"){
       __ou_ui.hidePregame({ pregame });
-    } else {
-      pregame.style.display = "none";
     }
     // Start BGM on user gesture (autoplay-safe)
     BGM.userStart();
@@ -12073,34 +11974,9 @@ startBtn.addEventListener("click", async () => {
   let pauseMenuOpen = false;
   let pauseStartMs = null; // real-time ms when pause menu opened (for freezing battle timer)
 
-  // IMPORTANT: pause overlay DOM is declared at the very bottom of the HTML,
-  // so querying it here can return null depending on parse order.
-  // We therefore do lazy lookup every time, with a small cache.
-  const __pmCache = { overlay:null, refs:null };
-  function getPauseMenuRefs(){
-  return {
-    overlay: document.getElementById("pauseOverlay"),
-    track: document.getElementById("pmTrackName"),
-    prev: document.getElementById("pmPrev"),
-    play: document.getElementById("pmPlay"),
-    next: document.getElementById("pmNext"),
-    vol: document.getElementById("pmVol"),
-    volVal: document.getElementById("pmVolVal"),
-    bright: document.getElementById("pmBright"),
-    brightVal: document.getElementById("pmBrightVal"),
-    time: document.getElementById("pmTime"),
-    eq: document.getElementById("pmEQ"),
-    resume: document.getElementById("pmResume"),
-    exit: document.getElementById("pmExit"),
-  };
-}
-
   function setGameBrightness(v){
     const val = Math.max(0.5, Math.min(1.6, v));
     document.documentElement.style.setProperty("--game-brightness", String(val));
-    const refs = getPauseMenuRefs();
-    if (refs.bright) refs.bright.value = String(val);
-    if (refs.brightVal) refs.brightVal.textContent = val.toFixed(2);
     try { localStorage.setItem("rts_brightness", String(val)); } catch(_){}
   }
   // restore brightness
@@ -12289,36 +12165,11 @@ const audio = new Audio();
     requestMode(desired);
   }
 
-  // UI wiring
-  let ui = null; // {track, btnPlay, vol, time, eq}
-  function mountUI(refs){
-    ui = refs || null;
-    if (!ui) return;
-
-    // init EQ bars (multiple sticks)
-    if (ui.eq){
-      ui.eq.innerHTML = "";
-      const bars = 12;
-      for (let i=0;i<bars;i++){
-        const b = document.createElement("div");
-        b.className = "bar";
-        ui.eq.appendChild(b);
-      }
-    }
-
-    // seek bar
-    if (ui.seek){
-      ui.seek.value = 0;
-      ui._seeking = false;
-      ui.seek.addEventListener("pointerdown", ()=>{ ui._seeking = true; });
-      window.addEventListener("pointerup", ()=>{ ui._seeking = false; });
-      ui.seek.addEventListener("input", ()=>{
-        if (!audio || !isFinite(audio.duration) || audio.duration <= 0) return;
-        const v = Math.max(0, Math.min(1000, Number(ui.seek.value||0))) / 1000;
-        audio.currentTime = v * audio.duration;
-      });
-    }
-
+  // UI wiring (adapter provided by ou_ui.js)
+  let ui = null; // adapter
+  function mountUI(adapter){
+    ui = adapter || null;
+    if (ui && typeof ui.init === "function") ui.init();
     updateUI();
   }
 
@@ -12337,22 +12188,16 @@ const audio = new Audio();
 
   function updateUI(){
     if (!ui) return;
-    if (ui.track) ui.track.textContent = prettyName() || "(none)";
-    if (ui.btnPlay) ui.btnPlay.textContent = audio.paused ? "▶" : "⏸";
-    if (ui.vol) ui.vol.value = String((window.__bgmUserVol!=null?window.__bgmUserVol:audio.volume));
-    if (ui.time) ui.time.textContent = fmtTime(audio.currentTime) + " / " + fmtTime(audio.duration);
-    if (ui.seek && isFinite(audio.duration) && audio.duration>0 && !ui._seeking){
-      ui.seek.value = String(Math.max(0, Math.min(1000, Math.round((audio.currentTime/audio.duration)*1000))));
-    }
+    if (typeof ui.setTrack === "function") ui.setTrack(prettyName() || "(none)");
+    if (typeof ui.setPlay === "function") ui.setPlay(!audio.paused);
+    if (typeof ui.setVol === "function") ui.setVol((window.__bgmUserVol!=null?window.__bgmUserVol:audio.volume));
+    if (typeof ui.setTime === "function") ui.setTime(audio.currentTime, audio.duration);
   }
 
   function updateViz(dt){
     if (!ui) return;
-    if (ui.time) ui.time.textContent = fmtTime(audio.currentTime) + " / " + fmtTime(audio.duration);
-    if (ui.seek && isFinite(audio.duration) && audio.duration>0 && !ui._seeking){
-      ui.seek.value = String(Math.max(0, Math.min(1000, Math.round((audio.currentTime/audio.duration)*1000))));
-    }
-    if (!ui.eq) return;
+    if (typeof ui.setTime === "function") ui.setTime(audio.currentTime, audio.duration);
+    if (typeof ui.setEqBars !== "function" && typeof ui.setEqIdle !== "function") return;
 
     // animate at ~20fps
     state.viz.t += dt;
@@ -12360,29 +12205,25 @@ const audio = new Audio();
     state.viz.t = 0;
 
     if (!_analyser || !_freq) {
-      // no analyser: gentle idle motion
-      const kids = ui.eq.children;
-      const n = kids.length||0;
-      for (let i=0;i<n;i++) {
-        const k = kids[i];
-        const v = 0.25 + 0.55*Math.random();
-        k.style.transform = `scaleY(${v.toFixed(3)})`;
-      }
+      const bars = ui.getEqCount ? ui.getEqCount() : 12;
+      const vals = [];
+      for (let i=0;i<bars;i++) vals.push(0.25 + 0.55*Math.random());
+      if (typeof ui.setEqIdle === "function") ui.setEqIdle(vals);
       return;
     }
 
     try {
       _analyser.getByteFrequencyData(_freq);
-      const kids = ui.eq.children;
-      const bars = kids.length || 0;
+      const bars = ui.getEqCount ? ui.getEqCount() : 12;
       const bins = _freq.length || 1;
+      const vals = [];
       for (let i=0;i<bars;i++) {
         const bi = Math.min(bins-1, Math.floor(i * bins / bars));
         const v = _freq[bi] / 255;
-        // make it pop a bit even at low volume
         const vv = Math.max(0.06, Math.min(1, Math.pow(v, 0.55) * 1.65));
-        kids[i].style.transform = `scaleY(${vv.toFixed(3)})`;
+        vals.push(vv);
       }
+      if (typeof ui.setEqBars === "function") ui.setEqBars(vals);
     } catch(_e) {}
   }
 
@@ -12472,20 +12313,24 @@ BGM.monitor = (dt=0.016) => __bgmOldMonitor(dt);
 
     pauseMenuOpen = next;
 
-    const refs = getPauseMenuRefs();
-    if (!refs.overlay) return;
-
-    // Ensure visible regardless of CSS class order
-    refs.overlay.classList.toggle("show", pauseMenuOpen);
-    refs.overlay.style.display = pauseMenuOpen ? "flex" : "none";
-    refs.overlay.setAttribute("aria-hidden", pauseMenuOpen ? "false" : "true");
-
-    if (pauseMenuOpen){
-      if (refs.track){ const n=(BGM.trackName||"(대기중)"); refs.track.textContent = n.replace(/\.[^/.]+$/,""); }
-      if (refs.vol) refs.vol.value = String(BGM.master);
-      if (refs.bright) refs.bright.value = String(parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--game-brightness")) || 1);
-      if (refs.brightVal) refs.brightVal.textContent = (parseFloat(refs.bright.value)||1).toFixed(2);
-      wirePauseMenuUI(); // lazy wire on first open
+    if (__ou_ui && typeof __ou_ui.setPauseMenuVisible === "function"){
+      const getBright = ()=> {
+        const v = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--game-brightness"));
+        return Number.isFinite(v) ? v : 1;
+      };
+      __ou_ui.setPauseMenuVisible({ open: pauseMenuOpen, bgm: BGM, getBrightness: getBright });
+      if (pauseMenuOpen && typeof __ou_ui.wirePauseMenuUI === "function"){
+        __ou_ui.wirePauseMenuUI({
+          bgm: BGM,
+          onVol: (v)=> BGM.setMasterVolume(v),
+          onBright: (v)=> setGameBrightness(v),
+          onResume: ()=> togglePauseMenu(false),
+          onExit: ()=> { BGM.stopAll?.(); location.reload(); },
+          onPrev: ()=> BGM.prev(),
+          onNext: ()=> BGM.next(),
+          onPlay: ()=> (BGM.togglePlay ? BGM.togglePlay() : (BGM.toggle ? BGM.toggle() : null))
+        });
+      }
     }
   }
 
@@ -12498,44 +12343,7 @@ BGM.monitor = (dt=0.016) => __bgmOldMonitor(dt);
     e.stopImmediatePropagation();
   }, true);
 
-  let __pmWired = false;
-  function wirePauseMenuUI(){
-    if (__pmWired) return;
-    const refs = getPauseMenuRefs();
-    if (!refs.overlay) return;
-
-    __pmWired = true;
-
-    // Mount BGM UI (track title / play btn / volume / EQ / time)
-    if (typeof BGM !== "undefined" && BGM && typeof BGM.mountUI === "function"){
-      BGM.mountUI({ track: refs.track, btnPlay: refs.play, vol: refs.vol, time: refs.time, eq: refs.eq });
-    }
-
-
-    if (refs.vol) refs.vol.addEventListener("input", ()=> BGM.setMasterVolume(parseFloat(refs.vol.value)));
-    if (refs.bright) refs.bright.addEventListener("input", ()=> setGameBrightness(parseFloat(refs.bright.value)));
-    if (refs.resume) refs.resume.addEventListener("click", ()=> togglePauseMenu(false));
-    if (refs.exit) refs.exit.addEventListener("click", ()=> {
-      BGM.stopAll?.();
-      location.reload();
-    });
-    if (refs.prev) refs.prev.addEventListener("click", ()=> BGM.prev());
-    if (refs.next) refs.next.addEventListener("click", ()=> BGM.next());
-    if (refs.play) refs.play.addEventListener("click", ()=> BGM.togglePlay ? BGM.togglePlay() : (BGM.toggle ? BGM.toggle() : null));
-
-    // Do NOT auto-close when clicking the dark outside area.
-    // (User explicitly wants pause/options to stay open unless they press ESC or click a button.)
-    refs.overlay.addEventListener("mousedown", (e)=>{
-      e.stopPropagation();
-      if (e.target === refs.overlay){
-        e.preventDefault();
-      }
-    });
-    refs.overlay.addEventListener("wheel", (e)=>{ e.stopPropagation(); }, { passive:false });
-  }
-
-  // Make sure UI is wired after full parse
-  window.addEventListener("load", wirePauseMenuUI);
+  // Pause menu UI wiring is handled by ou_ui.js
 
 function validateWorld(){
   // Lightweight invariants to catch "silent" logic bugs early.
@@ -12704,7 +12512,9 @@ function sanityCheck(){
 
     fpsAcc += 1/dt; fpsN++; fpsT += dt;
     if (fpsT>=0.5){
-      if (uiFps) uiFps.textContent = `${Math.round(fpsAcc/fpsN)} fps`;
+      if (__ou_ui && typeof __ou_ui.updateFps === "function"){
+        __ou_ui.updateFps({ fps: Math.round(fpsAcc/fpsN) });
+      }
       fpsAcc=0; fpsN=0; fpsT=0;
     }
 
