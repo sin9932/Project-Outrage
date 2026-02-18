@@ -7617,46 +7617,7 @@ const keys=new Set();
 
     // DEBUG: EXP1 pivot tuning (only while kill-mode is ON)
     if (DEBUG_KILL_BUILDINGS){
-      if (e.key === "["){
-        const v = (window.OURender && typeof OURender.adjustExp1Pivot==="function")
-          ? OURender.adjustExp1Pivot({ dy: -0.05 }) : null;
-        try{ if (v) toast(`EXP1_PIVOT_Y=${v.y}`);}catch(_e){}
-        e.preventDefault(); return;
-      }
-      if (e.key === "]"){
-        const v = (window.OURender && typeof OURender.adjustExp1Pivot==="function")
-          ? OURender.adjustExp1Pivot({ dy: +0.05 }) : null;
-        try{ if (v) toast(`EXP1_PIVOT_Y=${v.y}`);}catch(_e){}
-        e.preventDefault(); return;
-      }
-      if (e.key === ";"){
-        const v = (window.OURender && typeof OURender.adjustExp1Pivot==="function")
-          ? OURender.adjustExp1Pivot({ dx: -0.05 }) : null;
-        try{ if (v) toast(`EXP1_PIVOT_X=${v.x}`);}catch(_e){}
-        e.preventDefault(); return;
-      }
-      if (e.key === "'"){
-        const v = (window.OURender && typeof OURender.adjustExp1Pivot==="function")
-          ? OURender.adjustExp1Pivot({ dx: +0.05 }) : null;
-        try{ if (v) toast(`EXP1_PIVOT_X=${v.x}`);}catch(_e){}
-        e.preventDefault(); return;
-      }
-      if (e.key === "-"){
-        const v = (window.OURender && typeof OURender.adjustExp1Pivot==="function")
-          ? OURender.adjustExp1Pivot({ dyOff: -2 }) : null;
-        try{ if (v) toast(`EXP1_Y_OFFSET=${v.yOff}`);}catch(_e){}
-        e.preventDefault(); return;
-      }
-      if (e.key === "="){
-        const v = (window.OURender && typeof OURender.adjustExp1Pivot==="function")
-          ? OURender.adjustExp1Pivot({ dyOff: +2 }) : null;
-        try{ if (v) toast(`EXP1_Y_OFFSET=${v.yOff}`);}catch(_e){}
-        e.preventDefault(); return;
-      }
       if (e.key.toLowerCase() === "r"){
-        if (window.OURender && typeof OURender.resetExp1Pivot==="function"){
-          OURender.resetExp1Pivot();
-        }
         try{ toast(`EXP1 pivot reset`);}catch(_e){}
         e.preventDefault(); return;
       }
