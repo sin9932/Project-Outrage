@@ -2484,37 +2484,6 @@ function getPowerFactor(team){
     }
   }
 
-    function spawnBullet(team,x,y,tx,ty,dmg,ownerId, opt={}){
-    // opt.kind: "bullet" (default) or "shell"
-    const kind = opt.kind || "bullet";
-    if (kind==="shell"){
-      const dx=tx-x, dy=ty-y;
-      const dist=Math.hypot(dx,dy)||1;
-      const dur = opt.dur ?? Math.max(0.10, Math.min(0.18, dist/2200)); // faster impact
-      bullets.push({
-        kind:"shell",
-        team,
-        x0:x, y0:y, x1:tx, y1:ty,
-        x, y,
-        t:0, dur,
-        h: opt.h ?? (18 + Math.min(46, dist*0.10)),
-        dmg, ownerId,
-        tid: opt.tid ?? null,
-        allowFriendly: !!opt.allowFriendly
-      });
-      return;
-    }
-    const sp = opt.sp ?? 680;
-    const dx=tx-x, dy=ty-y;
-    const d=Math.hypot(dx,dy)||1;
-    bullets.push({kind: (opt.kind||"bullet"),team,x,y,vx:dx/d*sp,vy:dy/d*sp,life:(opt.life??0.35),dmg,ownerId, tx:(opt.tx??tx), ty:(opt.ty??ty)});
-  }
-  
-function spawnTrace(x0,y0,x1,y1,team, opt={}){
-  const life = (opt.life ?? 0.09);
-  window.__combatUntil = Math.max(window.__combatUntil||0, performance.now()+12000);
-  traces.push({x0,y0,x1,y1,team,life, maxLife: (opt.maxLife ?? life), kind: opt.kind || "line", delay: opt.delay ?? 0, fx: opt.fx || null});
-}
 function boardUnitIntoIFV(unit, ifv){
   if (!unit || !ifv) return false;
   if (!unit.alive || !ifv.alive) return false;
@@ -2651,121 +2620,7 @@ function aiEngineerDockAvoidTurrets(target, eng){
 
 
 // Infantry hitscan: make it feel like a machine-gun burst (visual only; damage is still single-tick).
-function spawnMGTracers(shooter, target){
-  // Visual-only burst: 1-tick damage, but tracers "rat-tat" over a short window.
-  const dx = target.x - shooter.x;
-  const dy = target.y - shooter.y;
-  const d = Math.hypot(dx, dy) || 1;
-  const nx = dx/d, ny = dy/d;
-  const px = -ny, py = nx;
 
-  // Raise muzzle/flash/casing a bit in screen space (prevents "shooting from feet")
-  const MUZZLE_RISE = 48; // pixels in iso-space (tweakable)
-  const lift = (x,y)=>{
-    const iso = worldToIso(x,y);
-    const w = isoToWorld(iso.x, iso.y - MUZZLE_RISE);
-    return {x:w.x, y:w.y};
-  };
-
-  const bursts = 4;          // how many visible tracer blips per attack
-  const gap = 0.07;          // seconds between blips
-  const tracerLife = 0.045;  // each blip lifetime
-  const muzzleLife = 0.045;
-
-  for (let i=0;i<bursts;i++){
-    const delay = i*gap;
-    // tiny lateral spread, but not shotgun-y
-    const spread = (Math.random()*2-1) * 6;
-    const endX = target.x + px*spread;
-    const endY = target.y + py*spread;
-
-    // muzzle position jitter
-    const mx = shooter.x + px*((Math.random()*2-1)*3) + nx*(6 + Math.random()*4);
-    const my = shooter.y + py*((Math.random()*2-1)*3) + ny*(6 + Math.random()*4);
-
-    const m0 = lift(mx, my);
-    const mx2 = m0.x, my2 = m0.y;
-
-    spawnTrace(mx2, my2, endX, endY, shooter.team, { kind:"mg", life:tracerLife, delay });
-
-    // muzzle flash (screen-space gradient drawn later)
-    const f0 = lift(shooter.x + nx*10 + px*((Math.random()*2-1)*2), shooter.y + ny*10 + py*((Math.random()*2-1)*2));
-    flashes.push({
-      x: f0.x,
-      y: f0.y,
-      r: 16 + Math.random()*10,
-      life: muzzleLife,
-      delay
-    });
-
-    // shell casing ejection (visual only)
-    {
-      // eject mostly to the shooter's right side (perp direction) with a bit backward
-      const side = (Math.random()<0.5 ? 1 : -1);
-      const ex = shooter.x + px*side*10 - nx*6;
-      const ey = shooter.y + py*side*10 - ny*6;
-      const e0 = lift(ex, ey);
-      const ex2 = e0.x, ey2 = e0.y;
-      const sp = 260 + Math.random()*260;
-      casings.push({
-        x: ex2, y: ey2,
-        vx: (px*side*0.85 - nx*0.25) * sp + (Math.random()*2-1)*30,
-        vy: (py*side*0.85 - ny*0.25) * sp + (Math.random()*2-1)*30,
-        z: 8 + Math.random()*10,
-        vz: 260 + Math.random()*220,
-        rot: Math.random()*Math.PI*2,
-        w: 4.5, h: 2.0,
-        life: 0.20,
-        delay
-      });
-    }
-}
-
-  // Small yellow impact sparks near the target (subtle)
-  const sparks = 4;
-  for (let i=0;i<sparks;i++){
-    const ang = Math.random()*Math.PI*2;
-    const spd = 40 + Math.random()*90;
-    impacts.push({
-      x: target.x + px*((Math.random()*2-1)*8) + nx*((Math.random()*2-1)*8),
-      y: target.y + py*((Math.random()*2-1)*8) + ny*((Math.random()*2-1)*8),
-      vx: Math.cos(ang)*spd,
-      vy: Math.sin(ang)*spd,
-      life: 0.16 + Math.random()*0.08
-    });
-  }
-}
-
-// Turret hitscan: thicker & brighter machine-gun tracer (visual only; damage is still single-tick).
-
-// Sniper hitscan tracer: team-colored glow + long afterimage.
-// Uses the same muzzle rise logic as infantry MG so it doesn't shoot from feet.
-function spawnSniperTracer(shooter, target){
-  const dx = target.x - shooter.x;
-  const dy = target.y - shooter.y;
-  const d = Math.hypot(dx, dy) || 1;
-  const nx = dx/d, ny = dy/d;
-
-  // Same screen-space muzzle lift as MG tracers (keeps height consistent vs infantry).
-  const MUZZLE_RISE = 48; // pixels in iso-space
-  const lift = (x,y)=>{
-    const iso = worldToIso(x,y);
-    const w = isoToWorld(iso.x, iso.y - MUZZLE_RISE);
-    return {x:w.x, y:w.y};
-  };
-
-  // muzzle start a bit forward from the unit center
-  const mx = shooter.x + nx*12;
-  const my = shooter.y + ny*12;
-  const m0 = lift(mx, my);
-
-  // single bright trace, long afterimage
-  spawnTrace(m0.x, m0.y, target.x, target.y, shooter.team, { kind:"snip", life: 0.80, maxLife: 0.80, delay: 0 });
-
-  // tiny muzzle flash (optional readability)
-  const f0 = lift(shooter.x + nx*14, shooter.y + ny*14);
-  flashes.push({ x: f0.x, y: f0.y, r: 18 + Math.random()*6, life: 0.045, delay: 0 });
-}
 
   function applyDamage(target, dmg, srcId=null, srcTeam=null){
     if (!target || !target.alive) return;
@@ -3397,6 +3252,8 @@ const __ou_sim = (window.OUSim && typeof window.OUSim.create==="function")
       getEntityById,
       dist2,
       worldVecToDir8,
+      worldToIso,
+      isoToWorld,
       tileOfX,
       tileOfY,
       tileToWorldCenter,
@@ -3411,10 +3268,7 @@ const __ou_sim = (window.OUSim && typeof window.OUSim.create==="function")
       
       clearReservation,
       settleInfantryToSubslot,
-      spawnBullet,
-      spawnMGTracers,
-      spawnSniperTracer,
-      spawnTrace,
+      // spawnBullet/spawnTrace/mg/sniper now live in sim
       spawnTrailPuff,
       spawnDmgSmokePuff,
       applyDamage,
@@ -6884,6 +6738,7 @@ window.unboardIFV = tryUnloadIFV;
 window.resolveUnitOverlaps = resolveUnitOverlaps;
 
 })();
+
 
 
 
