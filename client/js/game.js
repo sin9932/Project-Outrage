@@ -9798,11 +9798,29 @@ if (state.selection.size>0 && inMap(tx,ty) && ore[idx(tx,ty)]>0){
         const refund = COST[kind] || 0;
         if (refund > 0) state.player.money += refund;
         lane.ready = null;
+        // If player was in placement mode for this item, exit it.
+        if (state.build && state.build.active && state.build.kind === kind && state.build.lane === laneKey){
+          state.build.active = false;
+          state.build.kind = null;
+          state.build.lane = null;
+        }
         toast("취소 + 환불");
         return;
       }
 
-      if (!lane.queue || lane.queue.kind !== kind) return;
+      if (!lane.queue || lane.queue.kind !== kind){
+        // Cancel a reserved (FIFO) build of this kind if present.
+        if (lane.fifo && lane.fifo.length){
+          for (let i=lane.fifo.length-1; i>=0; i--){
+            if (lane.fifo[i] === kind){
+              lane.fifo.splice(i,1);
+              toast("예약 취소");
+              return;
+            }
+          }
+        }
+        return;
+      }
       if (!lane.queue.paused){
         lane.queue.paused = true;
         toast("대기");
