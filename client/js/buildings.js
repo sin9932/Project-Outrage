@@ -51,8 +51,8 @@
     }
     ,
     refinery: {
-      baseScale: 0.3,
-      forcePivot: { x: 0.4911, y: 0.6424 },
+      baseScale: 0.4,
+      forcePivot: { x: 0.4899, y: 0.6354 },
       fps: { idle: 20, build: 24, death: 20, active: 24 },
       lowHpRatio: 0.30,
       teamColorMode: "frame",
