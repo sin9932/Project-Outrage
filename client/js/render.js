@@ -1584,7 +1584,7 @@
     ctx.fill();
 
     if (type===3){
-      const waterLOD = (MAP_W*MAP_H > 3500 || (cam.zoom||1) < 0.95);
+      const waterLOD = ((cam.zoom||1) < 0.90);
       // Water texture + fake normal highlight
       if (!waterLOD){
         ensureWaterPatterns(ctx);
