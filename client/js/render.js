@@ -260,6 +260,31 @@
   let canvas, ctx, cam, state, TEAM, MAP_W, MAP_H, TILE, ISO_X, ISO_Y;
   let terrain, ore, explored, visible, BUILD, DEFENSE, BUILD_SPRITE, NAME_KO, POWER;
   let worldToScreen, tileToWorldCenter, idx, inMap, clamp, getEntityById;
+
+  // Water textures (optional)
+  const WATER_TEX_PNG = "asset/sprite/map/water.jpg";
+  const WATER_NORM_PNG = "asset/sprite/map/water_normal.jpg";
+  let WATER_TEX_IMG = null;
+  let WATER_NORM_IMG = null;
+  let WATER_TEX_PAT = null;
+  let WATER_NORM_PAT = null;
+
+  function ensureWaterPatterns(ctx){
+    if (!WATER_TEX_IMG){
+      WATER_TEX_IMG = new Image();
+      WATER_TEX_IMG.src = WATER_TEX_PNG;
+    }
+    if (!WATER_NORM_IMG){
+      WATER_NORM_IMG = new Image();
+      WATER_NORM_IMG.src = WATER_NORM_PNG;
+    }
+    if (WATER_TEX_IMG && WATER_TEX_IMG.complete && !WATER_TEX_PAT){
+      WATER_TEX_PAT = ctx.createPattern(WATER_TEX_IMG, "repeat");
+    }
+    if (WATER_NORM_IMG && WATER_NORM_IMG.complete && !WATER_NORM_PAT){
+      WATER_NORM_PAT = ctx.createPattern(WATER_NORM_IMG, "repeat");
+    }
+  }
   let REPAIR_WRENCH_IMG, repairWrenches;
   let exp1Fxs;
   let smokeWaves, smokePuffs, dustPuffs, dmgSmokePuffs, bloodStains, bloodPuffs;
@@ -1557,14 +1582,31 @@
     ctx.fill();
 
     if (type===3){
-      // simple water reflection highlight
-      const shimmer = ((state && state.t) ? state.t : 0) * 3.4 + tx*0.55 + ty*0.42;
-      const g = ctx.createLinearGradient(x-ox, y-oy, x+ox, y+oy);
-      g.addColorStop(0.0, "rgba(120,180,255,0.03)");
-      g.addColorStop(0.5, "rgba(150,210,255,0.12)");
-      g.addColorStop(1.0, "rgba(120,180,255,0.03)");
-      ctx.fillStyle = g;
-      ctx.fill();
+      // Water texture + fake normal highlight
+      ensureWaterPatterns(ctx);
+      ctx.save();
+      ctx.clip();
+      const t = (state && state.t) ? state.t : 0;
+      const px = (t * 18) % 256;
+      const py = (t * 12) % 256;
+      if (WATER_TEX_PAT){
+        ctx.save();
+        ctx.translate(px, py);
+        ctx.globalAlpha = 0.70;
+        ctx.fillStyle = WATER_TEX_PAT;
+        ctx.fillRect(x-ox-64, y-oy-64, (ox+64)*2, (oy+64)*2);
+        ctx.restore();
+      }
+      if (WATER_NORM_PAT){
+        ctx.save();
+        ctx.translate(-px*1.2, -py*1.2);
+        ctx.globalCompositeOperation = "soft-light";
+        ctx.globalAlpha = 0.45;
+        ctx.fillStyle = WATER_NORM_PAT;
+        ctx.fillRect(x-ox-64, y-oy-64, (ox+64)*2, (oy+64)*2);
+        ctx.restore();
+      }
+      ctx.restore();
 
       ctx.save();
       ctx.globalAlpha = 0.26;
