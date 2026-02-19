@@ -2975,11 +2975,18 @@
               const tv = Math.hypot(t.vx||0, t.vy||0);
               if (tv > 8) exitHold = 8.0; // chase sooner when target is moving
             }
+            if (u.team===TEAM.ENEMY && u.kind==="infantry"){
+              // Enemy infantry: stick to target more, reduce "shoot-move-shoot" jitter.
+              exitHold = Math.max(exitHold, 28.0);
+            }
             if (u.holdAttack==null) u.holdAttack=false;
             if (!u.holdAttack) u.holdAttack = (dEff <= (u.range - enterHold));
             else u.holdAttack = !(dEff > (u.range + exitHold));
     
-            const deadZone = 1.5; // smaller deadzone: prevents "stare" when slightly out of range in crowds
+            let deadZone = 1.5; // smaller deadzone: prevents "stare" when slightly out of range in crowds
+            if (u.team===TEAM.ENEMY && u.kind==="infantry"){
+              deadZone = 6.0;
+            }
             const needMove = (!u.holdAttack) && (dEff > (u.range + deadZone));
             // If we entered holdAttack right at max range and then got nudged / target drifted,
             // hysteresis could keep us "holding" while actually out of range, causing a stare-lock.
@@ -2988,7 +2995,8 @@
             } else {
               u._oorT = 0;
             }
-            if (u.holdAttack && (u._oorT||0) > 0.12){
+            const oorLimit = (u.team===TEAM.ENEMY && u.kind==="infantry") ? 0.35 : 0.12;
+            if (u.holdAttack && (u._oorT||0) > oorLimit){
               u.holdAttack = false;
               u.atkX = null; u.atkY = null;
             }
