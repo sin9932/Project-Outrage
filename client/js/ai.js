@@ -530,7 +530,7 @@
         // After factory: keep small infantry count and mostly defend base.
         let wantInf = 0;
         if (earlyRush || rushDefense) {
-          wantInf = poor ? 10 : 14;
+          wantInf = poor ? 12 : 16;
         } else if (playerHasInf) {
           if (!hasFac) {
             wantInf = poor ? 8 : 12;
@@ -759,8 +759,8 @@
 
       // Defense placement when rich (non-blocking)
       aiPlaceDefenseIfRich(e);
-      if (rushDefense && e.money > 450){
-        aiTryStartBuild("turret");
+      if (rushDefense){
+        if (e.money > 350) aiTryStartBuild("turret");
       }
 
       // Unit production should ALWAYS run (this was the big "AI builds only" failure mode).
@@ -792,6 +792,8 @@
         v.order = { type:"move", x: atk.x, y: atk.y, tx:null, ty:null };
         v.target = null;
         v.forceMoveUntil = state.t + 2.2;
+        v.crushUntil = state.t + 3.5;
+        v.crushTargetId = atk.id;
         setPathTo(v, atk.x, atk.y);
         v.repathCd = 0.18;
       }

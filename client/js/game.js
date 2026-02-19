@@ -3642,7 +3642,7 @@ function crushInfantry(mover){
     if (!u.alive || u.team!==enemyTeam || u.inTransport || u.hidden) continue;
     const cls = (UNIT[u.kind] && UNIT[u.kind].cls) ? UNIT[u.kind].cls : "";
     if (cls!=="inf") continue;
-    if (dist2(mover.x,mover.y,u.x,u.y) <= (mover.r + u.r)*(mover.r + u.r)*0.55){
+    if (dist2(mover.x,mover.y,u.x,u.y) <= (mover.r + u.r)*(mover.r + u.r)*1.15){
       u.alive=false;
       state.selection.delete(u.id);
     }

@@ -143,6 +143,12 @@
       return (u.team===TEAM.ENEMY) ? Math.max(0.08, base*0.5) : base;
     }
 
+    function isInfantryUnit(e){
+      if (!e || !e.alive) return false;
+      if (BUILD[e.kind]) return false;
+      return (UNIT[e.kind]?.cls==="inf");
+    }
+
     function isEnemyInf(e){
       if (!e || !e.alive) return false;
       if (BUILD[e.kind]) return false;
@@ -2400,6 +2406,20 @@
           }
     
     if (u.kind==="harvester"){
+            // If harvester is in crush mode, override harvest logic and chase infantry.
+            if (u.crushUntil && state.t < u.crushUntil){
+              const tgt = (u.crushTargetId!=null) ? getEntityById(u.crushTargetId) : null;
+              if (tgt && isInfantryUnit(tgt) && dist2(u.x,u.y,tgt.x,tgt.y) < 820*820){
+                u.order = { type:"move", x:tgt.x, y:tgt.y, tx:null, ty:null };
+                if (u.repathCd<=0){
+                  setPathTo(u, tgt.x, tgt.y);
+                  u.repathCd = 0.20;
+                }
+              } else {
+                u.crushUntil = 0;
+                u.crushTargetId = null;
+              }
+            }
             const findBestOrePatch = () => {
               // Auto-find ore patch (prefer nearby; fallback to nearest anywhere)
               let best=null, bestD=Infinity;
