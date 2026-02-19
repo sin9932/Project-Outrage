@@ -173,7 +173,7 @@ function fitMini() {
 
   const TILE = 110;
   const GAME_SPEED = 1.30;
-  const BUILD_PROD_MULT = 1.30; // additional +30% for building & unit production speed
+  const BUILD_PROD_MULT = 2.60; // 2x building & unit production speed
   // Enemy AI cheats (difficulty)
   const ENEMY_PROD_SPEED = 1.65;
   const ENEMY_ECON_MULT  = 1.50;
