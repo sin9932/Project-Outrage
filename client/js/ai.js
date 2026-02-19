@@ -741,9 +741,19 @@
       aiEnsureTechAndEco(e, underPower);
 
       const rushInfNear = aiPlayerInfNearEnemyBase();
+      let playerInfCount = 0;
+      let enemyInfCount = 0;
+      for (const u of units){
+        if (!u.alive) continue;
+        if (u.team===TEAM.PLAYER && (UNIT[u.kind] && UNIT[u.kind].cls === "inf") && !u.inTransport && !u.hidden) playerInfCount++;
+        else if (u.team===TEAM.ENEMY && u.kind==="infantry") enemyInfCount++;
+      }
       const isEarly = state.t < 140;
       if (isEarly && rushInfNear >= 4){
         ai.underRushUntil = Math.max(ai.underRushUntil || 0, state.t + 18);
+      }
+      if (state.t < 160 && playerInfCount >= enemyInfCount + 4){
+        ai.underRushUntil = Math.max(ai.underRushUntil || 0, state.t + 14);
       }
       const rushDefense = state.t < (ai.underRushUntil || 0);
 

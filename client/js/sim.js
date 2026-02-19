@@ -2440,6 +2440,7 @@
             // Harvester orders: move, harvest, return (deposit)
             if (u.order.type==="move"){
               followPath(u,dt);
+              crushInfantry(u);
               continue;
             }
     
@@ -2477,6 +2478,7 @@
                 }
               }
               followPath(u,dt);
+              crushInfantry(u);
     
               const nearDock = dist2(u.x,u.y,dock.x,dock.y) < 70*70;
               const refR = (Math.max(ref.w, ref.h)*0.55 + 90);
@@ -2635,6 +2637,7 @@
     
               // Travel to ore
               followPath(u,dt);
+              crushInfantry(u);
               tx=u.order.tx; ty=u.order.ty;
               const pTile=tileToWorldCenter(tx,ty);
                   const px=pTile.x, py=pTile.y;
