@@ -58,9 +58,9 @@
       teamColorMode: "frame",
       // Idle-only exclusions (coords in SOURCE size px)
       teamExcludeIdle: [
-        { x: 609, y: 521, w: 52, h: 58 },
-        { x: 730, y: 483, w: 52, h: 52 },
-        { x: 608, y: 579, w: 42, h: 22 }
+        { x: 592, y: 506, w: 86, h: 92 },
+        { x: 714, y: 468, w: 86, h: 86 },
+        { x: 592, y: 565, w: 76, h: 40 }
       ],
       // Idle-only force-include (ensure team palette stays on)
       teamIncludeIdle: [
