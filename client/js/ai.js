@@ -738,10 +738,10 @@
         const eUnitsAll = units.filter(u => u.alive && u.team === TEAM.ENEMY && !u.inTransport && !u.hidden);
         const dest = rallyT || ai.rally;
         if (!hasFac && hasBar) {
-          ai.nextWave = state.t + rnd(7, 12) / (ai.apmMul || 1);
+          ai.nextWave = state.t + rnd(10, 16) / (ai.apmMul || 1);
           const inf = eUnitsAll.filter(u => u.kind === "infantry");
-          if (inf.length >= 5) {
-            const pack = inf.slice(0, Math.min(14, inf.length));
+          if (inf.length >= 7) {
+            const pack = inf.slice(0, Math.min(12, inf.length));
             for (const u of pack) {
               u.order = { type: "attackmove", x: dest.x, y: dest.y };
               u.target = null;
@@ -918,7 +918,7 @@
         ai.mode = "rally";
         // gently pull strays back to rally
         aiCommandMoveToRally(combat.filter(u => !u.order || u.order.type !== "move"));
-        const earlyOK = (!hasFac && hasBar) ? (state.t > 40) : (state.t > 80);
+        const earlyOK = (!hasFac && hasBar) ? (state.t > 75) : (state.t > 90);
         if (earlyOK && combat.length >= goal && state.t > ai.waveT + 14.0) {
           ai.waveT = state.t;
           const target = aiPickPlayerTarget();
