@@ -3717,7 +3717,13 @@ const keys=new Set();
     }
 
     if (e.key==="Escape" || e.key==="Esc" || e.code==="Escape" || e.keyCode===27){
-      // ESC: always toggle pause/options menu
+      // ESC: cancel repair/sell mouse mode first, otherwise toggle pause menu
+      if (state.mouseMode === "repair" || state.mouseMode === "sell"){
+        applyMouseMode("normal");
+        toast("수리/매각 해제");
+        e.preventDefault();
+        return;
+      }
       togglePauseMenu();
       e.preventDefault();
       return;
@@ -4220,6 +4226,11 @@ if (state.selection.size>0 && inMap(tx,ty) && ore[idx(tx,ty)]>0){
     const lane = state.buildLane && state.buildLane[laneKey];
     if (!lane) return;
 
+    // If we're in repair/sell mouse mode, entering build placement should cancel it.
+    if (state.mouseMode === "repair" || state.mouseMode === "sell"){
+      applyMouseMode("normal");
+    }
+
 
     // If this exact kind is paused at the head of this lane, left-click resumes.
     if (lane.queue && lane.queue.kind === kind && lane.queue.paused){
@@ -4256,6 +4267,12 @@ if (state.selection.size>0 && inMap(tx,ty) && ore[idx(tx,ty)]>0){
       state.build.lane = laneKey;
       // Prevent accidental immediate placement from the click that opened placement.
       state.suppressClickUntil = state.t + 0.10;
+      return;
+    }
+
+    // Avoid unintentional duplicate reservations of the same building.
+    if ((lane.queue && lane.queue.kind === kind) || (lane.fifo && lane.fifo.includes(kind))){
+      toast("이미 건설 대기중");
       return;
     }
 
