@@ -4855,13 +4855,42 @@ if (__ou_ui && typeof __ou_ui.bindPregameStart === "function"){
     state.enemy.money  = START_MONEY;
 
 
-    // Preload building atlases before starting (avoid long placeholder-box phase)
+    const preloadImages = async (urls)=>{
+      const list = Array.from(new Set((urls || []).filter(Boolean)));
+      await Promise.all(list.map((u)=>{
+        return new Promise((res)=>{
+          try{
+            const img = new Image();
+            img.decoding = "async";
+            img.onload = ()=>res();
+            img.onerror = ()=>res();
+            img.src = u;
+          }catch(_e){ res(); }
+        });
+      }));
+    };
+
+    // Preload assets before starting (avoid first-hit flicker)
     try {
       if (window.PO && PO.buildings && typeof PO.buildings.preload === "function") {
         if (__ou_ui && typeof __ou_ui.setPregameLoading === "function"){
           __ou_ui.setPregameLoading({ loading: true });
         }
         await PO.buildings.preload();
+
+        // Preload key sprite images (inf/sniper/exp1/etc)
+        await preloadImages([
+          INF_IDLE_PNG, INF_ATK_PNG, INF_MOV_PNG, INF_MOV_NE_PNG, INF_MOV_N_PNG, INF_MOV_NW_PNG,
+          INF_MOV_W_PNG, INF_MOV_SW_PNG, INF_MOV_S_PNG, INF_MOV_SE_PNG, INF_DIE_PNG,
+          SNIP_IDLE_PNG, SNIP_MOV_PNG, SNIP_MOV_NE_PNG, SNIP_MOV_N_PNG, SNIP_MOV_NW_PNG,
+          SNIP_MOV_W_PNG, SNIP_MOV_SW_PNG, SNIP_MOV_S_PNG, SNIP_MOV_SE_PNG, SNIP_DIE_PNG,
+          REPAIR_WRENCH_PNG, EXP1_PNG, CON_YARD_PNG
+        ]);
+
+        // Prewarm refinery frame-tint cache to avoid flicker on first build/destroy
+        if (PO.buildings && typeof PO.buildings.prewarm === "function"){
+          PO.buildings.prewarm({ state, teams: [TEAM.PLAYER, TEAM.ENEMY], kinds: ["refinery"] });
+        }
         if (__ou_ui && typeof __ou_ui.setPregameLoading === "function"){
           __ou_ui.setPregameLoading({ loading: false });
         }

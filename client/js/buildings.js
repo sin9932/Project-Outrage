@@ -56,9 +56,10 @@
       fps: { idle: 20, build: 24, death: 20, active: 24 },
       lowHpRatio: 0.30,
       teamColorMode: "frame",
-      // Exclude chimney area from team palette (coords in SOURCE size px)
+      // Exclude faint magenta spots (coords in SOURCE size px)
       teamExclude: [
-        { x: 980, y: 40, w: 520, h: 420 }
+        { x: 609, y: 521, w: 52, h: 58 },
+        { x: 730, y: 483, w: 52, h: 52 }
       ],
       atlas: {
         idle:  { json: "asset/sprite/const/normal/refinery/refinery_idle.json",        base: "asset/sprite/const/normal/refinery/" },
@@ -255,6 +256,63 @@
     return true;
   }
 
+  function _prewarmFrameTint(kind, atlasKey, filename, team, state){
+    const stKind = ST.kinds[kind];
+    const cfg = TYPE_CFG[kind];
+    if (!stKind || !cfg || cfg.teamColorMode !== "frame") return;
+    const atlas = stKind.atlases[atlasKey];
+    if (!atlas || !atlas.frames) return;
+    const fr = atlas.frames.get(filename);
+    if (!fr) return;
+    const fKey = `${atlasKey}|${filename}|t${team}`;
+    if (stKind.frameTexCache.has(fKey)) return;
+    const texIndex = (fr.texIndex != null) ? fr.texIndex : 0;
+    const tex = atlas.textures && atlas.textures[texIndex];
+    const origImg = tex && tex.img;
+    if (!origImg) return;
+    const applyFn = _getApplyFn();
+    if (!applyFn) return;
+
+    const c = document.createElement("canvas");
+    c.width = fr.frame.w;
+    c.height = fr.frame.h;
+    const cctx = c.getContext("2d", { willReadFrequently:true });
+    cctx.drawImage(origImg, fr.frame.x, fr.frame.y, fr.frame.w, fr.frame.h, 0, 0, fr.frame.w, fr.frame.h);
+    const teamColor = _getTeamColor(state, team);
+    const tinted = applyFn(c, teamColor, { gain: 1.65, bias: 0.18, gamma: 0.78, minV: 0.42 }) || c;
+    stKind.frameTexCache.set(fKey, tinted);
+  }
+
+  async function prewarm(opts){
+    opts = opts || {};
+    const kinds = opts.kinds || Object.keys(ST.kinds || {});
+    const teams = opts.teams || [0,1];
+    const state = opts.state || null;
+
+    await Promise.all(kinds.map(k => ensureKindLoaded(k)));
+
+    for (const kind of kinds){
+      const stKind = ST.kinds[kind];
+      if (!stKind || !stKind.ready) continue;
+
+      const frames = new Set();
+      const addAll = (arr)=>{ if (arr && arr.length){ for (const n of arr) frames.add(n); } };
+      addAll(stKind.frames.idle);
+      addAll(stKind.frames.build);
+      addAll(stKind.frames.death);
+      addAll(stKind.frames.activeN);
+      addAll(stKind.frames.activeD);
+
+      for (const team of teams){
+        for (const fname of frames){
+          _prewarmFrameTint(kind, "idle", fname, team, state);
+          _prewarmFrameTint(kind, "build", fname, team, state);
+          _prewarmFrameTint(kind, "death", fname, team, state);
+        }
+      }
+    }
+  }
+
   // ===== Load atlases per kind =====
   async function ensureKindLoaded(kind){
     const stKind = ST.kinds[kind];
@@ -415,6 +473,9 @@
       console.warn("[buildings] onDestroyed failed", e);
     }
   };
+
+  // Prewarm frame-level caches (optional)
+  PO.buildings.prewarm = prewarm;
 
   // ===== Draw =====
   PO.buildings.drawGhosts = function(ctx, cam, helpers, state){
