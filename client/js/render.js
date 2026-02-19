@@ -1550,8 +1550,33 @@
     ctx.lineTo(x-ox, y);
     ctx.closePath();
 
-    ctx.fillStyle = (type===1) ? "#101621" : "#0c121a";
+    let base = "#0c121a";
+    if (type===1) base = "#101621";
+    if (type===3) base = "#0b1624";
+    ctx.fillStyle = base;
     ctx.fill();
+
+    if (type===3){
+      // simple water reflection highlight
+      const shimmer = ((state && state.t) ? state.t : 0) * 2.0 + tx*0.35 + ty*0.27;
+      const g = ctx.createLinearGradient(x-ox, y-oy, x+ox, y+oy);
+      g.addColorStop(0.0, "rgba(120,180,255,0.02)");
+      g.addColorStop(0.5, "rgba(140,200,255,0.07)");
+      g.addColorStop(1.0, "rgba(120,180,255,0.02)");
+      ctx.fillStyle = g;
+      ctx.fill();
+
+      ctx.save();
+      ctx.globalAlpha = 0.18;
+      ctx.strokeStyle = "rgba(180,220,255,0.55)";
+      ctx.lineWidth = 1.2 * cam.zoom;
+      const wave = Math.sin(shimmer) * 0.35;
+      ctx.beginPath();
+      ctx.moveTo(x-ox*0.65, y-oy*0.05 + wave*8);
+      ctx.lineTo(x+ox*0.65, y+oy*0.05 + wave*8);
+      ctx.stroke();
+      ctx.restore();
+    }
 
     if (ore[idx(tx,ty)]>0){
       const a=clamp(ore[idx(tx,ty)]/520,0,1);
