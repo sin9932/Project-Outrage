@@ -55,12 +55,16 @@
       forcePivot: { x: 0.4911, y: 0.6424 },
       fps: { idle: 20, build: 24, death: 20, active: 24 },
       lowHpRatio: 0.30,
+      // Exclude chimney area from team palette (coords in SOURCE size px)
+      teamExclude: [
+        { x: 980, y: 40, w: 520, h: 420 }
+      ],
       atlas: {
         idle:  { json: "asset/sprite/const/normal/refinery/refinery_idle.json",        base: "asset/sprite/const/normal/refinery/" },
         build: { json: "asset/sprite/const/const_anim/refinery/refinery_const.json",   base: "asset/sprite/const/const_anim/refinery/" },
         death: { json: "asset/sprite/const/distruct/refinery/refinery_distruction.json", base: "asset/sprite/const/distruct/refinery/" }
       },
-      prefix: { idle: "refinery", build: "refinery_const", death: "refinery_distruction" },
+      prefix: { idle: "refinery", build: "refinery_con_complete", death: "refinery_distruction" },
       entKey: { buildT0: "_refineryBuildT0", buildDone: "_refineryBuildDone" }
     ,
       sellKey: { flag: "_refinerySelling", t0: "_refinerySellT0", finalizeAt: "_refinerySellFinalizeAt" }
@@ -168,6 +172,10 @@
     const img = _getTeamTextureImg(stKind, atlasKey, atlas, texIndex, team, state);
     if (!img) return false;
 
+    const tex = atlas.textures && atlas.textures[texIndex];
+    const origImg = tex && tex.img ? tex.img : img;
+    const didTint = (img !== origImg);
+
     const frame = fr.frame || { x:0, y:0, w:0, h:0 };
     const sss   = fr.spriteSourceSize || { x:0, y:0, w:frame.w, h:frame.h };
     const srcSz = fr.sourceSize || { w: sss.w, h: sss.h };
@@ -185,6 +193,27 @@
     const dh = frame.h * scale;
 
     ctx.drawImage(img, frame.x, frame.y, frame.w, frame.h, dx, dy, dw, dh);
+
+    // Restore original pixels for excluded regions (e.g. refinery chimney)
+    if (didTint && cfg && cfg.teamExclude && cfg.teamExclude.length){
+      for (const r of cfg.teamExclude){
+        if (!r) continue;
+        const ex0 = r.x, ey0 = r.y, ex1 = r.x + r.w, ey1 = r.y + r.h;
+        const ix0 = Math.max(0, ex0 - sss.x);
+        const iy0 = Math.max(0, ey0 - sss.y);
+        const ix1 = Math.min(sss.w, ex1 - sss.x);
+        const iy1 = Math.min(sss.h, ey1 - sss.y);
+        if (ix1 <= ix0 || iy1 <= iy0) continue;
+
+        const sw = ix1 - ix0;
+        const sh = iy1 - iy0;
+        const sx = frame.x + ix0;
+        const sy = frame.y + iy0;
+        const dx2 = dx + ix0 * scale;
+        const dy2 = dy + iy0 * scale;
+        ctx.drawImage(origImg, sx, sy, sw, sh, dx2, dy2, sw * scale, sh * scale);
+      }
+    }
     return true;
   }
 
@@ -245,8 +274,17 @@
         stKind.frames.activeMapN = nMap.map;
         stKind.frames.activeMapD = dMap.map;
         stKind.frames.activeNums = activeNums;
-        stKind.frames.idleOk  = idleOnly.length ? idleOnly : _idleAll;
-        stKind.frames.idleBad = [];
+
+        // Refinery idle: idle1 = normal, idle2 = damaged (per your definition)
+        const idle1 = idleOnly.filter(n => /refinery_idle1/i.test(String(n||"")));
+        const idle2 = idleOnly.filter(n => /refinery_idle2/i.test(String(n||"")));
+        if (idle1.length || idle2.length){
+          stKind.frames.idleOk  = idle1.length ? idle1 : idleOnly;
+          stKind.frames.idleBad = idle2;
+        } else {
+          stKind.frames.idleOk  = idleOnly.length ? idleOnly : _idleAll;
+          stKind.frames.idleBad = [];
+        }
       } else {
         const _hasNActive = _idleAll.some(n => /_n_active_/i.test(String(n||"")));
         const _hasDActive = _idleAll.some(n => /_d_active_/i.test(String(n||"")));
