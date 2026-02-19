@@ -1054,6 +1054,8 @@ function ensureBadge(btn){
         prev: document.getElementById("pmPrev"),
         play: document.getElementById("pmPlay"),
         next: document.getElementById("pmNext"),
+        shuffle: document.getElementById("pmShuffle"),
+        repeat: document.getElementById("pmRepeat"),
         vol: document.getElementById("pmVol"),
         volVal: document.getElementById("pmVolVal"),
         bright: document.getElementById("pmBright"),
@@ -1117,6 +1119,12 @@ function ensureBadge(btn){
           getEqCount: () => eqBars.length || 12,
           setTrack: (name)=>{ if (refs.track) refs.track.textContent = String(name||""); },
           setPlay: (playing)=>{ if (refs.play) refs.play.textContent = playing ? "⏸" : "▶"; },
+          setShuffle: (on)=>{ if (refs.shuffle) refs.shuffle.textContent = on ? "셔플: ON" : "셔플: OFF"; },
+          setRepeat: (mode)=>{
+            if (!refs.repeat) return;
+            const m = String(mode||"none");
+            refs.repeat.textContent = (m==="one") ? "반복: 1곡" : (m==="all" ? "반복: 전체" : "반복: 없음");
+          },
           setVol: (v)=>{ if (refs.vol) refs.vol.value = String(v ?? 0.7); },
           setTime: (cur, dur)=>{
             if (refs.time){
@@ -1162,6 +1170,8 @@ function ensureBadge(btn){
       if (refs.prev) refs.prev.addEventListener("click", ()=>{ if (typeof env.onPrev === "function") env.onPrev(); });
       if (refs.next) refs.next.addEventListener("click", ()=>{ if (typeof env.onNext === "function") env.onNext(); });
       if (refs.play) refs.play.addEventListener("click", ()=>{ if (typeof env.onPlay === "function") env.onPlay(); });
+      if (refs.shuffle) refs.shuffle.addEventListener("click", ()=>{ if (typeof env.onShuffle === "function") env.onShuffle(); });
+      if (refs.repeat) refs.repeat.addEventListener("click", ()=>{ if (typeof env.onRepeat === "function") env.onRepeat(); });
 
       // Keep pause menu open unless explicitly closed.
       refs.overlay.addEventListener("mousedown", (e)=>{
