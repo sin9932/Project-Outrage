@@ -738,7 +738,7 @@
         const eUnitsAll = units.filter(u => u.alive && u.team === TEAM.ENEMY && !u.inTransport && !u.hidden);
         const dest = rallyT || ai.rally;
         if (!hasFac && hasBar) {
-          ai.nextWave = state.t + rnd(10, 16) / (ai.apmMul || 1);
+          ai.nextWave = state.t + rnd(7, 12) / (ai.apmMul || 1);
           const inf = eUnitsAll.filter(u => u.kind === "infantry");
           if (inf.length >= 7) {
             const pack = inf.slice(0, Math.min(12, inf.length));
