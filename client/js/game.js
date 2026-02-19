@@ -2984,7 +2984,7 @@ function sellBuilding(b){
     if (!b || !b.alive || b.civ) return;
 
     // Prevent double-sell spam while animation is running
-    if ((b.kind==="barracks" && b._barrackSelling) || (b.kind==="power" && b._powerSelling)) return;
+    if ((b.kind==="barracks" && b._barrackSelling) || (b.kind==="power" && b._powerSelling) || (b.kind==="refinery" && b._refinerySelling)) return;
 
     // If selling a producer with an active queue, refund paid progress and clear the queue.
     if (b.team===TEAM.PLAYER && b.buildQ && b.buildQ.length){
@@ -3011,10 +3011,10 @@ const refund = Math.floor((COST[b.kind]||0) * 0.5);
     spawnEvacUnitsFromBuilding(b, false);
 
     // Barracks / Power Plant: play "construction" animation in reverse, then remove footprint.
-    if (b.kind==="barracks" || b.kind==="power"){
-      const _flag = (b.kind==="barracks") ? "_barrackSelling" : "_powerSelling";
-      const _t0   = (b.kind==="barracks") ? "_barrackSellT0" : "_powerSellT0";
-      const _fin  = (b.kind==="barracks") ? "_barrackSellFinalizeAt" : "_powerSellFinalizeAt";
+    if (b.kind==="barracks" || b.kind==="power" || b.kind==="refinery"){
+      const _flag = (b.kind==="barracks") ? "_barrackSelling" : (b.kind==="power") ? "_powerSelling" : "_refinerySelling";
+      const _t0   = (b.kind==="barracks") ? "_barrackSellT0" : (b.kind==="power") ? "_powerSellT0" : "_refinerySellT0";
+      const _fin  = (b.kind==="barracks") ? "_barrackSellFinalizeAt" : (b.kind==="power") ? "_powerSellFinalizeAt" : "_refinerySellFinalizeAt";
       try{
         if (window.PO && PO.buildings && PO.buildings.onSold){
           PO.buildings.onSold(b, state);
@@ -3034,7 +3034,7 @@ const refund = Math.floor((COST[b.kind]||0) * 0.5);
       state.selection.delete(b.id);
       return;
     }
-// Default: immediate removal
+    // Default: immediate removal
     try{ if (window.PO && PO.buildings && PO.buildings.onSold) PO.buildings.onSold(b, state); }catch(_e){}
     b.alive=false;
     state.selection.delete(b.id);
@@ -5067,6 +5067,13 @@ function sanityCheck(){
           _needElim  = true;
         }
         if (b.kind==="power" && b._powerSelling && b._powerSellFinalizeAt!=null && state.t >= b._powerSellFinalizeAt){
+          b.alive = false;
+          state.selection.delete(b.id);
+          setBuildingOcc(b, 0);
+          _needPower = true;
+          _needElim  = true;
+        }
+        if (b.kind==="refinery" && b._refinerySelling && b._refinerySellFinalizeAt!=null && state.t >= b._refinerySellFinalizeAt){
           b.alive = false;
           state.selection.delete(b.id);
           setBuildingOcc(b, 0);
