@@ -1587,6 +1587,7 @@
       ctx.save();
       ctx.clip();
       const t = (state && state.t) ? state.t : 0;
+      const shimmer = t * 3.4 + tx*0.55 + ty*0.42;
       const px = (t * 18) % 256;
       const py = (t * 12) % 256;
       if (WATER_TEX_PAT){
