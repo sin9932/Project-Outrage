@@ -1127,7 +1127,7 @@ function ensureBadge(btn){
             const dist = Math.max(0, (el.scrollWidth || 0) - (boxW || 0));
             if (dist > 8){
               el.classList.add("marquee");
-              el.style.setProperty("--pmMarqueeDist", `-${Math.ceil(dist)}px`);
+              el.style.setProperty("--pmMarqueeDist", `${Math.ceil(dist)}px`);
             } else {
               el.classList.remove("marquee");
               el.style.removeProperty("--pmMarqueeDist");

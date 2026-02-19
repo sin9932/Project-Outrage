@@ -357,16 +357,20 @@
 #pmTrackName{
   font-size:34px;line-height:1.05;font-weight:800;letter-spacing:0.4px;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:inline-block;
+  max-width:100%;
 }
 #pmTrackName.marquee{
+  overflow:visible;
   text-overflow:clip;
+  display:inline-block;
+  width:max-content;
   animation: pmMarquee 12s linear infinite;
   will-change: transform;
   padding-right: 24px;
 }
 @keyframes pmMarquee{
   0% { transform: translateX(0); }
-  100% { transform: translateX(var(--pmMarqueeDist, -40px)); }
+  100% { transform: translateX(calc(-1 * var(--pmMarqueeDist, 40px))); }
 }
 .pmTimeInline{margin-top:6px;font-size:13px;opacity:0.85}
 .pctrl.big{height:64px;justify-content:flex-end}
