@@ -1085,11 +1085,19 @@ function ensureBadge(btn){
         const n = (bgm.trackName || "(대기중)").replace(/\.[^/.]+$/,"");
         refs.track.textContent = n;
       }
-      if (bgm && refs.vol) refs.vol.value = String(bgm.master ?? bgm.audio?.volume ?? 0.7);
+      if (bgm && refs.vol){
+        const v = (bgm.master ?? bgm.audio?.volume ?? 0.7);
+        refs.vol.value = String(v);
+        if (refs.volVal) refs.volVal.textContent = String(Math.max(1, Math.min(10, Math.round(Number(v) * 10))));
+      }
 
       const bright = (typeof env.getBrightness === "function") ? env.getBrightness() : null;
       if (refs.bright && bright != null) refs.bright.value = String(bright);
-      if (refs.brightVal && bright != null) refs.brightVal.textContent = Number(bright).toFixed(2);
+      if (refs.brightVal && bright != null){
+        const b = Number(bright);
+        const n10 = Math.max(1, Math.min(10, Math.round((b - 0.6) * 9 + 1)));
+        refs.brightVal.textContent = String(n10);
+      }
     }
 
     function wirePauseMenuUI(env){
@@ -1127,7 +1135,10 @@ function ensureBadge(btn){
           },
           setVol: (v)=>{
             if (refs.vol) refs.vol.value = String(v ?? 0.7);
-            if (refs.volVal) refs.volVal.textContent = (Number.isFinite(v) ? v : 0.7).toFixed(2);
+            if (refs.volVal){
+              const n = Number.isFinite(v) ? v : 0.7;
+              refs.volVal.textContent = String(Math.max(1, Math.min(10, Math.round(n * 10))));
+            }
           },
           setTime: (cur, dur)=>{
             if (refs.time){
@@ -1161,12 +1172,16 @@ function ensureBadge(btn){
 
       if (refs.vol) refs.vol.addEventListener("input", ()=>{
         const v = parseFloat(refs.vol.value);
-        if (refs.volVal) refs.volVal.textContent = (Number.isFinite(v) ? v : 0.7).toFixed(2);
+        if (refs.volVal) refs.volVal.textContent = String(Math.max(1, Math.min(10, Math.round((Number.isFinite(v) ? v : 0.7) * 10))));
         if (typeof env.onVol === "function") env.onVol(v);
       });
       if (refs.bright) refs.bright.addEventListener("input", ()=>{
         const v = parseFloat(refs.bright.value);
-        if (refs.brightVal) refs.brightVal.textContent = (Number.isFinite(v) ? v : 1).toFixed(2);
+        if (refs.brightVal){
+          const b = Number.isFinite(v) ? v : 1;
+          const n10 = Math.max(1, Math.min(10, Math.round((b - 0.6) * 9 + 1)));
+          refs.brightVal.textContent = String(n10);
+        }
         if (typeof env.onBright === "function") env.onBright(v);
       });
       if (refs.resume) refs.resume.addEventListener("click", ()=>{ if (typeof env.onResume === "function") env.onResume(); });
