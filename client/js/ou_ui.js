@@ -1125,7 +1125,10 @@ function ensureBadge(btn){
             const m = String(mode||"none");
             refs.repeat.textContent = (m==="one") ? "반복: 1곡" : (m==="all" ? "반복: 전체" : "반복: 없음");
           },
-          setVol: (v)=>{ if (refs.vol) refs.vol.value = String(v ?? 0.7); },
+          setVol: (v)=>{
+            if (refs.vol) refs.vol.value = String(v ?? 0.7);
+            if (refs.volVal) refs.volVal.textContent = (Number.isFinite(v) ? v : 0.7).toFixed(2);
+          },
           setTime: (cur, dur)=>{
             if (refs.time){
               const fmt = (sec)=>{
@@ -1158,6 +1161,7 @@ function ensureBadge(btn){
 
       if (refs.vol) refs.vol.addEventListener("input", ()=>{
         const v = parseFloat(refs.vol.value);
+        if (refs.volVal) refs.volVal.textContent = (Number.isFinite(v) ? v : 0.7).toFixed(2);
         if (typeof env.onVol === "function") env.onVol(v);
       });
       if (refs.bright) refs.bright.addEventListener("input", ()=>{
