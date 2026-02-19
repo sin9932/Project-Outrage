@@ -1558,22 +1558,37 @@
 
     if (type===3){
       // simple water reflection highlight
-      const shimmer = ((state && state.t) ? state.t : 0) * 2.0 + tx*0.35 + ty*0.27;
+      const shimmer = ((state && state.t) ? state.t : 0) * 3.4 + tx*0.55 + ty*0.42;
       const g = ctx.createLinearGradient(x-ox, y-oy, x+ox, y+oy);
-      g.addColorStop(0.0, "rgba(120,180,255,0.02)");
-      g.addColorStop(0.5, "rgba(140,200,255,0.07)");
-      g.addColorStop(1.0, "rgba(120,180,255,0.02)");
+      g.addColorStop(0.0, "rgba(120,180,255,0.03)");
+      g.addColorStop(0.5, "rgba(150,210,255,0.12)");
+      g.addColorStop(1.0, "rgba(120,180,255,0.03)");
       ctx.fillStyle = g;
       ctx.fill();
 
       ctx.save();
-      ctx.globalAlpha = 0.18;
-      ctx.strokeStyle = "rgba(180,220,255,0.55)";
+      ctx.globalAlpha = 0.26;
+      ctx.strokeStyle = "rgba(190,230,255,0.65)";
       ctx.lineWidth = 1.2 * cam.zoom;
       const wave = Math.sin(shimmer) * 0.35;
       ctx.beginPath();
-      ctx.moveTo(x-ox*0.65, y-oy*0.05 + wave*8);
-      ctx.lineTo(x+ox*0.65, y+oy*0.05 + wave*8);
+      ctx.moveTo(x-ox*0.75, y-oy*0.08 + wave*10);
+      ctx.lineTo(x+ox*0.75, y+oy*0.08 + wave*10);
+      ctx.stroke();
+
+      // extra fast ripples for "windy" water
+      const wave2 = Math.sin(shimmer*1.7 + 1.2) * 0.28;
+      ctx.globalAlpha = 0.22;
+      ctx.beginPath();
+      ctx.moveTo(x-ox*0.55, y+oy*0.06 + wave2*9);
+      ctx.lineTo(x+ox*0.55, y+oy*0.06 + wave2*9);
+      ctx.stroke();
+
+      const wave3 = Math.sin(shimmer*2.5 + 2.7) * 0.20;
+      ctx.globalAlpha = 0.18;
+      ctx.beginPath();
+      ctx.moveTo(x-ox*0.40, y+oy*0.22 + wave3*7);
+      ctx.lineTo(x+ox*0.40, y+oy*0.22 + wave3*7);
       ctx.stroke();
       ctx.restore();
     }
