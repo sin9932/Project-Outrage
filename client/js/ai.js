@@ -56,7 +56,8 @@
       harassNext: 0,
       engineerNext: 0,
       engRushNext: 0,
-      nextWave: 0
+      nextWave: 0,
+      apmMul: 2.4
     };
 
     // ===== ENEMY AGGRESSION / ANTI-CLUSTER HELPERS =====
@@ -674,7 +675,7 @@
     function aiTick() {
       // frequent decisions, but not every frame
       if (state.t < ai.nextThink) return;
-      ai.nextThink = state.t + rnd(0.55, 0.95);
+      ai.nextThink = state.t + rnd(0.22, 0.38) / (ai.apmMul || 1);
 
       const e = state.enemy;
 
@@ -712,7 +713,7 @@
       const phq = buildings.find(b => b.alive && !b.civ && b.team === TEAM.PLAYER && b.kind === "hq");
       const rallyT = phq ? { x: phq.x, y: phq.y } : ai.rally;
       if (state.t >= ai.nextWave) {
-        ai.nextWave = state.t + rnd(22, 34);
+        ai.nextWave = state.t + rnd(16, 24) / (ai.apmMul || 1);
         const eUnitsAll = units.filter(u => u.alive && u.team === TEAM.ENEMY && !u.inTransport && !u.hidden);
         const tanks = eUnitsAll.filter(u => u.kind === "tank");
         const ifvs = eUnitsAll.filter(u => u.kind === "ifv" && u.passengerId);
@@ -804,7 +805,7 @@
 
       // Periodic harvester terror: small strike team only (do NOT drag the whole army).
       if (state.t >= (ai.harassNext || 0)) {
-        ai.harassNext = state.t + rnd(18, 26);
+        ai.harassNext = state.t + rnd(12, 18) / (ai.apmMul || 1);
 
         const pInf = units.filter(u => u.alive && u.team === TEAM.PLAYER && (UNIT[u.kind] && UNIT[u.kind].cls === "inf") && !u.inTransport && !u.hidden);
         if (pInf.length) {

@@ -4799,14 +4799,7 @@ function draw(){
     const pHQ = safePlace(TEAM.PLAYER,"hq", a.tx-2, a.ty-2);
     const eHQ = safePlace(TEAM.ENEMY, "hq", b.tx-2, b.ty-2);
 
-    safePlace(TEAM.PLAYER,"power",    pHQ.tx+6, pHQ.ty-1);
-    safePlace(TEAM.PLAYER,"barracks", pHQ.tx+6, pHQ.ty+4);
-    const pRef = safePlace(TEAM.PLAYER,"refinery", pHQ.tx-1, pHQ.ty+7);
-
-    safePlace(TEAM.ENEMY,"power",    eHQ.tx-3, eHQ.ty+4);
-    safePlace(TEAM.ENEMY,"barracks", eHQ.tx-4, eHQ.ty-2);
-    const eRef = safePlace(TEAM.ENEMY,"refinery", eHQ.tx+4, eHQ.ty-6);
-    // 굴착기는 정제소 완성 시 무료 스폰으로만 생성됨
+    // Start with HQ only (both sides)
 
     placeCivOreGens();
 
