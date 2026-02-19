@@ -1,0 +1,1595 @@
+{
+	"textures": [
+		{
+			"image": "barrack_distruction.png",
+			"format": "RGBA8888",
+			"size": {
+				"w": 7741,
+				"h": 3485
+			},
+			"scale": 1,
+			"frames": [
+				{
+					"filename": "refinery_distruct_12.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 1652,
+						"h": 1252
+					},
+					"spriteSourceSize": {
+						"x": 462,
+						"y": 346,
+						"w": 786,
+						"h": 648
+					},
+					"frame": {
+						"x": 1,
+						"y": 1,
+						"w": 786,
+						"h": 648
+					},
+					"anchor": {
+						"x": 0.5,
+						"y": 0.6
+					}
+				},
+				{
+					"filename": "refinery_distruct_13.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 1652,
+						"h": 1252
+					},
+					"spriteSourceSize": {
+						"x": 462,
+						"y": 346,
+						"w": 764,
+						"h": 662
+					},
+					"frame": {
+						"x": 1,
+						"y": 651,
+						"w": 764,
+						"h": 662
+					},
+					"anchor": {
+						"x": 0.5,
+						"y": 0.6
+					}
+				},
+				{
+					"filename": "refinery_distruct_6.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 1652,
+						"h": 1252
+					},
+					"spriteSourceSize": {
+						"x": 462,
+						"y": 346,
+						"w": 809,
+						"h": 604
+					},
+					"frame": {
+						"x": 789,
+						"y": 1,
+						"w": 809,
+						"h": 604
+					},
+					"anchor": {
+						"x": 0.5,
+						"y": 0.6
+					}
+				},
+				{
+					"filename": "refinery_distruct_14.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 1652,
+						"h": 1252
+					},
+					"spriteSourceSize": {
+						"x": 462,
+						"y": 346,
+						"w": 750,
+						"h": 663
+					},
+					"frame": {
+						"x": 1,
+						"y": 1315,
+						"w": 750,
+						"h": 663
+					},
+					"anchor": {
+						"x": 0.5,
+						"y": 0.6
+					}
+				},
+				{
+					"filename": "refinery_distruct_5.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 1652,
+						"h": 1252
+					},
+					"spriteSourceSize": {
+						"x": 462,
+						"y": 346,
+						"w": 808,
+						"h": 604
+					},
+					"frame": {
+						"x": 1600,
+						"y": 1,
+						"w": 808,
+						"h": 604
+					},
+					"anchor": {
+						"x": 0.5,
+						"y": 0.6
+					}
+				},
+				{
+					"filename": "refinery_distruct_15.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 1652,
+						"h": 1252
+					},
+					"spriteSourceSize": {
+						"x": 462,
+						"y": 346,
+						"w": 750,
+						"h": 660
+					},
+					"frame": {
+						"x": 1,
+						"y": 1980,
+						"w": 750,
+						"h": 660
+					},
+					"anchor": {
+						"x": 0.5,
+						"y": 0.6
+					}
+				},
+				{
+					"filename": "refinery_distruct_7.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 1652,
+						"h": 1252
+					},
+					"spriteSourceSize": {
+						"x": 462,
+						"y": 346,
+						"w": 805,
+						"h": 604
+					},
+					"frame": {
+						"x": 2410,
+						"y": 1,
+						"w": 805,
+						"h": 604
+					},
+					"anchor": {
+						"x": 0.5,
+						"y": 0.6
+					}
+				},
+				{
+					"filename": "refinery_distruct_16.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 1652,
+						"h": 1252
+					},
+					"spriteSourceSize": {
+						"x": 462,
+						"y": 346,
+						"w": 751,
+						"h": 659
+					},
+					"frame": {
+						"x": 1,
+						"y": 2642,
+						"w": 751,
+						"h": 659
+					},
+					"anchor": {
+						"x": 0.5,
+						"y": 0.6
+					}
+				},
+				{
+					"filename": "refinery_distruct_8.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 1652,
+						"h": 1252
+					},
+					"spriteSourceSize": {
+						"x": 462,
+						"y": 346,
+						"w": 794,
+						"h": 605
+					},
+					"frame": {
+						"x": 3217,
+						"y": 1,
+						"w": 794,
+						"h": 605
+					},
+					"anchor": {
+						"x": 0.5,
+						"y": 0.6
+					}
+				},
+				{
+					"filename": "refinery_distruct_9.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 1652,
+						"h": 1252
+					},
+					"spriteSourceSize": {
+						"x": 462,
+						"y": 346,
+						"w": 786,
+						"h": 605
+					},
+					"frame": {
+						"x": 4013,
+						"y": 1,
+						"w": 786,
+						"h": 605
+					},
+					"anchor": {
+						"x": 0.5,
+						"y": 0.6
+					}
+				},
+				{
+					"filename": "refinery_distruct_10.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 1652,
+						"h": 1252
+					},
+					"spriteSourceSize": {
+						"x": 462,
+						"y": 346,
+						"w": 786,
+						"h": 606
+					},
+					"frame": {
+						"x": 4801,
+						"y": 1,
+						"w": 786,
+						"h": 606
+					},
+					"anchor": {
+						"x": 0.5,
+						"y": 0.6
+					}
+				},
+				{
+					"filename": "refinery_distruct_11.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 1652,
+						"h": 1252
+					},
+					"spriteSourceSize": {
+						"x": 462,
+						"y": 346,
+						"w": 785,
+						"h": 621
+					},
+					"frame": {
+						"x": 5589,
+						"y": 1,
+						"w": 785,
+						"h": 621
+					},
+					"anchor": {
+						"x": 0.5,
+						"y": 0.6
+					}
+				},
+				{
+					"filename": "refinery_distruct_4.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 1652,
+						"h": 1252
+					},
+					"spriteSourceSize": {
+						"x": 462,
+						"y": 346,
+						"w": 784,
+						"h": 604
+					},
+					"frame": {
+						"x": 6376,
+						"y": 1,
+						"w": 784,
+						"h": 604
+					},
+					"anchor": {
+						"x": 0.5,
+						"y": 0.6
+					}
+				},
+				{
+					"filename": "refinery_distruct_59.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 1652,
+						"h": 1252
+					},
+					"spriteSourceSize": {
+						"x": 546,
+						"y": 544,
+						"w": 567,
+						"h": 321
+					},
+					"frame": {
+						"x": 7162,
+						"y": 1,
+						"w": 567,
+						"h": 321
+					},
+					"anchor": {
+						"x": 0.5,
+						"y": 0.6
+					}
+				},
+				{
+					"filename": "refinery_distruct_40.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 1652,
+						"h": 1252
+					},
+					"spriteSourceSize": {
+						"x": 462,
+						"y": 364,
+						"w": 781,
+						"h": 577
+					},
+					"frame": {
+						"x": 789,
+						"y": 607,
+						"w": 781,
+						"h": 577
+					},
+					"anchor": {
+						"x": 0.5,
+						"y": 0.6
+					}
+				},
+				{
+					"filename": "refinery_distruct_39.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 1652,
+						"h": 1252
+					},
+					"spriteSourceSize": {
+						"x": 462,
+						"y": 357,
+						"w": 779,
+						"h": 586
+					},
+					"frame": {
+						"x": 1572,
+						"y": 607,
+						"w": 779,
+						"h": 586
+					},
+					"anchor": {
+						"x": 0.5,
+						"y": 0.6
+					}
+				},
+				{
+					"filename": "refinery_distruct_38.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 1652,
+						"h": 1252
+					},
+					"spriteSourceSize": {
+						"x": 462,
+						"y": 352,
+						"w": 778,
+						"h": 593
+					},
+					"frame": {
+						"x": 2353,
+						"y": 607,
+						"w": 778,
+						"h": 593
+					},
+					"anchor": {
+						"x": 0.5,
+						"y": 0.6
+					}
+				},
+				{
+					"filename": "refinery_distruct_37.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 1652,
+						"h": 1252
+					},
+					"spriteSourceSize": {
+						"x": 462,
+						"y": 349,
+						"w": 775,
+						"h": 598
+					},
+					"frame": {
+						"x": 3133,
+						"y": 608,
+						"w": 775,
+						"h": 598
+					},
+					"anchor": {
+						"x": 0.5,
+						"y": 0.6
+					}
+				},
+				{
+					"filename": "refinery_distruct_36.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 1652,
+						"h": 1252
+					},
+					"spriteSourceSize": {
+						"x": 462,
+						"y": 347,
+						"w": 772,
+						"h": 601
+					},
+					"frame": {
+						"x": 3910,
+						"y": 608,
+						"w": 772,
+						"h": 601
+					},
+					"anchor": {
+						"x": 0.5,
+						"y": 0.6
+					}
+				},
+				{
+					"filename": "refinery_distruct_35.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 1652,
+						"h": 1252
+					},
+					"spriteSourceSize": {
+						"x": 462,
+						"y": 346,
+						"w": 769,
+						"h": 605
+					},
+					"frame": {
+						"x": 4684,
+						"y": 609,
+						"w": 769,
+						"h": 605
+					},
+					"anchor": {
+						"x": 0.5,
+						"y": 0.6
+					}
+				},
+				{
+					"filename": "refinery_distruct_26.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 1652,
+						"h": 1252
+					},
+					"spriteSourceSize": {
+						"x": 462,
+						"y": 346,
+						"w": 766,
+						"h": 635
+					},
+					"frame": {
+						"x": 5455,
+						"y": 624,
+						"w": 766,
+						"h": 635
+					},
+					"anchor": {
+						"x": 0.5,
+						"y": 0.6
+					}
+				},
+				{
+					"filename": "refinery_distruct_41.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 1652,
+						"h": 1252
+					},
+					"spriteSourceSize": {
+						"x": 462,
+						"y": 374,
+						"w": 781,
+						"h": 565
+					},
+					"frame": {
+						"x": 767,
+						"y": 1186,
+						"w": 781,
+						"h": 565
+					},
+					"anchor": {
+						"x": 0.5,
+						"y": 0.6
+					}
+				},
+				{
+					"filename": "refinery_distruct_20.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 1652,
+						"h": 1252
+					},
+					"spriteSourceSize": {
+						"x": 462,
+						"y": 346,
+						"w": 762,
+						"h": 648
+					},
+					"frame": {
+						"x": 753,
+						"y": 1753,
+						"w": 762,
+						"h": 648
+					},
+					"anchor": {
+						"x": 0.5,
+						"y": 0.6
+					}
+				},
+				{
+					"filename": "refinery_distruct_42.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 1652,
+						"h": 1252
+					},
+					"spriteSourceSize": {
+						"x": 462,
+						"y": 384,
+						"w": 781,
+						"h": 553
+					},
+					"frame": {
+						"x": 1550,
+						"y": 1195,
+						"w": 781,
+						"h": 553
+					},
+					"anchor": {
+						"x": 0.5,
+						"y": 0.6
+					}
+				},
+				{
+					"filename": "refinery_distruct_43.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 1652,
+						"h": 1252
+					},
+					"spriteSourceSize": {
+						"x": 462,
+						"y": 399,
+						"w": 780,
+						"h": 536
+					},
+					"frame": {
+						"x": 2333,
+						"y": 1202,
+						"w": 780,
+						"h": 536
+					},
+					"anchor": {
+						"x": 0.5,
+						"y": 0.6
+					}
+				},
+				{
+					"filename": "refinery_distruct_44.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 1652,
+						"h": 1252
+					},
+					"spriteSourceSize": {
+						"x": 462,
+						"y": 407,
+						"w": 780,
+						"h": 526
+					},
+					"frame": {
+						"x": 3115,
+						"y": 1208,
+						"w": 780,
+						"h": 526
+					},
+					"anchor": {
+						"x": 0.5,
+						"y": 0.6
+					}
+				},
+				{
+					"filename": "refinery_distruct_45.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 1652,
+						"h": 1252
+					},
+					"spriteSourceSize": {
+						"x": 462,
+						"y": 408,
+						"w": 769,
+						"h": 524
+					},
+					"frame": {
+						"x": 3897,
+						"y": 1211,
+						"w": 769,
+						"h": 524
+					},
+					"anchor": {
+						"x": 0.5,
+						"y": 0.6
+					}
+				},
+				{
+					"filename": "refinery_distruct_25.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 1652,
+						"h": 1252
+					},
+					"spriteSourceSize": {
+						"x": 462,
+						"y": 346,
+						"w": 764,
+						"h": 640
+					},
+					"frame": {
+						"x": 4668,
+						"y": 1216,
+						"w": 764,
+						"h": 640
+					},
+					"anchor": {
+						"x": 0.5,
+						"y": 0.6
+					}
+				},
+				{
+					"filename": "refinery_distruct_34.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 1652,
+						"h": 1252
+					},
+					"spriteSourceSize": {
+						"x": 462,
+						"y": 346,
+						"w": 764,
+						"h": 607
+					},
+					"frame": {
+						"x": 5434,
+						"y": 1261,
+						"w": 764,
+						"h": 607
+					},
+					"anchor": {
+						"x": 0.5,
+						"y": 0.6
+					}
+				},
+				{
+					"filename": "refinery_distruct_17.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 1652,
+						"h": 1252
+					},
+					"spriteSourceSize": {
+						"x": 462,
+						"y": 346,
+						"w": 752,
+						"h": 657
+					},
+					"frame": {
+						"x": 754,
+						"y": 2403,
+						"w": 752,
+						"h": 657
+					},
+					"anchor": {
+						"x": 0.5,
+						"y": 0.6
+					}
+				},
+				{
+					"filename": "refinery_distruct_56.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 1652,
+						"h": 1252
+					},
+					"spriteSourceSize": {
+						"x": 498,
+						"y": 490,
+						"w": 667,
+						"h": 422
+					},
+					"frame": {
+						"x": 754,
+						"y": 3062,
+						"w": 667,
+						"h": 422
+					},
+					"anchor": {
+						"x": 0.5,
+						"y": 0.6
+					}
+				},
+				{
+					"filename": "refinery_distruct_18.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 1652,
+						"h": 1252
+					},
+					"spriteSourceSize": {
+						"x": 462,
+						"y": 346,
+						"w": 755,
+						"h": 652
+					},
+					"frame": {
+						"x": 6223,
+						"y": 624,
+						"w": 755,
+						"h": 652
+					},
+					"anchor": {
+						"x": 0.5,
+						"y": 0.6
+					}
+				},
+				{
+					"filename": "refinery_distruct_27.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 1652,
+						"h": 1252
+					},
+					"spriteSourceSize": {
+						"x": 462,
+						"y": 346,
+						"w": 762,
+						"h": 630
+					},
+					"frame": {
+						"x": 6200,
+						"y": 1278,
+						"w": 762,
+						"h": 630
+					},
+					"anchor": {
+						"x": 0.5,
+						"y": 0.6
+					}
+				},
+				{
+					"filename": "refinery_distruct_19.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 1652,
+						"h": 1252
+					},
+					"spriteSourceSize": {
+						"x": 462,
+						"y": 346,
+						"w": 758,
+						"h": 649
+					},
+					"frame": {
+						"x": 6980,
+						"y": 607,
+						"w": 758,
+						"h": 649
+					},
+					"anchor": {
+						"x": 0.5,
+						"y": 0.6
+					}
+				},
+				{
+					"filename": "refinery_distruct_33.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 1652,
+						"h": 1252
+					},
+					"spriteSourceSize": {
+						"x": 462,
+						"y": 346,
+						"w": 760,
+						"h": 608
+					},
+					"frame": {
+						"x": 6980,
+						"y": 1258,
+						"w": 760,
+						"h": 608
+					},
+					"anchor": {
+						"x": 0.5,
+						"y": 0.6
+					}
+				},
+				{
+					"filename": "refinery_distruct_24.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 1652,
+						"h": 1252
+					},
+					"spriteSourceSize": {
+						"x": 462,
+						"y": 346,
+						"w": 757,
+						"h": 644
+					},
+					"frame": {
+						"x": 6964,
+						"y": 1868,
+						"w": 757,
+						"h": 644
+					},
+					"anchor": {
+						"x": 0.5,
+						"y": 0.6
+					}
+				},
+				{
+					"filename": "refinery_distruct_32.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 1652,
+						"h": 1252
+					},
+					"spriteSourceSize": {
+						"x": 462,
+						"y": 345,
+						"w": 756,
+						"h": 610
+					},
+					"frame": {
+						"x": 2333,
+						"y": 1740,
+						"w": 756,
+						"h": 610
+					},
+					"anchor": {
+						"x": 0.5,
+						"y": 0.6
+					}
+				},
+				{
+					"filename": "refinery_distruct_28.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 1652,
+						"h": 1252
+					},
+					"spriteSourceSize": {
+						"x": 462,
+						"y": 345,
+						"w": 753,
+						"h": 624
+					},
+					"frame": {
+						"x": 3115,
+						"y": 1736,
+						"w": 753,
+						"h": 624
+					},
+					"anchor": {
+						"x": 0.5,
+						"y": 0.6
+					}
+				},
+				{
+					"filename": "refinery_distruct_23.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 1652,
+						"h": 1252
+					},
+					"spriteSourceSize": {
+						"x": 462,
+						"y": 346,
+						"w": 751,
+						"h": 646
+					},
+					"frame": {
+						"x": 3870,
+						"y": 1737,
+						"w": 751,
+						"h": 646
+					},
+					"anchor": {
+						"x": 0.5,
+						"y": 0.6
+					}
+				},
+				{
+					"filename": "refinery_distruct_31.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 1652,
+						"h": 1252
+					},
+					"spriteSourceSize": {
+						"x": 462,
+						"y": 345,
+						"w": 753,
+						"h": 611
+					},
+					"frame": {
+						"x": 4623,
+						"y": 1858,
+						"w": 753,
+						"h": 611
+					},
+					"anchor": {
+						"x": 0.5,
+						"y": 0.6
+					}
+				},
+				{
+					"filename": "refinery_distruct_30.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 1652,
+						"h": 1252
+					},
+					"spriteSourceSize": {
+						"x": 462,
+						"y": 345,
+						"w": 751,
+						"h": 614
+					},
+					"frame": {
+						"x": 5378,
+						"y": 1870,
+						"w": 751,
+						"h": 614
+					},
+					"anchor": {
+						"x": 0.5,
+						"y": 0.6
+					}
+				},
+				{
+					"filename": "refinery_distruct_3.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 1652,
+						"h": 1252
+					},
+					"spriteSourceSize": {
+						"x": 462,
+						"y": 346,
+						"w": 750,
+						"h": 604
+					},
+					"frame": {
+						"x": 6131,
+						"y": 1910,
+						"w": 750,
+						"h": 604
+					},
+					"anchor": {
+						"x": 0.5,
+						"y": 0.6
+					}
+				},
+				{
+					"filename": "refinery_distruct_29.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 1652,
+						"h": 1252
+					},
+					"spriteSourceSize": {
+						"x": 462,
+						"y": 345,
+						"w": 748,
+						"h": 619
+					},
+					"frame": {
+						"x": 1550,
+						"y": 1750,
+						"w": 748,
+						"h": 619
+					},
+					"anchor": {
+						"x": 0.5,
+						"y": 0.6
+					}
+				},
+				{
+					"filename": "refinery_distruct_21.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 1652,
+						"h": 1252
+					},
+					"spriteSourceSize": {
+						"x": 462,
+						"y": 346,
+						"w": 746,
+						"h": 646
+					},
+					"frame": {
+						"x": 1517,
+						"y": 2371,
+						"w": 746,
+						"h": 646
+					},
+					"anchor": {
+						"x": 0.5,
+						"y": 0.6
+					}
+				},
+				{
+					"filename": "refinery_distruct_54.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 1652,
+						"h": 1252
+					},
+					"spriteSourceSize": {
+						"x": 468,
+						"y": 462,
+						"w": 702,
+						"h": 458
+					},
+					"frame": {
+						"x": 1508,
+						"y": 3019,
+						"w": 702,
+						"h": 458
+					},
+					"anchor": {
+						"x": 0.5,
+						"y": 0.6
+					}
+				},
+				{
+					"filename": "refinery_distruct_22.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 1652,
+						"h": 1252
+					},
+					"spriteSourceSize": {
+						"x": 462,
+						"y": 346,
+						"w": 746,
+						"h": 646
+					},
+					"frame": {
+						"x": 2300,
+						"y": 2352,
+						"w": 746,
+						"h": 646
+					},
+					"anchor": {
+						"x": 0.5,
+						"y": 0.6
+					}
+				},
+				{
+					"filename": "refinery_distruct_1.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 1652,
+						"h": 1252
+					},
+					"spriteSourceSize": {
+						"x": 462,
+						"y": 346,
+						"w": 740,
+						"h": 604
+					},
+					"frame": {
+						"x": 3048,
+						"y": 2362,
+						"w": 740,
+						"h": 604
+					},
+					"anchor": {
+						"x": 0.5,
+						"y": 0.6
+					}
+				},
+				{
+					"filename": "refinery_distruct_2.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 1652,
+						"h": 1252
+					},
+					"spriteSourceSize": {
+						"x": 462,
+						"y": 346,
+						"w": 740,
+						"h": 604
+					},
+					"frame": {
+						"x": 3790,
+						"y": 2385,
+						"w": 740,
+						"h": 604
+					},
+					"anchor": {
+						"x": 0.5,
+						"y": 0.6
+					}
+				},
+				{
+					"filename": "refinery_distruct_47.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 1652,
+						"h": 1252
+					},
+					"spriteSourceSize": {
+						"x": 463,
+						"y": 413,
+						"w": 708,
+						"h": 517
+					},
+					"frame": {
+						"x": 4532,
+						"y": 2471,
+						"w": 708,
+						"h": 517
+					},
+					"anchor": {
+						"x": 0.5,
+						"y": 0.6
+					}
+				},
+				{
+					"filename": "refinery_distruct_48.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 1652,
+						"h": 1252
+					},
+					"spriteSourceSize": {
+						"x": 464,
+						"y": 416,
+						"w": 708,
+						"h": 513
+					},
+					"frame": {
+						"x": 5242,
+						"y": 2486,
+						"w": 708,
+						"h": 513
+					},
+					"anchor": {
+						"x": 0.5,
+						"y": 0.6
+					}
+				},
+				{
+					"filename": "refinery_distruct_49.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 1652,
+						"h": 1252
+					},
+					"spriteSourceSize": {
+						"x": 464,
+						"y": 421,
+						"w": 708,
+						"h": 506
+					},
+					"frame": {
+						"x": 5952,
+						"y": 2516,
+						"w": 708,
+						"h": 506
+					},
+					"anchor": {
+						"x": 0.5,
+						"y": 0.6
+					}
+				},
+				{
+					"filename": "refinery_distruct_50.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 1652,
+						"h": 1252
+					},
+					"spriteSourceSize": {
+						"x": 464,
+						"y": 427,
+						"w": 708,
+						"h": 499
+					},
+					"frame": {
+						"x": 3048,
+						"y": 2968,
+						"w": 708,
+						"h": 499
+					},
+					"anchor": {
+						"x": 0.5,
+						"y": 0.6
+					}
+				},
+				{
+					"filename": "refinery_distruct_51.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 1652,
+						"h": 1252
+					},
+					"spriteSourceSize": {
+						"x": 465,
+						"y": 433,
+						"w": 707,
+						"h": 492
+					},
+					"frame": {
+						"x": 3758,
+						"y": 2991,
+						"w": 707,
+						"h": 492
+					},
+					"anchor": {
+						"x": 0.5,
+						"y": 0.6
+					}
+				},
+				{
+					"filename": "refinery_distruct_46.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 1652,
+						"h": 1252
+					},
+					"spriteSourceSize": {
+						"x": 463,
+						"y": 410,
+						"w": 706,
+						"h": 521
+					},
+					"frame": {
+						"x": 6662,
+						"y": 2516,
+						"w": 706,
+						"h": 521
+					},
+					"anchor": {
+						"x": 0.5,
+						"y": 0.6
+					}
+				},
+				{
+					"filename": "refinery_distruct_52.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 1652,
+						"h": 1252
+					},
+					"spriteSourceSize": {
+						"x": 466,
+						"y": 442,
+						"w": 706,
+						"h": 481
+					},
+					"frame": {
+						"x": 4532,
+						"y": 2990,
+						"w": 706,
+						"h": 481
+					},
+					"anchor": {
+						"x": 0.5,
+						"y": 0.6
+					}
+				},
+				{
+					"filename": "refinery_distruct_53.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 1652,
+						"h": 1252
+					},
+					"spriteSourceSize": {
+						"x": 467,
+						"y": 452,
+						"w": 704,
+						"h": 470
+					},
+					"frame": {
+						"x": 5240,
+						"y": 3001,
+						"w": 704,
+						"h": 470
+					},
+					"anchor": {
+						"x": 0.5,
+						"y": 0.6
+					}
+				},
+				{
+					"filename": "refinery_distruct_55.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 1652,
+						"h": 1252
+					},
+					"spriteSourceSize": {
+						"x": 493,
+						"y": 475,
+						"w": 673,
+						"h": 441
+					},
+					"frame": {
+						"x": 5946,
+						"y": 3024,
+						"w": 673,
+						"h": 441
+					},
+					"anchor": {
+						"x": 0.5,
+						"y": 0.6
+					}
+				},
+				{
+					"filename": "refinery_distruct_57.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 1652,
+						"h": 1252
+					},
+					"spriteSourceSize": {
+						"x": 516,
+						"y": 507,
+						"w": 634,
+						"h": 400
+					},
+					"frame": {
+						"x": 6621,
+						"y": 3039,
+						"w": 634,
+						"h": 400
+					},
+					"anchor": {
+						"x": 0.5,
+						"y": 0.6
+					}
+				},
+				{
+					"filename": "refinery_distruct_58.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 1652,
+						"h": 1252
+					},
+					"spriteSourceSize": {
+						"x": 517,
+						"y": 524,
+						"w": 624,
+						"h": 377
+					},
+					"frame": {
+						"x": 2265,
+						"y": 3000,
+						"w": 624,
+						"h": 377
+					},
+					"anchor": {
+						"x": 0.5,
+						"y": 0.6
+					}
+				},
+				{
+					"filename": "refinery_distruct_60.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 1652,
+						"h": 1252
+					},
+					"spriteSourceSize": {
+						"x": 553,
+						"y": 564,
+						"w": 463,
+						"h": 298
+					},
+					"frame": {
+						"x": 7257,
+						"y": 3039,
+						"w": 463,
+						"h": 298
+					},
+					"anchor": {
+						"x": 0.5,
+						"y": 0.6
+					}
+				},
+				{
+					"filename": "refinery_distruct_61.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 1652,
+						"h": 1252
+					},
+					"spriteSourceSize": {
+						"x": 563,
+						"y": 588,
+						"w": 114,
+						"h": 128
+					},
+					"frame": {
+						"x": 1,
+						"y": 3303,
+						"w": 114,
+						"h": 128
+					},
+					"anchor": {
+						"x": 0.5,
+						"y": 0.6
+					}
+				},
+				{
+					"filename": "refinery_distruct_62.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 1652,
+						"h": 1252
+					},
+					"spriteSourceSize": {
+						"x": 565,
+						"y": 609,
+						"w": 108,
+						"h": 102
+					},
+					"frame": {
+						"x": 7162,
+						"y": 324,
+						"w": 108,
+						"h": 102
+					},
+					"anchor": {
+						"x": 0.5,
+						"y": 0.6
+					}
+				},
+				{
+					"filename": "refinery_distruct_63.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 1652,
+						"h": 1252
+					},
+					"spriteSourceSize": {
+						"x": 568,
+						"y": 635,
+						"w": 101,
+						"h": 60
+					},
+					"frame": {
+						"x": 2891,
+						"y": 3000,
+						"w": 101,
+						"h": 60
+					},
+					"anchor": {
+						"x": 0.5,
+						"y": 0.6
+					}
+				}
+			]
+		}
+	],
+	"meta": {
+		"app": "https://www.codeandweb.com/texturepacker",
+		"version": "3.0",
+		"smartupdate": "$TexturePacker:SmartUpdate:7792d28864a6008edef875264d3af6ee:8075180600e7b6f1edff57862d8877a4:c9ade100a7e0697c98bb547c147022db$"
+	}
+}
