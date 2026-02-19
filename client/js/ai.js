@@ -376,7 +376,7 @@
         let gx = ai.rally.x + ox, gy = ai.rally.y + oy;
         const spot = findNearestFreePoint(gx, gy, u, 5);
         if (spot && spot.found) { gx = spot.x; gy = spot.y; }
-        u.order = { type: "attackmove", x: gx, y: gy, tx: null, ty: null };
+        u.order = { type: "attackmove", x: gx, y: gy, tx: null, ty: null, manual:true, allowAuto:true, lockTarget:false };
         u.restX = null; u.restY = null;
         setPathTo(u, gx, gy);
         u.repathCd = 0.55;
@@ -392,7 +392,7 @@
         if (u.kind === "sniper") continue;
         // Avoid sending empty IFVs to frontal waves (keep them for passenger pickup).
         if (u.kind === "ifv" && !u.passengerId) continue;
-        u.order = { type: "attack", x: u.x, y: u.y, tx: null, ty: null };
+        u.order = { type: "attack", x: u.x, y: u.y, tx: null, ty: null, manual:true, allowAuto:false, lockTarget:true };
         u.target = target ? target.id : null;
         if (target) setPathTo(u, target.x, target.y);
         u.repathCd = 0.55;
@@ -816,8 +816,8 @@
           if (inf.length >= 7 && canEarlyPush) {
             const pack = inf.slice(0, Math.min(12, inf.length));
             for (const u of pack) {
-              u.order = { type: "attackmove", x: dest.x, y: dest.y };
-              u.target = null;
+        u.order = { type: "attackmove", x: dest.x, y: dest.y, tx:null, ty:null, manual:true, allowAuto:true, lockTarget:false };
+        u.target = null;
             }
           }
         } else {
@@ -832,12 +832,12 @@
             for (let i = 0; i < Math.min(3, ifvs.length); i++) pack.push(ifvs[i]);
             for (const u of pack) {
               if (u.kind === "tank") {
-                u.order = { type: "attackmove", x: dest.x, y: dest.y };
-                u.target = null;
+          u.order = { type: "attackmove", x: dest.x, y: dest.y, tx:null, ty:null, manual:true, allowAuto:true, lockTarget:false };
+          u.target = null;
               } else if (u.kind === "ifv") {
                 if (!u.passengerId) {
-                  u.order = { type: "attackmove", x: dest.x, y: dest.y };
-                  u.target = null;
+            u.order = { type: "attackmove", x: dest.x, y: dest.y, tx:null, ty:null, manual:true, allowAuto:true, lockTarget:false };
+            u.target = null;
                 }
               }
             }

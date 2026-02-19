@@ -2378,7 +2378,8 @@
               const scanR = Math.max(u.vision||0, (u.range||0));
               const enemy = findNearestAttackMoveTargetFor(u.team, u.x, u.y, scanR);
               if (enemy){
-                u.order={type:"attack", x:u.x, y:u.y, tx:null,ty:null};
+                const lock = (u.team===TEAM.ENEMY);
+                u.order={type:"attack", x:u.x, y:u.y, tx:null,ty:null, manual:lock, allowAuto:!lock, lockTarget:lock};
                 u.target=enemy.id;
                 // mark that this attack came from guard
                 u.guardFrom=true;
@@ -2395,7 +2396,8 @@
             if (u.order.type==="attackmove"){
               const enemy = findNearestAttackMoveTargetFor(u.team, u.x, u.y, u.range||0, u.kind);
               if (enemy){
-                u.order={type:"attack", x:u.x, y:u.y, tx:null,ty:null};
+                const lock = (u.team===TEAM.ENEMY);
+                u.order={type:"attack", x:u.x, y:u.y, tx:null,ty:null, manual:lock, allowAuto:!lock, lockTarget:lock};
                 u.target=enemy.id;
                 setPathTo(u, enemy.x, enemy.y);
                 u.repathCd=0.25;
@@ -2415,13 +2417,14 @@
       const manualLock = !!(u.order && u.order.manual && u.order.allowAuto!==true);
               const enemy = findNearestEnemyFor(u.team, u.x, u.y, u.range||0, sniperMode, true);
               if (enemy){
+              const lock = (u.team===TEAM.ENEMY);
               if (sniperMode){
                 if (BUILD[enemy.kind]) { /* ignore */ }
                 else {
                   const cls = (UNIT[enemy.kind] && UNIT[enemy.kind].cls) ? UNIT[enemy.kind].cls : "";
                   if (cls!=="inf") { /* ignore */ }
                   else {
-                u.order={type:"attack", x:u.x, y:u.y, tx:null,ty:null};
+                u.order={type:"attack", x:u.x, y:u.y, tx:null,ty:null, manual:lock, allowAuto:!lock, lockTarget:lock};
                 u.target=enemy.id;
                 setPathTo(u, enemy.x, enemy.y);
                 u.repathCd=0.3;
