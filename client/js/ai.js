@@ -292,15 +292,25 @@
       let center = centers.find(b => b.kind === "hq") || centers[0];
 
       // Placement heuristics:
-      // - Turrets: prefer near HQ/refinery perimeter
+      // - Turrets: prefer along the predicted path toward player early, then around HQ/refinery
       // - Others: near centers but not overlapping
       const tries = (kind === "turret") ? 260 : 200;
+      const turCount = aiEnemyCount("turret");
+      const ehq = buildings.find(b => b.alive && !b.civ && b.team === TEAM.ENEMY && b.kind === "hq");
+      const phq = buildings.find(b => b.alive && !b.civ && b.team === TEAM.PLAYER && b.kind === "hq");
+      let frontAnchor = null;
+      if (kind === "turret" && ehq && phq){
+        const fx = ehq.x + (phq.x - ehq.x) * 0.45;
+        const fy = ehq.y + (phq.y - ehq.y) * 0.45;
+        frontAnchor = { x: fx, y: fy, tx: Math.round(fx / TILE), ty: Math.round(fy / TILE) };
+      }
       for (let i = 0; i < tries; i++) {
         let tx, ty;
 
         if (kind === "turret") {
-          // ring-ish placement around HQ/refinery
-          const anchor = buildings.find(b => b.alive && !b.civ && b.team === TEAM.ENEMY && (b.kind === "refinery" || b.kind === "hq")) || center;
+          // early turrets: along predicted attack path; extra turrets: around base
+          const baseAnchor = buildings.find(b => b.alive && !b.civ && b.team === TEAM.ENEMY && (b.kind === "refinery" || b.kind === "hq")) || center;
+          const anchor = (turCount < 4 && frontAnchor) ? frontAnchor : baseAnchor;
           const r0 = 5 + ((Math.random() * 7) | 0);
           const ang = Math.random() * Math.PI * 2;
           tx = anchor.tx + Math.round(Math.cos(ang) * r0);

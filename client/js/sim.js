@@ -138,6 +138,11 @@
       }
     }
 
+    function aggroDelay(u, base){
+      if (!u) return base;
+      return (u.team===TEAM.ENEMY) ? Math.max(0.08, base*0.5) : base;
+    }
+
     function isEnemyInf(e){
       if (!e || !e.alive) return false;
       if (BUILD[e.kind]) return false;
@@ -2015,7 +2020,7 @@
                   u.target = cand.id;
                   setPathTo(u, cand.x, cand.y);
                   u.repathCd = 0.25;
-                  u.aggroCd = 0.25;
+                  u.aggroCd = aggroDelay(u, 0.25);
                 }
               }
             }
@@ -2232,7 +2237,7 @@
               u.order = {type:"attack", x:u.x,y:u.y, tx:null,ty:null};
               setPathTo(u, a.x, a.y);
               u.repathCd = 0.35;
-              u.aggroCd = 0.35;
+              u.aggroCd = aggroDelay(u, 0.35);
             }
           }
         }
@@ -2249,7 +2254,7 @@
             u.target = cand.id;
             setPathTo(u, cand.x, cand.y);
             u.repathCd = 0.35;
-            u.aggroCd = 0.35;
+            u.aggroCd = aggroDelay(u, 0.35);
           }
         }
       }
@@ -2269,7 +2274,7 @@
             u.target = cand.id;
             setPathTo(u, cand.x, cand.y);
             u.repathCd = 0.35;
-            u.aggroCd = 0.35;
+            u.aggroCd = aggroDelay(u, 0.35);
           }
         }
       }
