@@ -1,7 +1,7 @@
 {
 	"textures": [
 		{
-			"image": "barrack_const.png",
+			"image": "refinery_const.png",
 			"format": "RGBA8888",
 			"size": {
 				"w": 4006,

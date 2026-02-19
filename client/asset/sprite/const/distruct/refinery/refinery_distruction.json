@@ -1,7 +1,7 @@
 {
 	"textures": [
 		{
-			"image": "barrack_distruction.png",
+			"image": "refinery_distruction.png",
 			"format": "RGBA8888",
 			"size": {
 				"w": 7741,
