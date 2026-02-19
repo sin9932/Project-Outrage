@@ -487,6 +487,9 @@
   function _isAccentPixel(r,g,b,a){
     if(a < 8) return false;
     if (_MAGENTA_INCLUDE_SET && _MAGENTA_INCLUDE_SET.has((r<<16)|(g<<8)|b)) return true;
+    // Special include: near 4b1e2c (dark magenta)
+    const dr = r - 0x4b, dg = g - 0x1e, db = b - 0x2c;
+    if ((dr*dr + dg*dg + db*db) <= (14*14)) return true;
 
     const max=Math.max(r,g,b), min=Math.min(r,g,b);
     const sat = max===0 ? 0 : (max-min)/max;
