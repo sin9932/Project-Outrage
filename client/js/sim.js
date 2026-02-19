@@ -2513,6 +2513,16 @@
             }
 
             if (u.order.type==="idle"){
+              // If we're on ore, resume harvesting immediately (avoid idle-stall).
+              const curTx0 = tileOfX(u.x), curTy0 = tileOfY(u.y);
+              if (inMap(curTx0, curTy0) && ore[idx(curTx0, curTy0)]>0){
+                u.order = {type:"harvest", x:u.x,y:u.y, tx:curTx0, ty:curTy0};
+                if (!u.path || !u.path.length){
+                  setPathTo(u, (curTx0+0.5)*TILE, (curTy0+0.5)*TILE);
+                  u.repathCd=0.25;
+                }
+                continue;
+              }
               // If we have cargo and any refinery exists, return to it.
               if ((u.carry||0) > 0 && hasAnyRefinery(u.team)){
                 const ref = findNearestRefinery(u.team,u.x,u.y);
@@ -2565,15 +2575,21 @@
 
               // If we lost the path to ore, re-pick a valid ore patch.
               if (!u.path || !u.path.length){
-                const best = findBestOrePatch();
-                if (best){
-                  u.order.tx=best.tx; u.order.ty=best.ty;
-                  setPathTo(u, (best.tx+0.5)*TILE, (best.ty+0.5)*TILE);
-                  u.repathCd=0.25;
+                // If we're already on ore, keep mining without path.
+                const cx = tileOfX(u.x), cy = tileOfY(u.y);
+                if (inMap(cx,cy) && ore[idx(cx,cy)]>0){
+                  u.order.tx = cx; u.order.ty = cy;
                 } else {
-                  u.order.type="idle";
+                  const best = findBestOrePatch();
+                  if (best){
+                    u.order.tx=best.tx; u.order.ty=best.ty;
+                    setPathTo(u, (best.tx+0.5)*TILE, (best.ty+0.5)*TILE);
+                    u.repathCd=0.25;
+                  } else {
+                    u.order.type="idle";
+                    continue;
+                  }
                 }
-                continue;
               }
 
               if (!curOk){
