@@ -490,36 +490,25 @@
     const max=Math.max(r,g,b), min=Math.min(r,g,b);
     const sat = max===0 ? 0 : (max-min)/max;
 
-    // Strong magenta/pink key, including anti-aliased edges (pink mixed with grey).
-    // Score is high when R+B dominates and G is suppressed.
-    const rbAvg = (r + b) * 0.5;
-    const magScore = (r + b) - 2*g; // e.g. #ff00ff => 510
-
-    // Very likely key color (and its edge blends)
-    if(rbAvg > 110 && magScore > 105 && g < rbAvg) return true;
-
-    // Extra coverage for bright hot-pink highlights that may have a bit more green from filtering
-    if(rbAvg > 165 && magScore > 65 && g < 170) return true;
-
-    // Extra coverage for darker magenta stripes (some sheets have "dirty" magenta with more green)
-    // Condition: R and B both present, G suppressed relative to them.
-    if (r > 70 && b > 70 && (r + b) > 220 && g < (r * 0.72) && g < (b * 0.72)) return true;
+    // Tight magenta-only key to avoid tinting reds/yellows.
+    // Require both R and B high, and G notably suppressed.
+    if (r < 70 || b < 70) return false;
+    if (g > r - 20) return false;
+    if (g > b - 20) return false;
 
     // If it's basically grey, don't treat as key color.
-    if(sat < 0.10) return false;
+    if(sat < 0.12) return false;
 
     const {h}=_rgb2hsv(r,g,b);
+    // Narrower magenta band (avoid reds/yellows).
+    const magentaBand = (h>=270 && h<=340);
+    if (!magentaBand) return false;
 
-    // Wider hue band for magenta/purple-ish key colors.
-    const magentaBand = (h>=235 && h<=358);
+    // Ensure G is significantly lower than both R and B
+    if (g > r * 0.65) return false;
+    if (g > b * 0.65) return false;
 
-    // Green must not be the dominant channel (allow more slack for filtered pixels)
-    const gNotDominant = g <= Math.min(r,b) + 130;
-
-    // Prevent weird false-positives from pure blues/reds by requiring some R+B presence
-    const rbPresence = (r + b) >= 160;
-
-    return magentaBand && gNotDominant && rbPresence;
+    return true;
   }
 
   function _applyTeamPaletteToImage(img, teamColor, opts={}){
