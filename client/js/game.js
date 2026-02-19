@@ -1903,6 +1903,12 @@ function tryUnloadIFV(ifv){
     if (srcTeam===TEAM.ENEMY && target.team===TEAM.PLAYER){
       if (target.kind==="harvester" || BUILD[target.kind]) notifyPlayerAttacked(target);
     }
+    // Enemy base under attack: push AI defense alert
+    if (srcTeam===TEAM.PLAYER && target.team===TEAM.ENEMY){
+      if (BUILD[target.kind]){
+        state.aiAlert = { x: target.x, y: target.y, until: state.t + 6.0 };
+      }
+    }
 
     target.hp -= dmg;
 

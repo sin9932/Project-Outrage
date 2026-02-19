@@ -55,6 +55,7 @@
       attackUntil: 0,
       harassNext: 0,
       engineerNext: 0,
+      engRushNext: 0,
       nextWave: 0
     };
 
@@ -215,6 +216,42 @@
       if (ehq) return { x: ehq.x, y: ehq.y };
       const center = aiEnemyCenters()[0];
       return center ? { x: center.x, y: center.y } : { x: WORLD_W * 0.5, y: WORLD_H * 0.5 };
+    }
+
+    function aiEmergencyDefend(eUnits){
+      const alert = state.aiAlert;
+      if (!alert || state.t > (alert.until||-1e9)) return false;
+      const dp = aiDefendPoint();
+      const defendR = TILE * 12; // "near base" radius
+      const unitsNearBase = eUnits.filter(u => {
+        if (!u.alive) return false;
+        if (u.kind==="harvester" || u.kind==="engineer") return false;
+        if (u.kind==="ifv" && u.passengerId && u.passKind==="engineer") return false;
+        return dist2(u.x, u.y, dp.x, dp.y) <= defendR*defendR;
+      });
+      for (const u of unitsNearBase){
+        u.order = { type: "attackmove", x: alert.x, y: alert.y, tx: null, ty: null };
+        u.target = null;
+        u.repathCd = 0.25;
+      }
+      ai.mode = "defend";
+      return unitsNearBase.length > 0;
+    }
+
+    function aiUnstickEngineers(){
+      const dp = aiDefendPoint();
+      const eEng = units.filter(u => u.alive && u.team === TEAM.ENEMY && u.kind === "engineer" && !u.inTransport);
+      for (const eng of eEng){
+        const ot = eng.order && eng.order.type;
+        if (ot && ot !== "idle" && ot !== "guard") continue;
+        // If hanging near own base (HQ/refinery), push to rally to avoid "rubbing"
+        if (dist2(eng.x, eng.y, dp.x, dp.y) < (TILE*6)*(TILE*6)){
+          const rx = ai.rally.x + rnd(-TILE * 2.2, TILE * 2.2);
+          const ry = ai.rally.y + rnd(-TILE * 2.2, TILE * 2.2);
+          eng.order = { type: "move", x: rx, y: ry, tx: null, ty: null };
+          setPathTo(eng, rx, ry);
+        }
+      }
     }
     function playerDefenseHeavy() {
       const tur = buildings.filter(b => b.alive && !b.civ && b.team === TEAM.PLAYER && b.kind === "turret").length;
@@ -594,6 +631,25 @@
       }
     }
 
+    function aiEngineerRush(){
+      const now = state.t;
+      if (now < (ai.engRushNext||0)) return;
+      ai.engRushNext = now + rnd(26, 38);
+
+      const phq = buildings.find(b => b.alive && !b.civ && b.team === TEAM.PLAYER && b.kind === "hq");
+      if (!phq) return;
+
+      const eIFVs = units.filter(u => u.alive && u.team === TEAM.ENEMY && u.kind === "ifv" && u.passengerId && u.passKind === "engineer");
+      if (!eIFVs.length) return;
+
+      const rush = eIFVs.slice(0, Math.min(2, eIFVs.length));
+      for (const ifv of rush){
+        ifv.order = { type: "attackmove", x: phq.x, y: phq.y, tx: null, ty: null };
+        ifv.target = null;
+        ifv.repathCd = 0.35;
+      }
+    }
+
     function aiParkEmptyIFVs() {
       // Keep empty IFVs near rally to pick up passengers (avoid solo rushing).
       const eIFVs = units.filter(u => u.alive && u.team === TEAM.ENEMY && u.kind === "ifv" && !u.passengerId);
@@ -645,6 +701,12 @@
       aiQueueUnits(e);
       aiUseIFVPassengers();
       aiParkEmptyIFVs();
+      aiUnstickEngineers();
+      aiEngineerRush();
+
+      const eUnits = units.filter(u => u.alive && u.team === TEAM.ENEMY);
+      // Emergency defense: if base took a hit, pull nearby units to defend.
+      aiEmergencyDefend(eUnits);
 
       // Mainline tank rush waves (IFV escorts). Keep pressure up.
       const phq = buildings.find(b => b.alive && !b.civ && b.team === TEAM.PLAYER && b.kind === "hq");
@@ -679,7 +741,6 @@
       }
 
       // Army behavior: rally -> attack waves, plus engineer harassment
-      const eUnits = units.filter(u => u.alive && u.team === TEAM.ENEMY);
       const combat = eUnits.filter(u => u.kind !== "harvester" && u.kind !== "engineer" && u.kind !== "sniper");
       const engs = eUnits.filter(u => u.kind === "engineer");
       const snipers = eUnits.filter(u => u.kind === "sniper");
