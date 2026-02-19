@@ -323,7 +323,7 @@
 
         if (!inMap(tx, ty)) continue;
         if (isBlockedFootprint(tx, ty, spec.tw, spec.th)) continue;
-        if (isTooCloseToOtherBuildings(tx, ty, spec.tw, spec.th, 1)) continue;
+        if (isTooCloseToOtherBuildings(tx, ty, spec.tw, spec.th, 2)) continue;
 
         const wpos = buildingWorldFromTileOrigin(tx, ty, spec.tw, spec.th);
         if (!inBuildRadius(TEAM.ENEMY, wpos.cx, wpos.cy)) continue;
