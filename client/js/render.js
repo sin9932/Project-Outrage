@@ -1584,70 +1584,84 @@
     ctx.fill();
 
     if (type===3){
+      const waterLOD = (MAP_W*MAP_H > 3500 || (cam.zoom||1) < 0.95);
       // Water texture + fake normal highlight
-      ensureWaterPatterns(ctx);
-      ctx.save();
-      ctx.clip();
-      const t = (state && state.t) ? state.t : 0;
-      const shimmer = t * 3.4 + tx*0.55 + ty*0.42;
-      const px = (t * 18) % 256;
-      const py = (t * 12) % 256;
-      if (WATER_TEX_PAT){
+      if (!waterLOD){
+        ensureWaterPatterns(ctx);
         ctx.save();
-        ctx.translate(-px, -py);
-        ctx.globalAlpha = 0.70;
-        ctx.fillStyle = WATER_TEX_PAT;
-        ctx.fillRect(x-ox-256, y-oy-256, (ox+256)*2, (oy+256)*2);
+        ctx.clip();
+        const t = (state && state.t) ? state.t : 0;
+        const shimmer = t * 3.4 + tx*0.55 + ty*0.42;
+        const px = (t * 18) % 256;
+        const py = (t * 12) % 256;
+        if (WATER_TEX_PAT){
+          ctx.save();
+          ctx.translate(-px, -py);
+          ctx.globalAlpha = 0.70;
+          ctx.fillStyle = WATER_TEX_PAT;
+          ctx.fillRect(x-ox-256, y-oy-256, (ox+256)*2, (oy+256)*2);
+          ctx.restore();
+        }
+        if (WATER_NORM_PAT){
+          ctx.save();
+          ctx.translate(px*0.9, py*0.9);
+          ctx.globalCompositeOperation = "overlay";
+          ctx.globalAlpha = 0.55;
+          ctx.fillStyle = WATER_NORM_PAT;
+          ctx.fillRect(x-ox-256, y-oy-256, (ox+256)*2, (oy+256)*2);
+          ctx.restore();
+        }
+        // directional specular sweep (fake sun reflection)
+        ctx.save();
+        ctx.globalCompositeOperation = "screen";
+        ctx.globalAlpha = 0.18;
+        const sweep = (Math.sin(shimmer*0.6) * 0.5 + 0.5);
+        const g2 = ctx.createLinearGradient(x-ox, y-oy, x+ox, y+oy);
+        g2.addColorStop(0.0, "rgba(255,255,255,0.00)");
+        g2.addColorStop(0.45 + sweep*0.10, "rgba(255,255,255,0.25)");
+        g2.addColorStop(0.65 + sweep*0.10, "rgba(255,255,255,0.00)");
+        ctx.fillStyle = g2;
+        ctx.fill();
+        ctx.restore();
+        ctx.restore();
+
+        ctx.save();
+        ctx.globalAlpha = 0.26;
+        ctx.strokeStyle = "rgba(190,230,255,0.65)";
+        ctx.lineWidth = 1.2 * cam.zoom;
+        const wave = Math.sin(shimmer) * 0.35;
+        ctx.beginPath();
+        ctx.moveTo(x-ox*0.75, y-oy*0.08 + wave*10);
+        ctx.lineTo(x+ox*0.75, y+oy*0.08 + wave*10);
+        ctx.stroke();
+
+        // extra fast ripples for "windy" water
+        const wave2 = Math.sin(shimmer*1.7 + 1.2) * 0.28;
+        ctx.globalAlpha = 0.22;
+        ctx.beginPath();
+        ctx.moveTo(x-ox*0.55, y+oy*0.06 + wave2*9);
+        ctx.lineTo(x+ox*0.55, y+oy*0.06 + wave2*9);
+        ctx.stroke();
+
+        const wave3 = Math.sin(shimmer*2.5 + 2.7) * 0.20;
+        ctx.globalAlpha = 0.18;
+        ctx.beginPath();
+        ctx.moveTo(x-ox*0.40, y+oy*0.22 + wave3*7);
+        ctx.lineTo(x+ox*0.40, y+oy*0.22 + wave3*7);
+        ctx.stroke();
+        ctx.restore();
+      } else {
+        // LOD: simple highlight only
+        ctx.save();
+        ctx.globalAlpha = 0.12;
+        ctx.strokeStyle = "rgba(170,210,255,0.45)";
+        ctx.lineWidth = 1.0 * cam.zoom;
+        ctx.beginPath();
+        ctx.moveTo(x-ox*0.60, y);
+        ctx.lineTo(x+ox*0.60, y);
+        ctx.stroke();
         ctx.restore();
       }
-      if (WATER_NORM_PAT){
-        ctx.save();
-        ctx.translate(px*0.9, py*0.9);
-        ctx.globalCompositeOperation = "overlay";
-        ctx.globalAlpha = 0.55;
-        ctx.fillStyle = WATER_NORM_PAT;
-        ctx.fillRect(x-ox-256, y-oy-256, (ox+256)*2, (oy+256)*2);
-        ctx.restore();
-      }
-      // directional specular sweep (fake sun reflection)
-      ctx.save();
-      ctx.globalCompositeOperation = "screen";
-      ctx.globalAlpha = 0.18;
-      const sweep = (Math.sin(shimmer*0.6) * 0.5 + 0.5);
-      const g2 = ctx.createLinearGradient(x-ox, y-oy, x+ox, y+oy);
-      g2.addColorStop(0.0, "rgba(255,255,255,0.00)");
-      g2.addColorStop(0.45 + sweep*0.10, "rgba(255,255,255,0.25)");
-      g2.addColorStop(0.65 + sweep*0.10, "rgba(255,255,255,0.00)");
-      ctx.fillStyle = g2;
-      ctx.fill();
-      ctx.restore();
-      ctx.restore();
-
-      ctx.save();
-      ctx.globalAlpha = 0.26;
-      ctx.strokeStyle = "rgba(190,230,255,0.65)";
-      ctx.lineWidth = 1.2 * cam.zoom;
-      const wave = Math.sin(shimmer) * 0.35;
-      ctx.beginPath();
-      ctx.moveTo(x-ox*0.75, y-oy*0.08 + wave*10);
-      ctx.lineTo(x+ox*0.75, y+oy*0.08 + wave*10);
-      ctx.stroke();
-
-      // extra fast ripples for "windy" water
-      const wave2 = Math.sin(shimmer*1.7 + 1.2) * 0.28;
-      ctx.globalAlpha = 0.22;
-      ctx.beginPath();
-      ctx.moveTo(x-ox*0.55, y+oy*0.06 + wave2*9);
-      ctx.lineTo(x+ox*0.55, y+oy*0.06 + wave2*9);
-      ctx.stroke();
-
-      const wave3 = Math.sin(shimmer*2.5 + 2.7) * 0.20;
-      ctx.globalAlpha = 0.18;
-      ctx.beginPath();
-      ctx.moveTo(x-ox*0.40, y+oy*0.22 + wave3*7);
-      ctx.lineTo(x+ox*0.40, y+oy*0.22 + wave3*7);
-      ctx.stroke();
-      ctx.restore();
     }
 
     if (ore[idx(tx,ty)]>0){
