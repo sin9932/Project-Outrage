@@ -56,10 +56,16 @@
       fps: { idle: 20, build: 24, death: 20, active: 24 },
       lowHpRatio: 0.30,
       teamColorMode: "frame",
-      // Exclude faint magenta spots (coords in SOURCE size px)
-      teamExclude: [
+      // Idle-only exclusions (coords in SOURCE size px)
+      teamExcludeIdle: [
         { x: 609, y: 521, w: 52, h: 58 },
-        { x: 730, y: 483, w: 52, h: 52 }
+        { x: 730, y: 483, w: 52, h: 52 },
+        { x: 608, y: 579, w: 42, h: 22 }
+      ],
+      // Idle-only force-include (ensure team palette stays on)
+      teamIncludeIdle: [
+        { x: 580, y: 489, w: 60, h: 11 },
+        { x: 575, y: 405, w: 123, h: 44 }
       ],
       atlas: {
         idle:  { json: "asset/sprite/const/normal/refinery/refinery_idle.json",        base: "asset/sprite/const/normal/refinery/" },
@@ -234,8 +240,23 @@
     }
 
     // Restore original pixels for excluded regions (e.g. refinery chimney)
-    if (didTint && cfg && cfg.teamExclude && cfg.teamExclude.length){
-      for (const r of cfg.teamExclude){
+    const excludeList = (cfg && atlasKey==="idle" && cfg.teamExcludeIdle && cfg.teamExcludeIdle.length)
+      ? cfg.teamExcludeIdle
+      : (cfg && cfg.teamExclude && cfg.teamExclude.length ? cfg.teamExclude : null);
+    const includeList = (cfg && atlasKey==="idle" && cfg.teamIncludeIdle && cfg.teamIncludeIdle.length)
+      ? cfg.teamIncludeIdle
+      : null;
+
+    if (didTint && excludeList && excludeList.length){
+      const inInclude = (x,y)=>{
+        if (!includeList) return false;
+        for (const r of includeList){
+          if (x>=r.x && x<r.x+r.w && y>=r.y && y<r.y+r.h) return true;
+        }
+        return false;
+      };
+
+      for (const r of excludeList){
         if (!r) continue;
         const ex0 = r.x, ey0 = r.y, ex1 = r.x + r.w, ey1 = r.y + r.h;
         const ix0 = Math.max(0, ex0 - sss.x);
@@ -244,13 +265,21 @@
         const iy1 = Math.min(sss.h, ey1 - sss.y);
         if (ix1 <= ix0 || iy1 <= iy0) continue;
 
-        const sw = ix1 - ix0;
-        const sh = iy1 - iy0;
-        const sx = frame.x + ix0;
-        const sy = frame.y + iy0;
-        const dx2 = dx + ix0 * scale;
-        const dy2 = dy + iy0 * scale;
-        ctx.drawImage(origImg, sx, sy, sw, sh, dx2, dy2, sw * scale, sh * scale);
+        // If includeList overlaps, skip restoring there to keep team palette.
+        let skipRestore = false;
+        if (includeList){
+          const cx = ex0, cy = ey0;
+          if (inInclude(cx, cy)) skipRestore = true;
+        }
+        if (!skipRestore){
+          const sw = ix1 - ix0;
+          const sh = iy1 - iy0;
+          const sx = frame.x + ix0;
+          const sy = frame.y + iy0;
+          const dx2 = dx + ix0 * scale;
+          const dy2 = dy + iy0 * scale;
+          ctx.drawImage(origImg, sx, sy, sw, sh, dx2, dy2, sw * scale, sh * scale);
+        }
       }
     }
     return true;
