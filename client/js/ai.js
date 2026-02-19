@@ -495,7 +495,7 @@
       return false;
     }
 
-    function aiQueueUnits(e, rushDefense, infRushThreat, hasFac) {
+    function aiQueueUnits(e, rushDefense, infRushThreat) {
       const pf = getPowerFactor(TEAM.ENEMY);
       const bar = buildings.find(b => b.alive && !b.civ && b.team === TEAM.ENEMY && b.kind === "barracks");
       const fac = buildings.find(b => b.alive && !b.civ && b.team === TEAM.ENEMY && b.kind === "factory");
@@ -775,7 +775,7 @@
 
       // Unit production should ALWAYS run (this was the big "AI builds only" failure mode).
       const hasFac = aiEnemyHas("factory");
-      aiQueueUnits(e, rushDefense, infRushThreat, hasFac);
+      aiQueueUnits(e, rushDefense, infRushThreat);
       aiUseIFVPassengers();
       aiParkEmptyIFVs();
       aiUnstickEngineers();
