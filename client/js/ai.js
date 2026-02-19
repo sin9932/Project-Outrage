@@ -425,42 +425,48 @@
     }
 
     function aiEnsureTechAndEco(e, underPower) {
-      // Tech progression + "if production missing, rebuild it" behavior.
-      // Priority is dynamic based on what's missing.
+      // Tech progression (requested):
+      // power -> barracks -> (turrets around HQ) + refinery -> factory -> radar
       const hasRef = aiEnemyHas("refinery");
       const hasPow = aiEnemyHas("power");
       const hasBar = aiEnemyHas("barracks");
       const hasFac = aiEnemyHas("factory");
       const hasRad = aiEnemyHas("radar");
-
-      // If only HQ, don't get stuck: power -> refinery -> barracks -> factory -> radar
       const powerMargin = (e.powerProd || 0) - (e.powerUse || 0);
+
       if (!hasPow) { aiTryStartBuild("power"); return true; }
-      if (!hasRef) { aiTryStartBuild("refinery"); return true; }
       if (underPower || powerMargin < 6) { aiTryStartBuild("power"); return true; }
+
       if (!hasBar) { aiTryStartBuild("barracks"); return true; }
+
+      // As soon as barracks is up, get early turrets around HQ before moving on.
+      const tur = aiEnemyCount("turret");
+      if (hasBar && tur < 2 && e.money > 450) { aiTryStartBuild("turret"); return true; }
+
+      if (!hasRef) { aiTryStartBuild("refinery"); return true; }
       if (!hasFac) { aiTryStartBuild("factory"); return true; }
       if (!hasRad && e.money > COST.radar * 0.25) { aiTryStartBuild("radar"); return true; }
 
-      // Once tech is up, scale economy (2nd refinery) if rich enough
-      if (hasRad && aiEnemyCount("refinery") < 2 && e.money > 900) { aiTryStartBuild("refinery"); return true; }
+      // Late eco scaling
+      if (hasFac && aiEnemyCount("refinery") < 2 && e.money > 900) { aiTryStartBuild("refinery"); return true; }
 
       return false;
     }
 
     function aiPlaceDefenseIfRich(e) {
-      // Place turrets around base when wealthy and not already decent.
+      // Place turrets around base. Early: around barracks timing. Late: turret spam.
       const tur = aiEnemyCount("turret");
-      const hasRad = aiEnemyHas("radar");
-      if (!hasRad) return false;
+      const hasBar = aiEnemyHas("barracks");
+      if (!hasBar) return false;
 
-      const wantTur = (state.t < 240) ? 2 : 4;
+      const lateGame = state.t > 720;
+      const wantTur = lateGame ? 10 : (state.t < 240 ? 2 : 4);
       const threat = aiThreatNearBase();
-      if (threat < 2 && tur >= 1) return false;
+      if (!lateGame && threat < 2 && tur >= 1) return false;
       if (tur >= wantTur) return false;
 
-      // Start building a turret when money buffer exists.
-      if (e.money > 700) return aiTryStartBuild("turret");
+      const minMoney = lateGame ? 550 : 700;
+      if (e.money > minMoney) return aiTryStartBuild("turret");
       return false;
     }
 
@@ -483,6 +489,7 @@
 
       const countQueued = (q, kind) => q.reduce((n, it) => n + (it && it.kind === kind ? 1 : 0), 0);
 
+      const hasFac = !!fac;
       if (bar) {
         if (!playerHasInf && bar.buildQ && bar.buildQ.length) {
           // If no player infantry, cancel queued snipers.
@@ -492,16 +499,24 @@
         const queuedEng = countQueued(bar.buildQ, "engineer");
         const queuedSnp = countQueued(bar.buildQ, "sniper");
 
-        // If no player infantry on map, stop basic infantry/sniper production and focus vehicles.
-        const wantInf = playerHasInf ? (poor ? 3 : 6) : 0;
+        // Early phase: mass infantry rush until factory is up.
+        // After factory: keep small infantry count and mostly defend base.
+        let wantInf = 0;
+        if (playerHasInf) {
+          if (!hasFac) {
+            wantInf = poor ? 8 : 12;
+          } else {
+            wantInf = poor ? 2 : 3;
+          }
+        }
         const eInfCount = units.filter(u => u.alive && u.team === TEAM.ENEMY && u.kind === "infantry").length;
         while (bar.buildQ.length < 8 && (eInfCount + queuedInf) < wantInf) {
           bar.buildQ.push({ kind: "infantry", t: 0, tNeed: getBaseBuildTime("infantry") / pf, cost: COST.infantry, paid: 0 });
           if (poor) break; // conserve
         }
 
-        // Engineers: keep them cycling for IFV capture play.
-        const desiredEng = Math.max(5, Math.min(12, 3 + eIFV.length * 2));
+        // Engineers: early small count, later ramp for IFV rush.
+        const desiredEng = hasFac ? Math.max(6, Math.min(14, 4 + eIFV.length * 2)) : 4;
         if (bar.buildQ.length < 8 && (eEng.length + queuedEng) < desiredEng) {
           bar.buildQ.push({ kind: "engineer", t: 0, tNeed: getBaseBuildTime("engineer") / pf, cost: COST.engineer, paid: 0 });
         }
@@ -524,17 +539,18 @@
           if (fac.buildQ.length < 1) fac.buildQ.push({ kind: "harvester", t: 0, tNeed: getBaseBuildTime("harvester") / pf, cost: COST.harvester, paid: 0 });
           return;
         }
-        const wantVeh = poor ? 4 : (rich ? 8 : 5);
+        const lateGame = state.t > 900;
+        const wantVeh = lateGame ? 12 : (poor ? 5 : (rich ? 10 : 7));
         // Mix IFV + tanks. Tanks are mainline; IFV is support (passenger carriers / utility).
         while (fac.buildQ.length < wantVeh) {
           const countIFV = eIFV.length;
           const countTank = units.filter(u => u.alive && u.team === TEAM.ENEMY && u.kind === "tank").length;
-          const desiredIFV = Math.max(2, Math.floor((eEng.length + eSnp.length) / 4));
+          const desiredIFV = Math.max(3, Math.floor((eEng.length + eSnp.length) / 3));
           const needIFV = (countIFV < desiredIFV);
 
           // Also bias to tanks in general
           const roll = Math.random();
-          if (needIFV && roll < 0.35) {
+          if (!lateGame && needIFV && roll < 0.45) {
             fac.buildQ.push({ kind: "ifv", t: 0, tNeed: getBaseBuildTime("ifv") / pf, cost: COST.ifv, paid: 0 });
           } else {
             // Tank-rush baseline: always prioritize tanks.
@@ -635,7 +651,7 @@
     function aiEngineerRush(){
       const now = state.t;
       if (now < (ai.engRushNext||0)) return;
-      ai.engRushNext = now + rnd(26, 38);
+      ai.engRushNext = now + rnd(18, 26);
 
       const phq = buildings.find(b => b.alive && !b.civ && b.team === TEAM.PLAYER && b.kind === "hq");
       if (!phq) return;
@@ -643,7 +659,7 @@
       const eIFVs = units.filter(u => u.alive && u.team === TEAM.ENEMY && u.kind === "ifv" && u.passengerId && u.passKind === "engineer");
       if (!eIFVs.length) return;
 
-      const rush = eIFVs.slice(0, Math.min(2, eIFVs.length));
+      const rush = eIFVs.slice(0, Math.min(3, eIFVs.length));
       for (const ifv of rush){
         ifv.order = { type: "attackmove", x: phq.x, y: phq.y, tx: null, ty: null };
         ifv.target = null;
@@ -709,33 +725,45 @@
       // Emergency defense: if base took a hit, pull nearby units to defend.
       aiEmergencyDefend(eUnits);
 
-      // Mainline tank rush waves (IFV escorts). Keep pressure up.
+      const hasFac = aiEnemyHas("factory");
+      const hasBar = aiEnemyHas("barracks");
+
+      // Mainline rush waves. Early: infantry rush. Late: tank/IFV waves.
       const phq = buildings.find(b => b.alive && !b.civ && b.team === TEAM.PLAYER && b.kind === "hq");
       const rallyT = phq ? { x: phq.x, y: phq.y } : ai.rally;
       if (state.t >= ai.nextWave) {
-        ai.nextWave = state.t + rnd(16, 24) / (ai.apmMul || 1);
         const eUnitsAll = units.filter(u => u.alive && u.team === TEAM.ENEMY && !u.inTransport && !u.hidden);
-        const tanks = eUnitsAll.filter(u => u.kind === "tank");
-        const ifvs = eUnitsAll.filter(u => u.kind === "ifv" && u.passengerId);
-        const pack = [];
-        // take up to 8 tanks
-        tanks.sort((a, b) => a.id - b.id);
-        for (let i = 0; i < Math.min(8, tanks.length); i++) pack.push(tanks[i]);
-        // add up to 3 IFV escorts
-        ifvs.sort((a, b) => a.id - b.id);
-        for (let i = 0; i < Math.min(3, ifvs.length); i++) pack.push(ifvs[i]);
-
-        // If too small, just rally forward
         const dest = rallyT || ai.rally;
-        for (const u of pack) {
-          if (u.kind === "tank") {
-            u.order = { type: "attackmove", x: dest.x, y: dest.y };
-            u.target = null;
-          } else if (u.kind === "ifv") {
-            // if sniper/eng passenger, keep harassment logic; otherwise escort
-            if (!u.passengerId) {
+        if (!hasFac && hasBar) {
+          ai.nextWave = state.t + rnd(10, 16) / (ai.apmMul || 1);
+          const inf = eUnitsAll.filter(u => u.kind === "infantry");
+          if (inf.length >= 6) {
+            const pack = inf.slice(0, Math.min(10, inf.length));
+            for (const u of pack) {
               u.order = { type: "attackmove", x: dest.x, y: dest.y };
               u.target = null;
+            }
+          }
+        } else {
+          ai.nextWave = state.t + rnd(14, 20) / (ai.apmMul || 1);
+          const tanks = eUnitsAll.filter(u => u.kind === "tank");
+          const ifvs = eUnitsAll.filter(u => u.kind === "ifv" && u.passengerId);
+          if (tanks.length >= 6) {
+            const pack = [];
+            tanks.sort((a, b) => a.id - b.id);
+            for (let i = 0; i < Math.min(8, tanks.length); i++) pack.push(tanks[i]);
+            ifvs.sort((a, b) => a.id - b.id);
+            for (let i = 0; i < Math.min(3, ifvs.length); i++) pack.push(ifvs[i]);
+            for (const u of pack) {
+              if (u.kind === "tank") {
+                u.order = { type: "attackmove", x: dest.x, y: dest.y };
+                u.target = null;
+              } else if (u.kind === "ifv") {
+                if (!u.passengerId) {
+                  u.order = { type: "attackmove", x: dest.x, y: dest.y };
+                  u.target = null;
+                }
+              }
             }
           }
         }
@@ -860,7 +888,8 @@
       const rich = e.money > 900;
 
       // 목표 병력 규모: 시간이 지날수록 올라감
-      const goal = (state.t < 160) ? 8 : (state.t < 360 ? 12 : 16);
+      // Army size goal: earlier push before factory, larger waves later.
+      const goal = (!hasFac && hasBar) ? 6 : ((state.t < 160) ? 8 : (state.t < 360 ? 12 : 16));
 
       // If we have basically no army, don't "attack", keep rallying while producing.
       if (combat.length < 2) {
@@ -874,12 +903,20 @@
         return;
       }
 
+      const tankCount = units.filter(u => u.alive && u.team === TEAM.ENEMY && u.kind === "tank").length;
+      if (hasFac && tankCount < 6) {
+        ai.mode = "defend";
+        aiCommandMoveToRally(combat);
+        return;
+      }
+
       // Attack cadence: keep sending waves (this was too timid before).
       if (ai.mode !== "attack") {
         ai.mode = "rally";
         // gently pull strays back to rally
         aiCommandMoveToRally(combat.filter(u => !u.order || u.order.type !== "move"));
-        if (state.t > 95 && combat.length >= goal && state.t > ai.waveT + 14.0) {
+        const earlyOK = (!hasFac && hasBar) ? (state.t > 60) : (state.t > 95);
+        if (earlyOK && combat.length >= goal && state.t > ai.waveT + 14.0) {
           ai.waveT = state.t;
           const target = aiPickPlayerTarget();
           if (target) {
