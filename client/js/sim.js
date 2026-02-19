@@ -2368,6 +2368,7 @@
                 u.repathCd=0.25;
               } else {
                 followPath(u, dt);
+                crushInfantry(u);
               }
               continue;
             }
@@ -2973,7 +2974,7 @@
     }
     
     // If we are out of range, keep pushing in. If path is missing or we're stuck, repath promptly.
-    if (needMove){
+      if (needMove){
       const spd = Math.hypot(u.vx||0, u.vy||0);
       u._atkStuckT = (u._atkStuckT||0) + ((spd < 1.0) ? dt : 0);
     
@@ -2991,6 +2992,7 @@
           u._atkStuckT = 0;
       }
       followPath(u,dt);
+      crushInfantry(u);
     } else {
       // In (or very near) range: stop cleanly and let firing logic handle shots.
       u.path = null;
