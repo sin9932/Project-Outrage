@@ -57,7 +57,8 @@
       engineerNext: 0,
       engRushNext: 0,
       nextWave: 0,
-      apmMul: 3.2
+      apmMul: 3.2,
+      underRushUntil: 0
     };
 
     // ===== ENEMY AGGRESSION / ANTI-CLUSTER HELPERS =====
@@ -434,6 +435,20 @@
       return n;
     }
 
+    function aiPlayerInfNearEnemyBase(){
+      const centers = aiEnemyCenters();
+      if (!centers.length) return 0;
+      const anchor = centers.find(b => b.kind === "hq") || centers[0];
+      const r2 = (TILE*12) * (TILE*12);
+      let n = 0;
+      for (const u of units){
+        if (!u.alive || u.team !== TEAM.PLAYER) continue;
+        if (!UNIT[u.kind] || UNIT[u.kind].cls !== "inf") continue;
+        if (dist2(u.x, u.y, anchor.x, anchor.y) <= r2) n++;
+      }
+      return n;
+    }
+
     function aiEnsureTechAndEco(e, underPower) {
       // Tech progression (requested):
       // power -> barracks -> (turrets around HQ) + refinery -> factory -> radar
@@ -480,7 +495,7 @@
       return false;
     }
 
-    function aiQueueUnits(e) {
+    function aiQueueUnits(e, rushDefense) {
       const pf = getPowerFactor(TEAM.ENEMY);
       const bar = buildings.find(b => b.alive && !b.civ && b.team === TEAM.ENEMY && b.kind === "barracks");
       const fac = buildings.find(b => b.alive && !b.civ && b.team === TEAM.ENEMY && b.kind === "factory");
@@ -492,6 +507,7 @@
 
       const playerInf = units.filter(u => u.alive && u.team === TEAM.PLAYER && (UNIT[u.kind] && UNIT[u.kind].cls === "inf") && !u.inTransport && !u.hidden);
       const playerHasInf = playerInf.length > 0;
+      const enemyInf = units.filter(u => u.alive && u.team === TEAM.ENEMY && u.kind === "infantry");
       const earlyRush = state.t < 120;
 
       const eEng = units.filter(u => u.alive && u.team === TEAM.ENEMY && u.kind === "engineer");
@@ -513,7 +529,7 @@
         // Early phase: mass infantry rush until factory is up.
         // After factory: keep small infantry count and mostly defend base.
         let wantInf = 0;
-        if (earlyRush) {
+        if (earlyRush || rushDefense) {
           wantInf = poor ? 10 : 14;
         } else if (playerHasInf) {
           if (!hasFac) {
@@ -529,7 +545,7 @@
         }
 
         // Engineers: early small count, later ramp for IFV rush.
-        const desiredEng = earlyRush ? 0 : (hasFac ? Math.max(6, Math.min(14, 4 + eIFV.length * 2)) : 2);
+        const desiredEng = (earlyRush || rushDefense) ? 0 : (hasFac ? Math.max(6, Math.min(14, 4 + eIFV.length * 2)) : 2);
         if (bar.buildQ.length < 8 && (eEng.length + queuedEng) < desiredEng) {
           bar.buildQ.push({ kind: "engineer", t: 0, tNeed: getBaseBuildTime("engineer") / pf, cost: COST.engineer, paid: 0 });
         }
@@ -726,9 +742,19 @@
 
       // Defense placement when rich (non-blocking)
       aiPlaceDefenseIfRich(e);
+      if (rushDefense && e.money > 450){
+        aiTryStartBuild("turret");
+      }
+
+      const rushInfNear = aiPlayerInfNearEnemyBase();
+      const isEarly = state.t < 140;
+      if (isEarly && rushInfNear >= 4){
+        ai.underRushUntil = Math.max(ai.underRushUntil || 0, state.t + 18);
+      }
+      const rushDefense = state.t < (ai.underRushUntil || 0);
 
       // Unit production should ALWAYS run (this was the big "AI builds only" failure mode).
-      aiQueueUnits(e);
+      aiQueueUnits(e, rushDefense);
       aiUseIFVPassengers();
       aiParkEmptyIFVs();
       aiUnstickEngineers();
@@ -737,6 +763,10 @@
       const eUnits = units.filter(u => u.alive && u.team === TEAM.ENEMY);
       // Emergency defense: if base took a hit, pull nearby units to defend.
       aiEmergencyDefend(eUnits);
+      if (rushDefense){
+        ai.mode = "defend";
+        aiCommandMoveToRally(eUnits.filter(u => u.kind !== "harvester"));
+      }
 
       const hasFac = aiEnemyHas("factory");
       const hasBar = aiEnemyHas("barracks");
@@ -750,7 +780,10 @@
         if (!hasFac && hasBar) {
           ai.nextWave = state.t + rnd(7, 12) / (ai.apmMul || 1);
           const inf = eUnitsAll.filter(u => u.kind === "infantry");
-          if (inf.length >= 7) {
+          const playerInfCount = playerInf.length;
+          const enemyInfCount = enemyInf.length;
+          const canEarlyPush = (enemyInfCount >= Math.max(6, Math.ceil(playerInfCount * 1.1)));
+          if (inf.length >= 7 && canEarlyPush) {
             const pack = inf.slice(0, Math.min(12, inf.length));
             for (const u of pack) {
               u.order = { type: "attackmove", x: dest.x, y: dest.y };
@@ -910,7 +943,7 @@
         return;
       }
 
-      if (poor || threat >= 4) {
+      if (poor || threat >= 4 || rushDefense) {
         ai.mode = "defend";
         aiCommandMoveToRally(combat);
         return;
