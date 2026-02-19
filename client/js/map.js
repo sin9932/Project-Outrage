@@ -74,12 +74,6 @@
       const midX = (MAP_W/2)|0;
       const midY = (MAP_H/2)|0;
 
-      for (let i=0;i<360;i++){
-        const tx=(Math.random()*MAP_W)|0, ty=(Math.random()*MAP_H)|0;
-        const ii = idx(tx,ty);
-        if (terrain[ii]===0 && Math.random()<0.08) terrain[ii] = 1;
-      }
-
       if (k==="canyon"){
         addRockRect(midX-2, 0, midX+2, midY-8);
         addRockRect(midX-2, midY+8, midX+2, MAP_H-1);
@@ -118,7 +112,7 @@
       ore.fill(0);
       for (let ty=0; ty<MAP_H; ty++){
         for (let tx=0; tx<MAP_W; tx++){
-          if (terrain[idx(tx,ty)] === 2) ore[idx(tx,ty)] = 380 + ((Math.random()*260)|0);
+          if (terrain[idx(tx,ty)] === 2) ore[idx(tx,ty)] = 520;
         }
       }
     }
