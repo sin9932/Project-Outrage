@@ -1,6 +1,10 @@
 파일을 client/ 루트에 두고(네 로컬서버가 client를 루트로 서빙하는 상태)
 
-브라우저에서 http://localhost:8000/barrack_pivot_tuner.html 열어
+D:\repos\project_outrage\Project-Outrage\client에서 터미널 열고
+
+명령어 python -m http.server 8000 입력.
+
+그후 브라우저에서 http://localhost:8000/barrack_pivot_tuner.html 열어
 
 Atlas JSON URL에 정확한 경로 넣고 Load
 

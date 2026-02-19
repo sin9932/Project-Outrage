@@ -428,7 +428,7 @@ function getBaseBuildTime(kind){
     // height levels: 0 = flat, 1 = low, 2 = medium, 3 = tall
     hq:       { hLevel:3, tw:5, th:5, hp:3000, vision:640, provideR: 750 },
     power:    { hLevel:2, tw:2, th:2, hp:750,  vision:420, provideR: 600 },
-    refinery: { hLevel:2, tw:3, th:4, hp:1000, vision:520, provideR: 650 },
+    refinery: { hLevel:2, tw:3, th:3, hp:1000, vision:520, provideR: 650 },
     factory:  { hLevel:2, tw:3, th:4, hp:1000, vision:500, provideR: 650 },
     barracks: { hLevel:2, tw:2, th:2, hp:500,  vision:460, provideR: 600 },
     radar:    { hLevel:3, tw:2, th:2, hp:1000, vision:600, provideR: 650 },

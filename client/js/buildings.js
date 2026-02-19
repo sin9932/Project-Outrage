@@ -49,6 +49,22 @@
     ,
       sellKey: { flag: "_powerSelling", t0: "_powerSellT0", finalizeAt: "_powerSellFinalizeAt" }
     }
+    ,
+    refinery: {
+      baseScale: 0.3,
+      forcePivot: { x: 0.4911, y: 0.6424 },
+      fps: { idle: 20, build: 24, death: 20, active: 24 },
+      lowHpRatio: 0.30,
+      atlas: {
+        idle:  { json: "asset/sprite/const/normal/refinery/refinery_idle.json",        base: "asset/sprite/const/normal/refinery/" },
+        build: { json: "asset/sprite/const/const_anim/refinery/refinery_const.json",   base: "asset/sprite/const/const_anim/refinery/" },
+        death: { json: "asset/sprite/const/distruct/refinery/refinery_distruction.json", base: "asset/sprite/const/distruct/refinery/" }
+      },
+      prefix: { idle: "refinery", build: "refinery_const", death: "refinery_distruction" },
+      entKey: { buildT0: "_refineryBuildT0", buildDone: "_refineryBuildDone" }
+    ,
+      sellKey: { flag: "_refinerySelling", t0: "_refinerySellT0", finalizeAt: "_refinerySellFinalizeAt" }
+    }
   };
 
   // ===== Internal state per building kind =====
@@ -67,6 +83,7 @@
     kinds: {
       barracks: makeState("barracks"),
       power: makeState("power"),
+      refinery: makeState("refinery"),
     },
     ghosts: [], // { kind, x,y, tw,th, team, t0 }
   };
@@ -155,9 +172,11 @@
     const sss   = fr.spriteSourceSize || { x:0, y:0, w:frame.w, h:frame.h };
     const srcSz = fr.sourceSize || { w: sss.w, h: sss.h };
     // For death frames, force pivot to match idle/build (avoid atlas pivot drift).
-    const pv    = (atlasKey === "death")
+    const pv    = (kind === "refinery")
       ? cfg.forcePivot
-      : (fr.pivot || fr.anchor || cfg.forcePivot);
+      : ((atlasKey === "death")
+        ? cfg.forcePivot
+        : (fr.pivot || fr.anchor || cfg.forcePivot));
 
     // drawFrame (no rotation support) – your atlases are unrotated
     const dx = x - (pv.x * srcSz.w - sss.x) * scale;
@@ -192,14 +211,62 @@
       stKind.frames.build = listFramesSmart(buildA, cfg.prefix.build);
       stKind.frames.death = listFramesSmart(deathA, cfg.prefix.death);
 
-      // Split idle frames into "normal" vs "damaged" variants (some atlases pack both into one sheet).
-      const _isDamagedName = (n)=>/dist|distruct|destroy|wreck|ruin/i.test(String(n||""));
+      // Split idle frames into "normal" vs "damaged" variants.
+      // Some atlases (e.g. refinery_idle.json) pack n_active + d_active together.
       const _idleAll = stKind.frames.idle || [];
-      const _idleBad = _idleAll.filter(_isDamagedName);
-      const _idleOk  = _idleAll.filter(n=>!_isDamagedName(n));
-      stKind.frames.idleOk  = _idleOk.length ? _idleOk : _idleAll;
-      stKind.frames.idleBad = _idleBad;
-stKind.ready = true;
+      if (kind === "refinery"){
+        const activeN = _idleAll.filter(n => /_n_active_/i.test(String(n||"")));
+        const activeD = _idleAll.filter(n => /_d_active_/i.test(String(n||"")));
+        let idleOnly = _idleAll.filter(n => /refinery_idle/i.test(String(n||"")));
+        if (!idleOnly.length){
+          idleOnly = _idleAll.filter(n => !/_n_active_|_d_active_/i.test(String(n||"")));
+        }
+
+        const buildNumMap = (arr)=>{
+          const map = new Map();
+          const nums = [];
+          for (const n of arr){
+            const num = _numSuffix(n);
+            if (Number.isFinite(num)){
+              map.set(num, n);
+              nums.push(num);
+            }
+          }
+          nums.sort((a,b)=>a-b);
+          return { map, nums };
+        };
+        const nMap = buildNumMap(activeN);
+        const dMap = buildNumMap(activeD);
+        const commonNums = nMap.nums.filter(x => dMap.map.has(x));
+        const activeNums = commonNums.length ? commonNums : (nMap.nums.length ? nMap.nums : dMap.nums);
+
+        stKind.frames.activeN = activeN;
+        stKind.frames.activeD = activeD;
+        stKind.frames.activeMapN = nMap.map;
+        stKind.frames.activeMapD = dMap.map;
+        stKind.frames.activeNums = activeNums;
+        stKind.frames.idleOk  = idleOnly.length ? idleOnly : _idleAll;
+        stKind.frames.idleBad = [];
+      } else {
+        const _hasNActive = _idleAll.some(n => /_n_active_/i.test(String(n||"")));
+        const _hasDActive = _idleAll.some(n => /_d_active_/i.test(String(n||"")));
+        let _idleOk = [];
+        let _idleBad = [];
+        if (_hasNActive || _hasDActive){
+          _idleOk  = _idleAll.filter(n => /_n_active_/i.test(String(n||"")));
+          _idleBad = _idleAll.filter(n => /_d_active_/i.test(String(n||"")));
+          if (!_idleOk.length){
+            _idleOk = _idleAll.filter(n => !/_d_active_/i.test(String(n||"")));
+          }
+        } else {
+          const _isDamagedName = (n)=>/dist|distruct|destroy|wreck|ruin/i.test(String(n||""));
+          _idleBad = _idleAll.filter(_isDamagedName);
+          _idleOk  = _idleAll.filter(n=>!_isDamagedName(n));
+        }
+        stKind.frames.idleOk  = _idleOk.length ? _idleOk : _idleAll;
+        stKind.frames.idleBad = _idleBad;
+      }
+      stKind.ready = true;
       DEBUG && console.log(`[buildings] ${kind} atlases loaded`, stKind.frames);
     }catch(e){
       console.warn(`[buildings] ${kind} atlas load failed`, e);
@@ -211,7 +278,8 @@ stKind.ready = true;
     if (_preloadAllPromise) return _preloadAllPromise;
     _preloadAllPromise = Promise.all([
       ensureKindLoaded("barracks"),
-      ensureKindLoaded("power")
+      ensureKindLoaded("power"),
+      ensureKindLoaded("refinery")
     ]);
     return _preloadAllPromise;
   }
@@ -348,10 +416,37 @@ stKind.ready = true;
       ent[ek.buildDone] = true;
     }
 
-    // Idle: choose normal vs damaged variant based on HP ratio (e.g. power packs idle+dist into one sheet)
+    // Idle/Active: choose normal vs damaged variant based on HP ratio
     const maxHp = (ent.maxHp ?? ent.maxHP ?? ent.hpMax ?? ent.hp_max ?? ent.hp ?? 1);
     const hpNow = (ent.hp ?? maxHp);
     const hpRatio = (maxHp>0) ? (hpNow / maxHp) : 1;
+
+    // Refinery: play active animation only on deposit (harvester attached).
+    if (ent.kind === "refinery" && ent._activeT0 != null){
+      const activeNums = stKind.frames.activeNums || [];
+      const activeN = stKind.frames.activeN || [];
+      const activeD = stKind.frames.activeD || [];
+      if (activeNums.length || activeN.length || activeD.length){
+        const fpsA = cfg.fps.active || cfg.fps.idle || 20;
+        const len = activeNums.length || activeN.length || activeD.length || 1;
+        const dt = Math.max(0, now - ent._activeT0);
+        const dur = len / fpsA;
+        if (dt <= dur){
+          const idx = Math.floor(dt * fpsA) % len;
+          const num = activeNums.length ? activeNums[idx] : null;
+          const useDamaged = (hpRatio < cfg.lowHpRatio) && activeD.length;
+          const map = useDamaged ? stKind.frames.activeMapD : stKind.frames.activeMapN;
+          let fname = (num!=null && map && map.get(num)) ? map.get(num) : null;
+          if (!fname){
+            const arr = useDamaged ? activeD : activeN;
+            if (arr && arr.length) fname = arr[idx % arr.length];
+          }
+          if (fname){
+            return drawFrameTeam(ent.kind, "idle", stKind.atlases.idle, ctx, fname, sx, sy, team, scale, state);
+          }
+        }
+      }
+    }
 
     const useDamaged = (hpRatio < cfg.lowHpRatio) && (stKind.frames.idleBad && stKind.frames.idleBad.length);
     const frames = useDamaged

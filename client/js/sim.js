@@ -2459,6 +2459,11 @@
                   if (u.team===TEAM.PLAYER) state.player.money += add;
                   else state.enemy.money += add;
                   u.carry = 0;
+                  // Trigger refinery "active" animation (deposit pulse)
+                  if (ref && ref.kind==="refinery"){
+                    ref._activeT0 = state.t;
+                    ref._activePulse = (ref._activePulse||0) + 1;
+                  }
                 }
                 // Back to manual ore if set, otherwise auto.
                 if (u.manualOre){
