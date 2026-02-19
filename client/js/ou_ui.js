@@ -1,4 +1,4 @@
-// ou_ui.js
+﻿// ou_ui.js
 // - UI updates extracted from game.js (Stage 5)
 // - Keep this file tiny + dependency-injected.
 
@@ -1081,16 +1081,8 @@ function ensureBadge(btn){
       if (!open) return;
 
       const bgm = env.bgm;
-      if (bgm && refs.track){
-        const n = (bgm.trackName || "(대기중)").replace(/\.[^/.]+$/,"");
-        refs.track.textContent = n;
-      }
-      if (bgm && refs.vol){
-        const v = (bgm.master ?? bgm.audio?.volume ?? 0.7);
-        refs.vol.value = String(v);
-        if (refs.volVal) refs.volVal.textContent = String(Math.max(1, Math.min(10, Math.round(Number(v) * 10))));
-      }
-
+      // BGM UI values are driven via adapter in wirePauseMenuUI (mountUI -> updateUI).
+      if (bgm) { /* no direct DOM updates here */ }
       const bright = (typeof env.getBrightness === "function") ? env.getBrightness() : null;
       if (refs.bright && bright != null) refs.bright.value = String(bright);
       if (refs.brightVal && bright != null){
@@ -1465,3 +1457,5 @@ return {
     };
   };
 })(window);
+
+
