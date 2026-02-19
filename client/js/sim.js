@@ -2530,6 +2530,9 @@
                 u.order={type:"harvest", x:u.x,y:u.y, tx:best.tx, ty:best.ty};
                 setPathTo(u, (best.tx+0.5)*TILE, (best.ty+0.5)*TILE);
                 u.repathCd=0.25;
+              } else {
+                // If a refinery exists but no ore found, keep idle but recheck next tick.
+                u.order.type = "idle";
               }
               continue;
             }
@@ -2594,7 +2597,12 @@
                     u.repathCd=0.25;
                   } else {
                     u._needsRef = true;
-                    u.order.type="idle";
+                    // If any refinery exists, keep harvesting instead of stalling.
+                    if (hasAnyRefinery(u.team)){
+                      u.order.type="harvest";
+                    } else {
+                      u.order.type="idle";
+                    }
                   }
                 } else {
                   u.order.type="idle";
@@ -2647,12 +2655,16 @@
                     u.repathCd=0.25;
                   } else {
                     u._needsRef = true;
-                    u.order.type="idle";
+                    if (hasAnyRefinery(u.team)){
+                      u.order.type="harvest";
+                    } else {
+                      u.order.type="idle";
+                    }
                   }
                 } else {
                   u.order.type="idle";
                   u.manualOre=null;
-                  }
+                }
                 }
               }
               continue;
