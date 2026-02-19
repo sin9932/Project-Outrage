@@ -1182,6 +1182,8 @@
           return true;
         }
         if (ucls==="veh" && canCrushInf(u)){
+          // Allow crushing ONLY enemy infantry; never pass through friendly infantry.
+          if (occInf[i] > 0 && occTeam[i] === u.team) return false;
           const other = (occAll[i]||0) - (occInf[i]||0);
           return (occVeh[i] <= 0) && (other < 1);
         }
@@ -1226,6 +1228,8 @@
         const i = idx(tx,ty);
         if (isReservedByOther(u, tx, ty)) return false;
         if (canCrushInf(u)){
+          // Allow crushing ONLY enemy infantry; never pass through friendly infantry.
+          if (occInf[i] > 0 && occTeam[i] === u.team) return false;
           const other = (occAll[i]||0) - (occInf[i]||0);
           return (occVeh[i] <= 0) && (other < 1);
         }
@@ -1236,6 +1240,8 @@
       const cls = (UNIT[u.kind] && UNIT[u.kind].cls) ? UNIT[u.kind].cls : "";
       if (cls==="veh"){
         if (canCrushInf(u)){
+          // Allow crushing ONLY enemy infantry; never pass through friendly infantry.
+          if (occInf[i] > 0 && occTeam[i] === u.team) return false;
           const other = (occAll[i]||0) - (occInf[i]||0);
           return (occVeh[i] <= 0) && (other < 1);
         }
