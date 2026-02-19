@@ -740,18 +740,18 @@
       const underPower = e.powerUse > e.powerProd;
       aiEnsureTechAndEco(e, underPower);
 
-      // Defense placement when rich (non-blocking)
-      aiPlaceDefenseIfRich(e);
-      if (rushDefense && e.money > 450){
-        aiTryStartBuild("turret");
-      }
-
       const rushInfNear = aiPlayerInfNearEnemyBase();
       const isEarly = state.t < 140;
       if (isEarly && rushInfNear >= 4){
         ai.underRushUntil = Math.max(ai.underRushUntil || 0, state.t + 18);
       }
       const rushDefense = state.t < (ai.underRushUntil || 0);
+
+      // Defense placement when rich (non-blocking)
+      aiPlaceDefenseIfRich(e);
+      if (rushDefense && e.money > 450){
+        aiTryStartBuild("turret");
+      }
 
       // Unit production should ALWAYS run (this was the big "AI builds only" failure mode).
       aiQueueUnits(e, rushDefense);
@@ -761,6 +761,8 @@
       aiEngineerRush();
 
       const eUnits = units.filter(u => u.alive && u.team === TEAM.ENEMY);
+      const playerInf = units.filter(u => u.alive && u.team === TEAM.PLAYER && (UNIT[u.kind] && UNIT[u.kind].cls === "inf") && !u.inTransport && !u.hidden);
+      const enemyInf = units.filter(u => u.alive && u.team === TEAM.ENEMY && u.kind === "infantry");
       // Emergency defense: if base took a hit, pull nearby units to defend.
       aiEmergencyDefend(eUnits);
       if (rushDefense){
@@ -836,7 +838,6 @@
       const engs = eUnits.filter(u => u.kind === "engineer");
       const snipers = eUnits.filter(u => u.kind === "sniper");
       const idleIFVs = units.filter(u => u.alive && u.team === TEAM.ENEMY && u.kind === "ifv" && !u.passengerId);
-      const playerInf = units.filter(u => u.alive && u.team === TEAM.PLAYER && (UNIT[u.kind] && UNIT[u.kind].cls === "inf") && !u.inTransport && !u.hidden);
       const playerHasInf = playerInf.length > 0;
 
       // Engineer harassment (value-aware) - keep trying to capture high-value and sell.
