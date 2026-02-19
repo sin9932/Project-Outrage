@@ -263,10 +263,13 @@
 
   // Water textures (optional)
   const WATER_TEX_PNG = "asset/sprite/map/water.jpg";
+  const WATER_TEX2_PNG = "asset/sprite/map/water2.jpg";
   const WATER_NORM_PNG = "asset/sprite/map/water_normal.jpg";
   let WATER_TEX_IMG = null;
+  let WATER_TEX2_IMG = null;
   let WATER_NORM_IMG = null;
   let WATER_TEX_PAT = null;
+  let WATER_TEX2_PAT = null;
   let WATER_NORM_PAT = null;
 
   function ensureWaterPatterns(ctx){
@@ -275,6 +278,11 @@
       WATER_TEX_IMG.onload = ()=>{ WATER_TEX_PAT = null; };
       WATER_TEX_IMG.src = WATER_TEX_PNG;
     }
+    if (!WATER_TEX2_IMG){
+      WATER_TEX2_IMG = new Image();
+      WATER_TEX2_IMG.onload = ()=>{ WATER_TEX2_PAT = null; };
+      WATER_TEX2_IMG.src = WATER_TEX2_PNG;
+    }
     if (!WATER_NORM_IMG){
       WATER_NORM_IMG = new Image();
       WATER_NORM_IMG.onload = ()=>{ WATER_NORM_PAT = null; };
@@ -282,6 +290,9 @@
     }
     if (WATER_TEX_IMG && WATER_TEX_IMG.complete && !WATER_TEX_PAT){
       WATER_TEX_PAT = ctx.createPattern(WATER_TEX_IMG, "repeat");
+    }
+    if (WATER_TEX2_IMG && WATER_TEX2_IMG.complete && !WATER_TEX2_PAT){
+      WATER_TEX2_PAT = ctx.createPattern(WATER_TEX2_IMG, "repeat");
     }
     if (WATER_NORM_IMG && WATER_NORM_IMG.complete && !WATER_NORM_PAT){
       WATER_NORM_PAT = ctx.createPattern(WATER_NORM_IMG, "repeat");
@@ -1599,6 +1610,15 @@
           ctx.translate(-px, -py);
           ctx.globalAlpha = 0.70;
           ctx.fillStyle = WATER_TEX_PAT;
+          ctx.fillRect(x-ox-256, y-oy-256, (ox+256)*2, (oy+256)*2);
+          ctx.restore();
+        }
+        if (WATER_TEX2_PAT){
+          ctx.save();
+          ctx.translate(px*0.6, py*0.6);
+          ctx.globalCompositeOperation = "overlay";
+          ctx.globalAlpha = 0.35;
+          ctx.fillStyle = WATER_TEX2_PAT;
           ctx.fillRect(x-ox-256, y-oy-256, (ox+256)*2, (oy+256)*2);
           ctx.restore();
         }
