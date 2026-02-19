@@ -486,6 +486,7 @@
 
   function _isAccentPixel(r,g,b,a){
     if(a < 8) return false;
+    if (_MAGENTA_INCLUDE_SET && _MAGENTA_INCLUDE_SET.has((r<<16)|(g<<8)|b)) return true;
 
     const max=Math.max(r,g,b), min=Math.min(r,g,b);
     const sat = max===0 ? 0 : (max-min)/max;
@@ -506,6 +507,20 @@
 
     return true;
   }
+
+  // Explicit include list for palette mapping (hex RGB)
+  const _MAGENTA_INCLUDE_SET = (() => {
+    const list = [
+      "f882a8","e782a1","e47f9f","4b1e2c","ffbfe6","8f4b64",
+      "aa5b77","b26280","d67594","5f2838","401f29","b67d88","e280a0"
+    ];
+    const s = new Set();
+    for (const h of list){
+      const v = parseInt(h, 16);
+      if (!Number.isNaN(v)) s.add(v & 0xFFFFFF);
+    }
+    return s;
+  })();
 
   function _applyTeamPaletteToImage(img, teamColor, opts={}){
     const excludeRects = opts.excludeRects || null; // [{x,y,w,h}] in image pixel coords
