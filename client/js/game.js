@@ -3736,8 +3736,6 @@ function crushInfantry(mover){
       k++;
     }
   }
-}
-
 
 const keys=new Set();
   // DEBUG: Delete key toggles building-destruction click mode (any team)
