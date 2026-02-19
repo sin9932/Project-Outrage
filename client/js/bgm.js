@@ -49,6 +49,7 @@
       repeat: "all", // "none" | "all" | "one"
       fade: { active:false, t:0, dur:0.55, from:0, to:0, nextSrc:null },
       viz:  { t:0 },
+      pendingSrc: ""
     };
 
     function shuffle(arr){
@@ -91,12 +92,14 @@
       if (audio.src !== src) audio.src = src;
       try { audio.currentTime = 0; } catch(_e){}
       audio.play().catch(()=>{ /* autoplay policy, ignore */ });
+      state.pendingSrc = "";
     }
 
     function fadeToTrack(nextSrc) {
       if (!nextSrc) return;
       ensureAnalyser();
       resumeCtx();
+      state.pendingSrc = nextSrc;
 
       // If nothing is playing yet, just start.
       if (!audio.src) {
@@ -159,8 +162,10 @@
     }
     function prev(){
       if (!state.order.length) rebuildOrder(true);
-      if (state.order.length){
-        state.idx = Math.max(0, state.idx-2);
+      const len = state.order.length;
+      if (len){
+        // Move to previous item in playlist, wrapping around.
+        state.idx = (state.idx - 2 + len) % len;
         const tr = getNextTrack();
         if (tr) fadeToTrack(tr);
       }
@@ -192,7 +197,8 @@
     }
 
     function prettyName(){
-      const raw = audio.src ? audio.src.split("/").pop() : "";
+      const src = state.pendingSrc || audio.src;
+      const raw = src ? src.split("/").pop() : "";
       if (!raw) return "";
       try {
         return decodeURIComponent(raw).replace(/\.[^/.]+$/,"");
