@@ -1602,13 +1602,13 @@
         ctx.save();
         ctx.clip();
         const t = (state && state.t) ? state.t : 0;
-        const shimmer = t * 3.4 + tx*0.55 + ty*0.42;
+        const shimmer = t * 2.6 + tx*0.45 + ty*0.35;
         const px = (t * 18) % 256;
         const py = (t * 12) % 256;
         if (WATER_TEX_PAT){
           ctx.save();
           ctx.translate(-px, -py);
-          ctx.globalAlpha = 0.70;
+          ctx.globalAlpha = 0.55;
           ctx.fillStyle = WATER_TEX_PAT;
           ctx.fillRect(x-ox-256, y-oy-256, (ox+256)*2, (oy+256)*2);
           ctx.restore();
@@ -1617,7 +1617,7 @@
           ctx.save();
           ctx.translate(px*0.6, py*0.6);
           ctx.globalCompositeOperation = "overlay";
-          ctx.globalAlpha = 0.35;
+          ctx.globalAlpha = 0.22;
           ctx.fillStyle = WATER_TEX2_PAT;
           ctx.fillRect(x-ox-256, y-oy-256, (ox+256)*2, (oy+256)*2);
           ctx.restore();
@@ -1625,8 +1625,8 @@
         if (WATER_NORM_PAT){
           ctx.save();
           ctx.translate(px*0.9, py*0.9);
-          ctx.globalCompositeOperation = "overlay";
-          ctx.globalAlpha = 0.55;
+          ctx.globalCompositeOperation = "soft-light";
+          ctx.globalAlpha = 0.28;
           ctx.fillStyle = WATER_NORM_PAT;
           ctx.fillRect(x-ox-256, y-oy-256, (ox+256)*2, (oy+256)*2);
           ctx.restore();
@@ -1634,20 +1634,25 @@
         // directional specular sweep (fake sun reflection)
         ctx.save();
         ctx.globalCompositeOperation = "screen";
-        ctx.globalAlpha = 0.18;
-        const sweep = (Math.sin(shimmer*0.6) * 0.5 + 0.5);
-        const g2 = ctx.createLinearGradient(x-ox, y-oy, x+ox, y+oy);
+        ctx.globalAlpha = 0.12;
+        const sweep = (Math.sin(shimmer*0.55) * 0.5 + 0.5);
+        // light direction depends on camera position (fake)
+        const lx = (cam.x || 0) - (MAP_W*TILE*0.5);
+        const ly = (cam.y || 0) - (MAP_H*TILE*0.5);
+        const lnx = (lx===0 && ly===0) ? 0.6 : (lx / (Math.hypot(lx,ly)||1));
+        const lny = (lx===0 && ly===0) ? 0.4 : (ly / (Math.hypot(lx,ly)||1));
+        const g2 = ctx.createLinearGradient(x-ox*lnx, y-oy*lny, x+ox*lnx, y+oy*lny);
         g2.addColorStop(0.0, "rgba(255,255,255,0.00)");
-        g2.addColorStop(0.45 + sweep*0.10, "rgba(255,255,255,0.25)");
-        g2.addColorStop(0.65 + sweep*0.10, "rgba(255,255,255,0.00)");
+        g2.addColorStop(0.46 + sweep*0.08, "rgba(255,255,255,0.20)");
+        g2.addColorStop(0.62 + sweep*0.08, "rgba(255,255,255,0.00)");
         ctx.fillStyle = g2;
         ctx.fill();
         ctx.restore();
         ctx.restore();
 
         ctx.save();
-        ctx.globalAlpha = 0.26;
-        ctx.strokeStyle = "rgba(190,230,255,0.65)";
+        ctx.globalAlpha = 0.20;
+        ctx.strokeStyle = "rgba(170,210,255,0.50)";
         ctx.lineWidth = 1.2 * cam.zoom;
         const wave = Math.sin(shimmer) * 0.35;
         ctx.beginPath();
@@ -1657,24 +1662,39 @@
 
         // extra fast ripples for "windy" water
         const wave2 = Math.sin(shimmer*1.7 + 1.2) * 0.28;
-        ctx.globalAlpha = 0.22;
+        ctx.globalAlpha = 0.16;
         ctx.beginPath();
         ctx.moveTo(x-ox*0.55, y+oy*0.06 + wave2*9);
         ctx.lineTo(x+ox*0.55, y+oy*0.06 + wave2*9);
         ctx.stroke();
 
         const wave3 = Math.sin(shimmer*2.5 + 2.7) * 0.20;
-        ctx.globalAlpha = 0.18;
+        ctx.globalAlpha = 0.14;
         ctx.beginPath();
         ctx.moveTo(x-ox*0.40, y+oy*0.22 + wave3*7);
         ctx.lineTo(x+ox*0.40, y+oy*0.22 + wave3*7);
         ctx.stroke();
         ctx.restore();
       } else {
-        // LOD: simple highlight only
+        // LOD: still draw base texture, but skip normals/specular/waves
+        ensureWaterPatterns(ctx);
         ctx.save();
-        ctx.globalAlpha = 0.12;
-        ctx.strokeStyle = "rgba(170,210,255,0.45)";
+        ctx.clip();
+        const t = (state && state.t) ? state.t : 0;
+        const px = (t * 18) % 256;
+        const py = (t * 12) % 256;
+        if (WATER_TEX_PAT){
+          ctx.save();
+          ctx.translate(-px, -py);
+          ctx.globalAlpha = 0.45;
+          ctx.fillStyle = WATER_TEX_PAT;
+          ctx.fillRect(x-ox-256, y-oy-256, (ox+256)*2, (oy+256)*2);
+          ctx.restore();
+        }
+        ctx.restore();
+        ctx.save();
+        ctx.globalAlpha = 0.10;
+        ctx.strokeStyle = "rgba(160,200,245,0.35)";
         ctx.lineWidth = 1.0 * cam.zoom;
         ctx.beginPath();
         ctx.moveTo(x-ox*0.60, y);
