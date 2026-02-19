@@ -943,9 +943,11 @@ function ensureBadge(btn){
       env = env || {};
       const onSpawnChange = env.onSpawnChange;
       const onMoneyChange = env.onMoneyChange;
+      const onMapChange = env.onMapChange;
 
       const spawnChips = Array.from(document.querySelectorAll(".chip.spawn"));
       const moneyChips = Array.from(document.querySelectorAll(".chip.money"));
+      const mapChips = Array.from(document.querySelectorAll(".chip.map"));
 
       function setSpawnChip(target){
         for (const c of spawnChips) c.classList.remove("on");
@@ -961,11 +963,21 @@ function ensureBadge(btn){
         if (typeof onMoneyChange === "function") onMoneyChange(v);
       }
 
+      function setMapChip(target){
+        for (const c of mapChips) c.classList.remove("on");
+        if (target) target.classList.add("on");
+        const v = target && target.dataset ? target.dataset.map : null;
+        if (typeof onMapChange === "function") onMapChange(v || "plains");
+      }
+
       for (const chip of spawnChips){
         chip.addEventListener("click", ()=>setSpawnChip(chip));
       }
       for (const chip of moneyChips){
         chip.addEventListener("click", ()=>setMoneyChip(chip));
+      }
+      for (const chip of mapChips){
+        chip.addEventListener("click", ()=>setMapChip(chip));
       }
     }
 

@@ -48,11 +48,13 @@
   // Sidebar button UI is managed by ou_ui.js. Keep game.js free of DOM mutations here.
 
   let spawnChoice = "left";
+  let mapChoice = "plains";
   let startMoney = 10000;
   if (__ou_ui && typeof __ou_ui.initPregameUI === "function"){
     __ou_ui.initPregameUI({
       onSpawnChange: (v)=>{ spawnChoice = v || "left"; },
-      onMoneyChange: (v)=>{ startMoney = (typeof v==="number" && !Number.isNaN(v)) ? v : 10000; }
+      onMoneyChange: (v)=>{ startMoney = (typeof v==="number" && !Number.isNaN(v)) ? v : 10000; },
+      onMapChange: (v)=>{ mapChoice = v || "plains"; }
     });
   }
 
@@ -315,36 +317,90 @@ function fitMini() {
   const tileOfY = (y)=> clamp(Math.floor(y/TILE), 0, MAP_H-1);
 
 
-  function genMap() {
-    terrain.fill(0);
-    for (let i=0;i<520;i++){
-      const tx=(Math.random()*MAP_W)|0, ty=(Math.random()*MAP_H)|0;
-      terrain[idx(tx,ty)] = 1;
-    }
-    const patches = [
-      {x: 16, y: 12, r:8},
-      {x: 42, y: 25, r:11},
-      {x: 28, y: 30, r:7},
-      {x: 50, y: 10, r:8},
-    ];
-    for (const p of patches){
-      for (let y=-p.r;y<=p.r;y++){
-        for (let x=-p.r;x<=p.r;x++){
-          const tx=p.x+x, ty=p.y+y;
-          if (!inMap(tx,ty)) continue;
-          if (x*x+y*y <= p.r*p.r) terrain[idx(tx,ty)] = 2;
-        }
+  function addOreCircle(cx, cy, r){
+    for (let y=-r;y<=r;y++){
+      for (let x=-r;x<=r;x++){
+        const tx=cx+x, ty=cy+y;
+        if (!inMap(tx,ty)) continue;
+        if (x*x+y*y <= r*r) terrain[idx(tx,ty)] = 2;
       }
     }
   }
-  genMap();
 
-  ore.fill(0);
-  for (let ty=0; ty<MAP_H; ty++){
-    for (let tx=0; tx<MAP_W; tx++){
-      if (terrain[idx(tx,ty)] === 2) ore[idx(tx,ty)] = 300 + ((Math.random()*220)|0);
+  function addRockRect(x0,y0,x1,y1){
+    const ax = clamp(Math.min(x0,x1), 0, MAP_W-1);
+    const ay = clamp(Math.min(y0,y1), 0, MAP_H-1);
+    const bx = clamp(Math.max(x0,x1), 0, MAP_W-1);
+    const by = clamp(Math.max(y0,y1), 0, MAP_H-1);
+    for (let ty=ay; ty<=by; ty++){
+      for (let tx=ax; tx<=bx; tx++){
+        terrain[idx(tx,ty)] = 1;
+      }
     }
   }
+
+  function genMap(kind) {
+    terrain.fill(0);
+    const k = kind || "plains";
+    const midX = (MAP_W/2)|0;
+    const midY = (MAP_H/2)|0;
+
+    // light random rocks for texture
+    for (let i=0;i<420;i++){
+      const tx=(Math.random()*MAP_W)|0, ty=(Math.random()*MAP_H)|0;
+      if (Math.random()<0.08) terrain[idx(tx,ty)] = 1;
+    }
+
+    if (k==="canyon"){
+      // vertical rock walls with two gaps
+      addRockRect(midX-2, 0, midX+2, midY-8);
+      addRockRect(midX-2, midY+8, midX+2, MAP_H-1);
+      // side ores
+      addOreCircle(Math.floor(MAP_W*0.20), Math.floor(MAP_H*0.70), 7);
+      addOreCircle(Math.floor(MAP_W*0.80), Math.floor(MAP_H*0.30), 7);
+      addOreCircle(midX-10, midY+8, 6);
+      addOreCircle(midX+10, midY-8, 6);
+    } else if (k==="lake"){
+      // central "lake" (rock) with two land bridges
+      addRockRect(midX-10, midY-6, midX+10, midY+6);
+      // carve bridges
+      addRockRect(midX-2, midY-1, midX+2, midY+1);
+      terrain[idx(midX, midY)] = 0;
+      // ores
+      addOreCircle(Math.floor(MAP_W*0.18), Math.floor(MAP_H*0.70), 7);
+      addOreCircle(Math.floor(MAP_W*0.82), Math.floor(MAP_H*0.30), 7);
+      addOreCircle(midX-14, midY, 5);
+      addOreCircle(midX+14, midY, 5);
+    } else if (k==="bridges"){
+      // horizontal rock rivers with bridges
+      addRockRect(0, midY-6, MAP_W-1, midY-4);
+      addRockRect(0, midY+4, MAP_W-1, midY+6);
+      // bridges
+      addRockRect(midX-2, midY-6, midX+2, midY+6);
+      // ores
+      addOreCircle(Math.floor(MAP_W*0.20), Math.floor(MAP_H*0.72), 7);
+      addOreCircle(Math.floor(MAP_W*0.80), Math.floor(MAP_H*0.28), 7);
+      addOreCircle(midX-18, midY, 5);
+      addOreCircle(midX+18, midY, 5);
+    } else {
+      // plains (default)
+      addOreCircle(Math.floor(MAP_W*0.20), Math.floor(MAP_H*0.70), 8);
+      addOreCircle(Math.floor(MAP_W*0.80), Math.floor(MAP_H*0.30), 8);
+      addOreCircle(midX-12, midY+6, 6);
+      addOreCircle(midX+12, midY-6, 6);
+    }
+  }
+  genMap(mapChoice);
+
+  function regenOre(){
+    ore.fill(0);
+    for (let ty=0; ty<MAP_H; ty++){
+      for (let tx=0; tx<MAP_W; tx++){
+        if (terrain[idx(tx,ty)] === 2) ore[idx(tx,ty)] = 300 + ((Math.random()*220)|0);
+      }
+    }
+  }
+  regenOre();
 
   const explored = [new Uint8Array(MAP_W*MAP_H), new Uint8Array(MAP_W*MAP_H)];
   const visible  = [new Uint8Array(MAP_W*MAP_H), new Uint8Array(MAP_W*MAP_H)];
@@ -5019,6 +5075,12 @@ if (__ou_ui && typeof __ou_ui.bindPregameStart === "function"){
       return;
     }
 
+    genMap(mapChoice);
+    regenOre();
+    explored[TEAM.PLAYER].fill(0);
+    explored[TEAM.ENEMY].fill(0);
+    visible[TEAM.PLAYER].fill(0);
+    visible[TEAM.ENEMY].fill(0);
     placeStart(spawnChoice);
     spawnStartingUnits();
     if (__ou_ui && typeof __ou_ui.hidePregame === "function"){
