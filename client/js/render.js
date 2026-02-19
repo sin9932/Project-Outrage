@@ -272,10 +272,12 @@
   function ensureWaterPatterns(ctx){
     if (!WATER_TEX_IMG){
       WATER_TEX_IMG = new Image();
+      WATER_TEX_IMG.onload = ()=>{ WATER_TEX_PAT = null; };
       WATER_TEX_IMG.src = WATER_TEX_PNG;
     }
     if (!WATER_NORM_IMG){
       WATER_NORM_IMG = new Image();
+      WATER_NORM_IMG.onload = ()=>{ WATER_NORM_PAT = null; };
       WATER_NORM_IMG.src = WATER_NORM_PNG;
     }
     if (WATER_TEX_IMG && WATER_TEX_IMG.complete && !WATER_TEX_PAT){
@@ -1592,21 +1594,33 @@
       const py = (t * 12) % 256;
       if (WATER_TEX_PAT){
         ctx.save();
-        ctx.translate(px, py);
+        ctx.translate(-px, -py);
         ctx.globalAlpha = 0.70;
         ctx.fillStyle = WATER_TEX_PAT;
-        ctx.fillRect(x-ox-64, y-oy-64, (ox+64)*2, (oy+64)*2);
+        ctx.fillRect(x-ox-256, y-oy-256, (ox+256)*2, (oy+256)*2);
         ctx.restore();
       }
       if (WATER_NORM_PAT){
         ctx.save();
-        ctx.translate(-px*1.2, -py*1.2);
-        ctx.globalCompositeOperation = "soft-light";
-        ctx.globalAlpha = 0.45;
+        ctx.translate(px*0.9, py*0.9);
+        ctx.globalCompositeOperation = "overlay";
+        ctx.globalAlpha = 0.55;
         ctx.fillStyle = WATER_NORM_PAT;
-        ctx.fillRect(x-ox-64, y-oy-64, (ox+64)*2, (oy+64)*2);
+        ctx.fillRect(x-ox-256, y-oy-256, (ox+256)*2, (oy+256)*2);
         ctx.restore();
       }
+      // directional specular sweep (fake sun reflection)
+      ctx.save();
+      ctx.globalCompositeOperation = "screen";
+      ctx.globalAlpha = 0.18;
+      const sweep = (Math.sin(shimmer*0.6) * 0.5 + 0.5);
+      const g2 = ctx.createLinearGradient(x-ox, y-oy, x+ox, y+oy);
+      g2.addColorStop(0.0, "rgba(255,255,255,0.00)");
+      g2.addColorStop(0.45 + sweep*0.10, "rgba(255,255,255,0.25)");
+      g2.addColorStop(0.65 + sweep*0.10, "rgba(255,255,255,0.00)");
+      ctx.fillStyle = g2;
+      ctx.fill();
+      ctx.restore();
       ctx.restore();
 
       ctx.save();
