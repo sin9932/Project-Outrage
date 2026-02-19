@@ -1095,7 +1095,7 @@ function ensureBadge(btn){
       if (refs.bright && bright != null) refs.bright.value = String(bright);
       if (refs.brightVal && bright != null){
         const b = Number(bright);
-        const n10 = Math.max(1, Math.min(10, Math.round((b - 0.6) * 9 + 1)));
+        const n10 = Math.max(1, Math.min(10, Math.round(((b - 1.0) / 0.1) + 5)));
         refs.brightVal.textContent = String(n10);
       }
     }
@@ -1179,7 +1179,7 @@ function ensureBadge(btn){
         const v = parseFloat(refs.bright.value);
         if (refs.brightVal){
           const b = Number.isFinite(v) ? v : 1;
-          const n10 = Math.max(1, Math.min(10, Math.round((b - 0.6) * 9 + 1)));
+          const n10 = Math.max(1, Math.min(10, Math.round(((b - 1.0) / 0.1) + 5)));
           refs.brightVal.textContent = String(n10);
         }
         if (typeof env.onBright === "function") env.onBright(v);
