@@ -193,7 +193,12 @@
 
     function prettyName(){
       const raw = audio.src ? audio.src.split("/").pop() : "";
-      return raw ? raw.replace(/\.[^/.]+$/,"") : "";
+      if (!raw) return "";
+      try {
+        return decodeURIComponent(raw).replace(/\.[^/.]+$/,"");
+      } catch(_e){
+        return raw.replace(/\.[^/.]+$/,"");
+      }
     }
 
     function updateUI(){
