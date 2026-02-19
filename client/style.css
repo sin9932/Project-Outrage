@@ -353,8 +353,21 @@
 .pmEqBox{height:64px;display:flex;align-items:flex-end;justify-content:flex-start}
 #pmEQ{display:flex;align-items:flex-end;gap:5px;height:64px;width:96px;padding:6px 6px 4px;border-radius:14px;background:rgba(255,255,255,0.06);box-shadow: inset 0 0 0 1px rgba(255,255,255,0.06)}
 #pmEQ .bar{width:6px;height:6px;border-radius:4px;background:#ffd400;opacity:0.95;transform-origin:bottom center;transform:scaleY(0.35)}
-.pmTitleBox{display:flex;flex-direction:column;min-width:0}
-#pmTrackName{font-size:34px;line-height:1.05;font-weight:800;letter-spacing:0.4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pmTitleBox{display:flex;flex-direction:column;min-width:0;overflow:hidden}
+#pmTrackName{
+  font-size:34px;line-height:1.05;font-weight:800;letter-spacing:0.4px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:inline-block;
+}
+#pmTrackName.marquee{
+  text-overflow:clip;
+  animation: pmMarquee 12s linear infinite;
+  will-change: transform;
+  padding-right: 24px;
+}
+@keyframes pmMarquee{
+  0% { transform: translateX(0); }
+  100% { transform: translateX(var(--pmMarqueeDist, -40px)); }
+}
 .pmTimeInline{margin-top:6px;font-size:13px;opacity:0.85}
 .pctrl.big{height:64px;justify-content:flex-end}
 .pctrl.big button{width:44px;height:64px;border-radius:14px}

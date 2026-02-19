@@ -1117,7 +1117,22 @@ function ensureBadge(btn){
             }
           },
           getEqCount: () => eqBars.length || 12,
-          setTrack: (name)=>{ if (refs.track) refs.track.textContent = String(name||""); },
+          setTrack: (name)=>{
+            if (!refs.track) return;
+            refs.track.textContent = String(name||"");
+            // Enable marquee if title overflows container.
+            const el = refs.track;
+            const box = el.parentElement;
+            const boxW = box ? box.clientWidth : el.clientWidth;
+            const dist = Math.max(0, (el.scrollWidth || 0) - (boxW || 0));
+            if (dist > 8){
+              el.classList.add("marquee");
+              el.style.setProperty("--pmMarqueeDist", `-${Math.ceil(dist)}px`);
+            } else {
+              el.classList.remove("marquee");
+              el.style.removeProperty("--pmMarqueeDist");
+            }
+          },
           setPlay: (playing)=>{ if (refs.play) refs.play.textContent = playing ? "⏸" : "▶"; },
           setShuffle: (on)=>{ if (refs.shuffle) refs.shuffle.textContent = on ? "셔플: ON" : "셔플: OFF"; },
           setRepeat: (mode)=>{
