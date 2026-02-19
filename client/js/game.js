@@ -4745,6 +4745,15 @@ function tickEconomyPost(dt){
     tickRepairs(dt);
     const m3 = (DEBUG_MONEY && state && state.player) ? (state.player.money || 0) : null;
     tickCivOreGen(dt);
+    // Enemy cheat money: periodic top-up so AI never stalls.
+    if (state && state.enemy){
+      if (state._enemyMoneyT == null) state._enemyMoneyT = 0;
+      state._enemyMoneyT -= dt;
+      if (state._enemyMoneyT <= 0){
+        state._enemyMoneyT = 5.0;
+        state.enemy.money = (state.enemy.money || 0) + 1000;
+      }
+    }
     return { m2, m3 };
   }
 
