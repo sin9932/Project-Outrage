@@ -177,8 +177,8 @@ function fitMini() {
   // Enemy AI cheats (difficulty)
   const ENEMY_PROD_SPEED = 1.65;
   const ENEMY_ECON_MULT  = 1.50;
-  const MAP_W = 64;
-  const MAP_H = 40;
+  const MAP_W = 80;
+  const MAP_H = 52;
   const WORLD_W = MAP_W * TILE;
   const WORLD_H = MAP_H * TILE;
 
@@ -4889,13 +4889,9 @@ function draw(){
     if (spawn==="left"){
       a = {tx: Math.floor(MAP_W*0.22), ty: Math.floor(MAP_H*0.62)};
       b = {tx: Math.floor(MAP_W*0.78), ty: Math.floor(MAP_H*0.38)};
-    } else if (spawn==="center"){
-      // Spread bases farther apart to reduce early overlap/spawn blocking
-      a = {tx: Math.floor(MAP_W*0.25), ty: Math.floor(MAP_H*0.65)};
-      b = {tx: Math.floor(MAP_W*0.75), ty: Math.floor(MAP_H*0.35)};
     } else {
-      a = {tx: Math.floor(MAP_W*0.78), ty: Math.floor(MAP_H*0.62)};
-      b = {tx: Math.floor(MAP_W*0.22), ty: Math.floor(MAP_H*0.38)};
+      a = {tx: Math.floor(MAP_W*0.86), ty: Math.floor(MAP_H*0.72)};
+      b = {tx: Math.floor(MAP_W*0.14), ty: Math.floor(MAP_H*0.28)};
     }
 
     // v29: ensure enough buildable area around start bases

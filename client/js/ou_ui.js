@@ -951,7 +951,7 @@ function ensureBadge(btn){
         for (const c of spawnChips) c.classList.remove("on");
         if (target) target.classList.add("on");
         const v = target && target.dataset ? target.dataset.spawn : null;
-        if (typeof onSpawnChange === "function") onSpawnChange(v);
+        if (typeof onSpawnChange === "function") onSpawnChange(v || "left");
       }
 
       function setMoneyChip(target){
