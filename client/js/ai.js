@@ -495,7 +495,7 @@
       return false;
     }
 
-    function aiQueueUnits(e, rushDefense) {
+    function aiQueueUnits(e, rushDefense, infRushThreat, hasFac) {
       const pf = getPowerFactor(TEAM.ENEMY);
       const bar = buildings.find(b => b.alive && !b.civ && b.team === TEAM.ENEMY && b.kind === "barracks");
       const fac = buildings.find(b => b.alive && !b.civ && b.team === TEAM.ENEMY && b.kind === "factory");
@@ -529,7 +529,13 @@
         // Early phase: mass infantry rush until factory is up.
         // After factory: keep small infantry count and mostly defend base.
         let wantInf = 0;
-        if (earlyRush || rushDefense) {
+        if (infRushThreat && !hasFac) {
+          // Pre-factory counter: hold with more infantry + turrets (vehicles unavailable yet).
+          wantInf = poor ? 16 : 20;
+        } else if (infRushThreat) {
+          // Post-factory counter: stop flooding infantry, pivot to vehicles.
+          wantInf = poor ? 2 : 4;
+        } else if (earlyRush || rushDefense) {
           wantInf = poor ? 14 : 18;
         } else if (playerHasInf) {
           if (!hasFac) {
@@ -545,7 +551,7 @@
         }
 
         // Engineers: early small count, later ramp for IFV rush.
-        const desiredEng = (earlyRush || rushDefense) ? 0 : (hasFac ? Math.max(6, Math.min(14, 4 + eIFV.length * 2)) : 2);
+        const desiredEng = (earlyRush || rushDefense || infRushThreat) ? 0 : (hasFac ? Math.max(6, Math.min(14, 4 + eIFV.length * 2)) : 2);
         if (bar.buildQ.length < 8 && (eEng.length + queuedEng) < desiredEng) {
           bar.buildQ.push({ kind: "engineer", t: 0, tNeed: getBaseBuildTime("engineer") / pf, cost: COST.engineer, paid: 0 });
         }
@@ -569,17 +575,17 @@
           return;
         }
         const lateGame = state.t > 900;
-        const wantVeh = lateGame ? 12 : (poor ? 5 : (rich ? 10 : 7));
+        const wantVeh = infRushThreat ? (poor ? 8 : 12) : (lateGame ? 12 : (poor ? 5 : (rich ? 10 : 7)));
         // Mix IFV + tanks. Tanks are mainline; IFV is support (passenger carriers / utility).
         while (fac.buildQ.length < wantVeh) {
           const countIFV = eIFV.length;
           const countTank = units.filter(u => u.alive && u.team === TEAM.ENEMY && u.kind === "tank").length;
-          const desiredIFV = Math.max(3, Math.floor((eEng.length + eSnp.length) / 3));
+          const desiredIFV = infRushThreat ? Math.max(5, Math.floor((eEng.length + eSnp.length) / 2)) : Math.max(3, Math.floor((eEng.length + eSnp.length) / 3));
           const needIFV = (countIFV < desiredIFV);
 
           // Also bias to tanks in general
           const roll = Math.random();
-          if (!lateGame && needIFV && roll < 0.45) {
+          if (!lateGame && needIFV && roll < (infRushThreat ? 0.70 : 0.45)) {
             fac.buildQ.push({ kind: "ifv", t: 0, tNeed: getBaseBuildTime("ifv") / pf, cost: COST.ifv, paid: 0 });
           } else {
             // Tank-rush baseline: always prioritize tanks.
@@ -748,6 +754,7 @@
         if (u.team===TEAM.PLAYER && (UNIT[u.kind] && UNIT[u.kind].cls === "inf") && !u.inTransport && !u.hidden) playerInfCount++;
         else if (u.team===TEAM.ENEMY && u.kind==="infantry") enemyInfCount++;
       }
+      const infRushThreat = (playerInfCount >= 10 || (playerInfCount >= enemyInfCount + 6));
       const isEarly = state.t < 180;
       if (isEarly && rushInfNear >= 4){
         ai.underRushUntil = Math.max(ai.underRushUntil || 0, state.t + 18);
@@ -755,16 +762,20 @@
       if (state.t < 200 && playerInfCount >= enemyInfCount + 3){
         ai.underRushUntil = Math.max(ai.underRushUntil || 0, state.t + 18);
       }
+      if (state.t < 220 && infRushThreat){
+        ai.underRushUntil = Math.max(ai.underRushUntil || 0, state.t + 22);
+      }
       const rushDefense = state.t < (ai.underRushUntil || 0);
 
       // Defense placement when rich (non-blocking)
       aiPlaceDefenseIfRich(e);
-      if (rushDefense){
-        if (e.money > 250) aiTryStartBuild("turret");
+      if (rushDefense || infRushThreat){
+        if (e.money > 220) aiTryStartBuild("turret");
       }
 
       // Unit production should ALWAYS run (this was the big "AI builds only" failure mode).
-      aiQueueUnits(e, rushDefense);
+      const hasFac = aiEnemyHas("factory");
+      aiQueueUnits(e, rushDefense, infRushThreat, hasFac);
       aiUseIFVPassengers();
       aiParkEmptyIFVs();
       aiUnstickEngineers();
@@ -798,8 +809,14 @@
         v.repathCd = 0.18;
       }
 
-      const hasFac = aiEnemyHas("factory");
       const hasBar = aiEnemyHas("barracks");
+
+      // If we're countering a heavy infantry rush before factory, stay defensive.
+      if (infRushThreat && !hasFac){
+        ai.mode = "defend";
+        aiCommandMoveToRally(eUnits.filter(u => u.kind !== "harvester"));
+        return;
+      }
 
       // Mainline rush waves. Early: infantry rush. Late: tank/IFV waves.
       const phq = buildings.find(b => b.alive && !b.civ && b.team === TEAM.PLAYER && b.kind === "hq");
