@@ -376,7 +376,7 @@
         let gx = ai.rally.x + ox, gy = ai.rally.y + oy;
         const spot = findNearestFreePoint(gx, gy, u, 5);
         if (spot && spot.found) { gx = spot.x; gy = spot.y; }
-        u.order = { type: "move", x: gx, y: gy, tx: null, ty: null };
+        u.order = { type: "attackmove", x: gx, y: gy, tx: null, ty: null };
         u.restX = null; u.restY = null;
         setPathTo(u, gx, gy);
         u.repathCd = 0.55;
@@ -530,7 +530,7 @@
         // After factory: keep small infantry count and mostly defend base.
         let wantInf = 0;
         if (earlyRush || rushDefense) {
-          wantInf = poor ? 12 : 16;
+          wantInf = poor ? 14 : 18;
         } else if (playerHasInf) {
           if (!hasFac) {
             wantInf = poor ? 8 : 12;
@@ -748,19 +748,19 @@
         if (u.team===TEAM.PLAYER && (UNIT[u.kind] && UNIT[u.kind].cls === "inf") && !u.inTransport && !u.hidden) playerInfCount++;
         else if (u.team===TEAM.ENEMY && u.kind==="infantry") enemyInfCount++;
       }
-      const isEarly = state.t < 140;
+      const isEarly = state.t < 180;
       if (isEarly && rushInfNear >= 4){
         ai.underRushUntil = Math.max(ai.underRushUntil || 0, state.t + 18);
       }
-      if (state.t < 160 && playerInfCount >= enemyInfCount + 4){
-        ai.underRushUntil = Math.max(ai.underRushUntil || 0, state.t + 14);
+      if (state.t < 200 && playerInfCount >= enemyInfCount + 3){
+        ai.underRushUntil = Math.max(ai.underRushUntil || 0, state.t + 18);
       }
       const rushDefense = state.t < (ai.underRushUntil || 0);
 
       // Defense placement when rich (non-blocking)
       aiPlaceDefenseIfRich(e);
       if (rushDefense){
-        if (e.money > 350) aiTryStartBuild("turret");
+        if (e.money > 250) aiTryStartBuild("turret");
       }
 
       // Unit production should ALWAYS run (this was the big "AI builds only" failure mode).

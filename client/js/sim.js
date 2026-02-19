@@ -149,6 +149,10 @@
       return (UNIT[e.kind]?.cls==="inf");
     }
 
+    function canCrushInf(u){
+      return !!u && (u.kind==="tank" || u.kind==="harvester");
+    }
+
     function isEnemyInf(e){
       if (!e || !e.alive) return false;
       if (BUILD[e.kind]) return false;
@@ -1177,6 +1181,10 @@
           if (occInf[i] >= INF_SLOT_MAX) return false;
           return true;
         }
+        if (ucls==="veh" && canCrushInf(u)){
+          const other = (occAll[i]||0) - (occInf[i]||0);
+          return (occVeh[i] <= 0) && (other < 1);
+        }
       }
       if (occTeam[i]===0) return true;
       if (occTeam[i]===u.team && occId[i]===u.id) return true;
@@ -1189,6 +1197,9 @@
           const ucls = (UNIT[u.kind] && UNIT[u.kind].cls) ? UNIT[u.kind].cls : "";
           if (ucls==="veh" && ocls!=="veh"){
             // vehicles can push through infantry only if that infantry yields
+            if (canCrushInf(u) && ocls==="inf"){
+              return true;
+            }
           } else if (ucls!=="veh" && ocls==="veh"){
             if (!other.yieldCd || other.yieldCd<=0){
               other.yieldCd = 0.18;
@@ -1214,12 +1225,22 @@
       if (u.kind==="harvester"){
         const i = idx(tx,ty);
         if (isReservedByOther(u, tx, ty)) return false;
+        if (canCrushInf(u)){
+          const other = (occAll[i]||0) - (occInf[i]||0);
+          return (occVeh[i] <= 0) && (other < 1);
+        }
         return occAll[i] < 1;
       }
       if (isReservedByOther(u, tx, ty)) return false;
       const i = idx(tx,ty);
       const cls = (UNIT[u.kind] && UNIT[u.kind].cls) ? UNIT[u.kind].cls : "";
-      if (cls==="veh") return occAll[i] < 1;
+      if (cls==="veh"){
+        if (canCrushInf(u)){
+          const other = (occAll[i]||0) - (occInf[i]||0);
+          return (occVeh[i] <= 0) && (other < 1);
+        }
+        return occAll[i] < 1;
+      }
       if (cls==="inf") {
         if (occVeh[i] > 0) return false;
         if (occTeam[i]!==0 && occTeam[i]!==u.team) return false;
