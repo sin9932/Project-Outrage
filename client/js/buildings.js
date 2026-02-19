@@ -55,6 +55,7 @@
       forcePivot: { x: 0.4911, y: 0.6424 },
       fps: { idle: 20, build: 24, death: 20, active: 24 },
       lowHpRatio: 0.30,
+      teamColorMode: "frame",
       // Exclude chimney area from team palette (coords in SOURCE size px)
       teamExclude: [
         { x: 980, y: 40, w: 520, h: 420 }
@@ -80,6 +81,8 @@
       frames:  { idle:[], build:[], death:[], idleOk:[], idleBad:[] },
       // per-kind team texture cache: key -> canvas/image
       teamTexCache: new Map(),
+      // per-frame tint cache (for large atlases)
+      frameTexCache: new Map(),
     };
   }
 
@@ -147,6 +150,13 @@
     const key = `${stKind.kind}|${atlasKey}|${texIndex}|${team}`;
     if (stKind.teamTexCache.has(key)) return stKind.teamTexCache.get(key);
 
+    const cfg = TYPE_CFG[stKind.kind];
+    if (cfg && cfg.teamColorMode === "frame"){
+      // Skip full-atlas tint for heavy sheets (use per-frame tint instead).
+      stKind.teamTexCache.set(key, img);
+      return img;
+    }
+
     const applyFn = _getApplyFn();
     if (!applyFn){
       // No palette function available; just use original
@@ -169,12 +179,35 @@
     const cfg = TYPE_CFG[kind];
 
     const texIndex = (fr.texIndex != null) ? fr.texIndex : 0;
-    const img = _getTeamTextureImg(stKind, atlasKey, atlas, texIndex, team, state);
+    let img = _getTeamTextureImg(stKind, atlasKey, atlas, texIndex, team, state);
     if (!img) return false;
 
     const tex = atlas.textures && atlas.textures[texIndex];
     const origImg = tex && tex.img ? tex.img : img;
-    const didTint = (img !== origImg);
+    let didTint = (img !== origImg);
+
+    // Per-frame tint for large atlases (e.g. refinery) to avoid huge one-time cost.
+    if (!didTint && cfg && cfg.teamColorMode === "frame"){
+      const fKey = `${atlasKey}|${filename}|t${team}`;
+      if (stKind.frameTexCache.has(fKey)){
+        img = stKind.frameTexCache.get(fKey);
+        didTint = (img && img !== origImg);
+      } else {
+        const applyFn = _getApplyFn();
+        if (applyFn){
+          const c = document.createElement("canvas");
+          c.width = fr.frame.w;
+          c.height = fr.frame.h;
+          const cctx = c.getContext("2d", { willReadFrequently:true });
+          cctx.drawImage(origImg, fr.frame.x, fr.frame.y, fr.frame.w, fr.frame.h, 0, 0, fr.frame.w, fr.frame.h);
+          const teamColor = _getTeamColor(state, team);
+          const tinted = applyFn(c, teamColor, { gain: 1.65, bias: 0.18, gamma: 0.78, minV: 0.42 }) || c;
+          stKind.frameTexCache.set(fKey, tinted);
+          img = tinted;
+          didTint = true;
+        }
+      }
+    }
 
     const frame = fr.frame || { x:0, y:0, w:0, h:0 };
     const sss   = fr.spriteSourceSize || { x:0, y:0, w:frame.w, h:frame.h };
@@ -192,7 +225,12 @@
     const dw = frame.w * scale;
     const dh = frame.h * scale;
 
-    ctx.drawImage(img, frame.x, frame.y, frame.w, frame.h, dx, dy, dw, dh);
+    const useFrameImg = (cfg && cfg.teamColorMode === "frame" && img !== origImg);
+    if (useFrameImg){
+      ctx.drawImage(img, 0, 0, frame.w, frame.h, dx, dy, dw, dh);
+    } else {
+      ctx.drawImage(img, frame.x, frame.y, frame.w, frame.h, dx, dy, dw, dh);
+    }
 
     // Restore original pixels for excluded regions (e.g. refinery chimney)
     if (didTint && cfg && cfg.teamExclude && cfg.teamExclude.length){
