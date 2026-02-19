@@ -3638,11 +3638,14 @@ function crushInfantry(mover){
   // 차량(탱크/굴착기)이 적 보병과 겹치면 즉사(경장갑 룰)
   if (mover.kind!=="tank" && mover.kind!=="harvester") return;
   const enemyTeam = mover.team===TEAM.PLAYER ? TEAM.ENEMY : TEAM.PLAYER;
+  const mtx = tileOfX(mover.x), mty = tileOfY(mover.y);
   for (const u of units){
     if (!u.alive || u.team!==enemyTeam || u.inTransport || u.hidden) continue;
     const cls = (UNIT[u.kind] && UNIT[u.kind].cls) ? UNIT[u.kind].cls : "";
     if (cls!=="inf") continue;
-    if (dist2(mover.x,mover.y,u.x,u.y) <= (mover.r + u.r)*(mover.r + u.r)*1.15){
+    const utx = tileOfX(u.x), uty = tileOfY(u.y);
+    const sameTile = (utx === mtx && uty === mty);
+    if (sameTile || dist2(mover.x,mover.y,u.x,u.y) <= (mover.r + u.r)*(mover.r + u.r)*1.45){
       u.alive=false;
       state.selection.delete(u.id);
     }
