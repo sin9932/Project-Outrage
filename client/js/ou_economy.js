@@ -463,7 +463,7 @@
           return buildings.some(b=>b.alive && !b.civ && b.team===team && b.kind===kind);
         }
         const tech = {
-          buildPrereq: { power:["hq"], refinery:["hq","power"], barracks:["hq","refinery"], factory:["hq","barracks"], radar:["hq","factory"], turret:["hq","barracks"] },
+          buildPrereq: { power:["hq"], refinery:["hq","power"], barracks:["hq","power"], factory:["hq","barracks"], radar:["hq","factory"], turret:["hq","barracks"] },
           unitPrereq: { infantry:["barracks"], engineer:["barracks"], sniper:["barracks","radar"], tank:["factory"], ifv:["factory"], harvester:["factory"] }
         };
         function prereqOk(team, kind, map){

@@ -505,7 +505,7 @@ function ensureBadge(btn){
         buildPrereq: {
           power:    ["hq"],
           refinery: ["hq","power"],
-          barracks: ["hq","refinery"],
+          barracks: ["hq","power"],
           factory:  ["hq","barracks"],
           radar:    ["hq","factory"],
           turret:   ["hq","barracks"]
