@@ -492,21 +492,21 @@
     const sat = max===0 ? 0 : (max-min)/max;
 
     // Magenta/pink key (avoid tinting reds/yellows), expanded to include pinks.
-    if (r < 55 || b < 55) return false;
-    if (sat < 0.10) return false;
-    if (g > Math.min(r, b) * 0.82) return false;
+    if (r < 50 || b < 50) return false;
+    if (sat < 0.08) return false;
+    if (g > Math.min(r, b) * 0.88) return false;
 
     const {h}=_rgb2hsv(r,g,b);
     // Magenta/pink band (expanded)
-    const magentaBand = (h>=235 && h<=350);
+    const magentaBand = (h>=225 && h<=350);
     if (!magentaBand) return false;
 
     // Extra guard: keep away from orange/yellow
-    if (g > r * 0.88 && b < 90) return false;
+    if (g > r * 0.92 && b < 95) return false;
 
     // Allow light pinks even if saturation is low, as long as R+B dominates G
     const rb = r + b;
-    if (sat < 0.16 && !(rb > 320 && g < 170)) return false;
+    if (sat < 0.18 && !(rb > 300 && g < 185)) return false;
 
     return true;
   }
