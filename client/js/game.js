@@ -5004,10 +5004,17 @@ if (__ou_ui && typeof __ou_ui.bindPregameStart === "function"){
     }
   }
 
-// Global ESC handler (capture): make sure pause/options always toggles
+// Global ESC handler (capture): cancel repair/sell mode first, otherwise toggle pause/options
   document.addEventListener("keydown",(e)=>{
     const esc = (e.key==="Escape" || e.key==="Esc" || e.code==="Escape" || e.keyCode===27);
     if (!esc) return;
+    if (state.mouseMode === "repair" || state.mouseMode === "sell"){
+      applyMouseMode("normal");
+      toast("수리/매각 해제");
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      return;
+    }
     togglePauseMenu();
     e.preventDefault();
     e.stopImmediatePropagation();
