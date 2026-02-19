@@ -3647,6 +3647,91 @@ function crushInfantry(mover){
       state.selection.delete(u.id);
     }
   }
+
+  function issueForceMoveAll(x,y){
+    const ids=[...state.selection];
+    // Snap click to nearest tile center
+    const snap = snapWorldToTileCenter(x,y);
+    const baseTx=snap.tx, baseTy=snap.ty;
+
+    const baseCenter = tileToWorldCenter(baseTx, baseTy);
+    const intentVX = x - baseCenter.x;
+    const intentVY = y - baseCenter.y;
+
+    const offsets = buildFormationOffsets(Math.max(16, ids.length*6));
+    const used = new Set();
+    const infCount = new Map();
+    const __tileSubMask = new Map();
+    let k=0;
+    for (const id of ids){
+      const e=getEntityById(id);
+      if (!e || e.team!==TEAM.PLAYER) continue;
+      if (BUILD[e.kind]) continue;
+      if (shouldIgnoreCmd(e,'move',x,y,null)) continue;
+
+      e.guard=null; e.guardFrom=false;
+      e.restX=null; e.restY=null;
+      e.target=null;
+      e.fireHoldT=0; e.fireDir=null;
+      e.forceMoveUntil = state.t + 2.5;
+      e.repathCd=0.10;
+
+      let chosen=null;
+      let bestScore=1e18;
+      for (let j=0; j<offsets.length; j++){
+        const tx = baseTx + offsets[j].dx;
+        const ty = baseTy + offsets[j].dy;
+        if (!inMap(tx,ty)) continue;
+        const key = tx+"," + ty;
+        if(UNIT[e.kind]?.cls!=="inf") { if(used.has(key)) continue; }
+        else { const c = infCount.get(key)||0; if(c>=INF_SLOT_MAX) continue; infCount.set(key,c+1); }
+        if (!canEnterTile(e, tx, ty)) continue;
+        const wpC = tileToWorldCenter(tx,ty);
+        const dxw = (wpC.x - x), dyw = (wpC.y - y);
+        const ring = (Math.abs(offsets[j].dx)+Math.abs(offsets[j].dy));
+        const dot = (offsets[j].dx*intentVX + offsets[j].dy*intentVY);
+        const score = dxw*dxw + dyw*dyw + ring*9 - dot*1.2;
+        if (score < bestScore){
+          bestScore=score;
+          chosen={tx,ty};
+        }
+        if (score < 1) break;
+      }
+      if (chosen){
+        if (!reserveTile(e, chosen.tx, chosen.ty)){
+          chosen=null;
+        } else {
+          used.add(chosen.tx+","+chosen.ty);
+        }
+      }
+      if (!chosen) chosen={tx:baseTx, ty:baseTy};
+      const cls = (UNIT[e.kind] && UNIT[e.kind].cls) ? UNIT[e.kind].cls : "";
+      let wp;
+      let subSlot = null;
+      if (cls==="inf"){
+        const tkey = chosen.tx + "," + chosen.ty;
+        let mask = __tileSubMask.get(tkey) || 0;
+        let pick = 0;
+        for (let s=0; s<4; s++){
+          if (((mask>>s)&1)===0){ pick=s; break; }
+        }
+        subSlot = pick;
+        mask = (mask | (1<<pick)) & 0x0F;
+        __tileSubMask.set(tkey, mask);
+        wp = tileToWorldSubslot(chosen.tx, chosen.ty, pick);
+      } else {
+        wp = tileToWorldCenter(chosen.tx, chosen.ty);
+      }
+      e.order={type:"move", x:wp.x, y:wp.y, tx:chosen.tx, ty:chosen.ty, subSlot:subSlot, manual:true, allowAuto:false, lockTarget:false};
+
+      e.holdPos = false;
+      pushOrderFx(e.id,"move",wp.x,wp.y,null,"rgba(90,255,90,0.95)");
+      setPathTo(e, wp.x, wp.y);
+      showUnitPathFx(e, wp.x, wp.y, "rgba(255,255,255,0.85)");
+      stampCmd(e,'move',wp.x,wp.y,null);
+      k++;
+    }
+  }
 }
 
 
@@ -4066,6 +4151,12 @@ if (picked && picked.alive && picked.team===TEAM.PLAYER && !BUILD[picked.kind] &
         state.drag.on=false;
         return;
       }
+    }
+
+    if (state.selection.size>0 && e.altKey && !e.ctrlKey){
+      issueForceMoveAll(sp.x,sp.y);
+      state.drag.on=false;
+      return;
     }
 
 if (state.selection.size>0 && inMap(tx,ty) && ore[idx(tx,ty)]>0){

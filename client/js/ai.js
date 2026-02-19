@@ -768,6 +768,22 @@
         aiCommandMoveToRally(eUnits.filter(u => u.kind !== "harvester"));
       }
 
+      // Vehicle crush response: if harvester/tank is attacked by infantry, force-move into them.
+      for (const v of eUnits){
+        if (v.kind!=="tank" && v.kind!=="harvester") continue;
+        const atk = (v.lastAttacker!=null) ? getEntityById(v.lastAttacker) : null;
+        if (!atk || !atk.alive || atk.team !== TEAM.PLAYER) continue;
+        const cls = (UNIT[atk.kind] && UNIT[atk.kind].cls) ? UNIT[atk.kind].cls : "";
+        if (cls!=="inf") continue;
+        const d2 = dist2(v.x, v.y, atk.x, atk.y);
+        if (d2 > 520*520) continue;
+        v.order = { type:"move", x: atk.x, y: atk.y, tx:null, ty:null };
+        v.target = null;
+        v.forceMoveUntil = state.t + 2.2;
+        setPathTo(v, atk.x, atk.y);
+        v.repathCd = 0.18;
+      }
+
       const hasFac = aiEnemyHas("factory");
       const hasBar = aiEnemyHas("barracks");
 
