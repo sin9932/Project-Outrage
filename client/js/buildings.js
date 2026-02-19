@@ -172,7 +172,9 @@
     }
 
     const teamColor = _getTeamColor(state, team);
-    const tinted = applyFn(img, teamColor, { gain: 1.65, bias: 0.18, gamma: 0.78, minV: 0.42 }) || img;
+    const opts = { gain: 1.65, bias: 0.18, gamma: 0.78, minV: 0.42 };
+    if (atlasKey === "death") opts.ignoreWhites = true;
+    const tinted = applyFn(img, teamColor, opts) || img;
     stKind.teamTexCache.set(key, tinted);
     return tinted;
   }
@@ -208,7 +210,9 @@
           const cctx = c.getContext("2d", { willReadFrequently:true });
           cctx.drawImage(origImg, fr.frame.x, fr.frame.y, fr.frame.w, fr.frame.h, 0, 0, fr.frame.w, fr.frame.h);
           const teamColor = _getTeamColor(state, team);
-          const tinted = applyFn(c, teamColor, { gain: 1.65, bias: 0.18, gamma: 0.78, minV: 0.42 }) || c;
+          const opts = { gain: 1.65, bias: 0.18, gamma: 0.78, minV: 0.42 };
+          if (atlasKey === "death") opts.ignoreWhites = true;
+          const tinted = applyFn(c, teamColor, opts) || c;
           stKind.frameTexCache.set(fKey, tinted);
           img = tinted;
           didTint = true;

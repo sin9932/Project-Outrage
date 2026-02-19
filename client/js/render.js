@@ -539,6 +539,9 @@
     const BIAS = (opts.bias ?? 0.18);
     const GAMMA = (opts.gamma ?? 0.78);
     const MINV = (opts.minV ?? 0.42);
+    const IGNORE_WHITES = !!opts.ignoreWhites;
+    const WHITE_LUMA = (opts.whiteLuma ?? 0.82);
+    const WHITE_SAT  = (opts.whiteSat ?? 0.20);
 
     function inExclude(x,y){
       if(!excludeRects) return false;
@@ -556,6 +559,13 @@
         if(inExclude(x,y)) continue;
 
         const r=d[i], g=d[i+1], b=d[i+2];
+        // Skip near-white pixels to avoid tinting flames/sparks in destruction FX
+        if (IGNORE_WHITES){
+          const maxc = Math.max(r,g,b), minc = Math.min(r,g,b);
+          const sat = (maxc===0) ? 0 : (maxc-minc)/maxc;
+          const l0 = (0.2126*r + 0.7152*g + 0.0722*b)/255;
+          if (l0 >= WHITE_LUMA && sat <= WHITE_SAT) continue;
+        }
         if(!_isAccentPixel(r,g,b,a)) continue;
 
         // Preserve shading using luminance, but keep it bright enough
