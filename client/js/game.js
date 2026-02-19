@@ -3647,6 +3647,7 @@ function crushInfantry(mover){
       state.selection.delete(u.id);
     }
   }
+}
 
   function issueForceMoveAll(x,y){
     const ids=[...state.selection];
