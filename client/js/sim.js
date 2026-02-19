@@ -1475,6 +1475,13 @@
       return best;
     }
 
+    function hasAnyRefinery(team){
+      for (const b of buildings){
+        if (b.alive && b.team===team && b.kind==="refinery") return true;
+      }
+      return false;
+    }
+
     function findNearestFreePoint(wx, wy, u, r=3){
       const cx=tileOfX(wx), cy=tileOfY(wy);
       let bestX=wx, bestY=wy, bestD=1e18, found=false;
@@ -2437,7 +2444,22 @@
                 ref = findNearestRefinery(u.team,u.x,u.y);
                 u.target = ref ? ref.id : null;
               }
-              if (!ref){ u.order.type="idle"; continue; }
+              if (!ref){
+                // If any refinery exists, keep working instead of stalling.
+                if (hasAnyRefinery(u.team)){
+                  const best = findBestOrePatch();
+                  if (best){
+                    u.order = {type:"harvest", x:u.x,y:u.y, tx:best.tx, ty:best.ty};
+                    setPathTo(u, (best.tx+0.5)*TILE, (best.ty+0.5)*TILE);
+                    u.repathCd=0.25;
+                  } else {
+                    u.order.type="idle";
+                  }
+                } else {
+                  u.order.type="idle";
+                }
+                continue;
+              }
     
               const dock=getDockPoint(ref,u);
     
@@ -2459,6 +2481,7 @@
                   if (u.team===TEAM.PLAYER) state.player.money += add;
                   else state.enemy.money += add;
                   u.carry = 0;
+                  u._needsRef = false;
                   // Trigger refinery "active" animation (deposit pulse)
                   if (ref && ref.kind==="refinery"){
                     ref._activeT0 = state.t;
@@ -2490,6 +2513,18 @@
             }
 
             if (u.order.type==="idle"){
+              // If we have cargo and any refinery exists, return to it.
+              if ((u.carry||0) > 0 && hasAnyRefinery(u.team)){
+                const ref = findNearestRefinery(u.team,u.x,u.y);
+                if (ref){
+                  u.target = ref.id;
+                  u.order.type="return";
+                  const dock=getDockPoint(ref,u);
+                  setPathTo(u,dock.x,dock.y);
+                  u.repathCd=0.25;
+                  continue;
+                }
+              }
               const best = findBestOrePatch();
               if (best){
                 u.order={type:"harvest", x:u.x,y:u.y, tx:best.tx, ty:best.ty};
@@ -2558,6 +2593,7 @@
                     setPathTo(u,dock.x,dock.y);
                     u.repathCd=0.25;
                   } else {
+                    u._needsRef = true;
                     u.order.type="idle";
                   }
                 } else {
@@ -2603,18 +2639,19 @@
                     u.repathCd=0.25;
                   } else if (u.carry>0){
                     const ref=findNearestRefinery(u.team,u.x,u.y);
-                    if (ref){
-                      u.target = ref.id;
-                      u.order.type="return";
-                      const dock=getDockPoint(ref,u);
-                      setPathTo(u,dock.x,dock.y);
-                      u.repathCd=0.25;
-                    } else {
-                      u.order.type="idle";
-                    }
+                  if (ref){
+                    u.target = ref.id;
+                    u.order.type="return";
+                    const dock=getDockPoint(ref,u);
+                    setPathTo(u,dock.x,dock.y);
+                    u.repathCd=0.25;
                   } else {
+                    u._needsRef = true;
                     u.order.type="idle";
-                    u.manualOre=null;
+                  }
+                } else {
+                  u.order.type="idle";
+                  u.manualOre=null;
                   }
                 }
               }
