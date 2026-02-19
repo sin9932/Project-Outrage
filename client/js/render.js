@@ -2683,7 +2683,6 @@
         const yy = p.y - (Math.max(ent.tw,ent.th)*ISO_Y*z) - 22*z;
         const showHp = (state.selection && state.selection.has(ent.id)) || (state.hover && state.hover.entId===ent.id);
         if (showHp) drawBuildingHpBlocks(ent);
-        if (showHp) drawLabel(`${NAME_KO[ent.kind]||ent.kind}`, p.x, yy-14);
         if (ent.grp) drawGroupBadge(p.x + ISO_X*(ent.tw*0.55), yy-14, ent.grp);
 
         if (state.selection.has(ent.id)){
