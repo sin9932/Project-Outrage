@@ -490,23 +490,19 @@
     const max=Math.max(r,g,b), min=Math.min(r,g,b);
     const sat = max===0 ? 0 : (max-min)/max;
 
-    // Tight magenta-only key to avoid tinting reds/yellows.
-    // Require both R and B high, and G notably suppressed.
-    if (r < 70 || b < 70) return false;
-    if (g > r - 20) return false;
-    if (g > b - 20) return false;
-
-    // If it's basically grey, don't treat as key color.
-    if(sat < 0.12) return false;
+    // Magenta-only key (avoid tinting reds/yellows), but not too strict.
+    // Require both R and B present, and G notably suppressed.
+    if (r < 60 || b < 60) return false;
+    if (sat < 0.12) return false;
+    if (g > Math.min(r, b) * 0.75) return false;
 
     const {h}=_rgb2hsv(r,g,b);
-    // Narrower magenta band (avoid reds/yellows).
-    const magentaBand = (h>=270 && h<=340);
+    // Magenta/pink band
+    const magentaBand = (h>=250 && h<=350);
     if (!magentaBand) return false;
 
-    // Ensure G is significantly lower than both R and B
-    if (g > r * 0.65) return false;
-    if (g > b * 0.65) return false;
+    // Extra guard: keep away from orange/yellow
+    if (g > r * 0.85 && b < 80) return false;
 
     return true;
   }
