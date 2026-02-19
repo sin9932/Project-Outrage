@@ -57,7 +57,7 @@
       engineerNext: 0,
       engRushNext: 0,
       nextWave: 0,
-      apmMul: 2.4
+      apmMul: 3.2
     };
 
     // ===== ENEMY AGGRESSION / ANTI-CLUSTER HELPERS =====
@@ -482,6 +482,7 @@
 
       const playerInf = units.filter(u => u.alive && u.team === TEAM.PLAYER && (UNIT[u.kind] && UNIT[u.kind].cls === "inf") && !u.inTransport && !u.hidden);
       const playerHasInf = playerInf.length > 0;
+      const earlyRush = state.t < 120;
 
       const eEng = units.filter(u => u.alive && u.team === TEAM.ENEMY && u.kind === "engineer");
       const eSnp = units.filter(u => u.alive && u.team === TEAM.ENEMY && u.kind === "sniper");
@@ -502,7 +503,9 @@
         // Early phase: mass infantry rush until factory is up.
         // After factory: keep small infantry count and mostly defend base.
         let wantInf = 0;
-        if (playerHasInf) {
+        if (earlyRush) {
+          wantInf = poor ? 10 : 14;
+        } else if (playerHasInf) {
           if (!hasFac) {
             wantInf = poor ? 8 : 12;
           } else {
@@ -516,7 +519,7 @@
         }
 
         // Engineers: early small count, later ramp for IFV rush.
-        const desiredEng = hasFac ? Math.max(6, Math.min(14, 4 + eIFV.length * 2)) : 4;
+        const desiredEng = earlyRush ? 0 : (hasFac ? Math.max(6, Math.min(14, 4 + eIFV.length * 2)) : 2);
         if (bar.buildQ.length < 8 && (eEng.length + queuedEng) < desiredEng) {
           bar.buildQ.push({ kind: "engineer", t: 0, tNeed: getBaseBuildTime("engineer") / pf, cost: COST.engineer, paid: 0 });
         }
@@ -735,17 +738,17 @@
         const eUnitsAll = units.filter(u => u.alive && u.team === TEAM.ENEMY && !u.inTransport && !u.hidden);
         const dest = rallyT || ai.rally;
         if (!hasFac && hasBar) {
-          ai.nextWave = state.t + rnd(10, 16) / (ai.apmMul || 1);
+          ai.nextWave = state.t + rnd(7, 12) / (ai.apmMul || 1);
           const inf = eUnitsAll.filter(u => u.kind === "infantry");
-          if (inf.length >= 6) {
-            const pack = inf.slice(0, Math.min(10, inf.length));
+          if (inf.length >= 5) {
+            const pack = inf.slice(0, Math.min(14, inf.length));
             for (const u of pack) {
               u.order = { type: "attackmove", x: dest.x, y: dest.y };
               u.target = null;
             }
           }
         } else {
-          ai.nextWave = state.t + rnd(14, 20) / (ai.apmMul || 1);
+          ai.nextWave = state.t + rnd(12, 18) / (ai.apmMul || 1);
           const tanks = eUnitsAll.filter(u => u.kind === "tank");
           const ifvs = eUnitsAll.filter(u => u.kind === "ifv" && u.passengerId);
           if (tanks.length >= 6) {
@@ -889,7 +892,7 @@
 
       // 목표 병력 규모: 시간이 지날수록 올라감
       // Army size goal: earlier push before factory, larger waves later.
-      const goal = (!hasFac && hasBar) ? 6 : ((state.t < 160) ? 8 : (state.t < 360 ? 12 : 16));
+      const goal = (!hasFac && hasBar) ? 4 : ((state.t < 160) ? 6 : (state.t < 360 ? 10 : 14));
 
       // If we have basically no army, don't "attack", keep rallying while producing.
       if (combat.length < 2) {
@@ -904,7 +907,7 @@
       }
 
       const tankCount = units.filter(u => u.alive && u.team === TEAM.ENEMY && u.kind === "tank").length;
-      if (hasFac && tankCount < 6) {
+      if (hasFac && tankCount < 4) {
         ai.mode = "defend";
         aiCommandMoveToRally(combat);
         return;
@@ -915,7 +918,7 @@
         ai.mode = "rally";
         // gently pull strays back to rally
         aiCommandMoveToRally(combat.filter(u => !u.order || u.order.type !== "move"));
-        const earlyOK = (!hasFac && hasBar) ? (state.t > 60) : (state.t > 95);
+        const earlyOK = (!hasFac && hasBar) ? (state.t > 40) : (state.t > 80);
         if (earlyOK && combat.length >= goal && state.t > ai.waveT + 14.0) {
           ai.waveT = state.t;
           const target = aiPickPlayerTarget();
