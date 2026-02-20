@@ -21,48 +21,94 @@
   mapHEl.value = H;
 
   let terrain = new Uint8Array(W * H);
+  let tex = new Uint16Array(W * H);
+  let roads = new Uint8Array(W * H);
 
   const colors = {
-    0: "#0f1522", // ground fallback
-    1: "#3a3f4b", // rock fallback
-    2: "#caa23a", // ore overlay
-    3: "#0f2a44"  // water fallback
+    0: "#0f1522",
+    1: "#3a3f4b",
+    2: "#caa23a",
+    3: "#0f2a44"
   };
 
-  const texSets = {
-    0: ["asset/sprite/map/grass1.jpg"],
-    1: [
-      "asset/sprite/map/sand1.jpg",
-      "asset/sprite/map/breek_tile1.jpg",
-      "asset/sprite/map/breek_tile2.jpg",
-      "asset/sprite/map/road1.jpg",
-      "asset/sprite/map/road2.jpg",
-      "asset/sprite/map/road3.jpg",
-      "asset/sprite/map/road4.jpg",
-      "asset/sprite/map/road5.jpg",
-      "asset/sprite/map/road6.JPG",
-      "asset/sprite/map/road7.jpg",
-      "asset/sprite/map/road8.jpg",
-      "asset/sprite/map/road9.jpg",
-      "asset/sprite/map/road10.jpg",
-      "asset/sprite/map/road11.jpg",
-      "asset/sprite/map/road12.jpg",
-      "asset/sprite/map/road13.jpg",
-      "asset/sprite/map/road14.jpg",
-      "asset/sprite/map/road15.jpg",
-      "asset/sprite/map/road16.jpg"
-    ],
-    2: [
-      "asset/sprite/map/sand1.jpg",
-      "asset/sprite/map/breek_tile1.jpg",
-      "asset/sprite/map/breek_tile2.jpg"
-    ],
-    3: ["asset/sprite/map/water.jpg", "asset/sprite/map/water2.jpg"]
+  const TEX = {
+    GRASS: 1,
+    SAND: 2,
+    BREEK1: 3,
+    BREEK2: 4,
+    WATER1: 5,
+    WATER2: 6,
+    ORE: 7
   };
+
+  const ROAD = {
+    CLEAR: 0,
+    R1: 1, R2: 2, R3: 3, R4: 4,
+    R5: 5, R6: 6, R7: 7, R8: 8,
+    R9: 9, R10: 10, R11: 11, R12: 12,
+    R13: 13, R14: 14, R15: 15, R16: 16
+  };
+
+  const texPaths = {
+    [TEX.GRASS]: "asset/sprite/map/grass1.jpg",
+    [TEX.SAND]: "asset/sprite/map/sand1.jpg",
+    [TEX.BREEK1]: "asset/sprite/map/breek_tile1.jpg",
+    [TEX.BREEK2]: "asset/sprite/map/breek_tile2.jpg",
+    [TEX.WATER1]: "asset/sprite/map/water.jpg",
+    [TEX.WATER2]: "asset/sprite/map/water2.jpg",
+    [TEX.ORE]: "asset/sprite/map/sand1.jpg"
+  };
+
+  const roadPaths = {
+    [ROAD.R1]: "asset/sprite/map/road1.jpg",
+    [ROAD.R2]: "asset/sprite/map/road2.jpg",
+    [ROAD.R3]: "asset/sprite/map/road3.jpg",
+    [ROAD.R4]: "asset/sprite/map/road4.jpg",
+    [ROAD.R5]: "asset/sprite/map/road5.jpg",
+    [ROAD.R6]: "asset/sprite/map/road6.JPG",
+    [ROAD.R7]: "asset/sprite/map/road7.jpg",
+    [ROAD.R8]: "asset/sprite/map/road8.jpg",
+    [ROAD.R9]: "asset/sprite/map/road9.jpg",
+    [ROAD.R10]: "asset/sprite/map/road10.jpg",
+    [ROAD.R11]: "asset/sprite/map/road11.jpg",
+    [ROAD.R12]: "asset/sprite/map/road12.jpg",
+    [ROAD.R13]: "asset/sprite/map/road13.jpg",
+    [ROAD.R14]: "asset/sprite/map/road14.jpg",
+    [ROAD.R15]: "asset/sprite/map/road15.jpg",
+    [ROAD.R16]: "asset/sprite/map/road16.jpg"
+  };
+
   const texImgs = {};
   const texPats = {};
 
-  let brush = 0;
+  const brushDefs = {
+    grass:   { kind: "terrain", terrain: 0, tex: TEX.GRASS },
+    sand:    { kind: "terrain", terrain: 1, tex: TEX.SAND },
+    breek1:  { kind: "terrain", terrain: 1, tex: TEX.BREEK1 },
+    breek2:  { kind: "terrain", terrain: 1, tex: TEX.BREEK2 },
+    ore:     { kind: "terrain", terrain: 2, tex: TEX.ORE },
+    water1:  { kind: "terrain", terrain: 3, tex: TEX.WATER1 },
+    water2:  { kind: "terrain", terrain: 3, tex: TEX.WATER2 },
+    road1:   { kind: "road", road: ROAD.R1 },
+    road2:   { kind: "road", road: ROAD.R2 },
+    road3:   { kind: "road", road: ROAD.R3 },
+    road4:   { kind: "road", road: ROAD.R4 },
+    road5:   { kind: "road", road: ROAD.R5 },
+    road6:   { kind: "road", road: ROAD.R6 },
+    road7:   { kind: "road", road: ROAD.R7 },
+    road8:   { kind: "road", road: ROAD.R8 },
+    road9:   { kind: "road", road: ROAD.R9 },
+    road10:  { kind: "road", road: ROAD.R10 },
+    road11:  { kind: "road", road: ROAD.R11 },
+    road12:  { kind: "road", road: ROAD.R12 },
+    road13:  { kind: "road", road: ROAD.R13 },
+    road14:  { kind: "road", road: ROAD.R14 },
+    road15:  { kind: "road", road: ROAD.R15 },
+    road16:  { kind: "road", road: ROAD.R16 },
+    road_clear: { kind: "road", road: ROAD.CLEAR }
+  };
+
+  let brush = brushDefs.grass;
   let painting = false;
   let selecting = false;
   let selStart = null;
@@ -77,40 +123,61 @@
 
   function idx(x,y){ return y*W + x; }
 
-  function cloneTerrain(){
-    return new Uint8Array(terrain);
+  function cloneSnapshot(){
+    return {
+      terrain: new Uint8Array(terrain),
+      tex: new Uint16Array(tex),
+      roads: new Uint8Array(roads)
+    };
+  }
+
+  function applySnapshot(s){
+    terrain = new Uint8Array(s.terrain);
+    tex = new Uint16Array(s.tex);
+    roads = new Uint8Array(s.roads);
   }
 
   function pushUndo(){
-    undoStack.push(cloneTerrain());
+    undoStack.push(cloneSnapshot());
     if (undoStack.length > MAX_UNDO) undoStack.shift();
     redoStack.length = 0;
   }
 
   function undo(){
     if (!undoStack.length) return;
-    redoStack.push(cloneTerrain());
-    terrain = undoStack.pop();
+    redoStack.push(cloneSnapshot());
+    const snap = undoStack.pop();
+    applySnapshot(snap);
     render();
   }
 
   function redo(){
     if (!redoStack.length) return;
-    undoStack.push(cloneTerrain());
-    terrain = redoStack.pop();
+    undoStack.push(cloneSnapshot());
+    const snap = redoStack.pop();
+    applySnapshot(snap);
     render();
   }
 
   function resizeMap(nw, nh){
-    const n = new Uint8Array(nw*nh);
+    const nTerrain = new Uint8Array(nw*nh);
+    const nTex = new Uint16Array(nw*nh);
+    const nRoads = new Uint8Array(nw*nh);
     const minW = Math.min(W, nw);
     const minH = Math.min(H, nh);
     for (let y=0; y<minH; y++){
       for (let x=0; x<minW; x++){
-        n[y*nw + x] = terrain[idx(x,y)];
+        const i0 = idx(x,y);
+        const i1 = y*nw + x;
+        nTerrain[i1] = terrain[i0];
+        nTex[i1] = tex[i0];
+        nRoads[i1] = roads[i0];
       }
     }
-    W = nw; H = nh; terrain = n;
+    W = nw; H = nh;
+    terrain = nTerrain;
+    tex = nTex;
+    roads = nRoads;
     mapWEl.value = W; mapHEl.value = H;
     selection = null;
     render();
@@ -131,11 +198,15 @@
     return texPats[path] || null;
   }
 
-  function chooseTexture(type, tx, ty){
-    const list = texSets[type] || [];
-    if (!list.length) return null;
-    const h = ((tx * 73856093) ^ (ty * 19349663)) >>> 0;
-    const path = list[h % list.length];
+  function textureForTile(tx, ty){
+    const tId = tex[idx(tx,ty)];
+    const path = texPaths[tId];
+    return ensurePattern(path);
+  }
+
+  function roadForTile(tx, ty){
+    const rId = roads[idx(tx,ty)];
+    const path = roadPaths[rId];
     return ensurePattern(path);
   }
 
@@ -200,16 +271,25 @@
 
     for (let y=0; y<H; y++){
       for (let x=0; x<W; x++){
-        const t = terrain[idx(x,y)];
+        const i = idx(x,y);
+        const t = terrain[i];
         const c0 = tileCenterScreen(x, y, ox, oy);
-        const pat = chooseTexture(t, x, y);
-        const fill = pat || (colors[t] || "#000");
+        const basePat = textureForTile(x, y);
+        const fill = basePat || (colors[t] || "#000");
         drawDiamond(c0.x, c0.y, fill);
 
         if (t === 2){
           ctx.save();
           ctx.globalAlpha = 0.35;
           drawDiamond(c0.x, c0.y, colors[2]);
+          ctx.restore();
+        }
+
+        const roadPat = roadForTile(x, y);
+        if (roadPat){
+          ctx.save();
+          ctx.globalAlpha = 0.95;
+          drawDiamond(c0.x, c0.y, roadPat);
           ctx.restore();
         }
 
@@ -250,9 +330,23 @@
     if (!hit) return false;
     const { tx, ty } = hit;
     const i = idx(tx,ty);
-    if (terrain[i] === brush) return false;
-    terrain[i] = brush;
-    return true;
+
+    if (brush.kind === "road"){
+      if (roads[i] === brush.road) return false;
+      roads[i] = brush.road;
+      return true;
+    }
+
+    let changed = false;
+    if (terrain[i] !== brush.terrain){
+      terrain[i] = brush.terrain;
+      changed = true;
+    }
+    if (tex[i] !== brush.tex){
+      tex[i] = brush.tex;
+      changed = true;
+    }
+    return changed;
   }
 
   function normalizeSelection(){
@@ -267,12 +361,18 @@
   function copySelection(){
     if (!selection) return;
     const data = new Uint8Array(selection.w * selection.h);
+    const tdata = new Uint16Array(selection.w * selection.h);
+    const rdata = new Uint8Array(selection.w * selection.h);
     for (let y=0; y<selection.h; y++){
       for (let x=0; x<selection.w; x++){
-        data[y*selection.w + x] = terrain[idx(selection.x + x, selection.y + y)];
+        const src = idx(selection.x + x, selection.y + y);
+        const dst = y*selection.w + x;
+        data[dst] = terrain[src];
+        tdata[dst] = tex[src];
+        rdata[dst] = roads[src];
       }
     }
-    clipboard = { w: selection.w, h: selection.h, data };
+    clipboard = { w: selection.w, h: selection.h, terrain: data, tex: tdata, roads: rdata };
   }
 
   function pasteClipboard(){
@@ -280,13 +380,30 @@
     pushUndo();
     for (let y=0; y<clipboard.h; y++){
       for (let x=0; x<clipboard.w; x++){
-        const tx = hoverTile.tx + x;
-        const ty = hoverTile.ty + y;
-        if (tx<0 || ty<0 || tx>=W || ty>=H) continue;
-        terrain[idx(tx,ty)] = clipboard.data[y*clipboard.w + x];
+        const tx0 = hoverTile.tx + x;
+        const ty0 = hoverTile.ty + y;
+        if (tx0<0 || ty0<0 || tx0>=W || ty0>=H) continue;
+        const dst = idx(tx0, ty0);
+        const src = y*clipboard.w + x;
+        terrain[dst] = clipboard.terrain[src];
+        tex[dst] = clipboard.tex[src];
+        roads[dst] = clipboard.roads[src];
       }
     }
     render();
+  }
+
+  function initTexFromTerrain(){
+    for (let y=0; y<H; y++){
+      for (let x=0; x<W; x++){
+        const i = idx(x,y);
+        const t = terrain[i];
+        if (t === 0) tex[i] = TEX.GRASS;
+        else if (t === 1) tex[i] = TEX.SAND;
+        else if (t === 2) tex[i] = TEX.ORE;
+        else if (t === 3) tex[i] = TEX.WATER1;
+      }
+    }
   }
 
   c.addEventListener("pointerdown", (e)=>{
@@ -338,7 +455,8 @@
     btn.addEventListener("click", ()=>{
       brushBtns.forEach(b=>b.classList.remove("active"));
       btn.classList.add("active");
-      brush = parseInt(btn.dataset.brush,10);
+      const key = btn.dataset.brush;
+      brush = brushDefs[key] || brushDefs.grass;
     });
   });
 
@@ -349,7 +467,7 @@
   });
 
   btnExport.addEventListener("click", ()=>{
-    const data = { w: W, h: H, terrain: Array.from(terrain) };
+    const data = { w: W, h: H, terrain: Array.from(terrain), tex: Array.from(tex), roads: Array.from(roads) };
     const blob = new Blob([JSON.stringify(data)], {type:"application/json"});
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
@@ -366,8 +484,11 @@
     if (!data || !data.w || !data.h || !data.terrain) return;
     W = data.w|0; H = data.h|0;
     terrain = new Uint8Array(data.terrain);
+    tex = data.tex ? new Uint16Array(data.tex) : new Uint16Array(W * H);
+    roads = data.roads ? new Uint8Array(data.roads) : new Uint8Array(W * H);
     mapWEl.value = W; mapHEl.value = H;
     selection = null;
+    if (!data.tex) initTexFromTerrain();
     render();
   });
 
@@ -395,5 +516,6 @@
     }
   });
 
+  initTexFromTerrain();
   render();
 });

@@ -7,7 +7,7 @@
 <style>
   body { margin:0; font-family: system-ui, sans-serif; background:#0b0f16; color:#e6eef8; }
   #wrap { display:flex; height:100vh; }
-  #left { width:260px; padding:14px; background:#121826; box-shadow: inset -1px 0 0 rgba(255,255,255,0.05); }
+  #left { width:300px; padding:14px; background:#121826; box-shadow: inset -1px 0 0 rgba(255,255,255,0.05); overflow:auto; }
   #right { flex:1; display:flex; align-items:center; justify-content:center; }
   canvas { background:#0b0f16; border:1px solid rgba(255,255,255,0.12); image-rendering: pixelated; }
   h1 { font-size:16px; margin:0 0 12px; }
@@ -17,6 +17,9 @@
   label { display:block; font-size:12px; opacity:0.8; margin-bottom:4px; }
   input { width:100%; padding:6px; border-radius:6px; border:1px solid rgba(255,255,255,0.12); background:#0f1522; color:#e6eef8; }
   .small { font-size:12px; opacity:0.7; }
+  .group { margin-top:8px; font-size:12px; opacity:0.8; }
+  .grid { display:grid; grid-template-columns: repeat(4, 1fr); gap:4px; }
+  .grid .btn { padding:6px 6px; font-size:12px; margin:0; }
 </style>
 </head>
 <body>
@@ -31,10 +34,34 @@
     </div>
     <div class="row">
       <label>Brush</label>
-      <button class="btn active" data-brush="0">Ground</button>
-      <button class="btn" data-brush="1">Rock</button>
-      <button class="btn" data-brush="2">Ore</button>
-      <button class="btn" data-brush="3">Water</button>
+      <div class="group">Base</div>
+      <button class="btn active" data-brush="grass">Grass</button>
+      <button class="btn" data-brush="sand">Sand</button>
+      <button class="btn" data-brush="breek1">Breek 1</button>
+      <button class="btn" data-brush="breek2">Breek 2</button>
+      <button class="btn" data-brush="ore">Ore</button>
+      <button class="btn" data-brush="water1">Water</button>
+      <button class="btn" data-brush="water2">Water 2</button>
+      <div class="group">Road (Overlay)</div>
+      <div class="grid">
+        <button class="btn" data-brush="road1">R1</button>
+        <button class="btn" data-brush="road2">R2</button>
+        <button class="btn" data-brush="road3">R3</button>
+        <button class="btn" data-brush="road4">R4</button>
+        <button class="btn" data-brush="road5">R5</button>
+        <button class="btn" data-brush="road6">R6</button>
+        <button class="btn" data-brush="road7">R7</button>
+        <button class="btn" data-brush="road8">R8</button>
+        <button class="btn" data-brush="road9">R9</button>
+        <button class="btn" data-brush="road10">R10</button>
+        <button class="btn" data-brush="road11">R11</button>
+        <button class="btn" data-brush="road12">R12</button>
+        <button class="btn" data-brush="road13">R13</button>
+        <button class="btn" data-brush="road14">R14</button>
+        <button class="btn" data-brush="road15">R15</button>
+        <button class="btn" data-brush="road16">R16</button>
+      </div>
+      <button class="btn" data-brush="road_clear">Road Clear</button>
     </div>
     <div class="row">
       <label>Import/Export</label>
@@ -42,14 +69,13 @@
       <button class="btn" id="btnExport">Export JSON</button>
     </div>
     <div class="row small">
-      좌클릭 드래그로 페인트.
+      좌클릭 드래그: 페인트. Shift+드래그: 선택. Ctrl+Z/Y: 실행취소/다시실행. Ctrl+C/V: 복붙.
     </div>
   </div>
   <div id="right">
-    <canvas id="c" width="800" height="520"></canvas>
+    <canvas id="c" width="900" height="600"></canvas>
   </div>
 </div>
 <script src="./js/editor.js" defer></script>
 </body>
 </html>
-
