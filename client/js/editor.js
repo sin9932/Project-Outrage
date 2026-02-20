@@ -553,8 +553,8 @@
           }
         }
 
-        ctx.strokeStyle = "rgba(255,255,255,0.10)";
-        ctx.lineWidth = 1;
+        ctx.strokeStyle = "rgba(0,0,0,0)";
+        ctx.lineWidth = 0;
         drawDiamondPath(c0.x, c0.y);
         ctx.stroke();
       }
@@ -931,6 +931,7 @@
   setCanvasSize();
   render();
 });
+
 
 
 
