@@ -178,6 +178,7 @@
     terrain = nTerrain;
     tex = nTex;
     roads = nRoads;
+    setCanvasSize();
     mapWEl.value = W; mapHEl.value = H;
     selection = null;
     render();
@@ -209,7 +210,12 @@
     const path = roadPaths[rId];
     return ensurePattern(path);
   }
-
+  function setCanvasSize(){
+    const mapWpx = (W + H) * ISO_X + ISO_X * 2;
+    const mapHpx = (W + H) * ISO_Y + ISO_Y * 2;
+    c.width = Math.ceil(mapWpx);
+    c.height = Math.ceil(mapHpx);
+  }
   function origin(){
     const midx = (W - 1) * 0.5;
     const midy = (H - 1) * 0.5;
@@ -517,5 +523,9 @@
   });
 
   initTexFromTerrain();
+  setCanvasSize();
   render();
 });
+
+
+
