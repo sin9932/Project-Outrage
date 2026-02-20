@@ -49,12 +49,16 @@
 
   let spawnChoice = "left";
   let mapChoice = "plains";
+  const __mapPref = new URLSearchParams(location.search).get("map");
+  if (__mapPref) mapChoice = __mapPref;
+  let mapChoiceMeta = null;
   let startMoney = 10000;
   if (__ou_ui && typeof __ou_ui.initPregameUI === "function"){
     __ou_ui.initPregameUI({
+      defaultMap: mapChoice,
       onSpawnChange: (v)=>{ spawnChoice = v || "left"; },
       onMoneyChange: (v)=>{ startMoney = (typeof v==="number" && !Number.isNaN(v)) ? v : 10000; },
-      onMapChange: (v)=>{ mapChoice = v || "plains"; }
+      onMapChange: (v, meta)=>{ mapChoice = v || "plains"; mapChoiceMeta = meta || null; }
     });
   }
 
@@ -328,7 +332,7 @@ function fitMini() {
   function regenOre(){
     if (__ou_map && __ou_map.regenOre) __ou_map.regenOre();
   }
-  genMap(mapChoice);
+  if (!String(mapChoice).startsWith("edit:")) genMap(mapChoice);
   regenOre();
 
   const explored = [new Uint8Array(MAP_W*MAP_H), new Uint8Array(MAP_W*MAP_H)];
@@ -4919,6 +4923,31 @@ function spawnStartingUnits(){
 }
 
 
+
+  async function loadEditMap(choice){
+    if (!choice || !String(choice).startsWith("edit:")) return false;
+    const name = String(choice).slice(5);
+    const file = "asset/sprite/map/editmap/" + encodeURIComponent(name) + ".json";
+    const res = await fetch(file, { cache: "no-cache" });
+    if (!res.ok) throw new Error("map load failed: " + res.status);
+    const data = await res.json();
+    const w = data && data.w ? (data.w|0) : 0;
+    const h = data && data.h ? (data.h|0) : 0;
+    if (w && h && (w !== MAP_W || h !== MAP_H)) {
+      const qs = new URLSearchParams(location.search);
+      qs.set("mapw", String(w));
+      qs.set("maph", String(h));
+      qs.set("map", choice);
+      location.search = qs.toString();
+      return true;
+    }
+    if (data && Array.isArray(data.terrain)) {
+      terrain.fill(0);
+      const len = Math.min(terrain.length, data.terrain.length);
+      for (let i=0;i<len;i++) terrain[i] = data.terrain[i]|0;
+    }
+    return false;
+  }
 if (__ou_ui && typeof __ou_ui.bindPregameStart === "function"){
   __ou_ui.bindPregameStart({ onStart: async (payload) => {
     if (payload && payload.playerColor) state.colors.player = payload.playerColor;
@@ -5005,7 +5034,20 @@ if (__ou_ui && typeof __ou_ui.bindPregameStart === "function"){
       return;
     }
 
-    genMap(mapChoice);
+    if (!String(mapChoice).startsWith("edit:")) if (String(mapChoice).startsWith("edit:")) {
+      if (mapChoiceMeta && mapChoiceMeta.mapw && mapChoiceMeta.maph && (mapChoiceMeta.mapw !== MAP_W || mapChoiceMeta.maph !== MAP_H)) {
+        const qs = new URLSearchParams(location.search);
+        qs.set("mapw", String(mapChoiceMeta.mapw));
+        qs.set("maph", String(mapChoiceMeta.maph));
+        qs.set("map", mapChoice);
+        location.search = qs.toString();
+        return;
+      }
+      const reloaded = await loadEditMap(mapChoice);
+      if (reloaded) return;
+    } else {
+      genMap(mapChoice);
+    }
     regenOre();
     explored[TEAM.PLAYER].fill(0);
     explored[TEAM.ENEMY].fill(0);

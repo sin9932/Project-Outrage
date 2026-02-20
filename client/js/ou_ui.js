@@ -944,6 +944,9 @@ function ensureBadge(btn){
       const onSpawnChange = env.onSpawnChange;
       const onMoneyChange = env.onMoneyChange;
       const onMapChange = env.onMapChange;
+      const defaultMap = env.defaultMap;
+      const defaultMapW = env.defaultMapW;
+      const defaultMapH = env.defaultMapH;
 
       const spawnChips = Array.from(document.querySelectorAll(".chip.spawn"));
       const moneyChips = Array.from(document.querySelectorAll(".chip.money"));
@@ -967,7 +970,10 @@ function ensureBadge(btn){
         for (const c of mapChips) c.classList.remove("on");
         if (target) target.classList.add("on");
         const v = target && target.dataset ? target.dataset.map : null;
-        if (typeof onMapChange === "function") onMapChange(v || "plains");
+        const mw = target && target.dataset ? parseInt(target.dataset.mapw||"",10) : NaN;
+        const mh = target && target.dataset ? parseInt(target.dataset.maph||"",10) : NaN;
+        const meta = { mapw: (Number.isFinite(mw) ? mw : null), maph: (Number.isFinite(mh) ? mh : null) };
+        if (typeof onMapChange === "function") onMapChange(v || "plains", meta);
       }
 
       for (const chip of spawnChips){
@@ -978,6 +984,11 @@ function ensureBadge(btn){
       }
       for (const chip of mapChips){
         chip.addEventListener("click", ()=>setMapChip(chip));
+      }
+
+      if (defaultMap){
+        const hit = mapChips.find(c => (c.dataset && c.dataset.map) === defaultMap);
+        if (hit) setMapChip(hit);
       }
     }
 
