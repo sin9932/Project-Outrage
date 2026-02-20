@@ -477,6 +477,21 @@
       }
     }
 
+    if (hoverTile && !selecting){
+      const cH = tileCenterScreen(hoverTile.tx, hoverTile.ty, ox, oy);
+      ctx.save();
+      ctx.globalAlpha = 0.35;
+      ctx.fillStyle = "rgba(0,200,255,0.35)";
+      drawDiamondFill(cH.x, cH.y, ctx.fillStyle);
+      ctx.restore();
+      ctx.save();
+      ctx.strokeStyle = "rgba(0,255,255,0.9)";
+      ctx.lineWidth = 2;
+      drawDiamondPath(cH.x, cH.y);
+      ctx.stroke();
+      ctx.restore();
+    }
+
     if (selection){
       ctx.save();
       ctx.strokeStyle = "rgba(255,215,0,0.9)";
@@ -577,8 +592,8 @@
 
   c.addEventListener("pointerdown", (e)=>{
     const r = c.getBoundingClientRect();
-    const px = e.clientX - r.left + (right ? right.scrollLeft : 0);
-    const py = e.clientY - r.top + (right ? right.scrollTop : 0);
+    const px = e.clientX - r.left;
+    const py = e.clientY - r.top;
     if (e.shiftKey){
       selecting = true;
       selStart = screenToTile(px, py);
@@ -606,8 +621,8 @@
 
   c.addEventListener("pointermove", (e)=>{
     const r = c.getBoundingClientRect();
-    const px = e.clientX - r.left + (right ? right.scrollLeft : 0);
-    const py = e.clientY - r.top + (right ? right.scrollTop : 0);
+    const px = e.clientX - r.left;
+    const py = e.clientY - r.top;
     hoverTile = screenToTile(px, py);
 
     if (selecting){
@@ -718,3 +733,5 @@
   setCanvasSize();
   render();
 });
+
+
