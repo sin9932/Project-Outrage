@@ -202,31 +202,29 @@
     render();
   }
 
-  function ensurePattern(path){
+  function getImage(path){
     if (!path) return null;
     if (!texImgs[path]){
       const img = new Image();
-      img.onload = () => { texPats[path] = null; render(); };
+      img.onload = () => { texPats[path] = null; blendCache.clear(); render(); };
       img.src = path;
       texImgs[path] = img;
     }
     const img = texImgs[path];
-    if (img && img.complete && !texPats[path]){
-      texPats[path] = ctx.createPattern(img, "repeat");
-    }
-    return texPats[path] || null;
+    if (img && img.complete) return img;
+    return null;
   }
 
   function textureForTile(tx, ty){
     const tId = tex[idx(tx,ty)];
     const path = texPaths[tId];
-    return ensurePattern(path);
+    return getImage(path);
   }
 
   function roadForTile(tx, ty){
     const rId = roads[idx(tx,ty)];
     const path = roadPaths[rId];
-    return ensurePattern(path);
+    return getImage(path);
   }
 
   function origin(){
@@ -274,15 +272,92 @@
     return best ? { tx: best.tx, ty: best.ty } : null;
   }
 
-  function drawDiamond(cx, cy, fillStyle){
+  function drawDiamondPath(cx, cy){
     ctx.beginPath();
     ctx.moveTo(cx, cy - ISO_Y);
     ctx.lineTo(cx + ISO_X, cy);
     ctx.lineTo(cx, cy + ISO_Y);
     ctx.lineTo(cx - ISO_X, cy);
     ctx.closePath();
+  }
+
+  function drawDiamondImage(cx, cy, img){
+    drawDiamondPath(cx, cy);
+    ctx.save();
+    ctx.clip();
+    ctx.drawImage(img, cx - ISO_X, cy - ISO_Y, ISO_X * 2, ISO_Y * 2);
+    ctx.restore();
+  }
+
+  function drawDiamondFill(cx, cy, fillStyle){
+    drawDiamondPath(cx, cy);
     ctx.fillStyle = fillStyle;
     ctx.fill();
+  }
+
+  function isBrick(texId){
+    return texId === TEX.BREEK1 || texId === TEX.BREEK2;
+  }
+
+  function isBlendable(texId){
+    return texId !== 0 && !isBrick(texId);
+  }
+
+  function edgeKey(texId, dir){
+    return texId + ":" + dir;
+  }
+
+  function getEdgeBlendCanvas(texId, dir){
+    const key = edgeKey(texId, dir);
+    if (blendCache.has(key)) return blendCache.get(key);
+    const path = texPaths[texId];
+    const img = getImage(path);
+    if (!img){ blendCache.set(key, null); return null; }
+
+    const w = ISO_X * 2;
+    const h = ISO_Y * 2;
+    const cnv = document.createElement("canvas");
+    cnv.width = Math.ceil(w);
+    cnv.height = Math.ceil(h);
+    const g = cnv.getContext("2d");
+
+    g.drawImage(img, 0, 0, w, h);
+    g.globalCompositeOperation = "destination-in";
+    g.beginPath();
+    g.moveTo(w * 0.5, 0);
+    g.lineTo(w, h * 0.5);
+    g.lineTo(w * 0.5, h);
+    g.lineTo(0, h * 0.5);
+    g.closePath();
+    g.fillStyle = "#fff";
+    g.fill();
+
+    g.globalCompositeOperation = "destination-in";
+    const feather = Math.max(4, Math.round(Math.min(ISO_X, ISO_Y) * 0.35));
+    let grad;
+    if (dir === "N"){
+      grad = g.createLinearGradient(0, 0, 0, feather);
+      grad.addColorStop(0, "rgba(255,255,255,1)");
+      grad.addColorStop(1, "rgba(255,255,255,0)");
+    } else if (dir === "S"){
+      grad = g.createLinearGradient(0, h - feather, 0, h);
+      grad.addColorStop(0, "rgba(255,255,255,0)");
+      grad.addColorStop(1, "rgba(255,255,255,1)");
+    } else if (dir === "E"){
+      grad = g.createLinearGradient(w - feather, 0, w, 0);
+      grad.addColorStop(0, "rgba(255,255,255,0)");
+      grad.addColorStop(1, "rgba(255,255,255,1)");
+    } else {
+      grad = g.createLinearGradient(0, 0, feather, 0);
+      grad.addColorStop(0, "rgba(255,255,255,1)");
+      grad.addColorStop(1, "rgba(255,255,255,0)");
+    }
+    g.fillStyle = grad;
+    g.fillRect(0, 0, w, h);
+
+    g.globalCompositeOperation = "source-over";
+    blendCache.set(key, cnv);
+    return cnv;
   }
 
   function renderMini(){
@@ -335,33 +410,56 @@
         const i = idx(x,y);
         const t = terrain[i];
         const c0 = tileCenterScreen(x, y, ox, oy);
-        const basePat = textureForTile(x, y);
-        const fill = basePat || (colors[t] || "#000");
-        drawDiamond(c0.x, c0.y, fill);
+        const baseImg = textureForTile(x, y);
+        if (baseImg){
+          drawDiamondImage(c0.x, c0.y, baseImg);
+        } else {
+          const fill = colors[t] || "#000";
+          drawDiamondFill(c0.x, c0.y, fill);
+        }
 
         if (t === 2){
           ctx.save();
           ctx.globalAlpha = 0.35;
-          drawDiamond(c0.x, c0.y, colors[2]);
+          drawDiamondFill(c0.x, c0.y, colors[2]);
           ctx.restore();
         }
 
-        const roadPat = roadForTile(x, y);
-        if (roadPat){
+        const roadImg = roadForTile(x, y);
+        if (roadImg){
           ctx.save();
           ctx.globalAlpha = 0.95;
-          drawDiamond(c0.x, c0.y, roadPat);
+          drawDiamondImage(c0.x, c0.y, roadImg);
           ctx.restore();
+        }
+
+        const texId = tex[i];
+        if (isBlendable(texId) && roads[i] === 0){
+          const n = [
+            { dx: 0, dy: -1, dir: "N" },
+            { dx: 1, dy: 0, dir: "E" },
+            { dx: 0, dy: 1, dir: "S" },
+            { dx: -1, dy: 0, dir: "W" }
+          ];
+          for (const nb of n){
+            const nx = x + nb.dx;
+            const ny = y + nb.dy;
+            if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue;
+            const ni = idx(nx, ny);
+            if (roads[ni] !== 0) continue;
+            const nt = tex[ni];
+            if (nt === texId) continue;
+            if (!isBlendable(nt)) continue;
+            const edge = getEdgeBlendCanvas(nt, nb.dir);
+            if (edge){
+              ctx.drawImage(edge, c0.x - ISO_X, c0.y - ISO_Y);
+            }
+          }
         }
 
         ctx.strokeStyle = "rgba(255,255,255,0.10)";
         ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.moveTo(c0.x, c0.y - ISO_Y);
-        ctx.lineTo(c0.x + ISO_X, c0.y);
-        ctx.lineTo(c0.x, c0.y + ISO_Y);
-        ctx.lineTo(c0.x - ISO_X, c0.y);
-        ctx.closePath();
+        drawDiamondPath(c0.x, c0.y);
         ctx.stroke();
       }
     }
@@ -612,3 +710,6 @@
   setCanvasSize();
   render();
 });
+
+
+
