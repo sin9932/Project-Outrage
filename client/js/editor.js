@@ -18,8 +18,8 @@
   let W = Math.max(4, parseInt(qs.get("mapw") || mapWEl.value, 10));
   let H = Math.max(4, parseInt(qs.get("maph") || mapHEl.value, 10));
 
-  const ISO_X = parseFloat(qs.get("isox") || "55");
-  const ISO_Y = parseFloat(qs.get("isoy") || "27.5");
+  const ISO_X = parseFloat(qs.get("isox") || "128");
+  const ISO_Y = parseFloat(qs.get("isoy") || "64");
 
   mapWEl.value = W;
   mapHEl.value = H;
@@ -355,22 +355,8 @@
     }
     const ox = offX || 0;
     const oy = offY || 0;
-    const pad = 0.65;
-    ctx.beginPath();
-    ctx.moveTo(cx, cy - (isoY() + pad));
-    ctx.lineTo(cx + (isoX() + pad), cy);
-    ctx.lineTo(cx, cy + (isoY() + pad));
-    ctx.lineTo(cx - (isoX() + pad), cy);
-    ctx.closePath();
-    ctx.save();
-    ctx.clip();
-    const a = isoX() / iw;
-    const b = isoY() / iw;
-    const cM = -isoX() / ih;
-    const d = isoY() / ih;
-    ctx.setTransform(a, b, cM, d, cx, cy);
-    ctx.drawImage(img, -iw * 0.5 + ox, -ih * 0.5 + oy);
-    ctx.restore();
+    const pad = 0.8;
+    ctx.drawImage(img, cx - iw * 0.5 + ox - pad, cy - ih * 0.5 + oy - pad, iw + pad * 2, ih + pad * 2);
   }
 
     function drawTextureStamp(img, cx, cy, radius, offX, offY, alpha){
@@ -991,6 +977,7 @@
   setCanvasSize();
   render();
 });
+
 
 
 
