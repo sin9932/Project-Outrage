@@ -1,4 +1,4 @@
-// map.js
+﻿// map.js
 // - Map presets + terrain/ore generation
 // - No DOM dependencies
 
@@ -10,8 +10,9 @@
   OUMap.create = function create(env) {
     const e = env || {};
 
-    const MAP_W = e.MAP_W || 64;
-    const MAP_H = e.MAP_H || 40;
+    const __m = new URLSearchParams(location.search);
+    const MAP_W = e.MAP_W || parseInt(__m.get("mapw")||"64",10);
+    const MAP_H = e.MAP_H || parseInt(__m.get("maph")||"40",10);
     const terrain = e.terrain;
     const ore = e.ore;
     const idx = e.idx;
@@ -120,3 +121,5 @@
     return { genMap, regenOre };
   };
 })(window);
+
+

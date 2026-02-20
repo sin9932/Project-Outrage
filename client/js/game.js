@@ -179,8 +179,9 @@ function fitMini() {
   // Enemy AI cheats (difficulty)
   const ENEMY_PROD_SPEED = 1.65;
   const ENEMY_ECON_MULT  = 1.50;
-  const MAP_W = 80;
-  const MAP_H = 52;
+  const __mapParams = new URLSearchParams(location.search);
+  const MAP_W = Math.max(4, parseInt(__mapParams.get("mapw")||"80",10));
+  const MAP_H = Math.max(4, parseInt(__mapParams.get("maph")||"52",10));
   const WORLD_W = MAP_W * TILE;
   const WORLD_H = MAP_H * TILE;
 
@@ -5356,6 +5357,8 @@ window.unboardIFV = tryUnloadIFV;
 window.resolveUnitOverlaps = resolveUnitOverlaps;
 
 })();
+
+
 
 
 
