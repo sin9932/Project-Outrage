@@ -261,18 +261,34 @@
   let terrain, ore, explored, visible, BUILD, DEFENSE, BUILD_SPRITE, NAME_KO, POWER;
   let worldToScreen, tileToWorldCenter, idx, inMap, clamp, getEntityById;
 
-  // Water textures (optional)
+  // Terrain textures (optional)
+  const GRASS_TEX_PNG = "asset/sprite/map/grass1.jpg";
+  const SAND_TEX_PNG = "asset/sprite/map/sand1.jpg";
   const WATER_TEX_PNG = "asset/sprite/map/water.jpg";
   const WATER_TEX2_PNG = "asset/sprite/map/water2.jpg";
   const WATER_NORM_PNG = "asset/sprite/map/water_normal.jpg";
+  let GRASS_TEX_IMG = null;
+  let SAND_TEX_IMG = null;
   let WATER_TEX_IMG = null;
   let WATER_TEX2_IMG = null;
   let WATER_NORM_IMG = null;
+  let GRASS_TEX_PAT = null;
+  let SAND_TEX_PAT = null;
   let WATER_TEX_PAT = null;
   let WATER_TEX2_PAT = null;
   let WATER_NORM_PAT = null;
 
   function ensureWaterPatterns(ctx){
+    if (!GRASS_TEX_IMG){
+      GRASS_TEX_IMG = new Image();
+      GRASS_TEX_IMG.onload = ()=>{ GRASS_TEX_PAT = null; };
+      GRASS_TEX_IMG.src = GRASS_TEX_PNG;
+    }
+    if (!SAND_TEX_IMG){
+      SAND_TEX_IMG = new Image();
+      SAND_TEX_IMG.onload = ()=>{ SAND_TEX_PAT = null; };
+      SAND_TEX_IMG.src = SAND_TEX_PNG;
+    }
     if (!WATER_TEX_IMG){
       WATER_TEX_IMG = new Image();
       WATER_TEX_IMG.onload = ()=>{ WATER_TEX_PAT = null; };
@@ -288,6 +304,12 @@
       WATER_NORM_IMG.onload = ()=>{ WATER_NORM_PAT = null; };
       WATER_NORM_IMG.src = WATER_NORM_PNG;
     }
+    if (GRASS_TEX_IMG && GRASS_TEX_IMG.complete && !GRASS_TEX_PAT){
+      GRASS_TEX_PAT = ctx.createPattern(GRASS_TEX_IMG, "repeat");
+    }
+    if (SAND_TEX_IMG && SAND_TEX_IMG.complete && !SAND_TEX_PAT){
+      SAND_TEX_PAT = ctx.createPattern(SAND_TEX_IMG, "repeat");
+    }
     if (WATER_TEX_IMG && WATER_TEX_IMG.complete && !WATER_TEX_PAT){
       WATER_TEX_PAT = ctx.createPattern(WATER_TEX_IMG, "repeat");
     }
@@ -298,6 +320,7 @@
       WATER_NORM_PAT = ctx.createPattern(WATER_NORM_IMG, "repeat");
     }
   }
+
   let REPAIR_WRENCH_IMG, repairWrenches;
   let exp1Fxs;
   let smokeWaves, smokePuffs, dustPuffs, dmgSmokePuffs, bloodStains, bloodPuffs;
@@ -1594,6 +1617,18 @@
     ctx.fillStyle = base;
     ctx.fill();
 
+    if (type===0 || type===1){
+      ensureWaterPatterns(ctx);
+      const pat = (type===1) ? SAND_TEX_PAT : GRASS_TEX_PAT;
+      if (pat){
+        ctx.save();
+        ctx.clip();
+        ctx.globalAlpha = 0.55;
+        ctx.fillStyle = pat;
+        ctx.fillRect(x-ox-256, y-oy-256, (ox+256)*2, (oy+256)*2);
+        ctx.restore();
+      }
+    }
     if (type===3){
       const waterLOD = ((cam.zoom||1) < 0.90);
       // Water texture + fake normal highlight
@@ -3331,4 +3366,13 @@
   window.OURender.isExp1Ready = isExp1Ready;
   window.OURender.getExp1Frame0 = getExp1Frame0;
 })();
+
+
+
+
+
+
+
+
+
 
