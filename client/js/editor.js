@@ -29,19 +29,77 @@
     3: "#0f2a44"  // water fallback
   };
 
-  const texPaths = {
-    0: "asset/sprite/map/grass1.jpg",
-    1: "asset/sprite/map/sand1.jpg",
-    2: "asset/sprite/map/sand1.jpg",
-    3: "asset/sprite/map/water.jpg"
+  const texSets = {
+    0: ["asset/sprite/map/grass1.jpg"],
+    1: [
+      "asset/sprite/map/sand1.jpg",
+      "asset/sprite/map/breek_tile1.jpg",
+      "asset/sprite/map/breek_tile2.jpg",
+      "asset/sprite/map/road1.jpg",
+      "asset/sprite/map/road2.jpg",
+      "asset/sprite/map/road3.jpg",
+      "asset/sprite/map/road4.jpg",
+      "asset/sprite/map/road5.jpg",
+      "asset/sprite/map/road6.JPG",
+      "asset/sprite/map/road7.jpg",
+      "asset/sprite/map/road8.jpg",
+      "asset/sprite/map/road9.jpg",
+      "asset/sprite/map/road10.jpg",
+      "asset/sprite/map/road11.jpg",
+      "asset/sprite/map/road12.jpg",
+      "asset/sprite/map/road13.jpg",
+      "asset/sprite/map/road14.jpg",
+      "asset/sprite/map/road15.jpg",
+      "asset/sprite/map/road16.jpg"
+    ],
+    2: [
+      "asset/sprite/map/sand1.jpg",
+      "asset/sprite/map/breek_tile1.jpg",
+      "asset/sprite/map/breek_tile2.jpg"
+    ],
+    3: ["asset/sprite/map/water.jpg", "asset/sprite/map/water2.jpg"]
   };
   const texImgs = {};
   const texPats = {};
 
   let brush = 0;
   let painting = false;
+  let selecting = false;
+  let selStart = null;
+  let selEnd = null;
+  let selection = null;
+  let hoverTile = null;
+  let clipboard = null;
+
+  const undoStack = [];
+  const redoStack = [];
+  const MAX_UNDO = 60;
 
   function idx(x,y){ return y*W + x; }
+
+  function cloneTerrain(){
+    return new Uint8Array(terrain);
+  }
+
+  function pushUndo(){
+    undoStack.push(cloneTerrain());
+    if (undoStack.length > MAX_UNDO) undoStack.shift();
+    redoStack.length = 0;
+  }
+
+  function undo(){
+    if (!undoStack.length) return;
+    redoStack.push(cloneTerrain());
+    terrain = undoStack.pop();
+    render();
+  }
+
+  function redo(){
+    if (!redoStack.length) return;
+    undoStack.push(cloneTerrain());
+    terrain = redoStack.pop();
+    render();
+  }
 
   function resizeMap(nw, nh){
     const n = new Uint8Array(nw*nh);
@@ -54,23 +112,31 @@
     }
     W = nw; H = nh; terrain = n;
     mapWEl.value = W; mapHEl.value = H;
+    selection = null;
     render();
   }
 
-  function ensurePattern(type){
-    const path = texPaths[type];
+  function ensurePattern(path){
     if (!path) return null;
-    if (!texImgs[type]){
+    if (!texImgs[path]){
       const img = new Image();
-      img.onload = () => { texPats[type] = null; render(); };
+      img.onload = () => { texPats[path] = null; render(); };
       img.src = path;
-      texImgs[type] = img;
+      texImgs[path] = img;
     }
-    const img = texImgs[type];
-    if (img && img.complete && !texPats[type]){
-      texPats[type] = ctx.createPattern(img, "repeat");
+    const img = texImgs[path];
+    if (img && img.complete && !texPats[path]){
+      texPats[path] = ctx.createPattern(img, "repeat");
     }
-    return texPats[type] || null;
+    return texPats[path] || null;
+  }
+
+  function chooseTexture(type, tx, ty){
+    const list = texSets[type] || [];
+    if (!list.length) return null;
+    const h = ((tx * 73856093) ^ (ty * 19349663)) >>> 0;
+    const path = list[h % list.length];
+    return ensurePattern(path);
   }
 
   function origin(){
@@ -136,7 +202,7 @@
       for (let x=0; x<W; x++){
         const t = terrain[idx(x,y)];
         const c0 = tileCenterScreen(x, y, ox, oy);
-        const pat = ensurePattern(t);
+        const pat = chooseTexture(t, x, y);
         const fill = pat || (colors[t] || "#000");
         drawDiamond(c0.x, c0.y, fill);
 
@@ -158,27 +224,114 @@
         ctx.stroke();
       }
     }
+
+    if (selection){
+      ctx.save();
+      ctx.strokeStyle = "rgba(255,215,0,0.9)";
+      ctx.lineWidth = 2;
+      for (let y=selection.y; y<selection.y+selection.h; y++){
+        for (let x=selection.x; x<selection.x+selection.w; x++){
+          const c0 = tileCenterScreen(x, y, ox, oy);
+          ctx.beginPath();
+          ctx.moveTo(c0.x, c0.y - ISO_Y);
+          ctx.lineTo(c0.x + ISO_X, c0.y);
+          ctx.lineTo(c0.x, c0.y + ISO_Y);
+          ctx.lineTo(c0.x - ISO_X, c0.y);
+          ctx.closePath();
+          ctx.stroke();
+        }
+      }
+      ctx.restore();
+    }
   }
 
   function paintAt(px, py){
     const hit = screenToTile(px, py);
-    if (!hit) return;
+    if (!hit) return false;
     const { tx, ty } = hit;
-    terrain[idx(tx,ty)] = brush;
+    const i = idx(tx,ty);
+    if (terrain[i] === brush) return false;
+    terrain[i] = brush;
+    return true;
+  }
+
+  function normalizeSelection(){
+    if (!selStart || !selEnd) return null;
+    const x0 = Math.min(selStart.tx, selEnd.tx);
+    const y0 = Math.min(selStart.ty, selEnd.ty);
+    const x1 = Math.max(selStart.tx, selEnd.tx);
+    const y1 = Math.max(selStart.ty, selEnd.ty);
+    return { x: x0, y: y0, w: x1 - x0 + 1, h: y1 - y0 + 1 };
+  }
+
+  function copySelection(){
+    if (!selection) return;
+    const data = new Uint8Array(selection.w * selection.h);
+    for (let y=0; y<selection.h; y++){
+      for (let x=0; x<selection.w; x++){
+        data[y*selection.w + x] = terrain[idx(selection.x + x, selection.y + y)];
+      }
+    }
+    clipboard = { w: selection.w, h: selection.h, data };
+  }
+
+  function pasteClipboard(){
+    if (!clipboard || !hoverTile) return;
+    pushUndo();
+    for (let y=0; y<clipboard.h; y++){
+      for (let x=0; x<clipboard.w; x++){
+        const tx = hoverTile.tx + x;
+        const ty = hoverTile.ty + y;
+        if (tx<0 || ty<0 || tx>=W || ty>=H) continue;
+        terrain[idx(tx,ty)] = clipboard.data[y*clipboard.w + x];
+      }
+    }
     render();
   }
 
   c.addEventListener("pointerdown", (e)=>{
+    const r = c.getBoundingClientRect();
+    const px = e.clientX - r.left;
+    const py = e.clientY - r.top;
+    if (e.shiftKey){
+      selecting = true;
+      selStart = screenToTile(px, py);
+      selEnd = selStart;
+      selection = normalizeSelection();
+      render();
+      return;
+    }
+
     painting = true;
     c.setPointerCapture(e.pointerId);
-    const r = c.getBoundingClientRect();
-    paintAt(e.clientX - r.left, e.clientY - r.top);
+    pushUndo();
+    if (paintAt(px, py)) render();
   });
-  window.addEventListener("pointerup", (e)=>{ try{ c.releasePointerCapture(e.pointerId); }catch(_){ } painting=false; });
+
+  window.addEventListener("pointerup", (e)=>{
+    try{ c.releasePointerCapture(e.pointerId); }catch(_){ }
+    painting = false;
+    if (selecting){
+      selecting = false;
+      selection = normalizeSelection();
+      render();
+    }
+  });
+
   c.addEventListener("pointermove", (e)=>{
-    if (!painting) return;
     const r = c.getBoundingClientRect();
-    paintAt(e.clientX - r.left, e.clientY - r.top);
+    const px = e.clientX - r.left;
+    const py = e.clientY - r.top;
+    hoverTile = screenToTile(px, py);
+
+    if (selecting){
+      selEnd = hoverTile;
+      selection = normalizeSelection();
+      render();
+      return;
+    }
+    if (!painting) return;
+    if (paintAt(px, py)) render();
   });
 
   brushBtns.forEach(btn=>{
@@ -214,7 +367,32 @@
     W = data.w|0; H = data.h|0;
     terrain = new Uint8Array(data.terrain);
     mapWEl.value = W; mapHEl.value = H;
+    selection = null;
     render();
+  });
+
+  window.addEventListener("keydown", (e)=>{
+    const key = e.key.toLowerCase();
+    if (e.ctrlKey && key === "z"){
+      e.preventDefault();
+      undo();
+      return;
+    }
+    if (e.ctrlKey && (key === "y" || (key === "z" && e.shiftKey))){
+      e.preventDefault();
+      redo();
+      return;
+    }
+    if (e.ctrlKey && key === "c"){
+      e.preventDefault();
+      copySelection();
+      return;
+    }
+    if (e.ctrlKey && key === "v"){
+      e.preventDefault();
+      pasteClipboard();
+      return;
+    }
   });
 
   render();
