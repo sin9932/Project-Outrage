@@ -387,8 +387,16 @@
     return cnv;
   }
 
-  function getEdgeBlendCanvas(texId, dir){
-    const key = edgeKey(texId, dir);
+    function _seededRand(seed){
+    let s = seed >>> 0;
+    return function(){
+      s = (s * 1664525 + 1013904223) >>> 0;
+      return s / 4294967296;
+    };
+  }
+
+  function getEdgeBlendCanvas(texId, dir, tx, ty){
+    const key = edgeKey(texId, dir) + ":" + tx + ":" + ty;
     if (blendCache.has(key)) return blendCache.get(key);
     const path = texPaths[texId];
     const img = getImage(path);
@@ -412,12 +420,64 @@
     g.setTransform(a, b, cM, d, w * 0.5, h * 0.5);
     g.drawImage(img, -iw * 0.5, -ih * 0.5);
 
+    // Build noise mask (organic boundary)
+    const noiseSize = 28;
+    const noise = document.createElement("canvas");
+    noise.width = noiseSize;
+    noise.height = noiseSize;
+    const ng = noise.getContext("2d");
+    const id = ng.createImageData(noiseSize, noiseSize);
+    const rnd = _seededRand((tx+1) * 73856093 ^ (ty+1) * 19349663 ^ texId * 83492791 ^ dir.charCodeAt(0));
+    for (let i=0;i<id.data.length;i+=4){
+      const v = (rnd()*255)|0;
+      id.data[i]=v; id.data[i+1]=v; id.data[i+2]=v; id.data[i+3]=255;
+    }
+    ng.putImageData(id,0,0);
+
+    // Mask to diamond
     g.setTransform(1,0,0,1,0,0);
     g.globalCompositeOperation = "destination-in";
-    const mask = getEdgeMask(dir);
-    g.drawImage(mask, 0, 0);
-    g.globalCompositeOperation = "source-over";
+    g.beginPath();
+    g.moveTo(w * 0.5, 0);
+    g.lineTo(w, h * 0.5);
+    g.lineTo(w * 0.5, h);
+    g.lineTo(0, h * 0.5);
+    g.closePath();
+    g.fillStyle = "#fff";
+    g.fill();
 
+    // Apply edge gradient + noise
+    g.globalCompositeOperation = "destination-in";
+    const band = Math.max(8, Math.round(Math.min(isoX(), isoY()) * 0.45));
+    const blur = Math.max(4, Math.round(band * 0.5));
+
+    let grad;
+    if (dir === "N"){
+      grad = g.createLinearGradient(0, 0, 0, band);
+      grad.addColorStop(0, "rgba(255,255,255,1)");
+      grad.addColorStop(1, "rgba(255,255,255,0)");
+    } else if (dir === "S"){
+      grad = g.createLinearGradient(0, h - band, 0, h);
+      grad.addColorStop(0, "rgba(255,255,255,0)");
+      grad.addColorStop(1, "rgba(255,255,255,1)");
+    } else if (dir === "E"){
+      grad = g.createLinearGradient(w - band, 0, w, 0);
+      grad.addColorStop(0, "rgba(255,255,255,0)");
+      grad.addColorStop(1, "rgba(255,255,255,1)");
+    } else {
+      grad = g.createLinearGradient(0, 0, band, 0);
+      grad.addColorStop(0, "rgba(255,255,255,1)");
+      grad.addColorStop(1, "rgba(255,255,255,0)");
+    }
+    g.fillStyle = grad;
+    g.fillRect(0, 0, w, h);
+
+    g.globalCompositeOperation = "destination-in";
+    g.filter = `blur(${blur}px)`;
+    g.drawImage(noise, 0, 0, w, h);
+    g.filter = "none";
+
+    g.globalCompositeOperation = "source-over";
     blendCache.set(key, cnv);
     return cnv;
   }
@@ -899,6 +959,7 @@
   setCanvasSize();
   render();
 });
+
 
 
 
