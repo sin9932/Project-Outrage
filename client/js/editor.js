@@ -638,8 +638,8 @@
 
   c.addEventListener("pointerdown", (e)=>{
     const r = c.getBoundingClientRect();
-    const px = e.clientX - r.left;
-    const py = e.clientY - r.top;
+    const px = e.clientX - r.left + (right ? right.scrollLeft : 0);
+    const py = e.clientY - r.top + (right ? right.scrollTop : 0);
     if (wheelLock) return;
     if (e.shiftKey){
       selecting = true;
@@ -669,8 +669,8 @@
 
   c.addEventListener("pointermove", (e)=>{
     const r = c.getBoundingClientRect();
-    const px = e.clientX - r.left;
-    const py = e.clientY - r.top;
+    const px = e.clientX - r.left + (right ? right.scrollLeft : 0);
+    const py = e.clientY - r.top + (right ? right.scrollTop : 0);
     hoverTile = screenToTile(px, py);
 
     if (selecting){
@@ -800,6 +800,7 @@
   setCanvasSize();
   render();
 });
+
 
 
 
