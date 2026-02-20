@@ -121,6 +121,7 @@
   let selEnd = null;
   let selection = null;
   let hoverTile = null;
+  let lastHoverKey = "";
   let clipboard = null;
 
   const view = { zoom: 1, min: 0.35, max: 3.0 };
@@ -654,7 +655,8 @@
     painting = true;
     c.setPointerCapture(e.pointerId);
     pushUndo();
-    if (paintAt(px, py)) render();
+    paintAt(px, py);
+    render();
   });
 
   window.addEventListener("pointerup", (e)=>{
@@ -680,7 +682,8 @@
       return;
     }
     if (!painting) return;
-    if (paintAt(px, py)) render();
+    paintAt(px, py);
+    render();
   });
 
   brushBtns.forEach(btn=>{
@@ -800,6 +803,8 @@
   setCanvasSize();
   render();
 });
+
+
 
 
 
