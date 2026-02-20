@@ -352,29 +352,6 @@
     ctx.restore();
   }
 
-  // Draw a diamond-shaped sprite already in screen-space (e.g., 128x64 isometric tile PNG).
-  function drawDiamondSprite(cx, cy, img){
-    if (!img) return;
-    const w = isoX() * 2;
-    const h = isoY() * 2;
-    ctx.drawImage(img, cx - isoX(), cy - isoY(), w, h);
-  }
-
-  // Smart tile draw: if the source image looks like a ready-made diamond (ratio ~2:1),
-  // draw directly. Otherwise, treat it as a square texture and project into diamond.
-  function drawTileImage(cx, cy, img, offX, offY){
-    if (!img) return;
-    const iw = img.width || 0;
-    const ih = img.height || 0;
-    if (iw && ih && Math.abs((iw/ih) - 2.0) < 0.15){
-      // assume diamond sprite sheet tile (like 128x64)
-      drawDiamondSprite(cx, cy, img);
-      return;
-    }
-    drawDiamondImage(cx, cy, img, offX, offY);
-  }
-
-
     function drawTextureStamp(img, cx, cy, radius, offX, offY, alpha){
     const iw = img && img.width ? img.width : 0;
     const ih = img && img.height ? img.height : 0;
@@ -436,7 +413,22 @@
     return texId !== 0 && !isBrick(texId);
   }
 
-  function edgeKey(texId, dir){
+  
+function texPriority(texId){
+  // Higher number = dominates and blends over lower-priority terrain
+  switch (texId){
+    case TEX.WATER2: return 60;
+    case TEX.WATER1: return 55;
+    case TEX.BREEK2: return 45;
+    case TEX.BREEK1: return 42;
+    case TEX.ORE:    return 25;
+    case TEX.SAND:   return 20;
+    case TEX.GRASS:  return 10;
+    default:         return 0;
+  }
+}
+
+function edgeKey(texId, dir){
     return texId + ":" + dir + ":" + view.zoom.toFixed(3);
   }
 
@@ -480,8 +472,8 @@
 
     // Edge gradient
     g.globalCompositeOperation = "destination-in";
-    const band = Math.max(10, Math.round(Math.min(isoX(), isoY()) * 0.55));
-    const blur = Math.max(5, Math.round(band * 0.55));
+    const band = Math.max(8, Math.round(Math.min(isoX(), isoY()) * 0.28));
+    const blur = Math.max(3, Math.round(band * 0.35));
     let grad;
     if (dir === "N"){
       grad = g.createLinearGradient(0, 0, 0, band);
@@ -536,7 +528,7 @@
         const baseImg = textureForTile(x, y);
         if (baseImg){
           const jit = _tileJitterPx(x, y, tex[i], baseImg);
-          drawTileImage(c0.x, c0.y, baseImg, jit.x, jit.y);
+          drawDiamondImage(c0.x, c0.y, baseImg, jit.x, jit.y);
         } else {
           const fill = colors[t] || "#000";
           drawDiamondFill(c0.x, c0.y, fill);
@@ -558,22 +550,33 @@
         }
 
         const texId = tex[i];
-        // Natural terrain blending (autotile-style).
-        // Rule: grass dominates sand. We only draw "grass edge" over sand using 4-bit mask (N,E,S,W).
-        if (roads[i] === 0 && texId === TEX.SAND){
-          let m = 0;
-          // bit: 1=N, 2=E, 4=S, 8=W
-          if (y > 0 && tex[idx(x, y-1)] === TEX.GRASS) m |= 1;
-          if (x < W-1 && tex[idx(x+1, y)] === TEX.GRASS) m |= 2;
-          if (y < H-1 && tex[idx(x, y+1)] === TEX.GRASS) m |= 4;
-          if (x > 0 && tex[idx(x-1, y)] === TEX.GRASS) m |= 8;
-          if (m){
-            const k = String(m).padStart(2,"0");
-            const timg = getImage(`asset/sprite/map/transitions/grass_over_sand_${k}.png`);
-            if (timg){
-              // These transition PNGs are already diamond-shaped (128x64), so draw them in screen space.
-              drawDiamondSprite(c0.x, c0.y, timg);
+        if (isBlendable(texId) && roads[i] === 0){
+          const n = [
+            { dx: 0, dy: -1, dir: "N" },
+            { dx: 1, dy: 0, dir: "E" },
+            { dx: 0, dy: 1, dir: "S" },
+            { dx: -1, dy: 0, dir: "W" }
+          ];
+          for (const nb of n){
+            const nx = x + nb.dx;
+            const ny = y + nb.dy;
+            if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue;
+            const ni = idx(nx, ny);
+            if (roads[ni] !== 0) continue;
+            const nt = tex[ni];
+            if (nt === texId) continue;
+            if (!isBlendable(nt)) continue;
+            // Prevent double-blending: only blend higher-priority neighbor over this tile
+            if (texPriority(nt) <= texPriority(texId)) continue;
+            const edge = getEdgeBlendCanvas(nt, nb.dir, x, y);
+            if (edge){
+              ctx.save();
+              ctx.globalAlpha = 0.72;
+              ctx.drawImage(edge, c0.x - isoX(), c0.y - isoY());
+              ctx.restore();
             }
+            const ntImg = getImage(texPaths[nt]);
+            drawEdgeDecals(c0.x, c0.y, x, y, nt, nb.dir, ntImg);
           }
         }
 
@@ -955,6 +958,7 @@
   setCanvasSize();
   render();
 });
+
 
 
 
