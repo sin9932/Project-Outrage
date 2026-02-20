@@ -482,10 +482,10 @@
                 const texId = tex[i];
         if (isBlendable(texId) && roads[i] === 0){
           const n = [
-            { dx: 0, dy: -1, dir: "S" },
-            { dx: 1, dy: 0, dir: "W" },
-            { dx: 0, dy: 1, dir: "N" },
-            { dx: -1, dy: 0, dir: "E" }
+            { dx: 0, dy: -1, dir: "N" },
+            { dx: 1, dy: 0, dir: "E" },
+            { dx: 0, dy: 1, dir: "S" },
+            { dx: -1, dy: 0, dir: "W" }
           ];
           for (const nb of n){
             const nx = x + nb.dx;
@@ -882,6 +882,7 @@
   setCanvasSize();
   render();
 });
+
 
 
 
