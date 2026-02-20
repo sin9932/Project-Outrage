@@ -8,8 +8,8 @@
   body { margin:0; font-family: system-ui, sans-serif; background:#0b0f16; color:#e6eef8; }
   #wrap { display:flex; height:100vh; }
   #left { width:300px; padding:14px; background:#121826; box-shadow: inset -1px 0 0 rgba(255,255,255,0.05); overflow:auto; }
-  #right { flex:1; display:flex; align-items:center; justify-content:center; }
-  canvas { background:#0b0f16; border:1px solid rgba(255,255,255,0.12); image-rendering: pixelated; }
+  #right { flex:1; display:flex; align-items:flex-start; justify-content:flex-start; overflow:auto; }
+  canvas { background:#0b0f16; border:1px solid rgba(255,255,255,0.12); image-rendering: pixelated; display:block; margin:16px; }
   h1 { font-size:16px; margin:0 0 12px; }
   .row { margin:10px 0; }
   .btn { width:100%; padding:8px 10px; margin:4px 0; border:0; border-radius:8px; background:#1c2638; color:#e6eef8; cursor:pointer; }
@@ -79,3 +79,4 @@
 <script src="./js/editor.js" defer></script>
 </body>
 </html>
+
