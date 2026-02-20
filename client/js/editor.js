@@ -642,6 +642,7 @@
     const px = e.clientX - r.left + (right ? right.scrollLeft : 0);
     const py = e.clientY - r.top + (right ? right.scrollTop : 0);
     if (wheelLock) return;
+    if (e.button !== 0) return;
     if (e.shiftKey){
       selecting = true;
       selStart = screenToTile(px, py);
@@ -803,6 +804,8 @@
   setCanvasSize();
   render();
 });
+
+
 
 
 
