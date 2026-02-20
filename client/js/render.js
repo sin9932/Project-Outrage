@@ -369,6 +369,45 @@
     return { sx, sy, sw: TILE_SRC_W, sh: TILE_SRC_H };
   }
 
+  function pickRange(tx, ty, seed, start, end){
+    const n = Math.max(1, (end - start + 1));
+    const h = (tx*73856093) ^ (ty*19349663) ^ (seed*83492791);
+    return start + (Math.abs(h) % n);
+  }
+
+  function dirtTileIndex(tx, ty){
+    const base = tileTexAt(tx,ty);
+    const sameN = (ty > 0) ? (tileTexAt(tx,ty-1) === base) : true;
+    const sameS = (ty < MAP_H-1) ? (tileTexAt(tx,ty+1) === base) : true;
+    const sameW = (tx > 0) ? (tileTexAt(tx-1,ty) === base) : true;
+    const sameE = (tx < MAP_W-1) ? (tileTexAt(tx+1,ty) === base) : true;
+
+    if (!sameN && !sameE) return pickRange(tx, ty, 1, 21, 24);
+    if (!sameE && !sameS) return pickRange(tx, ty, 2, 25, 28);
+    if (!sameN && !sameW) return pickRange(tx, ty, 3, 29, 32);
+    if (!sameS && !sameW) return pickRange(tx, ty, 4, 33, 36);
+
+    if (sameE && sameW && !sameN && sameS) return pickRange(tx, ty, 5, 45, 46);
+    if (sameE && sameW && !sameS && sameN) return pickRange(tx, ty, 6, 51, 52);
+    if (sameN && sameS && !sameE && sameW) return pickRange(tx, ty, 7, 47, 48);
+    if (sameN && sameS && !sameW && sameE) return pickRange(tx, ty, 8, 49, 50);
+
+    if (!sameS && sameN && sameE && sameW) return pickRange(tx, ty, 9, 37, 38);
+    if (!sameW && sameN && sameE && sameS) return pickRange(tx, ty, 10, 39, 40);
+    if (!sameE && sameN && sameS && sameW) return pickRange(tx, ty, 11, 41, 42);
+    if (!sameN && sameE && sameS && sameW) return pickRange(tx, ty, 12, 43, 44);
+
+    return pickRange(tx, ty, 13, 1, 20);
+  }
+
+  function atlasRectByIndex(idx1){
+    const i = Math.max(1, idx1) - 1;
+    const cols = Math.max(1, Math.floor(1024 / TILE_SRC_W));
+    const sx = (i % cols) * TILE_SRC_W;
+    const sy = Math.floor(i / cols) * TILE_SRC_H;
+    return { sx, sy, sw: TILE_SRC_W, sh: TILE_SRC_H };
+  }
+
   function isGrassLike(texId){
     return texId === TILE_TEX.GRASS_GREEN || texId === TILE_TEX.GRASS_MEDIUM || texId === TILE_TEX.GRASS_DRY || texId === TILE_TEX.FOREST_GROUND;
   }
@@ -1647,7 +1686,7 @@
     if (type!==3){
       const img = getTileImg(texId);
       if (img){
-        const r = tileVariantRect(img, tx, ty, texId);
+        const r = (texId === TILE_TEX.DIRT) ? atlasRectByIndex(dirtTileIndex(tx,ty)) : tileVariantRect(img, tx, ty, texId);
         if (r.sw && r.sh){
           ctx.drawImage(img, r.sx, r.sy, r.sw, r.sh, x-ox, y-oy, ox*2, oy*2);
         }
@@ -3412,6 +3451,11 @@
   window.OURender.isExp1Ready = isExp1Ready;
   window.OURender.getExp1Frame0 = getExp1Frame0;
 })();
+
+
+
+
+
 
 
 

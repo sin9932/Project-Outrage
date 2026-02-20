@@ -371,6 +371,45 @@
     ctx.drawImage(img, 0, 0, img.width, img.height, cx - isoX(), cy - isoY(), isoX()*2, isoY()*2);
   }
 
+  function pickRange(tx, ty, seed, start, end){
+    const n = Math.max(1, (end - start + 1));
+    const h = (tx*73856093) ^ (ty*19349663) ^ (seed*83492791);
+    return start + (Math.abs(h) % n);
+  }
+
+  function dirtTileIndex(tx, ty){
+    const base = tex[idx(tx,ty)];
+    const sameN = (ty > 0) ? (tex[idx(tx,ty-1)] === base) : true;
+    const sameS = (ty < H-1) ? (tex[idx(tx,ty+1)] === base) : true;
+    const sameW = (tx > 0) ? (tex[idx(tx-1,ty)] === base) : true;
+    const sameE = (tx < W-1) ? (tex[idx(tx+1,ty)] === base) : true;
+
+    if (!sameN && !sameE) return pickRange(tx, ty, 1, 21, 24);
+    if (!sameE && !sameS) return pickRange(tx, ty, 2, 25, 28);
+    if (!sameN && !sameW) return pickRange(tx, ty, 3, 29, 32);
+    if (!sameS && !sameW) return pickRange(tx, ty, 4, 33, 36);
+
+    if (sameE && sameW && !sameN && sameS) return pickRange(tx, ty, 5, 45, 46);
+    if (sameE && sameW && !sameS && sameN) return pickRange(tx, ty, 6, 51, 52);
+    if (sameN && sameS && !sameE && sameW) return pickRange(tx, ty, 7, 47, 48);
+    if (sameN && sameS && !sameW && sameE) return pickRange(tx, ty, 8, 49, 50);
+
+    if (!sameS && sameN && sameE && sameW) return pickRange(tx, ty, 9, 37, 38);
+    if (!sameW && sameN && sameE && sameS) return pickRange(tx, ty, 10, 39, 40);
+    if (!sameE && sameN && sameS && sameW) return pickRange(tx, ty, 11, 41, 42);
+    if (!sameN && sameE && sameS && sameW) return pickRange(tx, ty, 12, 43, 44);
+
+    return pickRange(tx, ty, 13, 1, 20);
+  }
+
+  function atlasRectByIndex(idx1){
+    const i = Math.max(1, idx1) - 1;
+    const cols = Math.max(1, Math.floor(1024 / TILE_SRC_W));
+    const sx = (i % cols) * TILE_SRC_W;
+    const sy = Math.floor(i / cols) * TILE_SRC_H;
+    return { sx, sy, sw: TILE_SRC_W, sh: TILE_SRC_H };
+  }
+
   function drawTextureStamp(img, cx, cy, radius, offX, offY, alpha){
     const iw = img && img.width ? img.width : 0;
     const ih = img && img.height ? img.height : 0;
@@ -557,7 +596,13 @@ function edgeKey(texId, dir){
         const c0 = tileCenterScreen(x, y, ox, oy);
         const baseImg = textureForTile(x, y);
         if (baseImg){
+          if (tex[i] === TEX.DIRT) {
+          const di = dirtTileIndex(x, y);
+          const r = atlasRectByIndex(di);
+          ctx.drawImage(baseImg, r.sx, r.sy, r.sw, r.sh, c0.x - isoX(), c0.y - isoY(), isoX()*2, isoY()*2);
+        } else {
           drawDiamondImage(c0.x, c0.y, baseImg, x, y, tex[i]);
+        }
         } else {
           const fill = colors[t] || "#000";
           drawDiamondFill(c0.x, c0.y, fill);
@@ -979,6 +1024,11 @@ function edgeKey(texId, dir){
   setCanvasSize();
   render();
 });
+
+
+
+
+
 
 
 
