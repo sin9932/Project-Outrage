@@ -359,7 +359,7 @@
     g.fill();
 
     g.globalCompositeOperation = "destination-in";
-    const feather = Math.max(4, Math.round(Math.min(ISO_X, ISO_Y) * 0.35));
+    const feather = Math.max(6, Math.round(Math.min(ISO_X, ISO_Y) * 0.70));
     let grad;
     if (dir === "N"){
       grad = g.createLinearGradient(0, 0, 0, feather);
@@ -838,4 +838,5 @@
   setCanvasSize();
   render();
 });
+
 
