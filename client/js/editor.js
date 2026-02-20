@@ -336,7 +336,7 @@
     return texId + ":" + dir + ":" + view.zoom.toFixed(3);
   }
 
-    function getEdgeBlendCanvas(texId, dir){
+      function getEdgeBlendCanvas(texId, dir){
     const key = edgeKey(texId, dir);
     if (blendCache.has(key)) return blendCache.get(key);
     const path = texPaths[texId];
@@ -349,67 +349,60 @@
 
     const w = isoX() * 2;
     const h = isoY() * 2;
-    const feather = Math.max(8, Math.round(Math.min(isoX(), isoY()) * 0.85));
-    const blur = Math.max(4, Math.round(Math.min(isoX(), isoY()) * 0.25));
-    const pad = blur * 2;
-
     const cnv = document.createElement("canvas");
-    cnv.width = Math.ceil(w + pad * 2);
-    cnv.height = Math.ceil(h + pad * 2);
+    cnv.width = Math.ceil(w);
+    cnv.height = Math.ceil(h);
     const g = cnv.getContext("2d");
-
-    const cx = pad + w * 0.5;
-    const cy = pad + h * 0.5;
 
     // Project texture into diamond
     const a = isoX() / iw;
     const b = isoY() / iw;
     const cM = -isoX() / ih;
     const d = isoY() / ih;
-    g.setTransform(a, b, cM, d, cx, cy);
+    g.setTransform(a, b, cM, d, w * 0.5, h * 0.5);
     g.drawImage(img, -iw * 0.5, -ih * 0.5);
 
-    // Clip to diamond
     g.setTransform(1,0,0,1,0,0);
     g.globalCompositeOperation = "destination-in";
     g.beginPath();
-    g.moveTo(cx, cy - h * 0.5);
-    g.lineTo(cx + w * 0.5, cy);
-    g.lineTo(cx, cy + h * 0.5);
-    g.lineTo(cx - w * 0.5, cy);
+    g.moveTo(w * 0.5, 0);
+    g.lineTo(w, h * 0.5);
+    g.lineTo(w * 0.5, h);
+    g.lineTo(0, h * 0.5);
     g.closePath();
     g.fillStyle = "#fff";
     g.fill();
 
     // Soft edge mask (airbrush style)
     g.globalCompositeOperation = "destination-in";
+    const feather = Math.max(10, Math.round(Math.min(isoX(), isoY()) * 0.95));
+    const blur = Math.max(6, Math.round(Math.min(isoX(), isoY()) * 0.35));
     g.filter = `blur(${blur}px)`;
     let grad;
     if (dir === "N"){
-      grad = g.createLinearGradient(0, cy - h * 0.5, 0, cy - h * 0.5 + feather);
+      grad = g.createLinearGradient(0, 0, 0, feather);
       grad.addColorStop(0, "rgba(255,255,255,1)");
       grad.addColorStop(1, "rgba(255,255,255,0)");
     } else if (dir === "S"){
-      grad = g.createLinearGradient(0, cy + h * 0.5 - feather, 0, cy + h * 0.5);
+      grad = g.createLinearGradient(0, h - feather, 0, h);
       grad.addColorStop(0, "rgba(255,255,255,0)");
       grad.addColorStop(1, "rgba(255,255,255,1)");
     } else if (dir === "E"){
-      grad = g.createLinearGradient(cx + w * 0.5 - feather, 0, cx + w * 0.5, 0);
+      grad = g.createLinearGradient(w - feather, 0, w, 0);
       grad.addColorStop(0, "rgba(255,255,255,0)");
       grad.addColorStop(1, "rgba(255,255,255,1)");
     } else {
-      grad = g.createLinearGradient(cx - w * 0.5, 0, cx - w * 0.5 + feather, 0);
+      grad = g.createLinearGradient(0, 0, feather, 0);
       grad.addColorStop(0, "rgba(255,255,255,1)");
       grad.addColorStop(1, "rgba(255,255,255,0)");
     }
     g.fillStyle = grad;
-    g.fillRect(0, 0, cnv.width, cnv.height);
+    g.fillRect(0, 0, w, h);
     g.filter = "none";
     g.globalCompositeOperation = "source-over";
 
-    const out = { canvas: cnv, offX: pad, offY: pad };
-    blendCache.set(key, out);
-    return out;
+    blendCache.set(key, cnv);
+    return cnv;
   }
 
   function renderMini(){
@@ -503,10 +496,9 @@
             const nt = tex[ni];
             if (nt === texId) continue;
             if (!isBlendable(nt)) continue;
-            const edge = getEdgeBlendCanvas(texId, nb.dir);
+            const edge = getEdgeBlendCanvas(nt, nb.dir);
             if (edge){
-              const cn = tileCenterScreen(nx, ny, ox, oy);
-              ctx.drawImage(edge.canvas, cn.x - isoX() - edge.offX, cn.y - isoY() - edge.offY);
+              ctx.drawImage(edge, c0.x - isoX(), c0.y - isoY());
             }
           }
         }
@@ -890,6 +882,8 @@
   setCanvasSize();
   render();
 });
+
+
 
 
 
