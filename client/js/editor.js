@@ -539,6 +539,21 @@
       ctx.restore();
     }
 
+    if (DEBUG){
+      ctx.save();
+      ctx.setTransform(1,0,0,1,0,0);
+      ctx.fillStyle = "rgba(0,0,0,0.55)";
+      ctx.fillRect(12, 12, 360, 86);
+      ctx.fillStyle = "#9ef";
+      ctx.font = "12px monospace";
+      const hx = hoverTile ? hoverTile.tx : "-";
+      const hy = hoverTile ? hoverTile.ty : "-";
+      ctx.fillText(`ptr: ${lastPointer.x.toFixed(1)},${lastPointer.y.toFixed(1)}`, 20, 32);
+      ctx.fillText(`hover: ${hx},${hy}  paint:${painting} wheelLock:${wheelLock}`, 20, 48);
+      ctx.fillText(`zoom:${view.zoom.toFixed(2)} scroll:${right?right.scrollLeft:0},${right?right.scrollTop:0}`, 20, 64);
+      ctx.restore();
+    }
+
     renderMini();
   }
 
@@ -767,7 +782,22 @@
 
   if (right){
     right.addEventListener("scroll", () => {
-      renderMini();
+      if (DEBUG){
+      ctx.save();
+      ctx.setTransform(1,0,0,1,0,0);
+      ctx.fillStyle = "rgba(0,0,0,0.55)";
+      ctx.fillRect(12, 12, 360, 86);
+      ctx.fillStyle = "#9ef";
+      ctx.font = "12px monospace";
+      const hx = hoverTile ? hoverTile.tx : "-";
+      const hy = hoverTile ? hoverTile.ty : "-";
+      ctx.fillText(`ptr: ${lastPointer.x.toFixed(1)},${lastPointer.y.toFixed(1)}`, 20, 32);
+      ctx.fillText(`hover: ${hx},${hy}  paint:${painting} wheelLock:${wheelLock}`, 20, 48);
+      ctx.fillText(`zoom:${view.zoom.toFixed(2)} scroll:${right?right.scrollLeft:0},${right?right.scrollTop:0}`, 20, 64);
+      ctx.restore();
+    }
+
+    renderMini();
     });
   }
 
@@ -804,6 +834,7 @@
   setCanvasSize();
   render();
 });
+
 
 
 
