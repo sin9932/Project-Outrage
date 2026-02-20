@@ -491,17 +491,36 @@
     }
 
     if (hoverTile && !selecting){
-      const cH = tileCenterScreen(hoverTile.tx, hoverTile.ty, ox, oy);
       ctx.save();
-      ctx.globalAlpha = 0.35;
+      ctx.globalAlpha = 0.20;
       ctx.fillStyle = "rgba(0,200,255,0.35)";
-      drawDiamondFill(cH.x, cH.y, ctx.fillStyle);
-      ctx.restore();
-      ctx.save();
-      ctx.strokeStyle = "rgba(0,255,255,0.9)";
-      ctx.lineWidth = 2;
-      drawDiamondPath(cH.x, cH.y);
-      ctx.stroke();
+      const r = Math.max(0, brushRadius|0);
+      if (r === 0){
+        const cH = tileCenterScreen(hoverTile.tx, hoverTile.ty, ox, oy);
+        drawDiamondFill(cH.x, cH.y, ctx.fillStyle);
+        ctx.globalAlpha = 0.85;
+        ctx.strokeStyle = "rgba(0,255,255,0.9)";
+        ctx.lineWidth = 2;
+        drawDiamondPath(cH.x, cH.y);
+        ctx.stroke();
+      } else {
+        for (let dy=-r; dy<=r; dy++){
+          for (let dx=-r; dx<=r; dx++){
+            if (dx*dx + dy*dy > r*r) continue;
+            const tx = hoverTile.tx + dx;
+            const ty = hoverTile.ty + dy;
+            if (tx<0 || ty<0 || tx>=W || ty>=H) continue;
+            const cH = tileCenterScreen(tx, ty, ox, oy);
+            drawDiamondFill(cH.x, cH.y, ctx.fillStyle);
+          }
+        }
+        ctx.globalAlpha = 0.85;
+        ctx.strokeStyle = "rgba(0,255,255,0.9)";
+        ctx.lineWidth = 2;
+        const cH = tileCenterScreen(hoverTile.tx, hoverTile.ty, ox, oy);
+        drawDiamondPath(cH.x, cH.y);
+        ctx.stroke();
+      }
       ctx.restore();
     }
 
@@ -522,18 +541,14 @@
     renderMini();
   }
 
-  function paintAt(px, py){
-    const hit = screenToTile(px, py);
-    if (!hit) return false;
-    const { tx, ty } = hit;
+  function applyBrush(tx, ty){
+    if (tx<0 || ty<0 || tx>=W || ty>=H) return false;
     const i = idx(tx,ty);
-
     if (brush.kind === "road"){
       if (roads[i] === brush.road) return false;
       roads[i] = brush.road;
       return true;
     }
-
     let changed = false;
     if (terrain[i] !== brush.terrain){
       terrain[i] = brush.terrain;
@@ -542,6 +557,24 @@
     if (tex[i] !== brush.tex){
       tex[i] = brush.tex;
       changed = true;
+    }
+    return changed;
+  }
+
+  function paintAt(px, py){
+    const hit = screenToTile(px, py);
+    if (!hit) return false;
+    let changed = false;
+    const r = Math.max(0, brushRadius|0);
+    if (r === 0){
+      changed = applyBrush(hit.tx, hit.ty) || changed;
+    } else {
+      for (let dy=-r; dy<=r; dy++){
+        for (let dx=-r; dx<=r; dx++){
+          if (dx*dx + dy*dy > r*r) continue;
+          changed = applyBrush(hit.tx + dx, hit.ty + dy) || changed;
+        }
+      }
     }
     return changed;
   }
@@ -607,6 +640,7 @@
     const r = c.getBoundingClientRect();
     const px = e.clientX - r.left;
     const py = e.clientY - r.top;
+    if (wheelLock) return;
     if (e.shiftKey){
       selecting = true;
       selStart = screenToTile(px, py);
@@ -713,6 +747,18 @@
       pasteClipboard();
       return;
     }
+    if (key === "+" || key === "="){
+      e.preventDefault();
+      brushRadius = Math.min(8, brushRadius + 1);
+      render();
+      return;
+    }
+    if (key === "-"){
+      e.preventDefault();
+      brushRadius = Math.max(0, brushRadius - 1);
+      render();
+      return;
+    }
   });
 
   if (right){
@@ -725,8 +771,11 @@
     if (!right) return;
     e.preventDefault();
     wheelActive = true;
+    wheelLock = true;
     clearTimeout(wheelActive._t);
     wheelActive._t = setTimeout(()=>{ wheelActive = false; }, 120);
+    clearTimeout(wheelLock._t);
+    wheelLock._t = setTimeout(()=>{ wheelLock = false; }, 200);
 
     const delta = Math.sign(e.deltaY);
     const factor = (delta > 0) ? 0.90 : 1.10;
@@ -751,6 +800,8 @@
   setCanvasSize();
   render();
 });
+
+
 
 
 
