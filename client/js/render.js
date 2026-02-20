@@ -258,37 +258,51 @@
   }
 
   let canvas, ctx, cam, state, TEAM, MAP_W, MAP_H, TILE, ISO_X, ISO_Y;
-  let terrain, ore, explored, visible, BUILD, DEFENSE, BUILD_SPRITE, NAME_KO, POWER;
+  let terrain, tex, ore, explored, visible, BUILD, DEFENSE, BUILD_SPRITE, NAME_KO, POWER;
   let worldToScreen, tileToWorldCenter, idx, inMap, clamp, getEntityById;
 
-  // Terrain textures (optional)
-  const GRASS_TEX_PNG = "asset/sprite/map/grass1.jpg";
-  const SAND_TEX_PNG = "asset/sprite/map/sand1.jpg";
+  // Terrain textures (tiles + water)
+  const TILE_SRC_W = 128;
+  const TILE_SRC_H = 64;
+  const TILE_TEX = {
+    GRASS_GREEN: 1,
+    GRASS_MEDIUM: 2,
+    GRASS_DRY: 3,
+    FOREST_GROUND: 4,
+    SAND: 5,
+    DIRT: 6,
+    DIRT_DARK: 7,
+    STONE_PATH: 8,
+    WATER1: 9,
+    WATER2: 10
+  };
+  const TILE_TEX_PNG = {
+    [TILE_TEX.GRASS_GREEN]: "asset/sprite/map/grass_green_128x64.png",
+    [TILE_TEX.GRASS_MEDIUM]: "asset/sprite/map/grass_medium_128x64.png",
+    [TILE_TEX.GRASS_DRY]: "asset/sprite/map/grass_dry_128x64.png",
+    [TILE_TEX.FOREST_GROUND]: "asset/sprite/map/forest_ground_128x64.png",
+    [TILE_TEX.SAND]: "asset/sprite/map/sand_128x64.png",
+    [TILE_TEX.DIRT]: "asset/sprite/map/dirt_128x64.png",
+    [TILE_TEX.DIRT_DARK]: "asset/sprite/map/dirt_dark_128x64.png",
+    [TILE_TEX.STONE_PATH]: "asset/sprite/map/stone_path_128x64.png",
+    [TILE_TEX.WATER1]: "asset/sprite/map/water.jpg",
+    [TILE_TEX.WATER2]: "asset/sprite/map/water2.jpg"
+  };
+  const TILE_TEX_IMG = {};
+  const TRANS_GRASS_SAND = Array.from({length:16}, (_,i)=>("asset/sprite/map/transitions/grass_over_sand_" + String(i).padStart(2,"0") + ".png"));
+  const TRANS_IMG = {};
+
   const WATER_TEX_PNG = "asset/sprite/map/water.jpg";
   const WATER_TEX2_PNG = "asset/sprite/map/water2.jpg";
   const WATER_NORM_PNG = "asset/sprite/map/water_normal.jpg";
-  let GRASS_TEX_IMG = null;
-  let SAND_TEX_IMG = null;
   let WATER_TEX_IMG = null;
   let WATER_TEX2_IMG = null;
   let WATER_NORM_IMG = null;
-  let GRASS_TEX_PAT = null;
-  let SAND_TEX_PAT = null;
   let WATER_TEX_PAT = null;
   let WATER_TEX2_PAT = null;
   let WATER_NORM_PAT = null;
 
   function ensureWaterPatterns(ctx){
-    if (!GRASS_TEX_IMG){
-      GRASS_TEX_IMG = new Image();
-      GRASS_TEX_IMG.onload = ()=>{ GRASS_TEX_PAT = null; };
-      GRASS_TEX_IMG.src = GRASS_TEX_PNG;
-    }
-    if (!SAND_TEX_IMG){
-      SAND_TEX_IMG = new Image();
-      SAND_TEX_IMG.onload = ()=>{ SAND_TEX_PAT = null; };
-      SAND_TEX_IMG.src = SAND_TEX_PNG;
-    }
     if (!WATER_TEX_IMG){
       WATER_TEX_IMG = new Image();
       WATER_TEX_IMG.onload = ()=>{ WATER_TEX_PAT = null; };
@@ -304,12 +318,6 @@
       WATER_NORM_IMG.onload = ()=>{ WATER_NORM_PAT = null; };
       WATER_NORM_IMG.src = WATER_NORM_PNG;
     }
-    if (GRASS_TEX_IMG && GRASS_TEX_IMG.complete && !GRASS_TEX_PAT){
-      GRASS_TEX_PAT = ctx.createPattern(GRASS_TEX_IMG, "repeat");
-    }
-    if (SAND_TEX_IMG && SAND_TEX_IMG.complete && !SAND_TEX_PAT){
-      SAND_TEX_PAT = ctx.createPattern(SAND_TEX_IMG, "repeat");
-    }
     if (WATER_TEX_IMG && WATER_TEX_IMG.complete && !WATER_TEX_PAT){
       WATER_TEX_PAT = ctx.createPattern(WATER_TEX_IMG, "repeat");
     }
@@ -321,40 +329,57 @@
     }
   }
 
-  let REPAIR_WRENCH_IMG, repairWrenches;
-  let exp1Fxs;
-  let smokeWaves, smokePuffs, dustPuffs, dmgSmokePuffs, bloodStains, bloodPuffs;
-  let explosions;
-  let drawBuildingSprite;
-  let getTeamCroppedSprite;
-  let INF_DIE_IMG, SNIP_DIE_IMG;
-  let infDeathFxs, snipDeathFxs;
-  let INF_SPRITE_SCALE;
-  let INF_IMG, INF_ATK_IMG;
-  let INF_MOV_IMG, INF_MOV_NE_IMG, INF_MOV_N_IMG, INF_MOV_NW_IMG, INF_MOV_W_IMG, INF_MOV_SW_IMG, INF_MOV_S_IMG, INF_MOV_SE_IMG;
-  let SNIP_IMG;
-  let SNIP_MOV_IMG, SNIP_MOV_NE_IMG, SNIP_MOV_N_IMG, SNIP_MOV_NW_IMG, SNIP_MOV_W_IMG, SNIP_MOV_SW_IMG, SNIP_MOV_S_IMG, SNIP_MOV_SE_IMG;
-  let INF_IDLE_ATLAS;
-  const ASSET_REF = (typeof window !== "undefined" && window.ASSET) ? window.ASSET : null;
-
-  // === Construction Yard (HQ) sprite (5x5 footprint) ===
-  let CON_YARD_PNG = (ASSET_REF && ASSET_REF.sprite && ASSET_REF.sprite.const && ASSET_REF.sprite.const.normal)
-    ? ASSET_REF.sprite.const.normal.con_yard
-    : "";
-  const CON_YARD_IMG = new Image();
-  if (CON_YARD_PNG) CON_YARD_IMG.src = CON_YARD_PNG;
-
-  // === Sprite tuning knobs (YOU edit these) ===
-  // pivotNudge is in SOURCE pixels (bbox-space, before scaling).
-  // offsetNudge is in SCREEN pixels (after scaling, before zoom).
-  // anchor: "center" to stick the sprite to the 5x5 footprint center (what you asked).
-  const SPRITE_TUNE = {
-    hq: {
-      anchor: "center",
-      scaleMul: 1.20,
-      pivotNudge: { x: 0, y: 0 },
-      offsetNudge:{ x: 94, y: -26 }
+  function getTileImg(texId){
+    const path = TILE_TEX_PNG[texId];
+    if (!path) return null;
+    if (!TILE_TEX_IMG[path]){
+      const img = new Image();
+      img.src = path;
+      TILE_TEX_IMG[path] = img;
     }
+    const img = TILE_TEX_IMG[path];
+    if (img && img.complete) return img;
+    return null;
+  }
+
+  function getTransitionImg(mask){
+    const path = TRANS_GRASS_SAND[mask];
+    if (!path) return null;
+    if (!TRANS_IMG[path]){
+      const img = new Image();
+      img.src = path;
+      TRANS_IMG[path] = img;
+    }
+    const img = TRANS_IMG[path];
+    if (img && img.complete) return img;
+    return null;
+  }
+
+  function tileVariantRect(img, tx, ty, texId){
+    const iw = img && img.width ? img.width : 0;
+    const ih = img && img.height ? img.height : 0;
+    if (!iw || !ih) return { sx:0, sy:0, sw:0, sh:0 };
+    const cols = Math.max(1, Math.floor(iw / TILE_SRC_W));
+    const rows = Math.max(1, Math.floor(ih / TILE_SRC_H));
+    const count = cols * rows;
+    const h = (tx*73856093) ^ (ty*19349663) ^ (texId*83492791);
+    const idx = Math.abs(h) % count;
+    const sx = (idx % cols) * TILE_SRC_W;
+    const sy = Math.floor(idx / cols) * TILE_SRC_H;
+    return { sx, sy, sw: TILE_SRC_W, sh: TILE_SRC_H };
+  }
+
+  function isGrassLike(texId){
+    return texId === TILE_TEX.GRASS_GREEN || texId === TILE_TEX.GRASS_MEDIUM || texId === TILE_TEX.GRASS_DRY || texId === TILE_TEX.FOREST_GROUND;
+  }
+
+  function tileTexAt(tx, ty){
+    if (tex && tex.length) return tex[idx(tx,ty)]|0;
+    const t = terrain[idx(tx,ty)];
+    if (t===1) return TILE_TEX.SAND;
+    if (t===2) return TILE_TEX.STONE_PATH;
+    if (t===3) return TILE_TEX.WATER1;
+    return TILE_TEX.GRASS_GREEN;
   };
 
   // expose to module-backed building sprites
@@ -860,7 +885,7 @@
   function bindEnv(env){
     canvas = env.canvas; ctx = env.ctx; cam = env.cam; state = env.state;
     TEAM = env.TEAM; MAP_W = env.MAP_W; MAP_H = env.MAP_H; TILE = env.TILE; ISO_X = env.ISO_X; ISO_Y = env.ISO_Y;
-    terrain = env.terrain; ore = env.ore; explored = env.explored; visible = env.visible;
+    terrain = env.terrain; tex = env.tex; ore = env.ore; explored = env.explored; visible = env.visible;
     BUILD = env.BUILD; DEFENSE = env.DEFENSE; BUILD_SPRITE = env.BUILD_SPRITE || BUILD_SPRITE_LOCAL; NAME_KO = env.NAME_KO; POWER = env.POWER;
     worldToScreen = env.worldToScreen; tileToWorldCenter = env.tileToWorldCenter; idx = env.idx; inMap = env.inMap;
     clamp = env.clamp; getEntityById = env.getEntityById;
@@ -1602,6 +1627,8 @@
     const p=worldToScreen(wx,wy);
     const x=p.x, y=p.y;
 
+    const texId = tileTexAt(tx,ty);
+
     ctx.beginPath();
     const ox=ISO_X*cam.zoom, oy=ISO_Y*cam.zoom;
 
@@ -1617,16 +1644,35 @@
     ctx.fillStyle = base;
     ctx.fill();
 
-    if (type===0 || type===1){
-      ensureWaterPatterns(ctx);
-      const pat = (type===1) ? SAND_TEX_PAT : GRASS_TEX_PAT;
-      if (pat){
-        ctx.save();
-        ctx.clip();
-        ctx.globalAlpha = 0.55;
-        ctx.fillStyle = pat;
-        ctx.fillRect(x-ox-256, y-oy-256, (ox+256)*2, (oy+256)*2);
-        ctx.restore();
+    if (type!==3){
+      const img = getTileImg(texId);
+      if (img){
+        const r = tileVariantRect(img, tx, ty, texId);
+        if (r.sw && r.sh){
+          ctx.drawImage(img, r.sx, r.sy, r.sw, r.sh, x-ox, y-oy, ox*2, oy*2);
+        }
+      }
+      if (texId === TILE_TEX.SAND){
+        let mask = 0;
+        const n = [
+          { dx: 0, dy: -1, bit: 1 },
+          { dx: 1, dy: 0, bit: 2 },
+          { dx: 0, dy: 1, bit: 4 },
+          { dx: -1, dy: 0, bit: 8 }
+        ];
+        for (const nb of n){
+          const nx = tx + nb.dx;
+          const ny = ty + nb.dy;
+          if (!inMap(nx,ny)) continue;
+          const nt = tileTexAt(nx,ny);
+          if (isGrassLike(nt)) mask |= nb.bit;
+        }
+        if (mask){
+          const tImg = getTransitionImg(mask);
+          if (tImg){
+            ctx.drawImage(tImg, 0, 0, tImg.width, tImg.height, x-ox, y-oy, ox*2, oy*2);
+          }
+        }
       }
     }
     if (type===3){
@@ -3366,6 +3412,17 @@
   window.OURender.isExp1Ready = isExp1Ready;
   window.OURender.getExp1Frame0 = getExp1Frame0;
 })();
+
+
+
+
+
+
+
+
+
+
+
 
 
 

@@ -18,8 +18,8 @@
   let W = Math.max(4, parseInt(qs.get("mapw") || mapWEl.value, 10));
   let H = Math.max(4, parseInt(qs.get("maph") || mapHEl.value, 10));
 
-  const ISO_X = parseFloat(qs.get("isox") || "55");
-  const ISO_Y = parseFloat(qs.get("isoy") || "27.5");
+  const ISO_X = parseFloat(qs.get("isox") || "64");
+  const ISO_Y = parseFloat(qs.get("isoy") || "32");
 
   mapWEl.value = W;
   mapHEl.value = H;
@@ -36,13 +36,16 @@
   };
 
   const TEX = {
-    GRASS: 1,
-    SAND: 2,
-    BREEK1: 3,
-    BREEK2: 4,
-    WATER1: 5,
-    WATER2: 6,
-    ORE: 7
+    GRASS_GREEN: 1,
+    GRASS_MEDIUM: 2,
+    GRASS_DRY: 3,
+    FOREST_GROUND: 4,
+    SAND: 5,
+    DIRT: 6,
+    DIRT_DARK: 7,
+    STONE_PATH: 8,
+    WATER1: 9,
+    WATER2: 10
   };
 
   const ROAD = {
@@ -54,13 +57,16 @@
   };
 
   const texPaths = {
-    [TEX.GRASS]: "asset/sprite/map/grass1.jpg",
-    [TEX.SAND]: "asset/sprite/map/sand1.jpg",
-    [TEX.BREEK1]: "asset/sprite/map/breek_tile1.jpg",
-    [TEX.BREEK2]: "asset/sprite/map/breek_tile2.jpg",
+    [TEX.GRASS_GREEN]: "asset/sprite/map/grass_green_128x64.png",
+    [TEX.GRASS_MEDIUM]: "asset/sprite/map/grass_medium_128x64.png",
+    [TEX.GRASS_DRY]: "asset/sprite/map/grass_dry_128x64.png",
+    [TEX.FOREST_GROUND]: "asset/sprite/map/forest_ground_128x64.png",
+    [TEX.SAND]: "asset/sprite/map/sand_128x64.png",
+    [TEX.DIRT]: "asset/sprite/map/dirt_128x64.png",
+    [TEX.DIRT_DARK]: "asset/sprite/map/dirt_dark_128x64.png",
+    [TEX.STONE_PATH]: "asset/sprite/map/stone_path_128x64.png",
     [TEX.WATER1]: "asset/sprite/map/water.jpg",
-    [TEX.WATER2]: "asset/sprite/map/water2.jpg",
-    [TEX.ORE]: "asset/sprite/map/sand1.jpg"
+    [TEX.WATER2]: "asset/sprite/map/water2.jpg"
   };
 
   const roadPaths = {
@@ -85,15 +91,21 @@
   const texImgs = {};
   const texPats = {};
   const blendCache = new Map();
+  const TILE_SRC_W = 128;
+  const TILE_SRC_H = 64;
+  const TRANS_GRASS_SAND = Array.from({length:16}, (_,i)=>('asset/sprite/map/transitions/grass_over_sand_' + String(i).padStart(2,'0') + '.png'));
 
   const brushDefs = {
-    grass:   { kind: "terrain", terrain: 0, tex: TEX.GRASS },
-    sand:    { kind: "terrain", terrain: 1, tex: TEX.SAND },
-    breek1:  { kind: "terrain", terrain: 1, tex: TEX.BREEK1 },
-    breek2:  { kind: "terrain", terrain: 1, tex: TEX.BREEK2 },
-    ore:     { kind: "terrain", terrain: 2, tex: TEX.ORE },
-    water1:  { kind: "terrain", terrain: 3, tex: TEX.WATER1 },
-    water2:  { kind: "terrain", terrain: 3, tex: TEX.WATER2 },
+    grass_green:  { kind: "terrain", terrain: 0, tex: TEX.GRASS_GREEN },
+    grass_medium: { kind: "terrain", terrain: 0, tex: TEX.GRASS_MEDIUM },
+    grass_dry:    { kind: "terrain", terrain: 0, tex: TEX.GRASS_DRY },
+    forest:       { kind: "terrain", terrain: 0, tex: TEX.FOREST_GROUND },
+    sand:         { kind: "terrain", terrain: 1, tex: TEX.SAND },
+    dirt:         { kind: "terrain", terrain: 0, tex: TEX.DIRT },
+    dirt_dark:    { kind: "terrain", terrain: 0, tex: TEX.DIRT_DARK },
+    stone:        { kind: "terrain", terrain: 2, tex: TEX.STONE_PATH },
+    water1:       { kind: "terrain", terrain: 3, tex: TEX.WATER1 },
+    water2:       { kind: "terrain", terrain: 3, tex: TEX.WATER2 },
     road1:   { kind: "road", road: ROAD.R1 },
     road2:   { kind: "road", road: ROAD.R2 },
     road3:   { kind: "road", road: ROAD.R3 },
@@ -113,7 +125,7 @@
     road_clear: { kind: "road", road: ROAD.CLEAR }
   };
 
-  let brush = brushDefs.grass;
+  let brush = brushDefs.grass_green;
   let painting = false;
   let wheelActive = false;
   let wheelLock = false;
@@ -325,34 +337,41 @@
     return { x: j.ox * img.width, y: j.oy * img.height };
   }
 
-  function drawDiamondImage(cx, cy, img, offX, offY){
+  function _tileVariantRect(img, tx, ty, texId){
+    const iw = img && img.width ? img.width : 0;
+    const ih = img && img.height ? img.height : 0;
+    if (!iw || !ih) return { sx: 0, sy: 0, sw: 0, sh: 0 };
+    const cols = Math.max(1, Math.floor(iw / TILE_SRC_W));
+    const rows = Math.max(1, Math.floor(ih / TILE_SRC_H));
+    const count = cols * rows;
+    const h = (tx*73856093) ^ (ty*19349663) ^ (texId*83492791);
+    const idx = Math.abs(h) % count;
+    const sx = (idx % cols) * TILE_SRC_W;
+    const sy = Math.floor(idx / cols) * TILE_SRC_H;
+    return { sx, sy, sw: TILE_SRC_W, sh: TILE_SRC_H };
+  }
+
+  function drawDiamondImage(cx, cy, img, tx, ty, texId){
     const iw = img && img.width ? img.width : 0;
     const ih = img && img.height ? img.height : 0;
     if (!iw || !ih){
       drawDiamondFill(cx, cy, "#000");
       return;
     }
-    const ox = offX || 0;
-    const oy = offY || 0;
-    const pad = 0.65;
-    ctx.beginPath();
-    ctx.moveTo(cx, cy - (isoY() + pad));
-    ctx.lineTo(cx + (isoX() + pad), cy);
-    ctx.lineTo(cx, cy + (isoY() + pad));
-    ctx.lineTo(cx - (isoX() + pad), cy);
-    ctx.closePath();
-    ctx.save();
-    ctx.clip();
-    const a = isoX() / iw;
-    const b = isoY() / iw;
-    const cM = -isoX() / ih;
-    const d = isoY() / ih;
-    ctx.setTransform(a, b, cM, d, cx, cy);
-    ctx.drawImage(img, -iw * 0.5 + ox, -ih * 0.5 + oy);
-    ctx.restore();
+    const r = _tileVariantRect(img, tx, ty, texId);
+    if (!r.sw || !r.sh){
+      drawDiamondFill(cx, cy, "#000");
+      return;
+    }
+    ctx.drawImage(img, r.sx, r.sy, r.sw, r.sh, cx - isoX(), cy - isoY(), isoX()*2, isoY()*2);
   }
 
-    function drawTextureStamp(img, cx, cy, radius, offX, offY, alpha){
+  function drawTileOverlay(cx, cy, img){
+    if (!img || !img.width || !img.height) return;
+    ctx.drawImage(img, 0, 0, img.width, img.height, cx - isoX(), cy - isoY(), isoX()*2, isoY()*2);
+  }
+
+  function drawTextureStamp(img, cx, cy, radius, offX, offY, alpha){
     const iw = img && img.width ? img.width : 0;
     const ih = img && img.height ? img.height : 0;
     if (!iw || !ih) return;
@@ -406,25 +425,36 @@
   }
 
   function isBrick(texId){
-    return texId === TEX.BREEK1 || texId === TEX.BREEK2;
+    return false;
   }
 
   function isBlendable(texId){
-    return texId !== 0 && !isBrick(texId);
+    return texId !== 0;
+  }
+
+  function isGrassLike(texId){
+    return texId === TEX.GRASS_GREEN || texId === TEX.GRASS_MEDIUM || texId === TEX.GRASS_DRY || texId === TEX.FOREST_GROUND;
+  }
+
+  function getTransitionImg(mask){
+    const path = TRANS_GRASS_SAND[mask];
+    return getImage(path);
   }
 
   
 function texPriority(texId){
-  // Higher number = dominates and blends over lower-priority terrain
   switch (texId){
     case TEX.WATER2: return 60;
     case TEX.WATER1: return 55;
-    case TEX.BREEK2: return 45;
-    case TEX.BREEK1: return 42;
-    case TEX.ORE:    return 25;
-    case TEX.SAND:   return 20;
-    case TEX.GRASS:  return 10;
-    default:         return 0;
+    case TEX.STONE_PATH: return 40;
+    case TEX.DIRT_DARK: return 30;
+    case TEX.DIRT: return 28;
+    case TEX.SAND: return 20;
+    case TEX.FOREST_GROUND: return 18;
+    case TEX.GRASS_DRY: return 16;
+    case TEX.GRASS_MEDIUM: return 14;
+    case TEX.GRASS_GREEN: return 12;
+    default: return 0;
   }
 }
 
@@ -527,8 +557,7 @@ function edgeKey(texId, dir){
         const c0 = tileCenterScreen(x, y, ox, oy);
         const baseImg = textureForTile(x, y);
         if (baseImg){
-          const jit = _tileJitterPx(x, y, tex[i], baseImg);
-          drawDiamondImage(c0.x, c0.y, baseImg, jit.x, jit.y);
+          drawDiamondImage(c0.x, c0.y, baseImg, x, y, tex[i]);
         } else {
           const fill = colors[t] || "#000";
           drawDiamondFill(c0.x, c0.y, fill);
@@ -545,17 +574,18 @@ function edgeKey(texId, dir){
         if (roadImg){
           ctx.save();
           ctx.globalAlpha = 0.95;
-          drawDiamondImage(c0.x, c0.y, roadImg);
+          drawDiamondImage(c0.x, c0.y, roadImg, x, y, 0);
           ctx.restore();
         }
 
         const texId = tex[i];
-        if (isBlendable(texId) && roads[i] === 0){
+        if (texId === TEX.SAND && roads[i] === 0){
+          let mask = 0;
           const n = [
-            { dx: 0, dy: -1, dir: "N" },
-            { dx: 1, dy: 0, dir: "E" },
-            { dx: 0, dy: 1, dir: "S" },
-            { dx: -1, dy: 0, dir: "W" }
+            { dx: 0, dy: -1, bit: 1 },
+            { dx: 1, dy: 0, bit: 2 },
+            { dx: 0, dy: 1, bit: 4 },
+            { dx: -1, dy: 0, bit: 8 }
           ];
           for (const nb of n){
             const nx = x + nb.dx;
@@ -563,20 +593,11 @@ function edgeKey(texId, dir){
             if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue;
             const ni = idx(nx, ny);
             if (roads[ni] !== 0) continue;
-            const nt = tex[ni];
-            if (nt === texId) continue;
-            if (!isBlendable(nt)) continue;
-            // Prevent double-blending: only blend higher-priority neighbor over this tile
-            if (texPriority(nt) <= texPriority(texId)) continue;
-            const edge = getEdgeBlendCanvas(nt, nb.dir, x, y);
-            if (edge){
-              ctx.save();
-              ctx.globalAlpha = 0.72;
-              ctx.drawImage(edge, c0.x - isoX(), c0.y - isoY());
-              ctx.restore();
-            }
-            const ntImg = getImage(texPaths[nt]);
-            drawEdgeDecals(c0.x, c0.y, x, y, nt, nb.dir, ntImg);
+            if (isGrassLike(tex[ni])) mask |= nb.bit;
+          }
+          if (mask){
+            const tImg = getTransitionImg(mask);
+            if (tImg) drawTileOverlay(c0.x, c0.y, tImg);
           }
         }
 
@@ -759,9 +780,9 @@ function edgeKey(texId, dir){
       for (let x=0; x<W; x++){
         const i = idx(x,y);
         const t = terrain[i];
-        if (t === 0) tex[i] = TEX.GRASS;
+        if (t === 0) tex[i] = TEX.GRASS_GREEN;
         else if (t === 1) tex[i] = TEX.SAND;
-        else if (t === 2) tex[i] = TEX.ORE;
+        else if (t === 2) tex[i] = TEX.STONE_PATH;
         else if (t === 3) tex[i] = TEX.WATER1;
       }
     }
@@ -839,7 +860,7 @@ function edgeKey(texId, dir){
       brushBtns.forEach(b=>b.classList.remove("active"));
       btn.classList.add("active");
       const key = btn.dataset.brush;
-      brush = brushDefs[key] || brushDefs.grass;
+      brush = brushDefs[key] || brushDefs.grass_green;
     });
   });
 
@@ -958,6 +979,17 @@ function edgeKey(texId, dir){
   setCanvasSize();
   render();
 });
+
+
+
+
+
+
+
+
+
+
+
 
 
 

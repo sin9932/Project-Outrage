@@ -312,7 +312,7 @@ function fitMini() {
 
   const controlGroups = Array.from({length:10}, ()=>[]);
 
-  const terrain = new Uint8Array(MAP_W*MAP_H); // 0 ground, 1 rock, 2 ore
+  const terrain = new Uint8Array(MAP_W*MAP_H); // 0 ground, 1 rock, 2 ore\n  const tex = new Uint16Array(MAP_W*MAP_H);
   const ore = new Uint16Array(MAP_W*MAP_H);
   const buildOcc = new Uint8Array(MAP_W*MAP_H); // 1=blocked
   const idx = (tx,ty)=> ty*MAP_W + tx;
@@ -4771,7 +4771,7 @@ function draw(){
     if (window.OURender && typeof window.OURender.draw === "function"){
       window.OURender.draw({
         canvas, ctx, cam, state, TEAM, MAP_W, MAP_H, TILE, ISO_X, ISO_Y,
-        terrain, ore, explored, visible, BUILD, DEFENSE, NAME_KO,
+        terrain, tex, ore, explored, visible, BUILD, DEFENSE, NAME_KO,
         units, buildings, bullets, traces, impacts, fires, healMarks, flashes, casings,
         gameOver, POWER,
         updateMoney: (__ou_ui && typeof __ou_ui.updateMoney === "function") ? __ou_ui.updateMoney : null,
@@ -5399,6 +5399,12 @@ window.unboardIFV = tryUnloadIFV;
 window.resolveUnitOverlaps = resolveUnitOverlaps;
 
 })();
+
+
+
+
+
+
 
 
 
