@@ -1686,7 +1686,7 @@
     if (type!==3){
       const img = getTileImg(texId);
       if (img){
-        const r = (texId === TILE_TEX.DIRT) ? atlasRectByIndex(dirtTileIndex(tx,ty)) : tileVariantRect(img, tx, ty, texId);
+        const r = (texId === TILE_TEX.DIRT)          ? atlasRectByIndex(dirtTileIndex(tx,ty))          : (isGrassLike(texId) ? atlasRectByIndex(grassTileIndex(tx,ty)) : tileVariantRect(img, tx, ty, texId));
         if (r.sw && r.sh){
           ctx.drawImage(img, r.sx, r.sy, r.sw, r.sh, x-ox, y-oy, ox*2, oy*2);
         }
@@ -3451,6 +3451,8 @@
   window.OURender.isExp1Ready = isExp1Ready;
   window.OURender.getExp1Frame0 = getExp1Frame0;
 })();
+
+
 
 
 
