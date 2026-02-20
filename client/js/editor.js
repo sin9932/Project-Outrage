@@ -486,13 +486,13 @@
           ctx.restore();
         }
 
-        const texId = tex[i];
+                const texId = tex[i];
         if (isBlendable(texId) && roads[i] === 0){
           const n = [
-            { dx: 0, dy: -1, dir: "N" },
-            { dx: 1, dy: 0, dir: "E" },
-            { dx: 0, dy: 1, dir: "S" },
-            { dx: -1, dy: 0, dir: "W" }
+            { dx: 0, dy: -1, dir: "S" },
+            { dx: 1, dy: 0, dir: "W" },
+            { dx: 0, dy: 1, dir: "N" },
+            { dx: -1, dy: 0, dir: "E" }
           ];
           for (const nb of n){
             const nx = x + nb.dx;
@@ -503,9 +503,10 @@
             const nt = tex[ni];
             if (nt === texId) continue;
             if (!isBlendable(nt)) continue;
-            const edge = getEdgeBlendCanvas(nt, nb.dir);
+            const edge = getEdgeBlendCanvas(texId, nb.dir);
             if (edge){
-              ctx.drawImage(edge.canvas, c0.x - isoX() - edge.offX, c0.y - isoY() - edge.offY);
+              const cn = tileCenterScreen(nx, ny, ox, oy);
+              ctx.drawImage(edge.canvas, cn.x - isoX() - edge.offX, cn.y - isoY() - edge.offY);
             }
           }
         }
@@ -889,6 +890,7 @@
   setCanvasSize();
   render();
 });
+
 
 
 
