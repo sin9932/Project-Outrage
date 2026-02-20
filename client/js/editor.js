@@ -25,7 +25,7 @@
   mapHEl.value = H;
 
   let terrain = new Uint8Array(W * H);
-  let tex = new Uint16Array(W * H);
+  let tex = new Uint16Array(W * H);  tex.fill(TEX.GRASS_GREEN);
   let roads = new Uint8Array(W * H);
 
   const colors = {
@@ -209,7 +209,7 @@
 
   function resizeMap(nw, nh){
     const nTerrain = new Uint8Array(nw*nh);
-    const nTex = new Uint16Array(nw*nh);
+    const nTex = new Uint16Array(nw*nh);    nTex.fill(TEX.GRASS_GREEN);
     const nRoads = new Uint8Array(nw*nh);
     const minW = Math.min(W, nw);
     const minH = Math.min(H, nh);
@@ -1024,6 +1024,8 @@ function edgeKey(texId, dir){
   setCanvasSize();
   render();
 });
+
+
 
 
 
