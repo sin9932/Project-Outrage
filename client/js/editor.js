@@ -314,8 +314,8 @@
 
   function _tileJitter(tx, ty, texId){
     const rnd = _tileRand(tx, ty, texId, 1);
-    const ox = (rnd() - 0.5) * 0.08; // texture-space offset fraction
-    const oy = (rnd() - 0.5) * 0.08;
+    const ox = 0; // texture-space offset fraction
+    const oy = 0;
     return { ox, oy };
   }
 
@@ -334,7 +334,13 @@
     }
     const ox = offX || 0;
     const oy = offY || 0;
-    drawDiamondPath(cx, cy);
+    const pad = 0.65;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy - (isoY() + pad));
+    ctx.lineTo(cx + (isoX() + pad), cy);
+    ctx.lineTo(cx, cy + (isoY() + pad));
+    ctx.lineTo(cx - (isoX() + pad), cy);
+    ctx.closePath();
     ctx.save();
     ctx.clip();
     const a = isoX() / iw;
@@ -366,6 +372,7 @@
   }
 
   function drawEdgeDecals(cx, cy, tx, ty, texId, dir, img){
+    return;
     if (!img) return;
     const rnd = _tileRand(tx, ty, texId, dir.charCodeAt(0));
     const count = 2 + ((rnd()*3)|0);
@@ -931,6 +938,8 @@
   setCanvasSize();
   render();
 });
+
+
 
 
 
