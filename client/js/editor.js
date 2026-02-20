@@ -314,9 +314,15 @@
 
   function _tileJitter(tx, ty, texId){
     const rnd = _tileRand(tx, ty, texId, 1);
-    const ox = (rnd() - 0.5) * 0.12; // texture-space offset fraction
-    const oy = (rnd() - 0.5) * 0.12;
+    const ox = (rnd() - 0.5) * 0.08; // texture-space offset fraction
+    const oy = (rnd() - 0.5) * 0.08;
     return { ox, oy };
+  }
+
+  function _tileJitterPx(tx, ty, texId, img){
+    if (!img || !img.width || !img.height) return { x: 0, y: 0 };
+    const j = _tileJitter(tx, ty, texId);
+    return { x: j.ox * img.width, y: j.oy * img.height };
   }
 
   function drawDiamondImage(cx, cy, img, offX, offY){
@@ -925,6 +931,7 @@
   setCanvasSize();
   render();
 });
+
 
 
 
