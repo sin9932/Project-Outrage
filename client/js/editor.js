@@ -115,6 +115,7 @@
 
   let brush = brushDefs.grass;
   let painting = false;
+  let wheelActive = false;
   let selecting = false;
   let selStart = null;
   let selEnd = null;
@@ -323,8 +324,8 @@
     const img = getImage(path);
     if (!img){ blendCache.set(key, null); return null; }
 
-    const w = isoX() * 2;
-    const h = isoY() * 2;
+    const w = ISO_X * 2;
+    const h = ISO_Y * 2;
     const cnv = document.createElement("canvas");
     cnv.width = Math.ceil(w);
     cnv.height = Math.ceil(h);
@@ -342,7 +343,7 @@
     g.fill();
 
     g.globalCompositeOperation = "destination-in";
-    const feather = Math.max(4, Math.round(Math.min(isoX(), isoY()) * 0.35));
+    const feather = Math.max(4, Math.round(Math.min(ISO_X, ISO_Y) * 0.35));
     let grad;
     if (dir === "N"){
       grad = g.createLinearGradient(0, 0, 0, feather);
@@ -465,7 +466,7 @@
             if (!isBlendable(nt)) continue;
             const edge = getEdgeBlendCanvas(nt, nb.dir);
             if (edge){
-              ctx.drawImage(edge, c0.x - isoX(), c0.y - isoY());
+              ctx.drawImage(edge, c0.x - ISO_X, c0.y - ISO_Y, ISO_X*2, ISO_Y*2);
             }
           }
         }
@@ -603,6 +604,7 @@
       return;
     }
 
+    if (wheelActive) return;
     painting = true;
     c.setPointerCapture(e.pointerId);
     pushUndo();
@@ -707,9 +709,13 @@
     });
   }
 
-  c.addEventListener("wheel", (e)=>{
+    c.addEventListener("wheel", (e)=>{
     if (!right) return;
     e.preventDefault();
+    wheelActive = true;
+    clearTimeout(wheelActive._t);
+    wheelActive._t = setTimeout(()=>{ wheelActive = false; }, 120);
+
     const delta = Math.sign(e.deltaY);
     const factor = (delta > 0) ? 0.90 : 1.10;
     const old = view.zoom;
@@ -717,8 +723,8 @@
     if (Math.abs(next - old) < 1e-4) return;
 
     const r = c.getBoundingClientRect();
-    const mx = e.clientX - r.left + right.scrollLeft;
-    const my = e.clientY - r.top + right.scrollTop;
+    const mx = e.clientX - r.left + (right ? right.scrollLeft : 0);
+    const my = e.clientY - r.top + (right ? right.scrollTop : 0);
     const lx = mx / old;
     const ly = my / old;
 
@@ -733,5 +739,9 @@
   setCanvasSize();
   render();
 });
+
+
+
+
 
 
