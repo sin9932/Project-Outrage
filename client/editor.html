@@ -1,0 +1,54 @@
+﻿<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Map Editor</title>
+<style>
+  body { margin:0; font-family: system-ui, sans-serif; background:#0b0f16; color:#e6eef8; }
+  #wrap { display:flex; height:100vh; }
+  #left { width:260px; padding:14px; background:#121826; box-shadow: inset -1px 0 0 rgba(255,255,255,0.05); }
+  #right { flex:1; display:flex; align-items:center; justify-content:center; }
+  canvas { background:#0b0f16; border:1px solid rgba(255,255,255,0.12); image-rendering: pixelated; }
+  h1 { font-size:16px; margin:0 0 12px; }
+  .row { margin:10px 0; }
+  .btn { width:100%; padding:8px 10px; margin:4px 0; border:0; border-radius:8px; background:#1c2638; color:#e6eef8; cursor:pointer; }
+  .btn.active { background:#2a3a58; }
+  label { display:block; font-size:12px; opacity:0.8; margin-bottom:4px; }
+  input { width:100%; padding:6px; border-radius:6px; border:1px solid rgba(255,255,255,0.12); background:#0f1522; color:#e6eef8; }
+  .small { font-size:12px; opacity:0.7; }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="left">
+    <h1>Map Editor</h1>
+    <div class="row">
+      <label>Map Size (w,h)</label>
+      <input id="mapW" type="number" min="4" value="64" />
+      <input id="mapH" type="number" min="4" value="40" />
+      <button class="btn" id="btnResize">Resize</button>
+    </div>
+    <div class="row">
+      <label>Brush</label>
+      <button class="btn active" data-brush="0">Ground</button>
+      <button class="btn" data-brush="1">Rock</button>
+      <button class="btn" data-brush="2">Ore</button>
+      <button class="btn" data-brush="3">Water</button>
+    </div>
+    <div class="row">
+      <label>Import/Export</label>
+      <input id="file" type="file" accept="application/json" />
+      <button class="btn" id="btnExport">Export JSON</button>
+    </div>
+    <div class="row small">
+      좌클릭 드래그로 페인트.
+    </div>
+  </div>
+  <div id="right">
+    <canvas id="c" width="800" height="520"></canvas>
+  </div>
+</div>
+<script src="./js/editor.js"></script>
+</body>
+</html>
