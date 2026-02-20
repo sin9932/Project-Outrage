@@ -330,7 +330,7 @@
   }
 
   function edgeKey(texId, dir){
-    return texId + ":" + dir;
+    return texId + ":" + dir + ":" + view.zoom.toFixed(3);
   }
 
   function getEdgeBlendCanvas(texId, dir){
@@ -340,8 +340,8 @@
     const img = getImage(path);
     if (!img){ blendCache.set(key, null); return null; }
 
-    const w = ISO_X * 2;
-    const h = ISO_Y * 2;
+    const w = isoX() * 2;
+    const h = isoY() * 2;
     const cnv = document.createElement("canvas");
     cnv.width = Math.ceil(w);
     cnv.height = Math.ceil(h);
@@ -359,7 +359,7 @@
     g.fill();
 
     g.globalCompositeOperation = "destination-in";
-    const feather = Math.max(6, Math.round(Math.min(ISO_X, ISO_Y) * 0.70));
+    const feather = Math.max(6, Math.round(Math.min(isoX(), isoY()) * 0.70));
     let grad;
     if (dir === "N"){
       grad = g.createLinearGradient(0, 0, 0, feather);
@@ -482,7 +482,7 @@
             if (!isBlendable(nt)) continue;
             const edge = getEdgeBlendCanvas(nt, nb.dir);
             if (edge){
-              ctx.drawImage(edge, c0.x - ISO_X, c0.y - ISO_Y, ISO_X*2, ISO_Y*2);
+              ctx.drawImage(edge, c0.x - isoX(), c0.y - isoY(), isoX()*2, isoY()*2);
             }
           }
         }
@@ -838,5 +838,7 @@
   setCanvasSize();
   render();
 });
+
+
 
 
