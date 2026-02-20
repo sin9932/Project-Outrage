@@ -84,6 +84,7 @@
 
   const texImgs = {};
   const texPats = {};
+  const blendCache = new Map();
 
   const brushDefs = {
     grass:   { kind: "terrain", terrain: 0, tex: TEX.GRASS },
@@ -122,6 +123,14 @@
   let clipboard = null;
 
   const view = { zoom: 1, min: 0.35, max: 3.0 };
+
+  function isoX(){ return ISO_X * view.zoom; }
+  function isoY(){ return ISO_Y * view.zoom; }
+  function mapPixelSizeBase(){
+    const baseW = (W + H) * ISO_X + ISO_X * 2;
+    const baseH = (W + H) * ISO_Y + ISO_Y * 2;
+    return { baseW, baseH };
+  }
 
   const undoStack = [];
   const redoStack = [];
@@ -166,15 +175,15 @@
   }
 
   function mapPixelSize(){
-    const baseW = (W + H) * ISO_X + ISO_X * 2;
-    const baseH = (W + H) * ISO_Y + ISO_Y * 2;
+    const baseW = (W + H) * isoX() + isoX() * 2;
+    const baseH = (W + H) * isoY() + isoY() * 2;
     return { baseW, baseH };
   }
 
   function setCanvasSize(){
     const s = mapPixelSize();
-    c.width = Math.ceil(s.baseW * view.zoom);
-    c.height = Math.ceil(s.baseH * view.zoom);
+    c.width = Math.ceil(s.baseW);
+    c.height = Math.ceil(s.baseH);
   }
 
   function resizeMap(nw, nh){
@@ -231,30 +240,30 @@
     const s = mapPixelSize();
     const midx = (W - 1) * 0.5;
     const midy = (H - 1) * 0.5;
-    const ox = (s.baseW * 0.5) - ((midx - midy) * ISO_X);
-    const oy = (s.baseH * 0.5) - ((midx + midy) * ISO_Y);
+    const ox = (s.baseW * 0.5) - ((midx - midy) * isoX());
+    const oy = (s.baseH * 0.5) - ((midx + midy) * isoY());
     return { ox, oy };
   }
 
   function tileCenterScreen(tx, ty, ox, oy){
     return {
-      x: (tx - ty) * ISO_X + ox,
-      y: (tx + ty) * ISO_Y + oy
+      x: (tx - ty) * isoX() + ox,
+      y: (tx + ty) * isoY() + oy
     };
   }
 
   function pointInDiamond(px, py, cx, cy){
     const dx = Math.abs(px - cx);
     const dy = Math.abs(py - cy);
-    return (dx / ISO_X + dy / ISO_Y) <= 1;
+    return (dx / isoX() + dy / isoY()) <= 1;
   }
 
   function screenToTile(px, py){
     const { ox, oy } = origin();
-    const lx = (px / view.zoom) - ox;
-    const ly = (py / view.zoom) - oy;
-    const fx = (lx / ISO_X + ly / ISO_Y) * 0.5;
-    const fy = (ly / ISO_Y - lx / ISO_X) * 0.5;
+    const lx = px - ox;
+    const ly = py - oy;
+    const fx = (lx / isoX() + ly / isoY()) * 0.5;
+    const fy = (ly / isoY() - lx / isoX()) * 0.5;
     const tx0 = Math.floor(fx);
     const ty0 = Math.floor(fy);
     let best = null;
@@ -274,10 +283,10 @@
 
   function drawDiamondPath(cx, cy){
     ctx.beginPath();
-    ctx.moveTo(cx, cy - ISO_Y);
-    ctx.lineTo(cx + ISO_X, cy);
-    ctx.lineTo(cx, cy + ISO_Y);
-    ctx.lineTo(cx - ISO_X, cy);
+    ctx.moveTo(cx, cy - isoY());
+    ctx.lineTo(cx + isoX(), cy);
+    ctx.lineTo(cx, cy + isoY());
+    ctx.lineTo(cx - isoX(), cy);
     ctx.closePath();
   }
 
@@ -285,7 +294,7 @@
     drawDiamondPath(cx, cy);
     ctx.save();
     ctx.clip();
-    ctx.drawImage(img, cx - ISO_X, cy - ISO_Y, ISO_X * 2, ISO_Y * 2);
+    ctx.drawImage(img, cx - isoX(), cy - isoY(), isoX() * 2, isoY() * 2);
     ctx.restore();
   }
 
@@ -314,8 +323,8 @@
     const img = getImage(path);
     if (!img){ blendCache.set(key, null); return null; }
 
-    const w = ISO_X * 2;
-    const h = ISO_Y * 2;
+    const w = isoX() * 2;
+    const h = isoY() * 2;
     const cnv = document.createElement("canvas");
     cnv.width = Math.ceil(w);
     cnv.height = Math.ceil(h);
@@ -333,7 +342,7 @@
     g.fill();
 
     g.globalCompositeOperation = "destination-in";
-    const feather = Math.max(4, Math.round(Math.min(ISO_X, ISO_Y) * 0.35));
+    const feather = Math.max(4, Math.round(Math.min(isoX(), isoY()) * 0.35));
     let grad;
     if (dir === "N"){
       grad = g.createLinearGradient(0, 0, 0, feather);
@@ -362,7 +371,7 @@
 
   function renderMini(){
     if (!miniCtx || !mini) return;
-    const s = mapPixelSize();
+    const s = mapPixelSizeBase();
     const scale = Math.min(mini.width / s.baseW, mini.height / s.baseH);
     const offX = (mini.width - s.baseW * scale) * 0.5;
     const offY = (mini.height - s.baseH * scale) * 0.5;
@@ -371,16 +380,21 @@
     miniCtx.clearRect(0,0,mini.width,mini.height);
     miniCtx.setTransform(scale,0,0,scale,offX,offY);
 
-    const { ox, oy } = origin();
+    const midx = (W - 1) * 0.5;
+    const midy = (H - 1) * 0.5;
+    const ox = (s.baseW * 0.5) - ((midx - midy) * ISO_X);
+    const oy = (s.baseH * 0.5) - ((midx + midy) * ISO_Y);
+
     for (let y=0; y<H; y++){
       for (let x=0; x<W; x++){
         const t = terrain[idx(x,y)];
-        const c0 = tileCenterScreen(x, y, ox, oy);
+        const cx = (x - y) * ISO_X + ox;
+        const cy = (x + y) * ISO_Y + oy;
         miniCtx.beginPath();
-        miniCtx.moveTo(c0.x, c0.y - ISO_Y);
-        miniCtx.lineTo(c0.x + ISO_X, c0.y);
-        miniCtx.lineTo(c0.x, c0.y + ISO_Y);
-        miniCtx.lineTo(c0.x - ISO_X, c0.y);
+        miniCtx.moveTo(cx, cy - ISO_Y);
+        miniCtx.lineTo(cx + ISO_X, cy);
+        miniCtx.lineTo(cx, cy + ISO_Y);
+        miniCtx.lineTo(cx - ISO_X, cy);
         miniCtx.closePath();
         miniCtx.fillStyle = colors[t] || "#000";
         miniCtx.fill();
@@ -402,7 +416,6 @@
   function render(){
     ctx.setTransform(1,0,0,1,0,0);
     ctx.clearRect(0,0,c.width,c.height);
-    ctx.setTransform(view.zoom,0,0,view.zoom,0,0);
 
     const { ox, oy } = origin();
     for (let y=0; y<H; y++){
@@ -452,7 +465,7 @@
             if (!isBlendable(nt)) continue;
             const edge = getEdgeBlendCanvas(nt, nb.dir);
             if (edge){
-              ctx.drawImage(edge, c0.x - ISO_X, c0.y - ISO_Y);
+              ctx.drawImage(edge, c0.x - isoX(), c0.y - isoY());
             }
           }
         }
@@ -471,12 +484,7 @@
       for (let y=selection.y; y<selection.y+selection.h; y++){
         for (let x=selection.x; x<selection.x+selection.w; x++){
           const c0 = tileCenterScreen(x, y, ox, oy);
-          ctx.beginPath();
-          ctx.moveTo(c0.x, c0.y - ISO_Y);
-          ctx.lineTo(c0.x + ISO_X, c0.y);
-          ctx.lineTo(c0.x, c0.y + ISO_Y);
-          ctx.lineTo(c0.x - ISO_X, c0.y);
-          ctx.closePath();
+          drawDiamondPath(c0.x, c0.y);
           ctx.stroke();
         }
       }
@@ -710,6 +718,3 @@
   setCanvasSize();
   render();
 });
-
-
-
