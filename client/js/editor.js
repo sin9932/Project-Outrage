@@ -512,7 +512,6 @@
             if (roads[ni] !== 0) continue;
             const nt = tex[ni];
             if (nt === texId) continue;
-            if (texId > nt) continue;
             if (!isBlendable(nt)) continue;
             const edge = getEdgeBlendCanvas(nt, nb.dir);
             if (edge){
@@ -900,6 +899,7 @@
   setCanvasSize();
   render();
 });
+
 
 
 
