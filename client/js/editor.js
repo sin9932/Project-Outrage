@@ -18,8 +18,8 @@
   let W = Math.max(4, parseInt(qs.get("mapw") || mapWEl.value, 10));
   let H = Math.max(4, parseInt(qs.get("maph") || mapHEl.value, 10));
 
-  const ISO_X = parseFloat(qs.get("isox") || "128");
-  const ISO_Y = parseFloat(qs.get("isoy") || "64");
+  const ISO_X = parseFloat(qs.get("isox") || "55");
+  const ISO_Y = parseFloat(qs.get("isoy") || "27.5");
 
   mapWEl.value = W;
   mapHEl.value = H;
@@ -27,7 +27,6 @@
   let terrain = new Uint8Array(W * H);
   let tex = new Uint16Array(W * H);
   let roads = new Uint8Array(W * H);
-  let beacons = [];
 
   const colors = {
     0: "#0f1522",
@@ -54,50 +53,40 @@
     R13: 13, R14: 14, R15: 15, R16: 16
   };
 
-    const texPaths = {
-    [TEX.GRASS]: "asset/sprite/map/tile/Tiles/grass_1.png",
-    [TEX.SAND]: "asset/sprite/map/tile/Tiles/sand_1.png",
-    [TEX.BREEK1]: "asset/sprite/map/tile/Tiles/sand_1.png",
-    [TEX.BREEK2]: "asset/sprite/map/tile/Tiles/sand_1.png",
-    [TEX.WATER1]: "asset/sprite/map/tile/Tiles/grass_1.png",
-    [TEX.WATER2]: "asset/sprite/map/tile/Tiles/grass_1.png",
-    [TEX.ORE]: "asset/sprite/map/tile/Tiles/sand_1.png"
+  const texPaths = {
+    [TEX.GRASS]: "asset/sprite/map/grass1.jpg",
+    [TEX.SAND]: "asset/sprite/map/sand1.jpg",
+    [TEX.BREEK1]: "asset/sprite/map/breek_tile1.jpg",
+    [TEX.BREEK2]: "asset/sprite/map/breek_tile2.jpg",
+    [TEX.WATER1]: "asset/sprite/map/water.jpg",
+    [TEX.WATER2]: "asset/sprite/map/water2.jpg",
+    [TEX.ORE]: "asset/sprite/map/sand1.jpg"
   };
 
-  const texVariants = {
-    [TEX.GRASS]: [
-      "asset/sprite/map/tile/Tiles/grass_1.png",
-      "asset/sprite/map/tile/Tiles/grass_2.png"
-    ],
-    [TEX.SAND]: [
-      "asset/sprite/map/tile/Tiles/sand_1.png"
-    ]
-  };
-
-    const roadPaths = {
-    [ROAD.R1]: "asset/sprite/map/tile/Tiles/road_1.png",
-    [ROAD.R2]: "asset/sprite/map/tile/Tiles/road_2.png",
-    [ROAD.R3]: "asset/sprite/map/tile/Tiles/road_2 1.png",
-    [ROAD.R4]: "asset/sprite/map/tile/Tiles/road_cross.png",
-    [ROAD.R5]: "asset/sprite/map/tile/Tiles/road_t_cross_1.png",
-    [ROAD.R6]: "asset/sprite/map/tile/Tiles/road_t_cross_2.png",
-    [ROAD.R7]: "asset/sprite/map/tile/Tiles/road_t_cross_3.png",
-    [ROAD.R8]: "asset/sprite/map/tile/Tiles/road_t_cross_4.png",
-    [ROAD.R9]: "asset/sprite/map/tile/Tiles/road_turn_d.png",
-    [ROAD.R10]: "asset/sprite/map/tile/Tiles/road_turn_l.png",
-    [ROAD.R11]: "asset/sprite/map/tile/Tiles/road_turn_r.png",
-    [ROAD.R12]: "asset/sprite/map/tile/Tiles/road_turn_up.png",
-    [ROAD.R13]: "asset/sprite/map/tile/Tiles/road_crosswalk_1n.png",
-    [ROAD.R14]: "asset/sprite/map/tile/Tiles/road_crosswalk_2n.png",
-    [ROAD.R15]: "asset/sprite/map/tile/Tiles/road_1.png",
-    [ROAD.R16]: "asset/sprite/map/tile/Tiles/road_2.png"
+  const roadPaths = {
+    [ROAD.R1]: "asset/sprite/map/road1.jpg",
+    [ROAD.R2]: "asset/sprite/map/road2.jpg",
+    [ROAD.R3]: "asset/sprite/map/road3.jpg",
+    [ROAD.R4]: "asset/sprite/map/road4.jpg",
+    [ROAD.R5]: "asset/sprite/map/road5.jpg",
+    [ROAD.R6]: "asset/sprite/map/road6.JPG",
+    [ROAD.R7]: "asset/sprite/map/road7.jpg",
+    [ROAD.R8]: "asset/sprite/map/road8.jpg",
+    [ROAD.R9]: "asset/sprite/map/road9.jpg",
+    [ROAD.R10]: "asset/sprite/map/road10.jpg",
+    [ROAD.R11]: "asset/sprite/map/road11.jpg",
+    [ROAD.R12]: "asset/sprite/map/road12.jpg",
+    [ROAD.R13]: "asset/sprite/map/road13.jpg",
+    [ROAD.R14]: "asset/sprite/map/road14.jpg",
+    [ROAD.R15]: "asset/sprite/map/road15.jpg",
+    [ROAD.R16]: "asset/sprite/map/road16.jpg"
   };
 
   const texImgs = {};
   const texPats = {};
   const blendCache = new Map();
 
-    const brushDefs = {
+  const brushDefs = {
     grass:   { kind: "terrain", terrain: 0, tex: TEX.GRASS },
     sand:    { kind: "terrain", terrain: 1, tex: TEX.SAND },
     breek1:  { kind: "terrain", terrain: 1, tex: TEX.BREEK1 },
@@ -121,8 +110,7 @@
     road14:  { kind: "road", road: ROAD.R14 },
     road15:  { kind: "road", road: ROAD.R15 },
     road16:  { kind: "road", road: ROAD.R16 },
-    road_clear: { kind: "road", road: ROAD.CLEAR },
-    beacon: { kind: "beacon" }
+    road_clear: { kind: "road", road: ROAD.CLEAR }
   };
 
   let brush = brushDefs.grass;
@@ -163,8 +151,7 @@
     return {
       terrain: new Uint8Array(terrain),
       tex: new Uint16Array(tex),
-      roads: new Uint8Array(roads),
-      beacons: beacons.map(b => ({ x: b.x, y: b.y }))
+      roads: new Uint8Array(roads)
     };
   }
 
@@ -172,7 +159,6 @@
     terrain = new Uint8Array(s.terrain);
     tex = new Uint16Array(s.tex);
     roads = new Uint8Array(s.roads);
-    beacons = s.beacons ? s.beacons.map(b => ({ x: b.x, y: b.y })) : [];
   }
 
   function pushUndo(){
@@ -228,7 +214,6 @@
     terrain = nTerrain;
     tex = nTex;
     roads = nRoads;
-    beacons = beacons.filter(b => b.x >= 0 && b.y >= 0 && b.x < W && b.y < H);
     mapWEl.value = W; mapHEl.value = H;
     selection = null;
     setCanvasSize();
@@ -248,14 +233,8 @@
     return null;
   }
 
-    function textureForTile(tx, ty){
+  function textureForTile(tx, ty){
     const tId = tex[idx(tx,ty)];
-    const variants = texVariants[tId];
-    if (variants && variants.length){
-      const h = (tx*73856093) ^ (ty*19349663) ^ (tId*83492791);
-      const pick = Math.abs(h) % variants.length;
-      return getImage(variants[pick]);
-    }
     const path = texPaths[tId];
     return getImage(path);
   }
@@ -355,9 +334,46 @@
     }
     const ox = offX || 0;
     const oy = offY || 0;
-    const pad = 0.8;
-    ctx.drawImage(img, cx - iw * 0.5 + ox - pad, cy - ih * 0.5 + oy - pad, iw + pad * 2, ih + pad * 2);
+    const pad = 0.65;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy - (isoY() + pad));
+    ctx.lineTo(cx + (isoX() + pad), cy);
+    ctx.lineTo(cx, cy + (isoY() + pad));
+    ctx.lineTo(cx - (isoX() + pad), cy);
+    ctx.closePath();
+    ctx.save();
+    ctx.clip();
+    const a = isoX() / iw;
+    const b = isoY() / iw;
+    const cM = -isoX() / ih;
+    const d = isoY() / ih;
+    ctx.setTransform(a, b, cM, d, cx, cy);
+    ctx.drawImage(img, -iw * 0.5 + ox, -ih * 0.5 + oy);
+    ctx.restore();
   }
+
+  // Draw a diamond-shaped sprite already in screen-space (e.g., 128x64 isometric tile PNG).
+  function drawDiamondSprite(cx, cy, img){
+    if (!img) return;
+    const w = isoX() * 2;
+    const h = isoY() * 2;
+    ctx.drawImage(img, cx - isoX(), cy - isoY(), w, h);
+  }
+
+  // Smart tile draw: if the source image looks like a ready-made diamond (ratio ~2:1),
+  // draw directly. Otherwise, treat it as a square texture and project into diamond.
+  function drawTileImage(cx, cy, img, offX, offY){
+    if (!img) return;
+    const iw = img.width || 0;
+    const ih = img.height || 0;
+    if (iw && ih && Math.abs((iw/ih) - 2.0) < 0.15){
+      // assume diamond sprite sheet tile (like 128x64)
+      drawDiamondSprite(cx, cy, img);
+      return;
+    }
+    drawDiamondImage(cx, cy, img, offX, offY);
+  }
+
 
     function drawTextureStamp(img, cx, cy, radius, offX, offY, alpha){
     const iw = img && img.width ? img.width : 0;
@@ -520,7 +536,7 @@
         const baseImg = textureForTile(x, y);
         if (baseImg){
           const jit = _tileJitterPx(x, y, tex[i], baseImg);
-          drawDiamondImage(c0.x, c0.y, baseImg, jit.x, jit.y);
+          drawTileImage(c0.x, c0.y, baseImg, jit.x, jit.y);
         } else {
           const fill = colors[t] || "#000";
           drawDiamondFill(c0.x, c0.y, fill);
@@ -542,28 +558,22 @@
         }
 
         const texId = tex[i];
-        if (isBlendable(texId) && roads[i] === 0){
-          const n = [
-            { dx: 0, dy: -1, dir: "N" },
-            { dx: 1, dy: 0, dir: "E" },
-            { dx: 0, dy: 1, dir: "S" },
-            { dx: -1, dy: 0, dir: "W" }
-          ];
-          for (const nb of n){
-            const nx = x + nb.dx;
-            const ny = y + nb.dy;
-            if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue;
-            const ni = idx(nx, ny);
-            if (roads[ni] !== 0) continue;
-            const nt = tex[ni];
-            if (nt === texId) continue;
-            if (!isBlendable(nt)) continue;
-            const edge = getEdgeBlendCanvas(nt, nb.dir, x, y);
-            if (edge){
-              ctx.drawImage(edge, c0.x - isoX(), c0.y - isoY());
+        // Natural terrain blending (autotile-style).
+        // Rule: grass dominates sand. We only draw "grass edge" over sand using 4-bit mask (N,E,S,W).
+        if (roads[i] === 0 && texId === TEX.SAND){
+          let m = 0;
+          // bit: 1=N, 2=E, 4=S, 8=W
+          if (y > 0 && tex[idx(x, y-1)] === TEX.GRASS) m |= 1;
+          if (x < W-1 && tex[idx(x+1, y)] === TEX.GRASS) m |= 2;
+          if (y < H-1 && tex[idx(x, y+1)] === TEX.GRASS) m |= 4;
+          if (x > 0 && tex[idx(x-1, y)] === TEX.GRASS) m |= 8;
+          if (m){
+            const k = String(m).padStart(2,"0");
+            const timg = getImage(`asset/sprite/map/transitions/grass_over_sand_${k}.png`);
+            if (timg){
+              // These transition PNGs are already diamond-shaped (128x64), so draw them in screen space.
+              drawDiamondSprite(c0.x, c0.y, timg);
             }
-            const ntImg = getImage(texPaths[nt]);
-            drawEdgeDecals(c0.x, c0.y, x, y, nt, nb.dir, ntImg);
           }
         }
 
@@ -574,26 +584,6 @@
       }
     }
   }
-    function drawBeacons(){
-    if (!beacons || !beacons.length) return;
-    const { ox, oy } = origin();
-    ctx.save();
-    ctx.font = "11px monospace";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    for (let i=0;i<beacons.length;i++){
-      const b = beacons[i];
-      const c0 = tileCenterScreen(b.x, b.y, ox, oy);
-      ctx.fillStyle = "rgba(0,255,180,0.9)";
-      ctx.beginPath();
-      ctx.arc(c0.x, c0.y, 5, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = "#002";
-      ctx.fillText(String(i+1), c0.x, c0.y + 0.5);
-    }
-    ctx.restore();
-  }
-
   function render(){
     if (dirty){
       ctx.setTransform(1,0,0,1,0,0);
@@ -610,7 +600,6 @@
       ctx.clearRect(0,0,c.width,c.height);
       ctx.drawImage(mapCache, 0, 0);
     }
-    drawBeacons();
 
     if (hoverTile && !selecting){
       const { ox, oy } = origin();
@@ -683,16 +672,6 @@
   function applyBrush(tx, ty){
     if (tx<0 || ty<0 || tx>=W || ty>=H) return false;
     const i = idx(tx,ty);
-    if (brush.kind === "beacon"){
-      const idxBeacon = beacons.findIndex(b => b.x === tx && b.y === ty);
-      if (idxBeacon >= 0){
-        beacons.splice(idxBeacon, 1);
-        return true;
-      }
-      if (beacons.length >= 4) return false;
-      beacons.push({ x: tx, y: ty });
-      return true;
-    }
     if (brush.kind === "road"){
       if (roads[i] === brush.road) return false;
       roads[i] = brush.road;
@@ -868,7 +847,7 @@
   });
 
   btnExport.addEventListener("click", ()=>{
-    const data = { w: W, h: H, terrain: Array.from(terrain), tex: Array.from(tex), roads: Array.from(roads), beacons: beacons.map(b => ({ x: b.x, y: b.y })) };
+    const data = { w: W, h: H, terrain: Array.from(terrain), tex: Array.from(tex), roads: Array.from(roads) };
     const blob = new Blob([JSON.stringify(data)], {type:"application/json"});
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
@@ -887,7 +866,6 @@
     terrain = new Uint8Array(data.terrain);
     tex = data.tex ? new Uint16Array(data.tex) : new Uint16Array(W * H);
     roads = data.roads ? new Uint8Array(data.roads) : new Uint8Array(W * H);
-    beacons = Array.isArray(data.beacons) ? data.beacons.map(b => ({ x: b.x|0, y: b.y|0 })) : [];
     mapWEl.value = W; mapHEl.value = H;
     selection = null;
     if (!data.tex) initTexFromTerrain();
@@ -977,14 +955,6 @@
   setCanvasSize();
   render();
 });
-
-
-
-
-
-
-
-
 
 
 
