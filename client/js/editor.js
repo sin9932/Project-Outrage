@@ -2,6 +2,10 @@
   const c = document.getElementById("c");
   if (!c) { console.error("editor: canvas not found"); return; }
   const ctx = c.getContext("2d");
+  const right = document.getElementById("right");
+  const mini = document.getElementById("minimap");
+  const miniCtx = mini ? mini.getContext("2d") : null;
+
   const mapWEl = document.getElementById("mapW");
   const mapHEl = document.getElementById("mapH");
   if (!mapWEl || !mapHEl) { console.error("editor: inputs not found"); return; }
@@ -117,6 +121,8 @@
   let hoverTile = null;
   let clipboard = null;
 
+  const view = { zoom: 1, min: 0.35, max: 3.0 };
+
   const undoStack = [];
   const redoStack = [];
   const MAX_UNDO = 60;
@@ -159,6 +165,18 @@
     render();
   }
 
+  function mapPixelSize(){
+    const baseW = (W + H) * ISO_X + ISO_X * 2;
+    const baseH = (W + H) * ISO_Y + ISO_Y * 2;
+    return { baseW, baseH };
+  }
+
+  function setCanvasSize(){
+    const s = mapPixelSize();
+    c.width = Math.ceil(s.baseW * view.zoom);
+    c.height = Math.ceil(s.baseH * view.zoom);
+  }
+
   function resizeMap(nw, nh){
     const nTerrain = new Uint8Array(nw*nh);
     const nTex = new Uint16Array(nw*nh);
@@ -178,9 +196,9 @@
     terrain = nTerrain;
     tex = nTex;
     roads = nRoads;
-    setCanvasSize();
     mapWEl.value = W; mapHEl.value = H;
     selection = null;
+    setCanvasSize();
     render();
   }
 
@@ -210,17 +228,13 @@
     const path = roadPaths[rId];
     return ensurePattern(path);
   }
-  function setCanvasSize(){
-    const mapWpx = (W + H) * ISO_X + ISO_X * 2;
-    const mapHpx = (W + H) * ISO_Y + ISO_Y * 2;
-    c.width = Math.ceil(mapWpx);
-    c.height = Math.ceil(mapHpx);
-  }
+
   function origin(){
+    const s = mapPixelSize();
     const midx = (W - 1) * 0.5;
     const midy = (H - 1) * 0.5;
-    const ox = (c.width * 0.5) - ((midx - midy) * ISO_X);
-    const oy = (c.height * 0.5) - ((midx + midy) * ISO_Y);
+    const ox = (s.baseW * 0.5) - ((midx - midy) * ISO_X);
+    const oy = (s.baseH * 0.5) - ((midx + midy) * ISO_Y);
     return { ox, oy };
   }
 
@@ -239,8 +253,8 @@
 
   function screenToTile(px, py){
     const { ox, oy } = origin();
-    const lx = px - ox;
-    const ly = py - oy;
+    const lx = (px / view.zoom) - ox;
+    const ly = (py / view.zoom) - oy;
     const fx = (lx / ISO_X + ly / ISO_Y) * 0.5;
     const fy = (ly / ISO_Y - lx / ISO_X) * 0.5;
     const tx0 = Math.floor(fx);
@@ -252,8 +266,8 @@
         const ty = ty0 + dy;
         if (tx<0 || ty<0 || tx>=W || ty>=H) continue;
         const c0 = tileCenterScreen(tx, ty, ox, oy);
-        if (pointInDiamond(px, py, c0.x, c0.y)) return { tx, ty };
-        const dd = (px - c0.x) * (px - c0.x) + (py - c0.y) * (py - c0.y);
+        if (pointInDiamond(lx + ox, ly + oy, c0.x, c0.y)) return { tx, ty };
+        const dd = (lx + ox - c0.x) * (lx + ox - c0.x) + (ly + oy - c0.y) * (ly + oy - c0.y);
         if (!best || dd < best.dd) best = { tx, ty, dd };
       }
     }
@@ -271,10 +285,51 @@
     ctx.fill();
   }
 
-  function render(){
-    ctx.clearRect(0,0,c.width,c.height);
-    const { ox, oy } = origin();
+  function renderMini(){
+    if (!miniCtx || !mini) return;
+    const s = mapPixelSize();
+    const scale = Math.min(mini.width / s.baseW, mini.height / s.baseH);
+    const offX = (mini.width - s.baseW * scale) * 0.5;
+    const offY = (mini.height - s.baseH * scale) * 0.5;
 
+    miniCtx.setTransform(1,0,0,1,0,0);
+    miniCtx.clearRect(0,0,mini.width,mini.height);
+    miniCtx.setTransform(scale,0,0,scale,offX,offY);
+
+    const { ox, oy } = origin();
+    for (let y=0; y<H; y++){
+      for (let x=0; x<W; x++){
+        const t = terrain[idx(x,y)];
+        const c0 = tileCenterScreen(x, y, ox, oy);
+        miniCtx.beginPath();
+        miniCtx.moveTo(c0.x, c0.y - ISO_Y);
+        miniCtx.lineTo(c0.x + ISO_X, c0.y);
+        miniCtx.lineTo(c0.x, c0.y + ISO_Y);
+        miniCtx.lineTo(c0.x - ISO_X, c0.y);
+        miniCtx.closePath();
+        miniCtx.fillStyle = colors[t] || "#000";
+        miniCtx.fill();
+      }
+    }
+
+    if (right){
+      const vx = right.scrollLeft / view.zoom;
+      const vy = right.scrollTop / view.zoom;
+      const vw = right.clientWidth / view.zoom;
+      const vh = right.clientHeight / view.zoom;
+      miniCtx.setTransform(scale,0,0,scale,offX,offY);
+      miniCtx.strokeStyle = "rgba(255,255,255,0.9)";
+      miniCtx.lineWidth = 2 / scale;
+      miniCtx.strokeRect(vx, vy, vw, vh);
+    }
+  }
+
+  function render(){
+    ctx.setTransform(1,0,0,1,0,0);
+    ctx.clearRect(0,0,c.width,c.height);
+    ctx.setTransform(view.zoom,0,0,view.zoom,0,0);
+
+    const { ox, oy } = origin();
     for (let y=0; y<H; y++){
       for (let x=0; x<W; x++){
         const i = idx(x,y);
@@ -329,6 +384,8 @@
       }
       ctx.restore();
     }
+
+    renderMini();
   }
 
   function paintAt(px, py){
@@ -414,8 +471,8 @@
 
   c.addEventListener("pointerdown", (e)=>{
     const r = c.getBoundingClientRect();
-    const px = e.clientX - r.left;
-    const py = e.clientY - r.top;
+    const px = e.clientX - r.left + (right ? right.scrollLeft : 0);
+    const py = e.clientY - r.top + (right ? right.scrollTop : 0);
     if (e.shiftKey){
       selecting = true;
       selStart = screenToTile(px, py);
@@ -443,8 +500,8 @@
 
   c.addEventListener("pointermove", (e)=>{
     const r = c.getBoundingClientRect();
-    const px = e.clientX - r.left;
-    const py = e.clientY - r.top;
+    const px = e.clientX - r.left + (right ? right.scrollLeft : 0);
+    const py = e.clientY - r.top + (right ? right.scrollTop : 0);
     hoverTile = screenToTile(px, py);
 
     if (selecting){
@@ -495,6 +552,7 @@
     mapWEl.value = W; mapHEl.value = H;
     selection = null;
     if (!data.tex) initTexFromTerrain();
+    setCanvasSize();
     render();
   });
 
@@ -522,10 +580,35 @@
     }
   });
 
+  if (right){
+    right.addEventListener("scroll", () => {
+      renderMini();
+    });
+  }
+
+  c.addEventListener("wheel", (e)=>{
+    if (!right) return;
+    e.preventDefault();
+    const delta = Math.sign(e.deltaY);
+    const factor = (delta > 0) ? 0.90 : 1.10;
+    const old = view.zoom;
+    const next = Math.min(view.max, Math.max(view.min, old * factor));
+    if (Math.abs(next - old) < 1e-4) return;
+
+    const r = c.getBoundingClientRect();
+    const mx = e.clientX - r.left + right.scrollLeft;
+    const my = e.clientY - r.top + right.scrollTop;
+    const lx = mx / old;
+    const ly = my / old;
+
+    view.zoom = next;
+    setCanvasSize();
+    right.scrollLeft = lx * next - (e.clientX - r.left);
+    right.scrollTop = ly * next - (e.clientY - r.top);
+    render();
+  }, { passive: false });
+
   initTexFromTerrain();
   setCanvasSize();
   render();
 });
-
-
-
