@@ -54,33 +54,43 @@
     R13: 13, R14: 14, R15: 15, R16: 16
   };
 
-  const texPaths = {
-    [TEX.GRASS]: "asset/sprite/map/grass1.jpg",
-    [TEX.SAND]: "asset/sprite/map/sand1.jpg",
-    [TEX.BREEK1]: "asset/sprite/map/breek_tile1.jpg",
-    [TEX.BREEK2]: "asset/sprite/map/breek_tile2.jpg",
-    [TEX.WATER1]: "asset/sprite/map/water.jpg",
-    [TEX.WATER2]: "asset/sprite/map/water2.jpg",
-    [TEX.ORE]: "asset/sprite/map/sand1.jpg"
+    const texPaths = {
+    [TEX.GRASS]: "asset/sprite/map/tile/Tiles/grass_1.png",
+    [TEX.SAND]: "asset/sprite/map/tile/Tiles/sand_1.png",
+    [TEX.BREEK1]: "asset/sprite/map/tile/Tiles/sand_1.png",
+    [TEX.BREEK2]: "asset/sprite/map/tile/Tiles/sand_1.png",
+    [TEX.WATER1]: "asset/sprite/map/tile/Tiles/grass_1.png",
+    [TEX.WATER2]: "asset/sprite/map/tile/Tiles/grass_1.png",
+    [TEX.ORE]: "asset/sprite/map/tile/Tiles/sand_1.png"
   };
 
-  const roadPaths = {
-    [ROAD.R1]: "asset/sprite/map/road1.jpg",
-    [ROAD.R2]: "asset/sprite/map/road2.jpg",
-    [ROAD.R3]: "asset/sprite/map/road3.jpg",
-    [ROAD.R4]: "asset/sprite/map/road4.jpg",
-    [ROAD.R5]: "asset/sprite/map/road5.jpg",
-    [ROAD.R6]: "asset/sprite/map/road6.JPG",
-    [ROAD.R7]: "asset/sprite/map/road7.jpg",
-    [ROAD.R8]: "asset/sprite/map/road8.jpg",
-    [ROAD.R9]: "asset/sprite/map/road9.jpg",
-    [ROAD.R10]: "asset/sprite/map/road10.jpg",
-    [ROAD.R11]: "asset/sprite/map/road11.jpg",
-    [ROAD.R12]: "asset/sprite/map/road12.jpg",
-    [ROAD.R13]: "asset/sprite/map/road13.jpg",
-    [ROAD.R14]: "asset/sprite/map/road14.jpg",
-    [ROAD.R15]: "asset/sprite/map/road15.jpg",
-    [ROAD.R16]: "asset/sprite/map/road16.jpg"
+  const texVariants = {
+    [TEX.GRASS]: [
+      "asset/sprite/map/tile/Tiles/grass_1.png",
+      "asset/sprite/map/tile/Tiles/grass_2.png"
+    ],
+    [TEX.SAND]: [
+      "asset/sprite/map/tile/Tiles/sand_1.png"
+    ]
+  };
+
+    const roadPaths = {
+    [ROAD.R1]: "asset/sprite/map/tile/Tiles/road_1.png",
+    [ROAD.R2]: "asset/sprite/map/tile/Tiles/road_2.png",
+    [ROAD.R3]: "asset/sprite/map/tile/Tiles/road_2 1.png",
+    [ROAD.R4]: "asset/sprite/map/tile/Tiles/road_cross.png",
+    [ROAD.R5]: "asset/sprite/map/tile/Tiles/road_t_cross_1.png",
+    [ROAD.R6]: "asset/sprite/map/tile/Tiles/road_t_cross_2.png",
+    [ROAD.R7]: "asset/sprite/map/tile/Tiles/road_t_cross_3.png",
+    [ROAD.R8]: "asset/sprite/map/tile/Tiles/road_t_cross_4.png",
+    [ROAD.R9]: "asset/sprite/map/tile/Tiles/road_turn_d.png",
+    [ROAD.R10]: "asset/sprite/map/tile/Tiles/road_turn_l.png",
+    [ROAD.R11]: "asset/sprite/map/tile/Tiles/road_turn_r.png",
+    [ROAD.R12]: "asset/sprite/map/tile/Tiles/road_turn_up.png",
+    [ROAD.R13]: "asset/sprite/map/tile/Tiles/road_crosswalk_1n.png",
+    [ROAD.R14]: "asset/sprite/map/tile/Tiles/road_crosswalk_2n.png",
+    [ROAD.R15]: "asset/sprite/map/tile/Tiles/road_1.png",
+    [ROAD.R16]: "asset/sprite/map/tile/Tiles/road_2.png"
   };
 
   const texImgs = {};
@@ -238,8 +248,14 @@
     return null;
   }
 
-  function textureForTile(tx, ty){
+    function textureForTile(tx, ty){
     const tId = tex[idx(tx,ty)];
+    const variants = texVariants[tId];
+    if (variants && variants.length){
+      const h = (tx*73856093) ^ (ty*19349663) ^ (tId*83492791);
+      const pick = Math.abs(h) % variants.length;
+      return getImage(variants[pick]);
+    }
     const path = texPaths[tId];
     return getImage(path);
   }
@@ -975,6 +991,7 @@
   setCanvasSize();
   render();
 });
+
 
 
 
