@@ -657,8 +657,8 @@
 
   c.addEventListener("pointerdown", (e)=>{
     const r = c.getBoundingClientRect();
-    const px = e.clientX - r.left + (right ? right.scrollLeft : 0);
-    const py = e.clientY - r.top + (right ? right.scrollTop : 0);
+    const px = e.clientX - r.left;
+    const py = e.clientY - r.top;
     lastPointer = { x: px, y: py };
     if (wheelLock) return;
     if (e.button !== 0) return;
@@ -691,8 +691,8 @@
 
   c.addEventListener("pointermove", (e)=>{
     const r = c.getBoundingClientRect();
-    const px = e.clientX - r.left + (right ? right.scrollLeft : 0);
-    const py = e.clientY - r.top + (right ? right.scrollTop : 0);
+    const px = e.clientX - r.left;
+    const py = e.clientY - r.top;
     lastPointer = { x: px, y: py };
     hoverTile = screenToTile(px, py);
     const key = hoverTile ? (hoverTile.tx + "," + hoverTile.ty) : "";
@@ -822,8 +822,8 @@
     if (Math.abs(next - old) < 1e-4) return;
 
     const r = c.getBoundingClientRect();
-    const mx = e.clientX - r.left + (right ? right.scrollLeft : 0);
-    const my = e.clientY - r.top + (right ? right.scrollTop : 0);
+    const mx = e.clientX - r.left;
+    const my = e.clientY - r.top;
     const lx = mx / old;
     const ly = my / old;
 
@@ -838,3 +838,4 @@
   setCanvasSize();
   render();
 });
+
