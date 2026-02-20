@@ -85,6 +85,7 @@
   const texImgs = {};
   const texPats = {};
   const blendCache = new Map();
+  const edgeMaskCache = new Map();
 
   const brushDefs = {
     grass:   { kind: "terrain", terrain: 0, tex: TEX.GRASS },
@@ -336,7 +337,57 @@
     return texId + ":" + dir + ":" + view.zoom.toFixed(3);
   }
 
-      function getEdgeBlendCanvas(texId, dir){
+        function getEdgeMask(dir){
+    const key = dir + ":" + view.zoom.toFixed(3);
+    if (edgeMaskCache.has(key)) return edgeMaskCache.get(key);
+
+    const w = isoX() * 2;
+    const h = isoY() * 2;
+    const cnv = document.createElement("canvas");
+    cnv.width = Math.ceil(w);
+    cnv.height = Math.ceil(h);
+    const g = cnv.getContext("2d");
+
+    // clip to diamond
+    g.beginPath();
+    g.moveTo(w * 0.5, 0);
+    g.lineTo(w, h * 0.5);
+    g.lineTo(w * 0.5, h);
+    g.lineTo(0, h * 0.5);
+    g.closePath();
+    g.clip();
+
+    const band = Math.max(6, Math.round(Math.min(isoX(), isoY()) * 0.35));
+    const blur = Math.max(3, Math.round(band * 0.45));
+    g.filter = `blur(${blur}px)`;
+
+    let grad;
+    if (dir === "N"){
+      grad = g.createLinearGradient(0, 0, 0, band);
+      grad.addColorStop(0, "rgba(255,255,255,1)");
+      grad.addColorStop(1, "rgba(255,255,255,0)");
+    } else if (dir === "S"){
+      grad = g.createLinearGradient(0, h - band, 0, h);
+      grad.addColorStop(0, "rgba(255,255,255,0)");
+      grad.addColorStop(1, "rgba(255,255,255,1)");
+    } else if (dir === "E"){
+      grad = g.createLinearGradient(w - band, 0, w, 0);
+      grad.addColorStop(0, "rgba(255,255,255,0)");
+      grad.addColorStop(1, "rgba(255,255,255,1)");
+    } else {
+      grad = g.createLinearGradient(0, 0, band, 0);
+      grad.addColorStop(0, "rgba(255,255,255,1)");
+      grad.addColorStop(1, "rgba(255,255,255,0)");
+    }
+    g.fillStyle = grad;
+    g.fillRect(0, 0, w, h);
+    g.filter = "none";
+
+    edgeMaskCache.set(key, cnv);
+    return cnv;
+  }
+
+  function getEdgeBlendCanvas(texId, dir){
     const key = edgeKey(texId, dir);
     if (blendCache.has(key)) return blendCache.get(key);
     const path = texPaths[texId];
@@ -354,7 +405,6 @@
     cnv.height = Math.ceil(h);
     const g = cnv.getContext("2d");
 
-    // Project texture into diamond
     const a = isoX() / iw;
     const b = isoY() / iw;
     const cM = -isoX() / ih;
@@ -364,41 +414,8 @@
 
     g.setTransform(1,0,0,1,0,0);
     g.globalCompositeOperation = "destination-in";
-    g.beginPath();
-    g.moveTo(w * 0.5, 0);
-    g.lineTo(w, h * 0.5);
-    g.lineTo(w * 0.5, h);
-    g.lineTo(0, h * 0.5);
-    g.closePath();
-    g.fillStyle = "#fff";
-    g.fill();
-
-    // Soft edge mask (airbrush style)
-    g.globalCompositeOperation = "destination-in";
-    const feather = Math.max(10, Math.round(Math.min(isoX(), isoY()) * 0.95));
-    const blur = Math.max(6, Math.round(Math.min(isoX(), isoY()) * 0.35));
-    g.filter = `blur(${blur}px)`;
-    let grad;
-    if (dir === "N"){
-      grad = g.createLinearGradient(0, 0, 0, feather);
-      grad.addColorStop(0, "rgba(255,255,255,1)");
-      grad.addColorStop(1, "rgba(255,255,255,0)");
-    } else if (dir === "S"){
-      grad = g.createLinearGradient(0, h - feather, 0, h);
-      grad.addColorStop(0, "rgba(255,255,255,0)");
-      grad.addColorStop(1, "rgba(255,255,255,1)");
-    } else if (dir === "E"){
-      grad = g.createLinearGradient(w - feather, 0, w, 0);
-      grad.addColorStop(0, "rgba(255,255,255,0)");
-      grad.addColorStop(1, "rgba(255,255,255,1)");
-    } else {
-      grad = g.createLinearGradient(0, 0, feather, 0);
-      grad.addColorStop(0, "rgba(255,255,255,1)");
-      grad.addColorStop(1, "rgba(255,255,255,0)");
-    }
-    g.fillStyle = grad;
-    g.fillRect(0, 0, w, h);
-    g.filter = "none";
+    const mask = getEdgeMask(dir);
+    g.drawImage(mask, 0, 0);
     g.globalCompositeOperation = "source-over";
 
     blendCache.set(key, cnv);
@@ -495,6 +512,7 @@
             if (roads[ni] !== 0) continue;
             const nt = tex[ni];
             if (nt === texId) continue;
+            if (texId > nt) continue;
             if (!isBlendable(nt)) continue;
             const edge = getEdgeBlendCanvas(nt, nb.dir);
             if (edge){
@@ -882,6 +900,9 @@
   setCanvasSize();
   render();
 });
+
+
+
 
 
 
