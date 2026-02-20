@@ -116,16 +116,20 @@
   let brush = brushDefs.grass;
   let painting = false;
   let wheelActive = false;
+  let wheelLock = false;
+  let brushRadius = 0;
+
   let selecting = false;
   let selStart = null;
   let selEnd = null;
   let selection = null;
   let hoverTile = null;
   let lastHoverKey = "";
+  let lastPointer = { x: 0, y: 0 };
+  const DEBUG = new URLSearchParams(location.search).get("debug") === "1";
   let clipboard = null;
 
   const view = { zoom: 1, min: 0.35, max: 3.0 };
-
   function isoX(){ return ISO_X * view.zoom; }
   function isoY(){ return ISO_Y * view.zoom; }
   function mapPixelSizeBase(){
@@ -302,7 +306,6 @@
     drawDiamondPath(cx, cy);
     ctx.save();
     ctx.clip();
-    // Project square texture into isometric diamond (example2 style)
     const a = isoX() / iw;
     const b = isoY() / iw;
     const cM = -isoX() / ih;
@@ -656,6 +659,7 @@
     const r = c.getBoundingClientRect();
     const px = e.clientX - r.left + (right ? right.scrollLeft : 0);
     const py = e.clientY - r.top + (right ? right.scrollTop : 0);
+    lastPointer = { x: px, y: py };
     if (wheelLock) return;
     if (e.button !== 0) return;
     if (e.shiftKey){
@@ -689,7 +693,9 @@
     const r = c.getBoundingClientRect();
     const px = e.clientX - r.left + (right ? right.scrollLeft : 0);
     const py = e.clientY - r.top + (right ? right.scrollTop : 0);
+    lastPointer = { x: px, y: py };
     hoverTile = screenToTile(px, py);
+    const key = hoverTile ? (hoverTile.tx + "," + hoverTile.ty) : "";
 
     if (selecting){
       selEnd = hoverTile;
@@ -697,9 +703,21 @@
       render();
       return;
     }
-    if (!painting) return;
-    paintAt(px, py);
-    render();
+
+    if (!painting){
+      if (key !== lastHoverKey){
+        lastHoverKey = key;
+        render();
+      }
+      return;
+    }
+
+    if (!(e.buttons & 1)){
+      painting = false;
+      return;
+    }
+
+    if (paintAt(px, py)) render();
   });
 
   brushBtns.forEach(btn=>{
@@ -782,30 +800,16 @@
 
   if (right){
     right.addEventListener("scroll", () => {
-      if (DEBUG){
-      ctx.save();
-      ctx.setTransform(1,0,0,1,0,0);
-      ctx.fillStyle = "rgba(0,0,0,0.55)";
-      ctx.fillRect(12, 12, 360, 86);
-      ctx.fillStyle = "#9ef";
-      ctx.font = "12px monospace";
-      const hx = hoverTile ? hoverTile.tx : "-";
-      const hy = hoverTile ? hoverTile.ty : "-";
-      ctx.fillText(`ptr: ${lastPointer.x.toFixed(1)},${lastPointer.y.toFixed(1)}`, 20, 32);
-      ctx.fillText(`hover: ${hx},${hy}  paint:${painting} wheelLock:${wheelLock}`, 20, 48);
-      ctx.fillText(`zoom:${view.zoom.toFixed(2)} scroll:${right?right.scrollLeft:0},${right?right.scrollTop:0}`, 20, 64);
-      ctx.restore();
-    }
-
-    renderMini();
+      renderMini();
     });
   }
 
-    c.addEventListener("wheel", (e)=>{
+  c.addEventListener("wheel", (e)=>{
     if (!right) return;
     e.preventDefault();
     wheelActive = true;
     wheelLock = true;
+    painting = false;
     clearTimeout(wheelActive._t);
     wheelActive._t = setTimeout(()=>{ wheelActive = false; }, 120);
     clearTimeout(wheelLock._t);
@@ -834,18 +838,3 @@
   setCanvasSize();
   render();
 });
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
