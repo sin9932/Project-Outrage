@@ -1,8 +1,10 @@
-﻿(() => {
+﻿window.addEventListener("DOMContentLoaded", () => {
   const c = document.getElementById("c");
+  if (!c) { console.error("editor: canvas not found"); return; }
   const ctx = c.getContext("2d");
   const mapWEl = document.getElementById("mapW");
   const mapHEl = document.getElementById("mapH");
+  if (!mapWEl || !mapHEl) { console.error("editor: inputs not found"); return; }
   const btnResize = document.getElementById("btnResize");
   const fileEl = document.getElementById("file");
   const btnExport = document.getElementById("btnExport");
@@ -52,7 +54,6 @@
         ctx.fillRect(x*tile, y*tile, tile, tile);
       }
     }
-    // grid
     ctx.strokeStyle = "rgba(255,255,255,0.08)";
     for (let x=0; x<=W; x++){
       ctx.beginPath(); ctx.moveTo(x*tile,0); ctx.lineTo(x*tile,H*tile); ctx.stroke();
@@ -71,13 +72,14 @@
     render();
   }
 
-  c.addEventListener("mousedown", (e)=>{
+  c.addEventListener("pointerdown", (e)=>{
     painting = true;
+    c.setPointerCapture(e.pointerId);
     const r = c.getBoundingClientRect();
     paintAt(e.clientX - r.left, e.clientY - r.top);
   });
-  window.addEventListener("mouseup", ()=> painting=false);
-  c.addEventListener("mousemove", (e)=>{
+  window.addEventListener("pointerup", (e)=>{ try{ c.releasePointerCapture(e.pointerId); }catch(_){ } painting=false; });
+  c.addEventListener("pointermove", (e)=>{
     if (!painting) return;
     const r = c.getBoundingClientRect();
     paintAt(e.clientX - r.left, e.clientY - r.top);
@@ -120,4 +122,4 @@
   });
 
   render();
-})();
+});
