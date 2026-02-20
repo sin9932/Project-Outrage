@@ -292,10 +292,22 @@
   }
 
   function drawDiamondImage(cx, cy, img){
+    const iw = img && img.width ? img.width : 0;
+    const ih = img && img.height ? img.height : 0;
+    if (!iw || !ih){
+      drawDiamondFill(cx, cy, "#000");
+      return;
+    }
     drawDiamondPath(cx, cy);
     ctx.save();
     ctx.clip();
-    ctx.drawImage(img, cx - isoX(), cy - isoY(), isoX() * 2, isoY() * 2);
+    // Project square texture into isometric diamond (example2 style)
+    const a = isoX() / iw;
+    const b = isoY() / iw;
+    const cM = -isoX() / ih;
+    const d = isoY() / ih;
+    ctx.setTransform(a, b, cM, d, cx, cy);
+    ctx.drawImage(img, -iw * 0.5, -ih * 0.5);
     ctx.restore();
   }
 
@@ -739,6 +751,7 @@
   setCanvasSize();
   render();
 });
+
 
 
 
