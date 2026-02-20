@@ -130,6 +130,9 @@
   let clipboard = null;
 
   const view = { zoom: 1, min: 0.35, max: 3.0 };
+  let dirty = true;
+  const mapCache = document.createElement("canvas");
+  const mapCtx = mapCache.getContext("2d");
   function isoX(){ return ISO_X * view.zoom; }
   function isoY(){ return ISO_Y * view.zoom; }
   function mapPixelSizeBase(){
@@ -430,10 +433,7 @@
     }
   }
 
-  function render(){
-    ctx.setTransform(1,0,0,1,0,0);
-    ctx.clearRect(0,0,c.width,c.height);
-
+    function drawBase(){
     const { ox, oy } = origin();
     for (let y=0; y<H; y++){
       for (let x=0; x<W; x++){
@@ -482,7 +482,7 @@
             if (!isBlendable(nt)) continue;
             const edge = getEdgeBlendCanvas(nt, nb.dir);
             if (edge){
-              ctx.drawImage(edge, c0.x - isoX(), c0.y - isoY(), isoX()*2, isoY()*2);
+              ctx.drawImage(edge, c0.x - ISO_X, c0.y - ISO_Y, ISO_X*2, ISO_Y*2);
             }
           }
         }
@@ -493,8 +493,27 @@
         ctx.stroke();
       }
     }
+  }
+
+  function render(){
+    if (dirty){
+      ctx.setTransform(1,0,0,1,0,0);
+      ctx.clearRect(0,0,c.width,c.height);
+      drawBase();
+      mapCache.width = c.width;
+      mapCache.height = c.height;
+      mapCtx.setTransform(1,0,0,1,0,0);
+      mapCtx.clearRect(0,0,mapCache.width,mapCache.height);
+      mapCtx.drawImage(c, 0, 0);
+      dirty = false;
+    } else {
+      ctx.setTransform(1,0,0,1,0,0);
+      ctx.clearRect(0,0,c.width,c.height);
+      ctx.drawImage(mapCache, 0, 0);
+    }
 
     if (hoverTile && !selecting){
+      const { ox, oy } = origin();
       ctx.save();
       ctx.globalAlpha = 0.20;
       ctx.fillStyle = "rgba(0,200,255,0.35)";
@@ -529,6 +548,7 @@
     }
 
     if (selection){
+      const { ox, oy } = origin();
       ctx.save();
       ctx.strokeStyle = "rgba(255,215,0,0.9)";
       ctx.lineWidth = 2;
@@ -717,7 +737,9 @@
       return;
     }
 
-    if (paintAt(px, py)) render();
+    const did = paintAt(px, py);
+    if (did) dirty = true;
+    if (did) render();
   });
 
   brushBtns.forEach(btn=>{
@@ -838,6 +860,8 @@
   setCanvasSize();
   render();
 });
+
+
 
 
 
