@@ -27,6 +27,7 @@
   let terrain = new Uint8Array(W * H);
   let tex = new Uint16Array(W * H);
   let roads = new Uint8Array(W * H);
+  let beacons = [];
 
   const colors = {
     0: "#0f1522",
@@ -86,7 +87,7 @@
   const texPats = {};
   const blendCache = new Map();
 
-  const brushDefs = {
+    const brushDefs = {
     grass:   { kind: "terrain", terrain: 0, tex: TEX.GRASS },
     sand:    { kind: "terrain", terrain: 1, tex: TEX.SAND },
     breek1:  { kind: "terrain", terrain: 1, tex: TEX.BREEK1 },
@@ -110,7 +111,8 @@
     road14:  { kind: "road", road: ROAD.R14 },
     road15:  { kind: "road", road: ROAD.R15 },
     road16:  { kind: "road", road: ROAD.R16 },
-    road_clear: { kind: "road", road: ROAD.CLEAR }
+    road_clear: { kind: "road", road: ROAD.CLEAR },
+    beacon: { kind: "beacon" }
   };
 
   let brush = brushDefs.grass;
@@ -151,7 +153,8 @@
     return {
       terrain: new Uint8Array(terrain),
       tex: new Uint16Array(tex),
-      roads: new Uint8Array(roads)
+      roads: new Uint8Array(roads),
+      beacons: beacons.map(b => ({ x: b.x, y: b.y }))
     };
   }
 
@@ -159,6 +162,7 @@
     terrain = new Uint8Array(s.terrain);
     tex = new Uint16Array(s.tex);
     roads = new Uint8Array(s.roads);
+    beacons = s.beacons ? s.beacons.map(b => ({ x: b.x, y: b.y })) : [];
   }
 
   function pushUndo(){
@@ -214,6 +218,7 @@
     terrain = nTerrain;
     tex = nTex;
     roads = nRoads;
+    beacons = beacons.filter(b => b.x >= 0 && b.y >= 0 && b.x < W && b.y < H);
     mapWEl.value = W; mapHEl.value = H;
     selection = null;
     setCanvasSize();
@@ -567,6 +572,26 @@
       }
     }
   }
+    function drawBeacons(){
+    if (!beacons || !beacons.length) return;
+    const { ox, oy } = origin();
+    ctx.save();
+    ctx.font = "11px monospace";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    for (let i=0;i<beacons.length;i++){
+      const b = beacons[i];
+      const c0 = tileCenterScreen(b.x, b.y, ox, oy);
+      ctx.fillStyle = "rgba(0,255,180,0.9)";
+      ctx.beginPath();
+      ctx.arc(c0.x, c0.y, 5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#002";
+      ctx.fillText(String(i+1), c0.x, c0.y + 0.5);
+    }
+    ctx.restore();
+  }
+
   function render(){
     if (dirty){
       ctx.setTransform(1,0,0,1,0,0);
@@ -655,11 +680,32 @@
   function applyBrush(tx, ty){
     if (tx<0 || ty<0 || tx>=W || ty>=H) return false;
     const i = idx(tx,ty);
+    if (brush.kind === "beacon"){
+      const idxBeacon = beacons.findIndex(b => b.x === tx && b.y === ty);
+      if (idxBeacon >= 0){
+        beacons.splice(idxBeacon, 1);
+        return true;
+      }
+      if (beacons.length >= 4) return false;
+      beacons.push({ x: tx, y: ty });
+      return true;
+    }
     if (brush.kind === "road"){
       if (roads[i] === brush.road) return false;
       roads[i] = brush.road;
       return true;
     }
+    let changed = false;
+    if (terrain[i] !== brush.terrain){
+      terrain[i] = brush.terrain;
+      changed = true;
+    }
+    if (tex[i] !== brush.tex){
+      tex[i] = brush.tex;
+      changed = true;
+    }
+    return changed;
+  }
     let changed = false;
     if (terrain[i] !== brush.terrain){
       terrain[i] = brush.terrain;
@@ -830,7 +876,7 @@
   });
 
   btnExport.addEventListener("click", ()=>{
-    const data = { w: W, h: H, terrain: Array.from(terrain), tex: Array.from(tex), roads: Array.from(roads) };
+    const data = { w: W, h: H, terrain: Array.from(terrain), tex: Array.from(tex), roads: Array.from(roads), beacons: beacons.map(b => ({ x: b.x, y: b.y })) };
     const blob = new Blob([JSON.stringify(data)], {type:"application/json"});
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
@@ -849,6 +895,7 @@
     terrain = new Uint8Array(data.terrain);
     tex = data.tex ? new Uint16Array(data.tex) : new Uint16Array(W * H);
     roads = data.roads ? new Uint8Array(data.roads) : new Uint8Array(W * H);
+    beacons = Array.isArray(data.beacons) ? data.beacons.map(b => ({ x: b.x|0, y: b.y|0 })) : [];
     mapWEl.value = W; mapHEl.value = H;
     selection = null;
     if (!data.tex) initTexFromTerrain();
@@ -938,6 +985,9 @@
   setCanvasSize();
   render();
 });
+
+
+
 
 
 
