@@ -826,7 +826,7 @@
     });
   }
 
-  c.addEventListener("wheel", (e)=>{
+    c.addEventListener("wheel", (e)=>{
     if (!right) return;
     e.preventDefault();
     wheelActive = true;
@@ -843,16 +843,22 @@
     const next = Math.min(view.max, Math.max(view.min, old * factor));
     if (Math.abs(next - old) < 1e-4) return;
 
-    const r = c.getBoundingClientRect();
-    const mx = e.clientX - r.left;
-    const my = e.clientY - r.top;
-    const lx = mx / old;
-    const ly = my / old;
+    const cx = (right.scrollLeft + right.clientWidth * 0.5) / old;
+    const cy = (right.scrollTop + right.clientHeight * 0.5) / old;
 
     view.zoom = next;
     setCanvasSize();
-    right.scrollLeft = lx * next - (e.clientX - r.left);
-    right.scrollTop = ly * next - (e.clientY - r.top);
+
+    const maxX = Math.max(0, c.width - right.clientWidth);
+    const maxY = Math.max(0, c.height - right.clientHeight);
+    let nx = cx * next - right.clientWidth * 0.5;
+    let ny = cy * next - right.clientHeight * 0.5;
+    if (nx < 0) nx = 0; else if (nx > maxX) nx = maxX;
+    if (ny < 0) ny = 0; else if (ny > maxY) ny = maxY;
+    right.scrollLeft = nx;
+    right.scrollTop = ny;
+
+    dirty = true;
     render();
   }, { passive: false });
 
@@ -860,6 +866,7 @@
   setCanvasSize();
   render();
 });
+
 
 
 
