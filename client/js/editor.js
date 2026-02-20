@@ -608,6 +608,7 @@
       ctx.clearRect(0,0,c.width,c.height);
       ctx.drawImage(mapCache, 0, 0);
     }
+    drawBeacons();
 
     if (hoverTile && !selecting){
       const { ox, oy } = origin();
@@ -695,17 +696,6 @@
       roads[i] = brush.road;
       return true;
     }
-    let changed = false;
-    if (terrain[i] !== brush.terrain){
-      terrain[i] = brush.terrain;
-      changed = true;
-    }
-    if (tex[i] !== brush.tex){
-      tex[i] = brush.tex;
-      changed = true;
-    }
-    return changed;
-  }
     let changed = false;
     if (terrain[i] !== brush.terrain){
       terrain[i] = brush.terrain;
@@ -985,6 +975,8 @@
   setCanvasSize();
   render();
 });
+
+
 
 
 
