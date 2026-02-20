@@ -85,7 +85,6 @@
   const texImgs = {};
   const texPats = {};
   const blendCache = new Map();
-  const edgeMaskCache = new Map();
 
   const brushDefs = {
     grass:   { kind: "terrain", terrain: 0, tex: TEX.GRASS },
@@ -300,13 +299,35 @@
     ctx.closePath();
   }
 
-  function drawDiamondImage(cx, cy, img){
+  function _seededRand(seed){
+    let s = seed >>> 0;
+    return function(){
+      s = (s * 1664525 + 1013904223) >>> 0;
+      return s / 4294967296;
+    };
+  }
+
+  function _tileRand(tx, ty, texId, salt){
+    const h = (tx*73856093) ^ (ty*19349663) ^ (texId*83492791) ^ (salt*2654435761);
+    return _seededRand(h >>> 0);
+  }
+
+  function _tileJitter(tx, ty, texId){
+    const rnd = _tileRand(tx, ty, texId, 1);
+    const ox = (rnd() - 0.5) * 0.12; // texture-space offset fraction
+    const oy = (rnd() - 0.5) * 0.12;
+    return { ox, oy };
+  }
+
+  function drawDiamondImage(cx, cy, img, offX, offY){
     const iw = img && img.width ? img.width : 0;
     const ih = img && img.height ? img.height : 0;
     if (!iw || !ih){
       drawDiamondFill(cx, cy, "#000");
       return;
     }
+    const ox = offX || 0;
+    const oy = offY || 0;
     drawDiamondPath(cx, cy);
     ctx.save();
     ctx.clip();
@@ -315,8 +336,54 @@
     const cM = -isoX() / ih;
     const d = isoY() / ih;
     ctx.setTransform(a, b, cM, d, cx, cy);
-    ctx.drawImage(img, -iw * 0.5, -ih * 0.5);
+    ctx.drawImage(img, -iw * 0.5 + ox, -ih * 0.5 + oy);
     ctx.restore();
+  }
+
+    function drawTextureStamp(img, cx, cy, radius, offX, offY, alpha){
+    const iw = img && img.width ? img.width : 0;
+    const ih = img && img.height ? img.height : 0;
+    if (!iw || !ih) return;
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.beginPath();
+    ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+    ctx.closePath();
+    ctx.clip();
+    const a = isoX() / iw;
+    const b = isoY() / iw;
+    const cM = -isoX() / ih;
+    const d = isoY() / ih;
+    ctx.setTransform(a, b, cM, d, cx, cy);
+    ctx.drawImage(img, -iw * 0.5 + offX, -ih * 0.5 + offY);
+    ctx.restore();
+  }
+
+  function drawEdgeDecals(cx, cy, tx, ty, texId, dir, img){
+    if (!img) return;
+    const rnd = _tileRand(tx, ty, texId, dir.charCodeAt(0));
+    const count = 2 + ((rnd()*3)|0);
+    const jit = _tileJitterPx(tx, ty, texId, img);
+    for (let i=0;i<count;i++){
+      const u = rnd();
+      const v = rnd();
+      let px = cx, py = cy;
+      if (dir === "N"){
+        px = cx + (u - 0.5) * isoX() * 1.1;
+        py = cy - isoY() + v * isoY() * 0.6;
+      } else if (dir === "S"){
+        px = cx + (u - 0.5) * isoX() * 1.1;
+        py = cy + isoY() - v * isoY() * 0.6;
+      } else if (dir === "E"){
+        px = cx + isoX() - v * isoX() * 0.6;
+        py = cy + (u - 0.5) * isoY() * 1.1;
+      } else {
+        px = cx - isoX() + v * isoX() * 0.6;
+        py = cy + (u - 0.5) * isoY() * 1.1;
+      }
+      const r = 1.4 + rnd() * 3.2;
+      drawTextureStamp(img, px, py, r, jit.x, jit.y, 0.22);
+    }
   }
 
   function drawDiamondFill(cx, cy, fillStyle){
@@ -335,64 +402,6 @@
 
   function edgeKey(texId, dir){
     return texId + ":" + dir + ":" + view.zoom.toFixed(3);
-  }
-
-        function getEdgeMask(dir){
-    const key = dir + ":" + view.zoom.toFixed(3);
-    if (edgeMaskCache.has(key)) return edgeMaskCache.get(key);
-
-    const w = isoX() * 2;
-    const h = isoY() * 2;
-    const cnv = document.createElement("canvas");
-    cnv.width = Math.ceil(w);
-    cnv.height = Math.ceil(h);
-    const g = cnv.getContext("2d");
-
-    // clip to diamond
-    g.beginPath();
-    g.moveTo(w * 0.5, 0);
-    g.lineTo(w, h * 0.5);
-    g.lineTo(w * 0.5, h);
-    g.lineTo(0, h * 0.5);
-    g.closePath();
-    g.clip();
-
-    const band = Math.max(6, Math.round(Math.min(isoX(), isoY()) * 0.35));
-    const blur = Math.max(3, Math.round(band * 0.45));
-    g.filter = `blur(${blur}px)`;
-
-    let grad;
-    if (dir === "N"){
-      grad = g.createLinearGradient(0, 0, 0, band);
-      grad.addColorStop(0, "rgba(255,255,255,1)");
-      grad.addColorStop(1, "rgba(255,255,255,0)");
-    } else if (dir === "S"){
-      grad = g.createLinearGradient(0, h - band, 0, h);
-      grad.addColorStop(0, "rgba(255,255,255,0)");
-      grad.addColorStop(1, "rgba(255,255,255,1)");
-    } else if (dir === "E"){
-      grad = g.createLinearGradient(w - band, 0, w, 0);
-      grad.addColorStop(0, "rgba(255,255,255,0)");
-      grad.addColorStop(1, "rgba(255,255,255,1)");
-    } else {
-      grad = g.createLinearGradient(0, 0, band, 0);
-      grad.addColorStop(0, "rgba(255,255,255,1)");
-      grad.addColorStop(1, "rgba(255,255,255,0)");
-    }
-    g.fillStyle = grad;
-    g.fillRect(0, 0, w, h);
-    g.filter = "none";
-
-    edgeMaskCache.set(key, cnv);
-    return cnv;
-  }
-
-    function _seededRand(seed){
-    let s = seed >>> 0;
-    return function(){
-      s = (s * 1664525 + 1013904223) >>> 0;
-      return s / 4294967296;
-    };
   }
 
   function getEdgeBlendCanvas(texId, dir, tx, ty){
@@ -417,22 +426,9 @@
     const b = isoY() / iw;
     const cM = -isoX() / ih;
     const d = isoY() / ih;
+    const jit = _tileJitterPx(tx, ty, texId, img);
     g.setTransform(a, b, cM, d, w * 0.5, h * 0.5);
-    g.drawImage(img, -iw * 0.5, -ih * 0.5);
-
-    // Build noise mask (organic boundary)
-    const noiseSize = 28;
-    const noise = document.createElement("canvas");
-    noise.width = noiseSize;
-    noise.height = noiseSize;
-    const ng = noise.getContext("2d");
-    const id = ng.createImageData(noiseSize, noiseSize);
-    const rnd = _seededRand((tx+1) * 73856093 ^ (ty+1) * 19349663 ^ texId * 83492791 ^ dir.charCodeAt(0));
-    for (let i=0;i<id.data.length;i+=4){
-      const v = (rnd()*255)|0;
-      id.data[i]=v; id.data[i+1]=v; id.data[i+2]=v; id.data[i+3]=255;
-    }
-    ng.putImageData(id,0,0);
+    g.drawImage(img, -iw * 0.5 + jit.x, -ih * 0.5 + jit.y);
 
     // Mask to diamond
     g.setTransform(1,0,0,1,0,0);
@@ -446,11 +442,10 @@
     g.fillStyle = "#fff";
     g.fill();
 
-    // Apply edge gradient + noise
+    // Edge gradient
     g.globalCompositeOperation = "destination-in";
-    const band = Math.max(8, Math.round(Math.min(isoX(), isoY()) * 0.45));
-    const blur = Math.max(4, Math.round(band * 0.5));
-
+    const band = Math.max(10, Math.round(Math.min(isoX(), isoY()) * 0.55));
+    const blur = Math.max(5, Math.round(band * 0.55));
     let grad;
     if (dir === "N"){
       grad = g.createLinearGradient(0, 0, 0, band);
@@ -472,6 +467,20 @@
     g.fillStyle = grad;
     g.fillRect(0, 0, w, h);
 
+    // Build noise mask (organic boundary)
+    const noiseSize = 28;
+    const noise = document.createElement("canvas");
+    noise.width = noiseSize;
+    noise.height = noiseSize;
+    const ng = noise.getContext("2d");
+    const id = ng.createImageData(noiseSize, noiseSize);
+    const rnd = _seededRand((tx+1) * 73856093 ^ (ty+1) * 19349663 ^ texId * 83492791 ^ dir.charCodeAt(0));
+    for (let i=0;i<id.data.length;i+=4){
+      const v = (rnd()*255)|0;
+      id.data[i]=v; id.data[i+1]=v; id.data[i+2]=v; id.data[i+3]=255;
+    }
+    ng.putImageData(id,0,0);
+
     g.globalCompositeOperation = "destination-in";
     g.filter = `blur(${blur}px)`;
     g.drawImage(noise, 0, 0, w, h);
@@ -481,52 +490,7 @@
     blendCache.set(key, cnv);
     return cnv;
   }
-
-  function renderMini(){
-    if (!miniCtx || !mini) return;
-    const s = mapPixelSizeBase();
-    const scale = Math.min(mini.width / s.baseW, mini.height / s.baseH);
-    const offX = (mini.width - s.baseW * scale) * 0.5;
-    const offY = (mini.height - s.baseH * scale) * 0.5;
-
-    miniCtx.setTransform(1,0,0,1,0,0);
-    miniCtx.clearRect(0,0,mini.width,mini.height);
-    miniCtx.setTransform(scale,0,0,scale,offX,offY);
-
-    const midx = (W - 1) * 0.5;
-    const midy = (H - 1) * 0.5;
-    const ox = (s.baseW * 0.5) - ((midx - midy) * ISO_X);
-    const oy = (s.baseH * 0.5) - ((midx + midy) * ISO_Y);
-
-    for (let y=0; y<H; y++){
-      for (let x=0; x<W; x++){
-        const t = terrain[idx(x,y)];
-        const cx = (x - y) * ISO_X + ox;
-        const cy = (x + y) * ISO_Y + oy;
-        miniCtx.beginPath();
-        miniCtx.moveTo(cx, cy - ISO_Y);
-        miniCtx.lineTo(cx + ISO_X, cy);
-        miniCtx.lineTo(cx, cy + ISO_Y);
-        miniCtx.lineTo(cx - ISO_X, cy);
-        miniCtx.closePath();
-        miniCtx.fillStyle = colors[t] || "#000";
-        miniCtx.fill();
-      }
-    }
-
-    if (right){
-      const vx = right.scrollLeft / view.zoom;
-      const vy = right.scrollTop / view.zoom;
-      const vw = right.clientWidth / view.zoom;
-      const vh = right.clientHeight / view.zoom;
-      miniCtx.setTransform(scale,0,0,scale,offX,offY);
-      miniCtx.strokeStyle = "rgba(255,255,255,0.9)";
-      miniCtx.lineWidth = 2 / scale;
-      miniCtx.strokeRect(vx, vy, vw, vh);
-    }
-  }
-
-    function drawBase(){
+  function drawBase(){
     const { ox, oy } = origin();
     for (let y=0; y<H; y++){
       for (let x=0; x<W; x++){
@@ -535,7 +499,8 @@
         const c0 = tileCenterScreen(x, y, ox, oy);
         const baseImg = textureForTile(x, y);
         if (baseImg){
-          drawDiamondImage(c0.x, c0.y, baseImg);
+          const jit = _tileJitterPx(x, y, tex[i], baseImg);
+          drawDiamondImage(c0.x, c0.y, baseImg, jit.x, jit.y);
         } else {
           const fill = colors[t] || "#000";
           drawDiamondFill(c0.x, c0.y, fill);
@@ -556,7 +521,7 @@
           ctx.restore();
         }
 
-                const texId = tex[i];
+        const texId = tex[i];
         if (isBlendable(texId) && roads[i] === 0){
           const n = [
             { dx: 0, dy: -1, dir: "N" },
@@ -573,10 +538,12 @@
             const nt = tex[ni];
             if (nt === texId) continue;
             if (!isBlendable(nt)) continue;
-            const edge = getEdgeBlendCanvas(nt, nb.dir);
+            const edge = getEdgeBlendCanvas(nt, nb.dir, x, y);
             if (edge){
               ctx.drawImage(edge, c0.x - isoX(), c0.y - isoY());
             }
+            const ntImg = getImage(texPaths[nt]);
+            drawEdgeDecals(c0.x, c0.y, x, y, nt, nb.dir, ntImg);
           }
         }
 
@@ -587,7 +554,6 @@
       }
     }
   }
-
   function render(){
     if (dirty){
       ctx.setTransform(1,0,0,1,0,0);
@@ -959,6 +925,18 @@
   setCanvasSize();
   render();
 });
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
