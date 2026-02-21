@@ -1,4 +1,4 @@
-﻿;(function(){
+;(function(){
   // Debug/validation mode: add ?debug=1 to URL
   const DEV_VALIDATE = /(?:\?|&)debug=1(?:&|$)/.test(location.search);
   const DEV_VALIDATE_THROW = false; // if true, throws on first invariant failure
@@ -48,13 +48,13 @@
   // Sidebar button UI is managed by ou_ui.js. Keep game.js free of DOM mutations here.
 
   let spawnChoice = "left";
-  let mapChoice = "plains";
+  let mapChoice = "forest_ground";
   let startMoney = 10000;
   if (__ou_ui && typeof __ou_ui.initPregameUI === "function"){
     __ou_ui.initPregameUI({
       onSpawnChange: (v)=>{ spawnChoice = v || "left"; },
       onMoneyChange: (v)=>{ startMoney = (typeof v==="number" && !Number.isNaN(v)) ? v : 10000; },
-      onMapChange: (v)=>{ mapChoice = v || "plains"; }
+      onMapChange: (v)=>{ mapChoice = v || "forest_ground"; }
     });
   }
 
@@ -308,7 +308,7 @@ function fitMini() {
 
   const controlGroups = Array.from({length:10}, ()=>[]);
 
-  const terrain = new Uint8Array(MAP_W*MAP_H); // 0 ground, 1 rock, 2 ore
+  const terrain = new Uint8Array(MAP_W*MAP_H); // 0 ground, 1 rock, 2 ore, 3 water
   const ore = new Uint16Array(MAP_W*MAP_H);
   const buildOcc = new Uint8Array(MAP_W*MAP_H); // 1=blocked
   const idx = (tx,ty)=> ty*MAP_W + tx;
@@ -318,18 +318,42 @@ function fitMini() {
   const tileOfY = (y)=> clamp(Math.floor(y/TILE), 0, MAP_H-1);
 
 
-  const __ou_map = (window.OUMap && typeof window.OUMap.create === "function")
-    ? window.OUMap.create({ MAP_W, MAP_H, terrain, ore, idx, inMap, clamp })
-    : null;
-
-  function genMap(kind){
-    if (__ou_map && __ou_map.genMap) __ou_map.genMap(kind);
+  // forest_ground.tmj 로부터 맵/자원 로드
+  async function loadForestGround(){
+    terrain.fill(0);
+    ore.fill(0);
+    try{
+      const resp = await fetch("asset/sprite/map/editmap/forest_ground.tmj", { cache:"force-cache" });
+      const data = await resp.json();
+      const w = data.width|0, h = data.height|0;
+      const layers = Array.isArray(data.layers) ? data.layers : [];
+      const baseLayer = layers.find(l => l.type==="tilelayer" && l.name==="base");
+      const oreLayer  = layers.find(l => l.type==="tilelayer" && l.name==="ore");
+      if (baseLayer && Array.isArray(baseLayer.data)){
+        for (let ty=0; ty<MAP_H; ty++){
+          for (let tx=0; tx<MAP_W; tx++){
+            const gi = (ty < h && tx < w) ? baseLayer.data[ty*w + tx] : 0;
+            terrain[idx(tx,ty)] = gi>0 ? 0 : 0; // 현재는 전부 평지로 취급
+          }
+        }
+      }
+      if (oreLayer && Array.isArray(oreLayer.data)){
+        for (let ty=0; ty<MAP_H; ty++){
+          for (let tx=0; tx<MAP_W; tx++){
+            const gi = (ty < h && tx < w) ? oreLayer.data[ty*w + tx] : 0;
+            if (gi>0){
+              terrain[idx(tx,ty)] = 2;
+              ore[idx(tx,ty)] = 520;
+            }
+          }
+        }
+      }
+    }catch(e){
+      console.error("forest_ground.tmj load failed", e);
+    }
   }
-  function regenOre(){
-    if (__ou_map && __ou_map.regenOre) __ou_map.regenOre();
-  }
-  genMap(mapChoice);
-  regenOre();
+  // 초기엔 forest_ground 로 고정
+  loadForestGround();
 
   const explored = [new Uint8Array(MAP_W*MAP_H), new Uint8Array(MAP_W*MAP_H)];
   const visible  = [new Uint8Array(MAP_W*MAP_H), new Uint8Array(MAP_W*MAP_H)];

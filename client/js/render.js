@@ -1,4 +1,4 @@
-﻿// render.js
+// render.js
 // Minimap renderer split from game.js (Step 1)
 (function(){
   "use strict";
@@ -261,64 +261,81 @@
   let terrain, ore, explored, visible, BUILD, DEFENSE, BUILD_SPRITE, NAME_KO, POWER;
   let worldToScreen, tileToWorldCenter, idx, inMap, clamp, getEntityById;
 
-  // Terrain textures (optional)
-  const GRASS_TEX_PNG = "asset/sprite/map/grass1.jpg";
-  const SAND_TEX_PNG = "asset/sprite/map/sand1.jpg";
-  const WATER_TEX_PNG = "asset/sprite/map/water.jpg";
-  const WATER_TEX2_PNG = "asset/sprite/map/water2.jpg";
-  const WATER_NORM_PNG = "asset/sprite/map/water_normal.jpg";
-  let GRASS_TEX_IMG = null;
-  let SAND_TEX_IMG = null;
-  let WATER_TEX_IMG = null;
-  let WATER_TEX2_IMG = null;
-  let WATER_NORM_IMG = null;
-  let GRASS_TEX_PAT = null;
-  let SAND_TEX_PAT = null;
-  let WATER_TEX_PAT = null;
-  let WATER_TEX2_PAT = null;
-  let WATER_NORM_PAT = null;
+  // === TMJ 기반 맵 타일셋 렌더러 (forest_ground.tmj) ===
+  const FG_TMJ_URL = "asset/sprite/map/editmap/forest_ground.tmj";
+  const FG_MAP_BASE = "asset/sprite/map/";
+  let fgTmj = null; // { mapW, mapH, layers: [{name, data, width, height}], tilesets: [{firstgid, img, tw, th, columns, spacing, margin}] }
 
-  function ensureWaterPatterns(ctx){
-    if (!GRASS_TEX_IMG){
-      GRASS_TEX_IMG = new Image();
-      GRASS_TEX_IMG.onload = ()=>{ GRASS_TEX_PAT = null; };
-      GRASS_TEX_IMG.src = GRASS_TEX_PNG;
+  // forest_ground.tmj 타일셋 정의 (TSX 절대경로 대신 프로젝트 상대경로)
+  const FG_TILESET_DEFS = [
+    { firstgid: 1,   image: "grass_dry_128x64.png",   tw: 128, th: 64, columns: 8, spacing: 0, margin: 0 },
+    { firstgid: 57,  image: "dirt_dark_128x64.png",   tw: 128, th: 64, columns: 8, spacing: 0, margin: 0 },
+    { firstgid: 113, image: "forest_ground_128x64.png", tw: 128, th: 64, columns: 8, spacing: 0, margin: 0 },
+    { firstgid: 169, image: "grass_medium_128x64.png", tw: 128, th: 64, columns: 8, spacing: 0, margin: 0 },
+    { firstgid: 225, image: "ore.png",                tw: 128, th: 88, columns: 2, spacing: 2, margin: 0 },
+    { firstgid: 235, image: "start_beacon_128x64.png", tw: 128, th: 64, columns: 8, spacing: 0, margin: 0 }
+  ];
+
+  function loadImage(src) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+      img.onload = () => resolve(img);
+      img.onerror = () => reject(new Error("Image load failed: " + src));
+      img.src = src;
+    });
+  }
+
+  (function startLoadFgTmj() {
+    fetch(FG_TMJ_URL, { cache: "force-cache" })
+      .then(r => r.ok ? r.json() : Promise.reject(new Error("TMJ fetch " + r.status)))
+      .then(data => {
+        const mapW = data.width || 40;
+        const mapH = data.height || 40;
+        const layers = (data.layers || []).filter(l => l.type === "tilelayer" && Array.isArray(l.data));
+        const tilesets = FG_TILESET_DEFS.map(ts => ({
+          firstgid: ts.firstgid,
+          tw: ts.tw,
+          th: ts.th,
+          columns: ts.columns,
+          spacing: ts.spacing || 0,
+          margin: ts.margin || 0,
+          img: null,
+          _src: FG_MAP_BASE + ts.image
+        }));
+        return Promise.all(tilesets.map(ts => loadImage(ts._src).then(img => { ts.img = img; return ts; })))
+          .then(() => ({ mapW, mapH, layers, tilesets }));
+      })
+      .then(result => { fgTmj = result; })
+      .catch(e => { console.warn("[render] FG TMJ load failed:", e); });
+  })();
+
+  function drawTiledGidAt(ctx, gid, centerX, centerY, zoom, tileWorldSize) {
+    if (!fgTmj || !gid) return;
+    const raw = gid & 0x1FFFFFFF;
+    if (raw === 0) return;
+    const tsList = fgTmj.tilesets;
+    let ts = null;
+    let localId = 0;
+    for (let i = tsList.length - 1; i >= 0; i--) {
+      if (tsList[i].firstgid <= raw) {
+        ts = tsList[i];
+        localId = raw - ts.firstgid;
+        break;
+      }
     }
-    if (!SAND_TEX_IMG){
-      SAND_TEX_IMG = new Image();
-      SAND_TEX_IMG.onload = ()=>{ SAND_TEX_PAT = null; };
-      SAND_TEX_IMG.src = SAND_TEX_PNG;
-    }
-    if (!WATER_TEX_IMG){
-      WATER_TEX_IMG = new Image();
-      WATER_TEX_IMG.onload = ()=>{ WATER_TEX_PAT = null; };
-      WATER_TEX_IMG.src = WATER_TEX_PNG;
-    }
-    if (!WATER_TEX2_IMG){
-      WATER_TEX2_IMG = new Image();
-      WATER_TEX2_IMG.onload = ()=>{ WATER_TEX2_PAT = null; };
-      WATER_TEX2_IMG.src = WATER_TEX2_PNG;
-    }
-    if (!WATER_NORM_IMG){
-      WATER_NORM_IMG = new Image();
-      WATER_NORM_IMG.onload = ()=>{ WATER_NORM_PAT = null; };
-      WATER_NORM_IMG.src = WATER_NORM_PNG;
-    }
-    if (GRASS_TEX_IMG && GRASS_TEX_IMG.complete && !GRASS_TEX_PAT){
-      GRASS_TEX_PAT = ctx.createPattern(GRASS_TEX_IMG, "repeat");
-    }
-    if (SAND_TEX_IMG && SAND_TEX_IMG.complete && !SAND_TEX_PAT){
-      SAND_TEX_PAT = ctx.createPattern(SAND_TEX_IMG, "repeat");
-    }
-    if (WATER_TEX_IMG && WATER_TEX_IMG.complete && !WATER_TEX_PAT){
-      WATER_TEX_PAT = ctx.createPattern(WATER_TEX_IMG, "repeat");
-    }
-    if (WATER_TEX2_IMG && WATER_TEX2_IMG.complete && !WATER_TEX2_PAT){
-      WATER_TEX2_PAT = ctx.createPattern(WATER_TEX2_IMG, "repeat");
-    }
-    if (WATER_NORM_IMG && WATER_NORM_IMG.complete && !WATER_NORM_PAT){
-      WATER_NORM_PAT = ctx.createPattern(WATER_NORM_IMG, "repeat");
-    }
+    if (!ts || !ts.img) return;
+    const col = localId % ts.columns;
+    const row = Math.floor(localId / ts.columns);
+    const sx = ts.margin + col * (ts.tw + ts.spacing);
+    const sy = ts.margin + row * (ts.th + ts.spacing);
+    const scaleX = (tileWorldSize * (zoom || 1)) / ts.tw;
+    const scaleY = ((tileWorldSize / 2) * (zoom || 1)) / ts.th;
+    const dw = ts.tw * scaleX;
+    const dh = ts.th * scaleY;
+    const dx = centerX - dw / 2;
+    const dy = centerY - dh / 2;
+    ctx.drawImage(ts.img, sx, sy, ts.tw, ts.th, dx, dy, dw, dh);
   }
 
   let REPAIR_WRENCH_IMG, repairWrenches;
@@ -1601,151 +1618,67 @@
     const wx=c.x, wy=c.y;
     const p=worldToScreen(wx,wy);
     const x=p.x, y=p.y;
-
-    ctx.beginPath();
     const ox=ISO_X*cam.zoom, oy=ISO_Y*cam.zoom;
+    const tileScreenW = 2 * ox;
+    const tileScreenH = 2 * oy;
 
+    const inFgBounds = fgTmj && tx < fgTmj.mapW && ty < fgTmj.mapH;
+    const oreAt = inFgBounds ? ore[idx(tx,ty)] : 0;
+
+    if (inFgBounds && fgTmj.tilesets.every(ts => ts.img)) {
+      for (let li = 0; li < fgTmj.layers.length; li++) {
+        const layer = fgTmj.layers[li];
+        const name = (layer.name || "").toLowerCase();
+        if (name === "ore" || name === "gem") {
+          if (oreAt <= 0) continue;
+        }
+        const gid = layer.data[ty * (layer.width || fgTmj.mapW) + tx];
+        if (!gid) continue;
+        drawTiledGidAt(ctx, gid, x, y, cam.zoom, TILE);
+      }
+    } else {
+      ctx.beginPath();
+      ctx.moveTo(x, y-oy);
+      ctx.lineTo(x+ox, y);
+      ctx.lineTo(x, y+oy);
+      ctx.lineTo(x-ox, y);
+      ctx.closePath();
+      let base = "#0c121a";
+      if (type===1) base = "#101621";
+      if (type===3) base = "#0b1624";
+      ctx.fillStyle = base;
+      ctx.fill();
+      if (oreAt > 0) {
+        const a = clamp(oreAt/520,0,1);
+        ctx.fillStyle = `rgba(255,215,0,${0.10+0.28*a})`;
+        ctx.fill();
+      }
+      ctx.strokeStyle = "rgba(255,255,255,0.035)";
+      ctx.stroke();
+      return;
+    }
+
+    if (oreAt > 0) {
+      const a = clamp(oreAt/520,0,1);
+      ctx.save();
+      ctx.beginPath();
+      ctx.moveTo(x, y-oy);
+      ctx.lineTo(x+ox, y);
+      ctx.lineTo(x, y+oy);
+      ctx.lineTo(x-ox, y);
+      ctx.closePath();
+      ctx.clip();
+      ctx.fillStyle = `rgba(255,215,0,${0.08+0.20*a})`;
+      ctx.fillRect(x - tileScreenW, y - tileScreenH, tileScreenW * 2, tileScreenH * 2);
+      ctx.restore();
+    }
+    ctx.strokeStyle = "rgba(255,255,255,0.035)";
+    ctx.beginPath();
     ctx.moveTo(x, y-oy);
     ctx.lineTo(x+ox, y);
     ctx.lineTo(x, y+oy);
     ctx.lineTo(x-ox, y);
     ctx.closePath();
-
-    let base = "#0c121a";
-    if (type===1) base = "#101621";
-    if (type===3) base = "#0b1624";
-    ctx.fillStyle = base;
-    ctx.fill();
-
-    if (type===0 || type===1){
-      ensureWaterPatterns(ctx);
-      const pat = (type===1) ? SAND_TEX_PAT : GRASS_TEX_PAT;
-      if (pat){
-        ctx.save();
-        ctx.clip();
-        ctx.globalAlpha = 0.55;
-        ctx.fillStyle = pat;
-        ctx.fillRect(x-ox-256, y-oy-256, (ox+256)*2, (oy+256)*2);
-        ctx.restore();
-      }
-    }
-    if (type===3){
-      const waterLOD = ((cam.zoom||1) < 0.90);
-      // Water texture + fake normal highlight
-      if (!waterLOD){
-        ensureWaterPatterns(ctx);
-        ctx.save();
-        ctx.clip();
-        const t = (state && state.t) ? state.t : 0;
-        const shimmer = t * 2.6 + tx*0.45 + ty*0.35;
-        const px = (t * 18) % 256;
-        const py = (t * 12) % 256;
-        if (WATER_TEX_PAT){
-          ctx.save();
-          ctx.translate(-px, -py);
-          ctx.globalAlpha = 0.55;
-          ctx.fillStyle = WATER_TEX_PAT;
-          ctx.fillRect(x-ox-256, y-oy-256, (ox+256)*2, (oy+256)*2);
-          ctx.restore();
-        }
-        if (WATER_TEX2_PAT){
-          ctx.save();
-          ctx.translate(px*0.6, py*0.6);
-          ctx.globalCompositeOperation = "overlay";
-          ctx.globalAlpha = 0.22;
-          ctx.fillStyle = WATER_TEX2_PAT;
-          ctx.fillRect(x-ox-256, y-oy-256, (ox+256)*2, (oy+256)*2);
-          ctx.restore();
-        }
-        if (WATER_NORM_PAT){
-          ctx.save();
-          ctx.translate(px*0.9, py*0.9);
-          ctx.globalCompositeOperation = "soft-light";
-          ctx.globalAlpha = 0.28;
-          ctx.fillStyle = WATER_NORM_PAT;
-          ctx.fillRect(x-ox-256, y-oy-256, (ox+256)*2, (oy+256)*2);
-          ctx.restore();
-        }
-        // directional specular sweep (fake sun reflection)
-        ctx.save();
-        ctx.globalCompositeOperation = "screen";
-        ctx.globalAlpha = 0.12;
-        const sweep = (Math.sin(shimmer*0.55) * 0.5 + 0.5);
-        // light direction depends on camera position (fake)
-        const lx = (cam.x || 0) - (MAP_W*TILE*0.5);
-        const ly = (cam.y || 0) - (MAP_H*TILE*0.5);
-        const lnx = (lx===0 && ly===0) ? 0.6 : (lx / (Math.hypot(lx,ly)||1));
-        const lny = (lx===0 && ly===0) ? 0.4 : (ly / (Math.hypot(lx,ly)||1));
-        const g2 = ctx.createLinearGradient(x-ox*lnx, y-oy*lny, x+ox*lnx, y+oy*lny);
-        g2.addColorStop(0.0, "rgba(255,255,255,0.00)");
-        g2.addColorStop(0.46 + sweep*0.08, "rgba(255,255,255,0.20)");
-        g2.addColorStop(0.62 + sweep*0.08, "rgba(255,255,255,0.00)");
-        ctx.fillStyle = g2;
-        ctx.fill();
-        ctx.restore();
-        ctx.restore();
-
-        ctx.save();
-        ctx.globalAlpha = 0.20;
-        ctx.strokeStyle = "rgba(170,210,255,0.50)";
-        ctx.lineWidth = 1.2 * cam.zoom;
-        const wave = Math.sin(shimmer) * 0.35;
-        ctx.beginPath();
-        ctx.moveTo(x-ox*0.75, y-oy*0.08 + wave*10);
-        ctx.lineTo(x+ox*0.75, y+oy*0.08 + wave*10);
-        ctx.stroke();
-
-        // extra fast ripples for "windy" water
-        const wave2 = Math.sin(shimmer*1.7 + 1.2) * 0.28;
-        ctx.globalAlpha = 0.16;
-        ctx.beginPath();
-        ctx.moveTo(x-ox*0.55, y+oy*0.06 + wave2*9);
-        ctx.lineTo(x+ox*0.55, y+oy*0.06 + wave2*9);
-        ctx.stroke();
-
-        const wave3 = Math.sin(shimmer*2.5 + 2.7) * 0.20;
-        ctx.globalAlpha = 0.14;
-        ctx.beginPath();
-        ctx.moveTo(x-ox*0.40, y+oy*0.22 + wave3*7);
-        ctx.lineTo(x+ox*0.40, y+oy*0.22 + wave3*7);
-        ctx.stroke();
-        ctx.restore();
-      } else {
-        // LOD: still draw base texture, but skip normals/specular/waves
-        ensureWaterPatterns(ctx);
-        ctx.save();
-        ctx.clip();
-        const t = (state && state.t) ? state.t : 0;
-        const px = (t * 18) % 256;
-        const py = (t * 12) % 256;
-        if (WATER_TEX_PAT){
-          ctx.save();
-          ctx.translate(-px, -py);
-          ctx.globalAlpha = 0.45;
-          ctx.fillStyle = WATER_TEX_PAT;
-          ctx.fillRect(x-ox-256, y-oy-256, (ox+256)*2, (oy+256)*2);
-          ctx.restore();
-        }
-        ctx.restore();
-        ctx.save();
-        ctx.globalAlpha = 0.10;
-        ctx.strokeStyle = "rgba(160,200,245,0.35)";
-        ctx.lineWidth = 1.0 * cam.zoom;
-        ctx.beginPath();
-        ctx.moveTo(x-ox*0.60, y);
-        ctx.lineTo(x+ox*0.60, y);
-        ctx.stroke();
-        ctx.restore();
-      }
-    }
-
-    if (ore[idx(tx,ty)]>0){
-      const a=clamp(ore[idx(tx,ty)]/520,0,1);
-      ctx.fillStyle=`rgba(255,215,0,${0.10+0.28*a})`;
-      ctx.fill();
-    }
-
-    ctx.strokeStyle="rgba(255,255,255,0.035)";
     ctx.stroke();
   }
 
