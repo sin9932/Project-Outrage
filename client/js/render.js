@@ -2685,23 +2685,39 @@
       }
     }
 
-    if (typeof worldToScreen === "function" && buildings && buildings.length > 0) {
+    if (typeof worldToScreen === "function" && typeof tileToWorldCenter === "function" && buildings && buildings.length > 0) {
       const z = (cam && typeof cam.zoom === "number") ? cam.zoom : 1;
+      const ox = ISO_X * z;
+      const oy = ISO_Y * z;
+      const lightRadius = TILE * 4.5;
+      const maxAlpha = 0.22;
       ctx.save();
       ctx.globalCompositeOperation = "lighter";
-      for (const b of buildings) {
-        if (!b.alive || b.civ) continue;
-        const p = worldToScreen(b.x, b.y);
-        const r = (b.tw + b.th) * TILE * 0.7 * z;
-        const grad = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, r);
-        grad.addColorStop(0, "rgba(255,252,245,0.18)");
-        grad.addColorStop(0.35, "rgba(255,248,235,0.08)");
-        grad.addColorStop(0.7, "rgba(255,245,230,0.02)");
-        grad.addColorStop(1, "rgba(255,255,255,0)");
-        ctx.fillStyle = grad;
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
-        ctx.fill();
+      for (let s = 0; s <= (MAP_W - 1) + (MAP_H - 1); s++) {
+        for (let ty = 0; ty < MAP_H; ty++) {
+          const tx = s - ty;
+          if (!inMap(tx, ty)) continue;
+          const c = tileToWorldCenter(tx, ty);
+          let light = 0;
+          for (const b of buildings) {
+            if (!b.alive || b.civ) continue;
+            const d = Math.hypot(b.x - c.x, b.y - c.y);
+            const r = lightRadius * (0.6 + (b.tw + b.th) * 0.15);
+            if (d < r) light = Math.max(light, 1 - d / r);
+          }
+          if (light <= 0) continue;
+          const p = worldToScreen(c.x, c.y);
+          const x = p.x, y = p.y;
+          const a = light * maxAlpha;
+          ctx.fillStyle = `rgba(255,250,240,${a})`;
+          ctx.beginPath();
+          ctx.moveTo(x, y - oy);
+          ctx.lineTo(x + ox, y);
+          ctx.lineTo(x, y + oy);
+          ctx.lineTo(x - ox, y);
+          ctx.closePath();
+          ctx.fill();
+        }
       }
       ctx.globalCompositeOperation = "source-over";
       ctx.restore();
