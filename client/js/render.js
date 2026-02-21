@@ -446,6 +446,9 @@
     }catch(_e){}
   })();
 
+  let CON_YARD_PNG = "";
+  const CON_YARD_IMG = new Image();
+
  const BUILD_SPRITE_LOCAL = {
     hq: {
       img: CON_YARD_IMG,
@@ -562,7 +565,7 @@
   let EXP1_FRAMES = null;
 
   // EXP1 pivot tuning:
-  // (fx.x, fx.y) is "¹Ù´Ú Á¤Áß¾Ó" ±âÁØ. ¾Æ·¡ °ªÀ¸·Î Æø¹ß Áß½ÉÀ» ¸ÂÃá´Ù.
+  // (fx.x, fx.y) is "ë°”ë‹¥ ì •ì¤‘ì•™" ê¸°ì¤€. ì•„ë˜ ê°’ìœ¼ë¡œ í­ë°œ ì¤‘ì‹¬ì„ ë§ì¶˜ë‹¤.
   // pivot: 0..1 (0=left/top, 1=right/bottom)
   let EXP1_PIVOT_X = 0.50;
   let EXP1_PIVOT_Y = 0.52;
@@ -914,8 +917,6 @@
   let getUnitSpec;
 
   let REPAIR_WRENCH_IMG = new Image();
-  let CON_YARD_PNG = "";
-  const CON_YARD_IMG = new Image();
 
   function _ensureImg(cur, url){
     if (cur) return cur;
@@ -1276,7 +1277,7 @@
 
   // The PNG contains 8 poses (idle), arranged in a 3x3 grid with the bottom-right cell empty.
   // Order definition (USER-LOCKED): start at top-left and go right:
-  // [0]=µ¿(E), [1]=µ¿ºÏ(NE), [2]=ºÏ(N), [3]=ºÏ¼­(NW), [4]=¼­(W), [5]=³²¼­(SW), [6]=³²(S), [7]=µ¿³²(SE)
+  // [0]=ë™(E), [1]=ë™ë¶(NE), [2]=ë¶(N), [3]=ë¶ì„œ(NW), [4]=ì„œ(W), [5]=ë‚¨ì„œ(SW), [6]=ë‚¨(S), [7]=ë™ë‚¨(SE)
   // Bounding boxes were auto-trimmed from the provided file (inf_idle_tex.png 1800x1800).
   const LOCAL_INF_IDLE_ATLAS = [
     { x:226, y: 90, w:199, h:420 }, // 0 E
@@ -2277,7 +2278,7 @@
     const p=worldToScreen(b.x,b.y);
     const yy = p.y - (Math.max(b.tw,b.th)*ISO_Y*cam.zoom) - 40;
     const xx = p.x + ISO_X*(b.tw*0.72)*cam.zoom;
-    const text="ÁÖ¿ä";
+    const text="ì£¼ìš”";
     ctx.save();
     ctx.font="bold 12px system-ui";
     ctx.textAlign="left";
@@ -3370,7 +3371,7 @@
       const msg="GAME OVER";
       ctx.fillText(msg, W/2-ctx.measureText(msg).width/2, H/2);
       ctx.font="16px system-ui";
-      const sub="»õ·Î°íÄ§ÇÏ¸é Àç½ÃÀÛ";
+      const sub="ìƒˆë¡œê³ ì¹¨í•˜ë©´ ì¬ì‹œì‘";
       ctx.fillText(sub, W/2-ctx.measureText(sub).width/2, H/2+28);
     }
   }
