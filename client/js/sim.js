@@ -1379,6 +1379,7 @@
       return out;
     }
 
+  const MAX_ASTAR_EXPAND = 900;
   function aStarPathOcc(u, sx, sy, gx, gy){
       if (!inMap(sx,sy) || !inMap(gx,gy)) return null;
       const W=MAP_W, H=MAP_H, N=W*H;
@@ -1398,6 +1399,7 @@
       open[0]=s; inOpen[s]=1;
       gScore[s]=0; fScore[s]=h(sx,sy,gx,gy);
       let openN=1;
+      let expanded = 0;
 
       const dirs = [
         [1,0,1],[-1,0,1],[0,1,1],[0,-1,1],
@@ -1405,6 +1407,8 @@
       ];
 
       while (openN>0){
+        if (expanded >= MAX_ASTAR_EXPAND) return null;
+        expanded++;
         let bestI=0, best=open[0], bestF=fScore[best];
         for (let i=1;i<openN;i++){
           const n=open[i];

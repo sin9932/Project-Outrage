@@ -59,6 +59,9 @@
       nextWave: 0,
       apmMul: 3.2,
       underRushUntil: 0,
+      lastRallyIssue: 0,
+      lastRallyX: -1e9,
+      lastRallyY: -1e9,
       // Reused arrays to avoid .filter() allocations every tick
       _eUnits: [], _eUnitsAll: [], _playerInf: [], _enemyInf: [],
       _combat: [], _engs: [], _snipers: [], _idleIFVs: [],
@@ -369,7 +372,15 @@
       }
     }
 
+    const RALLY_ISSUE_INTERVAL = 2.4;
+    const RALLY_MOVE_THRESH2 = (TILE * 3) * (TILE * 3);
     function aiCommandMoveToRally(list) {
+      const rallyDx = ai.rally.x - ai.lastRallyX, rallyDy = ai.rally.y - ai.lastRallyY;
+      const rallyMoved = (rallyDx * rallyDx + rallyDy * rallyDy) > RALLY_MOVE_THRESH2;
+      if (!rallyMoved && state.t < ai.lastRallyIssue + RALLY_ISSUE_INTERVAL) return;
+      ai.lastRallyIssue = state.t;
+      ai.lastRallyX = ai.rally.x;
+      ai.lastRallyY = ai.rally.y;
       let k = 0; const spacing = 46;
       for (const u of list) {
         // Keep empty IFVs back for passenger pickup.

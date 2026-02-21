@@ -2750,17 +2750,18 @@
       ctx.restore();
     }
 
-    if (cloudsImage && typeof state.t === "number" && typeof worldToScreen === "function" && TILE) {
+    if (cloudsImage && typeof state.t === "number") {
       const z = (cam && typeof cam.zoom === "number") ? cam.zoom : 1;
       const tw = cloudsImage.width;
       const th = cloudsImage.height;
       const isoFlatten = 0.48;
-      const worldW = MAP_W * TILE;
-      const worldH = MAP_H * TILE;
-      const driftX = (state.t * 18) % (TILE * 12);
-      const driftY = (state.t * 10) % (TILE * 12);
       const cloudScreenW = Math.max(W, H) * 3.2 * z;
       const cloudScreenH = (th / tw) * cloudScreenW * isoFlatten;
+      // Seamless tiling: scroll offset wraps at tile size so wrap is invisible; draw 3x3 grid so coverage is continuous.
+      const scrollSpeedX = 24;
+      const scrollSpeedY = 14;
+      const offsetX = (state.t * scrollSpeedX) % cloudScreenW;
+      const offsetY = (state.t * scrollSpeedY) % cloudScreenH;
       let cloudBuf = null;
       try {
         cloudBuf = document.createElement("canvas");
@@ -2770,16 +2771,22 @@
       const cctx = cloudBuf ? cloudBuf.getContext("2d") : null;
       if (cctx) {
         cctx.clearRect(0, 0, W, H);
-        const cx1 = worldW * 0.35 + driftX;
-        const cy1 = worldH * 0.35 + driftY;
-        const p1 = worldToScreen(cx1, cy1);
-        cctx.globalAlpha = 0.58;
-        cctx.drawImage(cloudsImage, 0, 0, tw, th, p1.x - cloudScreenW / 2, p1.y - cloudScreenH / 2, cloudScreenW, cloudScreenH);
-        const cx2 = worldW * 0.7 - driftX * 0.6;
-        const cy2 = worldH * 0.65 - driftY * 0.6;
-        const p2 = worldToScreen(cx2, cy2);
-        cctx.globalAlpha = 0.28;
-        cctx.drawImage(cloudsImage, 0, 0, tw, th, p2.x - (cloudScreenW * 0.85) / 2, p2.y - (cloudScreenH * 0.85) / 2, cloudScreenW * 0.85, cloudScreenH * 0.85);
+        const drawTiled = (alpha, scale) => {
+          const w = cloudScreenW * scale;
+          const h = cloudScreenH * scale;
+          const phaseX = (offsetX * scale) % w;
+          const phaseY = (offsetY * scale) % h;
+          cctx.globalAlpha = alpha;
+          for (let i = -1; i <= 2; i++) {
+            for (let j = -1; j <= 2; j++) {
+              const sx = -phaseX + i * w;
+              const sy = -phaseY + j * h;
+              cctx.drawImage(cloudsImage, 0, 0, tw, th, sx, sy, w, h);
+            }
+          }
+        };
+        drawTiled(0.58, 1);
+        drawTiled(0.28, 0.85);
         cctx.globalAlpha = 1;
         ctx.save();
         ctx.globalCompositeOperation = "multiply";
