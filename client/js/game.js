@@ -4866,25 +4866,6 @@ function draw(){
     return {tx: clamp(nearTx,0,MAP_W-spec.tw), ty: clamp(nearTy,0,MAP_H-spec.th)};
   }
 
-  // v29: carve a buildable "base pad" so large structures can be placed near HQ.
-  // This removes rocks/ore inside the pad area (RA2-like clear concrete zone).
-  function carveBuildPad(centerTx, centerTy, rTiles){
-    const x0 = clamp(centerTx - rTiles, 0, MAP_W-1);
-    const x1 = clamp(centerTx + rTiles, 0, MAP_W-1);
-    const y0 = clamp(centerTy - rTiles, 0, MAP_H-1);
-    const y1 = clamp(centerTy + rTiles, 0, MAP_H-1);
-    for (let ty=y0; ty<=y1; ty++){
-      for (let tx=x0; tx<=x1; tx++){
-        const i = idx(tx,ty);
-        // Keep existing buildings intact (should be none at this moment, but safe).
-        if (buildOcc[i]===1) continue;
-        terrain[i] = 0;   // ground
-        ore[i] = 0;       // no ore blocking construction
-      }
-    }
-  }
-
-
   function placeStart(spawn){
     clearWorld();
 
@@ -4906,9 +4887,6 @@ function draw(){
         b = {tx: Math.floor(MAP_W*0.14), ty: Math.floor(MAP_H*0.28)};
       }
     }
-
-    carveBuildPad(a.tx, a.ty, 15);
-    carveBuildPad(b.tx, b.ty, 15);
 
 
     function safePlace(team, kind, nearTx, nearTy){
