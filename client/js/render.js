@@ -1705,30 +1705,6 @@
   }
 
   function drawBuildingShadow(b){
-    const z = (cam && typeof cam.zoom === "number") ? cam.zoom : 1;
-    const cx = (b.tx + b.tw * 0.5) * TILE;
-    const cy = (b.ty + b.th * 0.5) * TILE;
-    const p = worldToScreen(cx, cy);
-    const baseR = (b.tw + b.th) * 0.5 * Math.max(ISO_X, ISO_Y) * TILE * 0.45 * z;
-    const shadowDirX = 1;
-    const shadowDirY = 0.5;
-    const offset = 18 * z;
-    const gx = p.x + shadowDirX * offset;
-    const gy = p.y + shadowDirY * offset;
-    const rx = baseR * 1.1;
-    const ry = baseR * 0.5;
-    const grad = ctx.createRadialGradient(gx, gy, 0, gx, gy, Math.max(rx, ry));
-    grad.addColorStop(0, "rgba(0,0,0,0.10)");
-    grad.addColorStop(0.4, "rgba(0,0,0,0.05)");
-    grad.addColorStop(1, "rgba(0,0,0,0)");
-    ctx.save();
-    ctx.globalCompositeOperation = "source-over";
-    ctx.globalAlpha = 1;
-    ctx.beginPath();
-    ctx.ellipse(gx, gy, rx, ry, 0, 0, Math.PI * 2);
-    ctx.fillStyle = grad;
-    ctx.fill();
-    ctx.restore();
   }
 
   function drawFootprintPrism(b, fill, stroke){
@@ -2718,7 +2694,7 @@
       const worldH = MAP_H * TILE;
       const driftX = (state.t * 18) % (TILE * 12);
       const driftY = (state.t * 10) % (TILE * 12);
-      const cloudScreenW = Math.max(W, H) * 2.2;
+      const cloudScreenW = Math.max(W, H) * 2.2 * z;
       const cloudScreenH = (th / tw) * cloudScreenW * isoFlatten;
       let cloudBuf = null;
       try {
@@ -2845,7 +2821,7 @@
 
         if (buildSprite && buildSprite[ent.kind]){
           drawBuildingShadow(ent);
-          drawFootprintDiamond(ent, "rgba(0,0,0,0.22)", "rgba(0,0,0,0)");
+          drawFootprintDiamond(ent, "rgba(0,0,0,0)", "rgba(0,0,0,0)");
           if (typeof drawBuildingSprite === "function") drawBuildingSprite(ent);
           else drawBuildingSpriteLocal(ent);
         } else if (window.PO && PO.buildings && PO.buildings.drawBuilding) {
