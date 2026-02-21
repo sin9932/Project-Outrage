@@ -4903,14 +4903,37 @@ function draw(){
       return b;
     }
 
-    const pHQ = safePlace(TEAM.PLAYER,"hq", a.tx-2, a.ty-2);
-    const eHQ = safePlace(TEAM.ENEMY, "hq", b.tx-2, b.ty-2);
+    const hqSpec = BUILD.hq;
+    const hqCenterOffTx = (hqSpec.tw / 2) | 0;
+    const hqCenterOffTy = (hqSpec.th / 2) | 0;
+    const useBeacon = startBeaconTiles.length >= 2;
+    let pHQ = null;
+    let eHQ = null;
+    if (useBeacon) {
+      const playerHQtx = a.tx - hqCenterOffTx;
+      const playerHQty = a.ty - hqCenterOffTy;
+      if (!isBlockedFootprint(playerHQtx, playerHQty, hqSpec.tw, hqSpec.th)) {
+        pHQ = addBuilding(TEAM.PLAYER, "hq", playerHQtx, playerHQty);
+      } else {
+        pHQ = safePlace(TEAM.PLAYER, "hq", playerHQtx, playerHQty);
+      }
+      const enemyHQtx = b.tx - hqCenterOffTx;
+      const enemyHQty = b.ty - hqCenterOffTy;
+      if (!isBlockedFootprint(enemyHQtx, enemyHQty, hqSpec.tw, hqSpec.th)) {
+        eHQ = addBuilding(TEAM.ENEMY, "hq", enemyHQtx, enemyHQty);
+      } else {
+        eHQ = safePlace(TEAM.ENEMY, "hq", enemyHQtx, enemyHQty);
+      }
+    } else {
+      pHQ = safePlace(TEAM.PLAYER, "hq", a.tx - hqCenterOffTx, a.ty - hqCenterOffTy);
+      eHQ = safePlace(TEAM.ENEMY, "hq", b.tx - hqCenterOffTx, b.ty - hqCenterOffTy);
+    }
 
     // Start with HQ only (both sides)
 
     recomputePower();
     updateVision();
-    centerCameraOn(pHQ.x,pHQ.y);
+    if (pHQ) centerCameraOn(pHQ.x, pHQ.y);
     updateSelectionUI();
   }
 

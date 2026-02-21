@@ -2685,12 +2685,14 @@
       }
     }
 
-    if (typeof worldToScreen === "function" && typeof tileToWorldCenter === "function" && buildings && buildings.length > 0) {
+    if (typeof worldToScreen === "function" && typeof tileToWorldCenter === "function" && (buildings?.length > 0 || ore)) {
       const z = (cam && typeof cam.zoom === "number") ? cam.zoom : 1;
       const ox = ISO_X * z;
       const oy = ISO_Y * z;
       const lightRadius = TILE * 4.5;
-      const maxAlpha = 0.22;
+      const maxAlpha = 0.12;
+      const resourceLightRadius = TILE * 0.55;
+      const resourceMaxAlpha = 0.08;
       ctx.save();
       ctx.globalCompositeOperation = "lighter";
       for (let s = 0; s <= (MAP_W - 1) + (MAP_H - 1); s++) {
@@ -2699,12 +2701,27 @@
           if (!inMap(tx, ty)) continue;
           const c = tileToWorldCenter(tx, ty);
           let light = 0;
-          for (const b of buildings) {
+          for (const b of buildings || []) {
             if (!b.alive || b.civ) continue;
+            if (DEFENSE && DEFENSE[b.kind] && typeof isUnderPower === "function" && isUnderPower(b.team)) continue;
             const d = Math.hypot(b.x - c.x, b.y - c.y);
             const r = lightRadius * (0.6 + (b.tw + b.th) * 0.15);
             if (d < r) light = Math.max(light, 1 - d / r);
           }
+          let resourceLight = 0;
+          if (ore) {
+            for (let dy = -1; dy <= 1; dy++) {
+              for (let dx = -1; dx <= 1; dx++) {
+                const ntx = tx + dx, nty = ty + dy;
+                if (!inMap(ntx, nty)) continue;
+                if (ore[idx(ntx, nty)] <= 0) continue;
+                const nc = tileToWorldCenter(ntx, nty);
+                const nd = Math.hypot(c.x - nc.x, c.y - nc.y);
+                if (nd < resourceLightRadius) resourceLight = Math.max(resourceLight, Math.max(0, 1 - nd / resourceLightRadius));
+              }
+            }
+          }
+          light = Math.max(light, resourceLight * resourceMaxAlpha / maxAlpha);
           if (light <= 0) continue;
           const p = worldToScreen(c.x, c.y);
           const x = p.x, y = p.y;
@@ -2732,7 +2749,7 @@
       const worldH = MAP_H * TILE;
       const driftX = (state.t * 18) % (TILE * 12);
       const driftY = (state.t * 10) % (TILE * 12);
-      const cloudScreenW = Math.max(W, H) * 2.2 * z;
+      const cloudScreenW = Math.max(W, H) * 3.2 * z;
       const cloudScreenH = (th / tw) * cloudScreenW * isoFlatten;
       let cloudBuf = null;
       try {
