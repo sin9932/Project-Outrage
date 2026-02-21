@@ -319,10 +319,13 @@ function fitMini() {
   const tileOfY = (y)=> clamp(Math.floor(y/TILE), 0, MAP_H-1);
 
 
-  // forest_ground.tmj 로부터 맵/자원 로드
+  // forest_ground.tmj: start 레이어의 start_beacon( firstgid 235 ) 타일 위치 → 기지 스타트 지점
+  let startBeaconTiles = []; // [{tx,ty}, ...] 최대 2개, left=0번 right=1번
+
   async function loadForestGround(){
     terrain.fill(0);
     ore.fill(0);
+    startBeaconTiles = [];
     try{
       const resp = await fetch("asset/sprite/map/editmap/forest_ground.tmj", { cache:"force-cache" });
       const data = await resp.json();
@@ -330,11 +333,12 @@ function fitMini() {
       const layers = Array.isArray(data.layers) ? data.layers : [];
       const baseLayer = layers.find(l => l.type==="tilelayer" && l.name==="base");
       const oreLayer  = layers.find(l => l.type==="tilelayer" && l.name==="ore");
+      const startLayer = layers.find(l => l.type==="tilelayer" && l.name==="start");
       if (baseLayer && Array.isArray(baseLayer.data)){
         for (let ty=0; ty<MAP_H; ty++){
           for (let tx=0; tx<MAP_W; tx++){
             const gi = (ty < h && tx < w) ? baseLayer.data[ty*w + tx] : 0;
-            terrain[idx(tx,ty)] = gi>0 ? 0 : 0; // 현재는 전부 평지로 취급
+            terrain[idx(tx,ty)] = gi>0 ? 0 : 0;
           }
         }
       }
@@ -349,11 +353,21 @@ function fitMini() {
           }
         }
       }
+      if (startLayer && Array.isArray(startLayer.data)){
+        const START_BEACON_FIRSTGID = 235;
+        for (let ty=0; ty<h; ty++){
+          for (let tx=0; tx<w; tx++){
+            const gid = startLayer.data[ty*w+tx] & 0x1FFFFFFF;
+            if (gid >= START_BEACON_FIRSTGID) startBeaconTiles.push({ tx, ty });
+          }
+        }
+        startBeaconTiles.sort((a,b)=> (a.ty*MAP_W+a.tx) - (b.ty*MAP_W+b.tx));
+        if (startBeaconTiles.length > 2) startBeaconTiles.length = 2;
+      }
     }catch(e){
       console.error("forest_ground.tmj load failed", e);
     }
   }
-  // 초기엔 forest_ground 로 고정
   loadForestGround();
 
   const explored = [new Uint8Array(MAP_W*MAP_H), new Uint8Array(MAP_W*MAP_H)];
@@ -4897,15 +4911,24 @@ function draw(){
     clearWorld();
 
     let a, b;
-    if (spawn==="left"){
-      a = {tx: Math.floor(MAP_W*0.22), ty: Math.floor(MAP_H*0.62)};
-      b = {tx: Math.floor(MAP_W*0.78), ty: Math.floor(MAP_H*0.38)};
+    if (startBeaconTiles.length >= 2){
+      if (spawn==="left"){
+        a = { tx: startBeaconTiles[0].tx, ty: startBeaconTiles[0].ty };
+        b = { tx: startBeaconTiles[1].tx, ty: startBeaconTiles[1].ty };
+      } else {
+        a = { tx: startBeaconTiles[1].tx, ty: startBeaconTiles[1].ty };
+        b = { tx: startBeaconTiles[0].tx, ty: startBeaconTiles[0].ty };
+      }
     } else {
-      a = {tx: Math.floor(MAP_W*0.86), ty: Math.floor(MAP_H*0.72)};
-      b = {tx: Math.floor(MAP_W*0.14), ty: Math.floor(MAP_H*0.28)};
+      if (spawn==="left"){
+        a = {tx: Math.floor(MAP_W*0.22), ty: Math.floor(MAP_H*0.62)};
+        b = {tx: Math.floor(MAP_W*0.78), ty: Math.floor(MAP_H*0.38)};
+      } else {
+        a = {tx: Math.floor(MAP_W*0.86), ty: Math.floor(MAP_H*0.72)};
+        b = {tx: Math.floor(MAP_W*0.14), ty: Math.floor(MAP_H*0.28)};
+      }
     }
 
-    // v29: ensure enough buildable area around start bases
     carveBuildPad(a.tx, a.ty, 15);
     carveBuildPad(b.tx, b.ty, 15);
 

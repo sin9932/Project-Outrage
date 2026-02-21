@@ -1629,6 +1629,7 @@
       for (let li = 0; li < fgTmj.layers.length; li++) {
         const layer = fgTmj.layers[li];
         const name = (layer.name || "").toLowerCase();
+        if (name === "start") continue;
         if (name === "ore" || name === "gem") {
           if (oreAt <= 0) continue;
         }
@@ -1658,20 +1659,6 @@
       return;
     }
 
-    if (oreAt > 0) {
-      const a = clamp(oreAt/520,0,1);
-      ctx.save();
-      ctx.beginPath();
-      ctx.moveTo(x, y-oy);
-      ctx.lineTo(x+ox, y);
-      ctx.lineTo(x, y+oy);
-      ctx.lineTo(x-ox, y);
-      ctx.closePath();
-      ctx.clip();
-      ctx.fillStyle = `rgba(255,215,0,${0.08+0.20*a})`;
-      ctx.fillRect(x - tileScreenW, y - tileScreenH, tileScreenW * 2, tileScreenH * 2);
-      ctx.restore();
-    }
     ctx.strokeStyle = "rgba(255,255,255,0.035)";
     ctx.beginPath();
     ctx.moveTo(x, y-oy);
