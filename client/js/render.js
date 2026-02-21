@@ -2691,13 +2691,20 @@
       const oy = ISO_Y * z;
       const lightRadius = TILE * 4.5;
       const maxAlpha = 0.12;
-      const resourceLightRadius = TILE * 0.55;
-      const resourceMaxAlpha = 0.08;
+      const resourceLightRadius = TILE * 2.2;
+      const resourceMaxAlpha = 0.10;
+      const resourceFalloff = 0.55;
       ctx.save();
       ctx.globalCompositeOperation = "lighter";
-      for (let s = 0; s <= (MAP_W - 1) + (MAP_H - 1); s++) {
-        for (let ty = 0; ty < MAP_H; ty++) {
-          const tx = s - ty;
+      // Only iterate tiles that can be on screen (viewport cull) to reduce cost.
+      const camTx = (cam.x / TILE) | 0, camTy = (cam.y / TILE) | 0;
+      const viewMargin = 28;
+      const txLo = Math.max(0, camTx - viewMargin);
+      const txHi = Math.min(MAP_W - 1, camTx + viewMargin);
+      const tyLo = Math.max(0, camTy - viewMargin);
+      const tyHi = Math.min(MAP_H - 1, camTy + viewMargin);
+      for (let ty = tyLo; ty <= tyHi; ty++) {
+        for (let tx = txLo; tx <= txHi; tx++) {
           if (!inMap(tx, ty)) continue;
           const c = tileToWorldCenter(tx, ty);
           let light = 0;
@@ -2710,14 +2717,17 @@
           }
           let resourceLight = 0;
           if (ore) {
-            for (let dy = -1; dy <= 1; dy++) {
-              for (let dx = -1; dx <= 1; dx++) {
+            for (let dy = -2; dy <= 2; dy++) {
+              for (let dx = -2; dx <= 2; dx++) {
                 const ntx = tx + dx, nty = ty + dy;
                 if (!inMap(ntx, nty)) continue;
                 if (ore[idx(ntx, nty)] <= 0) continue;
                 const nc = tileToWorldCenter(ntx, nty);
                 const nd = Math.hypot(c.x - nc.x, c.y - nc.y);
-                if (nd < resourceLightRadius) resourceLight = Math.max(resourceLight, Math.max(0, 1 - nd / resourceLightRadius));
+                if (nd < resourceLightRadius) {
+                  const t = Math.max(0, 1 - nd / resourceLightRadius);
+                  resourceLight = Math.max(resourceLight, Math.pow(t, resourceFalloff));
+                }
               }
             }
           }

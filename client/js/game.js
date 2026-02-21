@@ -5257,7 +5257,9 @@ function sanityCheck(){
       }
 
 
-      updateVision();
+      if (!state._visionFrame) state._visionFrame = 0;
+      state._visionFrame++;
+      if (state._visionFrame % 2 === 0) updateVision();
       const _eco = tickEconomyPost(simDt);
       if (DEBUG_MONEY && state && state.player){
         _m2 = (_eco && _eco.m2 != null) ? _eco.m2 : (state.player.money || 0);

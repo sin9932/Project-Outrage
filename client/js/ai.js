@@ -58,7 +58,11 @@
       engRushNext: 0,
       nextWave: 0,
       apmMul: 3.2,
-      underRushUntil: 0
+      underRushUntil: 0,
+      // Reused arrays to avoid .filter() allocations every tick
+      _eUnits: [], _eUnitsAll: [], _playerInf: [], _enemyInf: [],
+      _combat: [], _engs: [], _snipers: [], _idleIFVs: [],
+      _infFromEUnitsAll: [], _eIFVsWithEng: [], _eIFVsAll: [], _eEngSnip: []
     };
 
     // ===== ENEMY AGGRESSION / ANTI-CLUSTER HELPERS =====
@@ -597,10 +601,10 @@
     }
 
     function aiUseIFVPassengers() {
-      // Ensure engineer/sniper are IFV-passengers (AI preference: no independent ops).
-      const eIFVs = units.filter(u => u.alive && u.team === TEAM.ENEMY && u.kind === "ifv");
-      const emptyIFVs = eIFVs.filter(u => !u.passengerId);
-      const eInf = units.filter(u => u.alive && u.team === TEAM.ENEMY && (u.kind === "engineer" || u.kind === "sniper") && !u.inTransport && !u.hidden);
+      // Ensure engineer/sniper are IFV-passengers (AI preference: no independent ops). Use cached lists from aiTick.
+      const eIFVs = ai._eIFVsAll;
+      const emptyIFVs = ai._idleIFVs;
+      const eInf = ai._eEngSnip;
 
       if (!emptyIFVs.length || !eInf.length) return;
 
@@ -688,13 +692,13 @@
       if (now < (ai.engRushNext||0)) return;
       ai.engRushNext = now + rnd(18, 26);
 
-      const phq = buildings.find(b => b.alive && !b.civ && b.team === TEAM.PLAYER && b.kind === "hq");
+      const phq = ai._phq;
       if (!phq) return;
 
-      const eIFVs = units.filter(u => u.alive && u.team === TEAM.ENEMY && u.kind === "ifv" && u.passengerId && u.passKind === "engineer");
+      const eIFVs = ai._eIFVsWithEng;
       if (!eIFVs.length) return;
 
-      const rush = eIFVs.slice(0, Math.min(3, eIFVs.length));
+      const rush = eIFVs.length <= 3 ? eIFVs : eIFVs.slice(0, 3);
       for (const ifv of rush){
         ifv.order = { type: "attackmove", x: phq.x, y: phq.y, tx: null, ty: null };
         ifv.target = null;
@@ -703,8 +707,8 @@
     }
 
     function aiParkEmptyIFVs() {
-      // Keep empty IFVs near rally to pick up passengers (avoid solo rushing).
-      const eIFVs = units.filter(u => u.alive && u.team === TEAM.ENEMY && u.kind === "ifv" && !u.passengerId);
+      // Keep empty IFVs near rally to pick up passengers (avoid solo rushing). Use cached list from aiTick.
+      const eIFVs = ai._idleIFVs;
       const dp = aiDefendPoint();
       for (const ifv of eIFVs) {
         // If we are actively picking up a passenger, don't override.
@@ -724,14 +728,25 @@
     }
 
     function aiTick() {
-      // frequent decisions, but not every frame
+      // Throttle: run less often to reduce CPU spikes (was 0.22–0.38s, now ~0.45–0.70s between thinks).
       if (state.t < ai.nextThink) return;
-      ai.nextThink = state.t + rnd(0.22, 0.38) / (ai.apmMul || 1);
+      ai.nextThink = state.t + rnd(0.45, 0.70) / (ai.apmMul || 1);
 
       const e = state.enemy;
 
+      // Single pass over buildings: cache hasHQ, hasFac, hasBar, phq (player HQ).
+      let hasHQ = false, hasFac = false, hasBar = false, phq = null;
+      for (const b of buildings) {
+        if (!b.alive || b.civ) continue;
+        if (b.team === TEAM.ENEMY) {
+          if (b.kind === "hq") hasHQ = true;
+          if (b.kind === "factory") hasFac = true;
+          if (b.kind === "barracks") hasBar = true;
+        } else if (b.team === TEAM.PLAYER && b.kind === "hq") phq = b;
+      }
+      ai._phq = phq;
+
       // If no HQ, shut down construction + focus on whatever units exist (defend/attack), but no new buildings.
-      const hasHQ = aiEnemyHas("hq");
       if (!hasHQ) {
         ai.build.queue = null;
         ai.build.ready = null;
@@ -747,13 +762,31 @@
       aiEnsureTechAndEco(e, underPower);
 
       const rushInfNear = aiPlayerInfNearEnemyBase();
-      let playerInfCount = 0;
-      let enemyInfCount = 0;
-      for (const u of units){
+      // Single pass: fill reused arrays and counts (avoids many .filter() allocations).
+      ai._eUnits.length = 0; ai._eUnitsAll.length = 0; ai._playerInf.length = 0; ai._enemyInf.length = 0;
+      ai._combat.length = 0; ai._engs.length = 0; ai._snipers.length = 0; ai._idleIFVs.length = 0; ai._infFromEUnitsAll.length = 0; ai._eIFVsWithEng.length = 0; ai._eIFVsAll.length = 0; ai._eEngSnip.length = 0;
+      let playerInfCount = 0, enemyInfCount = 0, tankCount = 0;
+      for (const u of units) {
         if (!u.alive) continue;
-        if (u.team===TEAM.PLAYER && (UNIT[u.kind] && UNIT[u.kind].cls === "inf") && !u.inTransport && !u.hidden) playerInfCount++;
-        else if (u.team===TEAM.ENEMY && u.kind==="infantry") enemyInfCount++;
+        if (u.team === TEAM.ENEMY) {
+          ai._eUnits.push(u);
+          if (!u.inTransport && !u.hidden) { ai._eUnitsAll.push(u); if (u.kind === "infantry") ai._infFromEUnitsAll.push(u); }
+          if (u.kind !== "harvester" && u.kind !== "engineer" && u.kind !== "sniper") ai._combat.push(u);
+          else if (u.kind === "engineer") ai._engs.push(u);
+          else if (u.kind === "sniper") ai._snipers.push(u);
+          if (u.kind === "ifv") { ai._eIFVsAll.push(u); if (!u.passengerId) ai._idleIFVs.push(u); else if (u.passKind === "engineer") ai._eIFVsWithEng.push(u); }
+          if ((u.kind === "engineer" || u.kind === "sniper") && !u.inTransport && !u.hidden) ai._eEngSnip.push(u);
+          if (u.kind === "tank") tankCount++;
+          if (u.kind === "infantry") { ai._enemyInf.push(u); enemyInfCount++; }
+        } else if (u.team === TEAM.PLAYER) {
+          if (UNIT[u.kind] && UNIT[u.kind].cls === "inf" && !u.inTransport && !u.hidden) {
+            ai._playerInf.push(u);
+            playerInfCount++;
+          }
+        }
       }
+      const eUnits = ai._eUnits, playerInf = ai._playerInf, enemyInf = ai._enemyInf;
+      const combat = ai._combat, engs = ai._engs, snipers = ai._snipers, idleIFVs = ai._idleIFVs;
       const infRushThreat = (playerInfCount >= 10 || (playerInfCount >= enemyInfCount + 6));
       const isEarly = state.t < 180;
       if (isEarly && rushInfNear >= 4){
@@ -774,16 +807,12 @@
       }
 
       // Unit production should ALWAYS run (this was the big "AI builds only" failure mode).
-      const hasFac = aiEnemyHas("factory");
       aiQueueUnits(e, rushDefense, infRushThreat);
       aiUseIFVPassengers();
       aiParkEmptyIFVs();
       aiUnstickEngineers();
       aiEngineerRush();
 
-      const eUnits = units.filter(u => u.alive && u.team === TEAM.ENEMY);
-      const playerInf = units.filter(u => u.alive && u.team === TEAM.PLAYER && (UNIT[u.kind] && UNIT[u.kind].cls === "inf") && !u.inTransport && !u.hidden);
-      const enemyInf = units.filter(u => u.alive && u.team === TEAM.ENEMY && u.kind === "infantry");
       // Emergency defense: if base took a hit, pull nearby units to defend.
       aiEmergencyDefend(eUnits);
       if (rushDefense){
@@ -809,8 +838,6 @@
         v.repathCd = 0.18;
       }
 
-      const hasBar = aiEnemyHas("barracks");
-
       // If we're countering a heavy infantry rush before factory, stay defensive.
       if (infRushThreat && !hasFac){
         ai.mode = "defend";
@@ -819,16 +846,13 @@
       }
 
       // Mainline rush waves. Early: infantry rush. Late: tank/IFV waves.
-      const phq = buildings.find(b => b.alive && !b.civ && b.team === TEAM.PLAYER && b.kind === "hq");
       const rallyT = phq ? { x: phq.x, y: phq.y } : ai.rally;
       if (state.t >= ai.nextWave) {
-        const eUnitsAll = units.filter(u => u.alive && u.team === TEAM.ENEMY && !u.inTransport && !u.hidden);
+        const eUnitsAll = ai._eUnitsAll;
         const dest = rallyT || ai.rally;
         if (!hasFac && hasBar) {
           ai.nextWave = state.t + rnd(7, 12) / (ai.apmMul || 1);
-          const inf = eUnitsAll.filter(u => u.kind === "infantry");
-          const playerInfCount = playerInf.length;
-          const enemyInfCount = enemyInf.length;
+          const inf = ai._infFromEUnitsAll;
           const canEarlyPush = (enemyInfCount >= Math.max(6, Math.ceil(playerInfCount * 1.1)));
           if (inf.length >= 7 && canEarlyPush) {
             const pack = inf.slice(0, Math.min(12, inf.length));
@@ -839,8 +863,8 @@
           }
         } else {
           ai.nextWave = state.t + rnd(12, 18) / (ai.apmMul || 1);
-          const tanks = eUnitsAll.filter(u => u.kind === "tank");
-          const ifvs = eUnitsAll.filter(u => u.kind === "ifv" && u.passengerId);
+          const tanks = [], ifvs = [];
+          for (const u of eUnitsAll) { if (u.kind === "tank") tanks.push(u); else if (u.kind === "ifv" && u.passengerId) ifvs.push(u); }
           if (tanks.length >= 6) {
             const pack = [];
             tanks.sort((a, b) => a.id - b.id);
@@ -862,11 +886,7 @@
         }
       }
 
-      // Army behavior: rally -> attack waves, plus engineer harassment
-      const combat = eUnits.filter(u => u.kind !== "harvester" && u.kind !== "engineer" && u.kind !== "sniper");
-      const engs = eUnits.filter(u => u.kind === "engineer");
-      const snipers = eUnits.filter(u => u.kind === "sniper");
-      const idleIFVs = units.filter(u => u.alive && u.team === TEAM.ENEMY && u.kind === "ifv" && !u.passengerId);
+      // Army behavior: rally -> attack waves, plus engineer harassment (combat/engs/snipers/idleIFVs from single pass above)
       const playerHasInf = playerInf.length > 0;
 
       // Engineer harassment (value-aware) - keep trying to capture high-value and sell.
@@ -927,8 +947,7 @@
       if (state.t >= (ai.harassNext || 0)) {
         ai.harassNext = state.t + rnd(12, 18) / (ai.apmMul || 1);
 
-        const pInf = units.filter(u => u.alive && u.team === TEAM.PLAYER && (UNIT[u.kind] && UNIT[u.kind].cls === "inf") && !u.inTransport && !u.hidden);
-        if (pInf.length) {
+        if (playerInf.length) {
           // Keep a persistent small squad
           if (!ai.harassSquadIds) ai.harassSquadIds = [];
           let squad = ai.harassSquadIds
@@ -964,7 +983,7 @@
           if (squad.length) {
             // Target the nearest player infantry to our rally
             let bestH = null, bestD = Infinity;
-            for (const h of pInf) {
+            for (const h of playerInf) {
               const d = dist2(ai.rally.x, ai.rally.y, h.x, h.y);
               if (d < bestD) { bestD = d; bestH = h; }
             }
@@ -995,7 +1014,6 @@
         return;
       }
 
-      const tankCount = units.filter(u => u.alive && u.team === TEAM.ENEMY && u.kind === "tank").length;
       if (hasFac && tankCount < 4) {
         ai.mode = "defend";
         aiCommandMoveToRally(combat);
