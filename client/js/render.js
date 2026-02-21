@@ -262,6 +262,7 @@
   let terrain, tex, ore, explored, visible, BUILD, DEFENSE, BUILD_SPRITE, NAME_KO, POWER;
   let worldToScreen, tileToWorldCenter, idx, inMap, clamp, getEntityById;
   let repairWrenches = [];
+  let exp1Fxs = [];
 
   // Terrain textures (tiles + water)
   const TILE_SRC_W = 128;
