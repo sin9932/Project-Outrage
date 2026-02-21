@@ -180,8 +180,9 @@ function fitMini() {
   const ENEMY_PROD_SPEED = 1.65;
   const ENEMY_ECON_MULT  = 1.50;
   const __mapParams = new URLSearchParams(location.search);
-  const MAP_W = Math.max(4, parseInt(__mapParams.get("mapw")||"80",10));
-  const MAP_H = Math.max(4, parseInt(__mapParams.get("maph")||"52",10));
+  // forest_ground.tmj 기준 40x40 (URL에 mapw/maph 없으면 TMJ 크기 사용)
+  const MAP_W = Math.max(4, parseInt(__mapParams.get("mapw")||"40",10));
+  const MAP_H = Math.max(4, parseInt(__mapParams.get("maph")||"40",10));
   const WORLD_W = MAP_W * TILE;
   const WORLD_H = MAP_H * TILE;
 
