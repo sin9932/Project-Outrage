@@ -7,6 +7,77 @@
 
   const OUMap = global.OUMap || (global.OUMap = {});
 
+  // === Tiled (JSON .tmj) helpers ===
+  // Goal: let the game read special marker tiles (start beacons, etc.) from a tile layer.
+  // Usage:
+  //   const starts = OUMap.tiled.findStarts(tiledJson);
+  //   // pick team==1 start and spawn your Construction Yard there.
+  OUMap.tiled = OUMap.tiled || {};
+
+  function _propsArrToObj(arr){
+    const out = {};
+    if (!Array.isArray(arr)) return out;
+    for (const p of arr){
+      if (!p || !p.name) continue;
+      out[p.name] = (p.value !== undefined) ? p.value : p;
+    }
+    return out;
+  }
+
+  // Build: gid -> { ...properties }
+  // Works best when you export as JSON (tmj) with embedded tilesets (or external tilesets that still include tiles[].properties).
+  OUMap.tiled.buildGidPropsIndex = function buildGidPropsIndex(tiled){
+    const idx = new Map();
+    if (!tiled || !Array.isArray(tiled.tilesets)) return idx;
+    for (const ts of tiled.tilesets){
+      const firstgid = ts.firstgid|0;
+      const tiles = ts.tiles;
+      if (!firstgid || !Array.isArray(tiles)) continue;
+      for (const t of tiles){
+        if (!t || t.id == null) continue;
+        const gid = firstgid + (t.id|0);
+        const props = _propsArrToObj(t.properties);
+        if (Object.keys(props).length) idx.set(gid, props);
+      }
+    }
+    return idx;
+  };
+
+  // Find all "start" beacons painted on any tile layer.
+  // Returns [{tx,ty,team,spawn,gid,layerName}]
+  OUMap.tiled.findStarts = function findStarts(tiled){
+    const out = [];
+    if (!tiled || !Array.isArray(tiled.layers)) return out;
+    const W = tiled.width|0;
+    const H = tiled.height|0;
+    if (!W || !H) return out;
+
+    const gidProps = OUMap.tiled.buildGidPropsIndex(tiled);
+
+    for (const layer of tiled.layers){
+      if (!layer || layer.type !== "tilelayer") continue;
+      const data = layer.data;
+      if (!Array.isArray(data) || data.length !== W*H) continue;
+      for (let i=0;i<data.length;i++){
+        const gid = data[i]>>>0;
+        if (!gid) continue;
+        const props = gidProps.get(gid);
+        if (!props) continue;
+        if (props.kind !== "start") continue;
+        const tx = i % W;
+        const ty = (i / W) | 0;
+        out.push({
+          tx, ty,
+          team: (props.team==null ? 1 : (props.team|0)),
+          spawn: (props.spawn || "conyard"),
+          gid,
+          layerName: layer.name || "",
+        });
+      }
+    }
+    return out;
+  };
+
   OUMap.create = function create(env) {
     const e = env || {};
 

@@ -25,7 +25,7 @@
   mapHEl.value = H;
 
   let terrain = new Uint8Array(W * H);
-  let tex = new Uint16Array(W * H);  tex.fill(TEX.GRASS_GREEN);
+  let tex = new Uint16Array(W * H);
   let roads = new Uint8Array(W * H);
 
   const colors = {
@@ -209,7 +209,7 @@
 
   function resizeMap(nw, nh){
     const nTerrain = new Uint8Array(nw*nh);
-    const nTex = new Uint16Array(nw*nh);    nTex.fill(TEX.GRASS_GREEN);
+    const nTex = new Uint16Array(nw*nh);
     const nRoads = new Uint8Array(nw*nh);
     const minW = Math.min(W, nw);
     const minH = Math.min(H, nh);
@@ -402,13 +402,68 @@
     return pickRange(tx, ty, 13, 1, 20);
   }
 
-  function atlasRectByIndex(idx1){
-    const i = Math.max(1, idx1) - 1;
-    const cols = Math.max(1, Math.floor(1024 / TILE_SRC_W));
-    const sx = (i % cols) * TILE_SRC_W;
-    const sy = Math.floor(i / cols) * TILE_SRC_H;
-    return { sx, sy, sw: TILE_SRC_W, sh: TILE_SRC_H };
-  }
+function isAtlasSheet(img) {
+  // Atlas sheets are multiples of the tile cell size and have more than 1 tile.
+  if (!img) return false;
+  if (img.width < TILE_SRC_W * 2) return false;
+  if (img.height < TILE_SRC_H * 2) return false;
+  return (img.width % TILE_SRC_W === 0) && (img.height % TILE_SRC_H === 0);
+}
+
+function fillTileIndex(tx, ty, texId) {
+  // 1..20: fill variants
+  return pickRange(tx, ty, (texId * 101) ^ 0x5A17, 1, 20);
+}
+
+function overlayTileIndexForInvader(tx, ty, invTex, texArr, mw, mh) {
+  // Determine which overlay tile (1-based atlas index) from invTex should be drawn ON TOP of (tx,ty),
+  // based on where invTex exists around (tx,ty).
+  const at = (x, y) => {
+    if (x < 0 || y < 0 || x >= mw || y >= mh) return 0;
+    return texArr[y * mw + x] | 0;
+  };
+
+  const invN  = at(tx, ty - 1) === invTex;
+  const invS  = at(tx, ty + 1) === invTex;
+  const invW  = at(tx - 1, ty) === invTex;
+  const invE  = at(tx + 1, ty) === invTex;
+
+  const invNW = at(tx - 1, ty - 1) === invTex;
+  const invNE = at(tx + 1, ty - 1) === invTex;
+  const invSW = at(tx - 1, ty + 1) === invTex;
+  const invSE = at(tx + 1, ty + 1) === invTex;
+
+  const pick = (a, b, tag) => pickRange(tx, ty, ((invTex * 131) ^ (tag * 977)) | 0, a, b);
+
+  // Corner overlays (prefer corner chunks if diagonals exist or if both adjacent sides exist)
+  if (invNE || (invN && invE)) return pick(21, 24, 21); // NE
+  if (invSE || (invS && invE)) return pick(25, 28, 25); // SE
+  if (invNW || (invN && invW)) return pick(29, 32, 29); // NW
+  if (invSW || (invS && invW)) return pick(33, 36, 33); // SW
+
+  // Edge overlays (if diagonal support exists, prefer the "interpolation" strip)
+  if (invN) return (invNE || invNW) ? pick(45, 46, 45) : pick(43, 44, 43); // N
+  if (invE) return (invNE || invSE) ? pick(47, 48, 47) : pick(41, 42, 41); // E
+  if (invW) return (invNW || invSW) ? pick(49, 50, 49) : pick(39, 40, 39); // W
+  if (invS) return (invSE || invSW) ? pick(51, 52, 51) : pick(37, 38, 37); // S
+
+  return 0;
+}
+
+  function atlasRectByIndex(img, idx1) {
+  // idx1 is 1-based (1..N), tiles are laid out in TILE_SRC_W × TILE_SRC_H cells.
+  if (!img) return { x: 0, y: 0, w: TILE_SRC_W, h: TILE_SRC_H };
+  const cols = Math.max(1, Math.floor(img.width / TILE_SRC_W));
+  const i0 = Math.max(0, (idx1 | 0) - 1);
+  const col = i0 % cols;
+  const row = Math.floor(i0 / cols);
+  return {
+    x: col * TILE_SRC_W,
+    y: row * TILE_SRC_H,
+    w: TILE_SRC_W,
+    h: TILE_SRC_H,
+  };
+}
 
   function drawTextureStamp(img, cx, cy, radius, offX, offY, alpha){
     const iw = img && img.width ? img.width : 0;
@@ -587,69 +642,106 @@ function edgeKey(texId, dir){
     blendCache.set(key, cnv);
     return cnv;
   }
-  function drawBase(){
-    const { ox, oy } = origin();
-    for (let y=0; y<H; y++){
-      for (let x=0; x<W; x++){
-        const i = idx(x,y);
+  function drawBase() {
+    // PASS 1: draw base fill (always 1..20) or terrain fallback
+    for (let ty = 0; ty < mh; ty++) {
+      for (let tx = 0; tx < mw; tx++) {
+        const i = ty * mw + tx;
         const t = terrain[i];
-        const c0 = tileCenterScreen(x, y, ox, oy);
-        const baseImg = textureForTile(x, y);
-        if (baseImg){
-          if (tex[i] === TEX.DIRT) {
-          const di = dirtTileIndex(x, y);
-          const r = atlasRectByIndex(di);
-          ctx.drawImage(baseImg, r.sx, r.sy, r.sw, r.sh, c0.x - isoX(), c0.y - isoY(), isoX()*2, isoY()*2);
-        } else {
-          drawDiamondImage(c0.x, c0.y, baseImg, x, y, tex[i]);
-        }
-        } else {
-          const fill = colors[t] || "#000";
-          drawDiamondFill(c0.x, c0.y, fill);
-        }
-
-        if (t === 2){
-          ctx.save();
-          ctx.globalAlpha = 0.35;
-          drawDiamondFill(c0.x, c0.y, colors[2]);
-          ctx.restore();
-        }
-
-        const roadImg = roadForTile(x, y);
-        if (roadImg){
-          ctx.save();
-          ctx.globalAlpha = 0.95;
-          drawDiamondImage(c0.x, c0.y, roadImg, x, y, 0);
-          ctx.restore();
-        }
-
         const texId = tex[i];
-        if (texId === TEX.SAND && roads[i] === 0){
-          let mask = 0;
-          const n = [
-            { dx: 0, dy: -1, bit: 1 },
-            { dx: 1, dy: 0, bit: 2 },
-            { dx: 0, dy: 1, bit: 4 },
-            { dx: -1, dy: 0, bit: 8 }
-          ];
-          for (const nb of n){
-            const nx = x + nb.dx;
-            const ny = y + nb.dy;
-            if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue;
-            const ni = idx(nx, ny);
-            if (roads[ni] !== 0) continue;
-            if (isGrassLike(tex[ni])) mask |= nb.bit;
+        const p = tileToScreen(tx, ty);
+        const sx = p.x - ISO_X;
+        const sy = p.y - ISO_Y;
+
+        if (texId > 0 && texImgs[texId]) {
+          const img = texImgs[texId];
+          if (isAtlasSheet(img)) {
+            const idx1 = fillTileIndex(tx, ty, texId);
+            const r = atlasRectByIndex(img, idx1);
+            ctx.drawImage(img, r.x, r.y, r.w, r.h, sx, sy, ISO_X * 2, ISO_Y * 2);
+          } else if (texPats[texId]) {
+            // pattern fill (e.g., water)
+            ctx.save();
+            ctx.translate(p.x, p.y);
+            ctx.beginPath();
+            ctx.moveTo(0, -ISO_Y);
+            ctx.lineTo(ISO_X, 0);
+            ctx.lineTo(0, ISO_Y);
+            ctx.lineTo(-ISO_X, 0);
+            ctx.closePath();
+            ctx.fillStyle = texPats[texId];
+            ctx.fill();
+            ctx.restore();
+          } else {
+            // fallback (single-tile images)
+            drawDiamondImage(texId, tx, ty, false);
           }
-          if (mask){
-            const tImg = getTransitionImg(mask);
-            if (tImg) drawTileOverlay(c0.x, c0.y, tImg);
-          }
+        } else {
+          // terrain color base
+          ctx.save();
+          ctx.translate(p.x, p.y);
+          ctx.beginPath();
+          ctx.moveTo(0, -ISO_Y);
+          ctx.lineTo(ISO_X, 0);
+          ctx.lineTo(0, ISO_Y);
+          ctx.lineTo(-ISO_X, 0);
+          ctx.closePath();
+          ctx.fillStyle = colors[t] || colors[0];
+          ctx.fill();
+          ctx.restore();
         }
 
-        ctx.strokeStyle = "rgba(0,0,0,0)";
-        ctx.lineWidth = 0;
-        drawDiamondPath(c0.x, c0.y);
-        ctx.stroke();
+        // Ore tint overlay (kept as-is)
+        if (t === 2) {
+          ctx.save();
+          ctx.translate(p.x, p.y);
+          ctx.beginPath();
+          ctx.moveTo(0, -ISO_Y);
+          ctx.lineTo(ISO_X, 0);
+          ctx.lineTo(0, ISO_Y);
+          ctx.lineTo(-ISO_X, 0);
+          ctx.closePath();
+          ctx.globalAlpha = 0.25;
+          ctx.fillStyle = colors[2];
+          ctx.fill();
+          ctx.restore();
+        }
+      }
+    }
+
+    // PASS 2: transition overlays
+    // Rule: when a different tile (invader) is adjacent, draw the invader's overlay tile ON TOP of this tile.
+    for (let ty = 0; ty < mh; ty++) {
+      for (let tx = 0; tx < mw; tx++) {
+        const i = ty * mw + tx;
+        const baseTex = tex[i] | 0;
+        const p = tileToScreen(tx, ty);
+        const sx = p.x - ISO_X;
+        const sy = p.y - ISO_Y;
+
+        // Collect unique neighbor tex ids (8-neighborhood)
+        const seen = new Set();
+        for (let dy = -1; dy <= 1; dy++) {
+          for (let dx = -1; dx <= 1; dx++) {
+            if (dx === 0 && dy === 0) continue;
+            const nx = tx + dx, ny = ty + dy;
+            if (nx < 0 || ny < 0 || nx >= mw || ny >= mh) continue;
+            const ntex = tex[ny * mw + nx] | 0;
+            if (!ntex || ntex === baseTex) continue;
+            seen.add(ntex);
+          }
+        }
+        if (!seen.size) continue;
+
+        const invList = Array.from(seen).sort((a, b) => a - b);
+        for (const invTex of invList) {
+          const img = texImgs[invTex];
+          if (!img || !isAtlasSheet(img)) continue;
+          const idx1 = overlayTileIndexForInvader(tx, ty, invTex, tex, mw, mh);
+          if (!idx1) continue;
+          const r = atlasRectByIndex(img, idx1);
+          ctx.drawImage(img, r.x, r.y, r.w, r.h, sx, sy, ISO_X * 2, ISO_Y * 2);
+        }
       }
     }
   }
@@ -1024,8 +1116,6 @@ function edgeKey(texId, dir){
   setCanvasSize();
   render();
 });
-
-
 
 
 
