@@ -5029,8 +5029,7 @@ if (__ou_ui && typeof __ou_ui.bindPregameStart === "function"){
       return;
     }
 
-    genMap(mapChoice);
-    regenOre();
+    await loadForestGround();
     explored[TEAM.PLAYER].fill(0);
     explored[TEAM.ENEMY].fill(0);
     visible[TEAM.PLAYER].fill(0);
