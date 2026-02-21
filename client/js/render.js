@@ -263,6 +263,14 @@
   let worldToScreen, tileToWorldCenter, idx, inMap, clamp, getEntityById;
   let repairWrenches = [];
   let exp1Fxs = [];
+  let smokeWaves = [];
+  let smokePuffs = [];
+  let dustPuffs = [];
+  let dmgSmokePuffs = [];
+  let bloodStains = [];
+  let bloodPuffs = [];
+  let explosions = [];
+  let infDeathFxs = [];
 
   // Terrain textures (tiles + water)
   const TILE_SRC_W = 128;
