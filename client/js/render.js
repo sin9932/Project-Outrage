@@ -1715,6 +1715,37 @@
     ctx.stroke();
   }
 
+  function drawBuildingShadow(b){
+    const z = (cam && typeof cam.zoom === "number") ? cam.zoom : 1;
+    const tx0 = b.tx, ty0 = b.ty, tx1 = b.tx + b.tw, ty1 = b.ty + b.th;
+    const c0 = worldToScreen(tx0 * TILE, ty0 * TILE);
+    const c1 = worldToScreen(tx1 * TILE, ty0 * TILE);
+    const c2 = worldToScreen(tx1 * TILE, ty1 * TILE);
+    const c3 = worldToScreen(tx0 * TILE, ty1 * TILE);
+    const offX = 7 * z;
+    const offY = 4 * z;
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(c0.x + offX, c0.y + offY);
+    ctx.lineTo(c1.x + offX, c1.y + offY);
+    ctx.lineTo(c2.x + offX, c2.y + offY);
+    ctx.lineTo(c3.x + offX, c3.y + offY);
+    ctx.closePath();
+    ctx.fillStyle = "rgba(0,0,0,0.28)";
+    ctx.fill();
+    const offX2 = offX + 3 * z;
+    const offY2 = offY + 2 * z;
+    ctx.beginPath();
+    ctx.moveTo(c0.x + offX2, c0.y + offY2);
+    ctx.lineTo(c1.x + offX2, c1.y + offY2);
+    ctx.lineTo(c2.x + offX2, c2.y + offY2);
+    ctx.lineTo(c3.x + offX2, c3.y + offY2);
+    ctx.closePath();
+    ctx.fillStyle = "rgba(0,0,0,0.12)";
+    ctx.fill();
+    ctx.restore();
+  }
+
   function drawFootprintPrism(b, fill, stroke){
     const tx0=b.tx, ty0=b.ty, tx1=b.tx+b.tw, ty1=b.ty+b.th;
 
@@ -2809,14 +2840,17 @@
         if (ent.team===TEAM.ENEMY){  fill="rgba(70,10,10,0.9)"; stroke=state.colors.enemy; }
 
         if (buildSprite && buildSprite[ent.kind]){
+          drawBuildingShadow(ent);
           drawFootprintDiamond(ent, "rgba(0,0,0,0.22)", "rgba(0,0,0,0)");
           if (typeof drawBuildingSprite === "function") drawBuildingSprite(ent);
           else drawBuildingSpriteLocal(ent);
         } else if (window.PO && PO.buildings && PO.buildings.drawBuilding) {
+          drawBuildingShadow(ent);
           const helpers = { worldToScreen, ISO_X, ISO_Y, drawFootprintDiamond };
           const drew = PO.buildings.drawBuilding(ent, ctx, cam, helpers, state);
           if (!drew) drawFootprintPrism(ent, fill, stroke);
         } else {
+          drawBuildingShadow(ent);
           drawFootprintPrism(ent, fill, stroke);
         }
 
