@@ -1,4 +1,4 @@
-﻿;(function(){
+;(function(){
   // Debug/validation mode: add ?debug=1 to URL
   const DEV_VALIDATE = /(?:\?|&)debug=1(?:&|$)/.test(location.search);
   const DEV_VALIDATE_THROW = false; // if true, throws on first invariant failure
@@ -312,18 +312,46 @@ function fitMini() {
 
   const controlGroups = Array.from({length:10}, ()=>[]);
 
-  const terrain = new Uint8Array(MAP_W*MAP_H); // 0 ground, 1 rock, 2 ore\n  const tex = new Uint16Array(MAP_W*MAP_H);
+  const terrain = new Uint8Array(MAP_W*MAP_H); // 0 ground, 1 rock, 2 ore
+  const tex = new Uint16Array(MAP_W*MAP_H);
   const ore = new Uint16Array(MAP_W*MAP_H);
   const buildOcc = new Uint8Array(MAP_W*MAP_H); // 1=blocked
   const idx = (tx,ty)=> ty*MAP_W + tx;
   const inMap = (tx,ty)=> tx>=0 && ty>=0 && tx<MAP_W && ty<MAP_H;
+
+  // Tile texture IDs (must match render.js TILE_TEX)
+  const TEX = {
+    GRASS_GREEN: 1,
+    GRASS_MEDIUM: 2,
+    GRASS_DRY: 3,
+    FOREST_GROUND: 4,
+    SAND: 5,
+    DIRT: 6,
+    DIRT_DARK: 7,
+    STONE_PATH: 8,
+    WATER1: 9,
+    WATER2: 10
+  };
+
+  function ensureTexDefaults(){
+    // render.js treats tex==0 as "no image", so guarantee a valid default.
+    for (let i=0;i<tex.length;i++) if ((tex[i]|0)===0) tex[i] = TEX.GRASS_GREEN;
+  }
+
+  function isTiledChoice(choice){
+    const s = String(choice||"");
+    return s.startsWith("tiled:") || s.startsWith("tmj:") || s.endsWith(".tmj");
+  }
+
+  // Optional spawn overrides from tiled "start" layer (beacon tiles)
+  let mapSpawnPoints = null; // [{tx,ty}, ...]
 
   const tileOfX = (x)=> clamp(Math.floor(x/TILE), 0, MAP_W-1);
   const tileOfY = (y)=> clamp(Math.floor(y/TILE), 0, MAP_H-1);
 
 
   const __ou_map = (window.OUMap && typeof window.OUMap.create === "function")
-    ? window.OUMap.create({ MAP_W, MAP_H, terrain, ore, idx, inMap, clamp })
+    ? window.OUMap.create({ MAP_W, MAP_H, terrain, tex, ore, idx, inMap, clamp })
     : null;
 
   function genMap(kind){
@@ -332,8 +360,12 @@ function fitMini() {
   function regenOre(){
     if (__ou_map && __ou_map.regenOre) __ou_map.regenOre();
   }
-  if (!String(mapChoice).startsWith("edit:")) genMap(mapChoice);
-  regenOre();
+  const __isEditMap0 = String(mapChoice).startsWith("edit:");
+  const __isTiledMap0 = isTiledChoice(mapChoice);
+  if (!__isEditMap0 && !__isTiledMap0) genMap(mapChoice);
+  // For non-tiled maps, allow procedural ore regen.
+  if (!__isTiledMap0) regenOre();
+  ensureTexDefaults();
 
   const explored = [new Uint8Array(MAP_W*MAP_H), new Uint8Array(MAP_W*MAP_H)];
   const visible  = [new Uint8Array(MAP_W*MAP_H), new Uint8Array(MAP_W*MAP_H)];
@@ -4876,10 +4908,19 @@ function draw(){
     clearWorld();
 
     let a, b;
-    if (spawn==="left"){
+    // If tiled map provides explicit start beacons, use them.
+    if (isTiledChoice(mapChoice) && mapSpawnPoints && mapSpawnPoints.length>=2){
+      const p0 = mapSpawnPoints[0];
+      const p1 = mapSpawnPoints[1];
+      const swap = (spawn==="right" || spawn==="diag2");
+      a = swap ? {tx:p1.tx, ty:p1.ty} : {tx:p0.tx, ty:p0.ty};
+      b = swap ? {tx:p0.tx, ty:p0.ty} : {tx:p1.tx, ty:p1.ty};
+    }
+
+    if (!a && spawn==="left"){
       a = {tx: Math.floor(MAP_W*0.22), ty: Math.floor(MAP_H*0.62)};
       b = {tx: Math.floor(MAP_W*0.78), ty: Math.floor(MAP_H*0.38)};
-    } else {
+    } else if (!a) {
       a = {tx: Math.floor(MAP_W*0.86), ty: Math.floor(MAP_H*0.72)};
       b = {tx: Math.floor(MAP_W*0.14), ty: Math.floor(MAP_H*0.28)};
     }
@@ -4946,6 +4987,188 @@ function spawnStartingUnits(){
       const len = Math.min(terrain.length, data.terrain.length);
       for (let i=0;i<len;i++) terrain[i] = data.terrain[i]|0;
     }
+    // Optional arrays from editor export (if present)
+    if (data && Array.isArray(data.tex)) {
+      tex.fill(0);
+      const len2 = Math.min(tex.length, data.tex.length);
+      for (let i=0;i<len2;i++) tex[i] = data.tex[i]|0;
+    } else {
+      tex.fill(TEX.GRASS_GREEN);
+    }
+    if (data && Array.isArray(data.ore)) {
+      ore.fill(0);
+      const len3 = Math.min(ore.length, data.ore.length);
+      for (let i=0;i<len3;i++) ore[i] = data.ore[i]|0;
+    } else {
+      ore.fill(0);
+    }
+    ensureTexDefaults();
+    return false;
+  }
+
+  async function loadTiledMap(choice){
+    if (!choice || !isTiledChoice(choice)) return false;
+
+    let name = String(choice);
+    if (name.startsWith("tiled:")) name = name.slice(6);
+    else if (name.startsWith("tmj:")) name = name.slice(4);
+    if (name.endsWith(".tmj")) name = name.slice(0, -4);
+
+    const fileA = "asset/sprite/map/editmap/" + encodeURIComponent(name) + ".tmj";
+    const fileB = "asset/sprite/map/" + encodeURIComponent(name) + ".tmj";
+    let file = fileA;
+    let res = await fetch(fileA, { cache: "no-cache" });
+    if (!res.ok){
+      file = fileB;
+      res = await fetch(fileB, { cache: "no-cache" });
+    }
+    if (!res.ok) throw new Error("tiled map load failed: " + res.status + " (" + file + ")");
+    const tmj = await res.json();
+
+    const w = tmj && tmj.width ? (tmj.width|0) : 0;
+    const h = tmj && tmj.height ? (tmj.height|0) : 0;
+    if (w && h && (w !== MAP_W || h !== MAP_H)) {
+      const qs = new URLSearchParams(location.search);
+      qs.set("mapw", String(w));
+      qs.set("maph", String(h));
+      qs.set("map", choice);
+      location.search = qs.toString();
+      return true;
+    }
+
+    // Build tileset gid ranges
+    const tilesets = Array.isArray(tmj.tilesets) ? tmj.tilesets.slice() : [];
+    tilesets.sort((a,b)=> (a.firstgid|0) - (b.firstgid|0));
+
+    function tilesetKey(ts){
+      return String(ts && (ts.name || ts.image || ts.source || "")).toLowerCase();
+    }
+    function texIdForTileset(ts){
+      const s = tilesetKey(ts);
+      if (s.includes("grass_green")) return TEX.GRASS_GREEN;
+      if (s.includes("grass_medium")) return TEX.GRASS_MEDIUM;
+      if (s.includes("grass_dry")) return TEX.GRASS_DRY;
+      if (s.includes("forest_ground") || s.includes("forest")) return TEX.FOREST_GROUND;
+      if (s.includes("sand")) return TEX.SAND;
+      if (s.includes("dirt_dark")) return TEX.DIRT_DARK;
+      if (s.includes("dirt")) return TEX.DIRT;
+      if (s.includes("stone_path") || (s.includes("stone") && !s.includes("milestone"))) return TEX.STONE_PATH;
+      if (s.includes("water2")) return TEX.WATER2;
+      if (s.includes("water")) return TEX.WATER1;
+      return 0;
+    }
+
+    const ranges = [];
+    for (let i=0;i<tilesets.length;i++){
+      const ts = tilesets[i];
+      const first = ts.firstgid|0;
+      const nextFirst = (i+1<tilesets.length) ? (tilesets[i+1].firstgid|0) : 0x7fffffff;
+      let end = nextFirst - 1;
+      if (ts.tilecount != null){
+        const tc = ts.tilecount|0;
+        if (tc>0) end = Math.min(end, first + tc - 1);
+      }
+      ranges.push({ first, end, texId: texIdForTileset(ts) });
+    }
+
+    function texIdFromGid(rawGid){
+      // Mask out flipping flags (Tiled uses top 3 bits)
+      const gid = (rawGid|0) & 0x1FFFFFFF;
+      if (!gid) return 0;
+      for (let i=ranges.length-1;i>=0;i--){
+        const r = ranges[i];
+        if (gid >= r.first && gid <= r.end) return r.texId|0;
+      }
+      return 0;
+    }
+
+    // Reset arrays
+    terrain.fill(0);
+    ore.fill(0);
+    tex.fill(0);
+    mapSpawnPoints = null;
+
+    // Helper to read both non-infinite and infinite layers into a flat w*h array
+    function layerToFlatData(layer){
+      if (!layer || layer.type!=="tilelayer") return null;
+      if (Array.isArray(layer.data)) return layer.data;
+      if (Array.isArray(layer.chunks)){
+        const out = new Array(MAP_W*MAP_H).fill(0);
+        for (const ch of layer.chunks){
+          const cx = ch.x|0, cy = ch.y|0, cw = ch.width|0, chh = ch.height|0;
+          const cd = ch.data || [];
+          for (let y=0;y<chh;y++){
+            for (let x=0;x<cw;x++){
+              const si = y*cw + x;
+              const di = (cy+y)*MAP_W + (cx+x);
+              if (di>=0 && di<out.length) out[di] = cd[si]|0;
+            }
+          }
+        }
+        return out;
+      }
+      return null;
+    }
+
+    const starts = [];
+    const layers = Array.isArray(tmj.layers) ? tmj.layers : [];
+    for (const layer of layers){
+      if (!layer || layer.type!=="tilelayer" || layer.visible===false) continue;
+      const lname = String(layer.name||"").toLowerCase();
+      const flat = layerToFlatData(layer);
+      if (!flat) continue;
+
+      // Resource layers
+      if (lname.includes("ore") || lname.includes("gem")){
+        for (let i=0;i<flat.length && i<ore.length;i++){
+          const g = (flat[i]|0) & 0x1FFFFFFF;
+          if (!g) continue;
+          ore[i] = Math.max(ore[i]|0, 520);
+        }
+        continue;
+      }
+
+      // Start beacon layer
+      if (lname.includes("start")){
+        for (let i=0;i<flat.length && i<tex.length;i++){
+          const g = (flat[i]|0) & 0x1FFFFFFF;
+          if (!g) continue;
+          const tx = i % MAP_W;
+          const ty = (i / MAP_W)|0;
+          starts.push({tx,ty});
+        }
+        continue;
+      }
+
+      // Normal tile layers: write/overwrite tex + optional terrain types
+      for (let i=0;i<flat.length && i<tex.length;i++){
+        const raw = flat[i]|0;
+        if (!raw) continue;
+        const t = texIdFromGid(raw);
+        if (t){
+          tex[i] = t;
+          // Assign movement/build flags from texture type (conservative defaults)
+          if (t===TEX.WATER1 || t===TEX.WATER2) terrain[i] = 3;     // unwalkable
+          else if (t===TEX.STONE_PATH) terrain[i] = Math.max(terrain[i]|0, 2); // walkable but no-build
+        }
+      }
+    }
+
+    if (starts.length>=2){
+      // Deduplicate and keep two extreme points by x (works for 2-start maps)
+      const uniq = [];
+      const seen = new Set();
+      for (const p of starts){
+        const k = p.tx + "," + p.ty;
+        if (seen.has(k)) continue;
+        seen.add(k);
+        uniq.push(p);
+      }
+      uniq.sort((a,b)=> a.tx - b.tx);
+      mapSpawnPoints = [uniq[0], uniq[uniq.length-1]];
+    }
+
+    ensureTexDefaults();
     return false;
   }
 if (__ou_ui && typeof __ou_ui.bindPregameStart === "function"){
@@ -5034,7 +5257,10 @@ if (__ou_ui && typeof __ou_ui.bindPregameStart === "function"){
       return;
     }
 
-    if (!String(mapChoice).startsWith("edit:")) if (String(mapChoice).startsWith("edit:")) {
+        const __isEditMap = String(mapChoice).startsWith("edit:");
+    const __isTiledMap = isTiledChoice(mapChoice);
+
+    if (__isEditMap) {
       if (mapChoiceMeta && mapChoiceMeta.mapw && mapChoiceMeta.maph && (mapChoiceMeta.mapw !== MAP_W || mapChoiceMeta.maph !== MAP_H)) {
         const qs = new URLSearchParams(location.search);
         qs.set("mapw", String(mapChoiceMeta.mapw));
@@ -5045,10 +5271,19 @@ if (__ou_ui && typeof __ou_ui.bindPregameStart === "function"){
       }
       const reloaded = await loadEditMap(mapChoice);
       if (reloaded) return;
+      // If the edit-map file did not provide ore[], fall back to procedural ore.
+      let __hasOre = false;
+      for (let i=0;i<ore.length;i++){ if ((ore[i]|0)>0){ __hasOre=true; break; } }
+      if (!__hasOre) regenOre();
+    } else if (__isTiledMap) {
+      const reloaded = await loadTiledMap(mapChoice);
+      if (reloaded) return;
+      // TMJ ore layers are the source of truth: DO NOT regenOre().
     } else {
       genMap(mapChoice);
+      regenOre();
     }
-    regenOre();
+    ensureTexDefaults();
     explored[TEAM.PLAYER].fill(0);
     explored[TEAM.ENEMY].fill(0);
     visible[TEAM.PLAYER].fill(0);
