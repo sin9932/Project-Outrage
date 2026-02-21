@@ -47,6 +47,7 @@
     const MAP_H = r.MAP_H || 0;
     const state = r.state || {};
     const ore = r.ore || [];
+    const isGem = r.isGem || null;
 
     const clamp = r.clamp;
     const rnd = r.rnd;
@@ -136,6 +137,35 @@
         if (!b.alive || b.civ) continue;
         if (dist2(x,y,b.x,b.y) <= r2){ applyDamage(b, dmg, srcId, srcTeam); }
       }
+    }
+
+    // RA2: ore/gem can be damaged by explosives; damage = weapon damage (1:1), splash falls off linearly (PercentAtMax 0.02)
+    function applyOreDamageInRadius(xWorld, yWorld, radiusWorld, dmg){
+      if (!ore || radiusWorld <= 0) return;
+      const r2 = radiusWorld * radiusWorld;
+      const half = (TILE || 48) / 2;
+      const PERCENT_AT_MAX = 0.02;
+      for (let ty = 0; ty < MAP_H; ty++){
+        for (let tx = 0; tx < MAP_W; tx++){
+          if (!inMap(tx, ty) || ore[idx(tx,ty)] <= 0) continue;
+          const cx = tx * TILE + half, cy = ty * TILE + half;
+          const d2 = dist2(xWorld, yWorld, cx, cy);
+          if (d2 > r2) continue;
+          const dist = Math.sqrt(d2);
+          const factor = dist <= 0 ? 1 : Math.max(PERCENT_AT_MAX, 1 - (dist / radiusWorld) * (1 - PERCENT_AT_MAX));
+          const dig = dmg * factor;
+          const ii = idx(tx,ty);
+          ore[ii] = Math.max(0, ore[ii] - dig);
+          if (ore[ii] <= 0 && terrain) terrain[ii] = 0;
+        }
+      }
+    }
+
+    function applyOreDamageSingleCell(tx, ty, dmg){
+      if (!ore || !inMap(tx, ty) || ore[idx(tx,ty)] <= 0) return;
+      const ii = idx(tx,ty);
+      ore[ii] = Math.max(0, ore[ii] - (dmg || 0));
+      if (ore[ii] <= 0 && terrain) terrain[ii] = 0;
     }
 
     function aggroDelay(u, base){
@@ -398,8 +428,10 @@
           }
         }
 
-        // splash
+        // splash (units/buildings)
         if (applyAreaDamageAt) applyAreaDamageAt(ix, iy, 38, (bl.dmg||0)*0.45, bl.ownerId, bl.team);
+        // RA2: missile damages ore/gem in radius, linear falloff (100% center, 2% edge)
+        applyOreDamageInRadius(ix, iy, 38, bl.dmg||0);
       }
 
 
@@ -475,18 +507,12 @@
               impacts.push({x:bl.x,y:bl.y,vx:Math.cos(ang)*spd,vy:Math.sin(ang)*spd,life:0.22,delay:0});
             }
 
-            // Ore deformation
+            // RA2: tank shell damages ore/gem at impact cell (weapon damage = ore credit loss 1:1)
             try{
               const owner2 = getEntityById(bl.ownerId);
               if (owner2 && owner2.kind==="tank"){
-                const tx=(bl.x/TILE)|0, ty=(bl.y/TILE)|0;
-                if (inMap(tx,ty)){
-                  const ii=idx(tx,ty);
-                  if (ore[ii] > 0){
-                    const dig = 22 + (dmg||0)*0.35;
-                    ore[ii] = Math.max(0, ore[ii] - dig);
-                  }
-                }
+                const txi=(bl.x/TILE)|0, tyi=(bl.y/TILE)|0;
+                applyOreDamageSingleCell(txi, tyi, dmg||0);
               }
             }catch(_e){}
 
@@ -2699,7 +2725,8 @@
                 const ii=idx(tx,ty);
                 const take=Math.min(55*dt, ore[ii], u.carryMax-u.carry);
                 ore[ii] -= take;
-                u.carry += take;
+                const credit = (isGem && isGem[ii]) ? take*2 : take;
+                u.carry = Math.min(u.carryMax, u.carry + credit);
     
                 // If full, go deposit.
                 if (u.carry >= u.carryMax-1){
@@ -2894,19 +2921,27 @@
                 if (isHitscanUnit(u)){
                   // Make ground-fire consistent with unit-fire visuals for all hitscan weapons (sniper/infantry/IFV passenger).
                   hitscanShot(u, { x: tx, y: ty, cls:"inf" });
-                  applyAreaDamageAt(tx,ty, 18, Math.max(1, u.dmg*0.35), u.id, u.team);
+                  const d = Math.max(1, u.dmg*0.35);
+                  applyAreaDamageAt(tx,ty, 18, d, u.id, u.team);
+                  applyOreDamageInRadius(tx, ty, 18, d);
                 } else if (u.kind==="tank") {
                   spawnBullet(u.team, u.x, u.y, tx, ty, Math.max(1, u.dmg*0.6), u.id, { kind:"shell", dur: 0.12, h: 18 });
-                  applyAreaDamageAt(tx,ty, 22, Math.max(1, u.dmg*0.45), u.id, u.team);
+                  const d = Math.max(1, u.dmg*0.45);
+                  applyAreaDamageAt(tx,ty, 22, d, u.id, u.team);
+                  applyOreDamageInRadius(tx, ty, 22, d);
                 } else if (u.kind==="ifv") {
                   // IFV force-fire should use its normal weapon visuals (no tank arc).
                   if (isHitscanUnit(u)){
                     if (u.passKind==="sniper"){
                       spawnTrace(u.x, u.y, tx, ty, u.team, { kind:"tmg", life:0.12, delay:0, fx:"sniper" });
-                      applyAreaDamageAt(tx,ty, 14, Math.max(1, u.dmg*0.20), u.id, u.team);
+                      const d = Math.max(1, u.dmg*0.20);
+                      applyAreaDamageAt(tx,ty, 14, d, u.id, u.team);
+                      applyOreDamageInRadius(tx, ty, 14, d);
                     } else {
                       spawnMGTracers(u, { x: tx, y: ty, cls:"inf" });
-                      applyAreaDamageAt(tx,ty, 18, Math.max(1, u.dmg*0.35), u.id, u.team);
+                      const d = Math.max(1, u.dmg*0.35);
+                      applyAreaDamageAt(tx,ty, 18, d, u.id, u.team);
+                      applyOreDamageInRadius(tx, ty, 18, d);
                     }
                   } else {
                     // unloaded IFV missile mode (ground fire): missiles handle impact FX + damage on arrival
@@ -2914,7 +2949,9 @@
                   }
                 } else {
                   spawnBullet(u.team, u.x, u.y, tx, ty, Math.max(1, u.dmg*0.6), u.id, { sp: 720 });
-                  applyAreaDamageAt(tx,ty, 20, Math.max(1, u.dmg*0.35), u.id, u.team);
+                  const d = Math.max(1, u.dmg*0.35);
+                  applyAreaDamageAt(tx,ty, 20, d, u.id, u.team);
+                  applyOreDamageInRadius(tx, ty, 20, d);
                 }
               }
             }

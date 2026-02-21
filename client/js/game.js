@@ -311,9 +311,25 @@ function fitMini() {
 
   const terrain = new Uint8Array(MAP_W*MAP_H); // 0 ground, 1 rock, 2 ore, 3 water
   const ore = new Uint16Array(MAP_W*MAP_H);
-  // RA2/포럼 기준: ore 타일당 양(오래 유지), gem=2배. 하베스터 적재 1000, 채취 속도는 sim.js HARVEST_RATE.
+  const isGem = new Uint8Array(MAP_W*MAP_H);   // RA2: gem 타일 = 입금 시 2배
+  // RA2/포럼 기준: ore·gem 타일당 적재량. TMJ(Tiled)에서 ore/gem 레이어 타일 ID로 수정 가능.
+  // ore 타일셋 firstgid=225, localId 0~9 → 600,800,…,2400. gem 레이어 localId 0~3 → 1200,1600,2000,2400.
+  const ORE_FIRSTGID = 225;
+  const ORE_BASE = 600;
+  const ORE_STEP = 200;
+  const ORE_MAX = 2400;
   const ORE_VALUE = 1200;
+  const GEM_BASE = 1200;
+  const GEM_STEP = 400;
   const GEM_VALUE = 2400;
+  const GEM_MAX = 2400;
+  function oreAmountFromGid(gid, isGem) {
+    const raw = (gid && (gid & 0x1FFFFFFF)) || 0;
+    if (raw < ORE_FIRSTGID) return isGem ? GEM_VALUE : ORE_VALUE;
+    const localId = Math.min(9, raw - ORE_FIRSTGID);
+    if (isGem) return Math.min(GEM_MAX, GEM_BASE + Math.min(3, localId) * GEM_STEP);
+    return Math.min(ORE_MAX, ORE_BASE + localId * ORE_STEP);
+  }
   const buildOcc = new Uint8Array(MAP_W*MAP_H); // 1=blocked
   const idx = (tx,ty)=> ty*MAP_W + tx;
   const inMap = (tx,ty)=> tx>=0 && ty>=0 && tx<MAP_W && ty<MAP_H;
@@ -328,6 +344,7 @@ function fitMini() {
   async function loadForestGround(){
     terrain.fill(0);
     ore.fill(0);
+    isGem.fill(0);
     startBeaconTiles = [];
     try{
       const resp = await fetch("asset/sprite/map/editmap/forest_ground.tmj", { cache:"force-cache" });
@@ -351,7 +368,7 @@ function fitMini() {
             const gi = (ty < h && tx < w) ? oreLayer.data[ty*w + tx] : 0;
             if (gi>0){
               terrain[idx(tx,ty)] = 2;
-              ore[idx(tx,ty)] = ORE_VALUE;
+              ore[idx(tx,ty)] = oreAmountFromGid(gi, false);
             }
           }
         }
@@ -361,7 +378,11 @@ function fitMini() {
           for (let ty=0; ty<Math.min(MAP_H, gh); ty++){
             for (let tx=0; tx<Math.min(MAP_W, gw); tx++){
               const gid = gemLayer.data[ty*gw+tx] & 0x1FFFFFFF;
-              if (gid > 0){ terrain[idx(tx,ty)] = 2; ore[idx(tx,ty)] = GEM_VALUE; }
+              if (gid > 0){
+                terrain[idx(tx,ty)] = 2;
+                ore[idx(tx,ty)] = oreAmountFromGid(gid, true);
+                isGem[idx(tx,ty)] = 1;
+              }
             }
           }
         }
@@ -2490,6 +2511,7 @@ const __ou_sim = (window.OUSim && typeof window.OUSim.create==="function")
       WORLD_W,
       WORLD_H,
       ore,
+      isGem,
       state,
       clamp,
       rnd,
@@ -4762,7 +4784,7 @@ function draw(){
     if (window.OURender && typeof window.OURender.draw === "function"){
       window.OURender.draw({
         canvas, ctx, cam, state, TEAM, MAP_W, MAP_H, TILE, ISO_X, ISO_Y,
-        terrain, ore, explored, visible, BUILD, DEFENSE, NAME_KO, ORE_VALUE,
+        terrain, ore, explored, visible, BUILD, DEFENSE, NAME_KO, ORE_VALUE, ORE_MAX,
         units, buildings, bullets, traces, impacts, fires, healMarks, flashes, casings,
         gameOver, POWER,
         updateMoney: (__ou_ui && typeof __ou_ui.updateMoney === "function") ? __ou_ui.updateMoney : null,

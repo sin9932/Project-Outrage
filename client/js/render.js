@@ -258,7 +258,7 @@
   }
 
   let canvas, ctx, cam, state, TEAM, MAP_W, MAP_H, TILE, ISO_X, ISO_Y;
-  let terrain, ore, explored, visible, BUILD, DEFENSE, BUILD_SPRITE, NAME_KO, POWER, ORE_VALUE = 1200;
+  let terrain, ore, explored, visible, BUILD, DEFENSE, BUILD_SPRITE, NAME_KO, POWER, ORE_VALUE = 1200, ORE_MAX = 2400;
   let worldToScreen, tileToWorldCenter, idx, inMap, clamp, getEntityById;
 
   // === TMJ 기반 맵 타일셋 렌더러 (forest_ground.tmj) ===
@@ -308,6 +308,15 @@
       })
       .then(result => { fgTmj = result; })
       .catch(e => { console.warn("[render] FG TMJ load failed:", e); });
+  })();
+
+  const CLOUDS_IMAGE_URL = FG_MAP_BASE + "CloudsFineDetail.png";
+  const CLOUDS_IMAGE_URL_JPG = FG_MAP_BASE + "CloudsFineDetail.jpg";
+  let cloudsImage = null;
+  (function loadClouds() {
+    loadImage(CLOUDS_IMAGE_URL)
+      .then(img => { cloudsImage = img; })
+      .catch(() => loadImage(CLOUDS_IMAGE_URL_JPG).then(img => { cloudsImage = img; }).catch(() => {}));
   })();
 
   function drawTiledGidAt(ctx, gid, centerX, centerY, zoom, tileWorldSize) {
@@ -880,6 +889,7 @@
     terrain = env.terrain; ore = env.ore; explored = env.explored; visible = env.visible;
     BUILD = env.BUILD; DEFENSE = env.DEFENSE; BUILD_SPRITE = env.BUILD_SPRITE || BUILD_SPRITE_LOCAL; NAME_KO = env.NAME_KO; POWER = env.POWER;
     ORE_VALUE = (typeof env.ORE_VALUE === "number" && env.ORE_VALUE > 0) ? env.ORE_VALUE : 1200;
+    ORE_MAX = (typeof env.ORE_MAX === "number" && env.ORE_MAX > 0) ? env.ORE_MAX : 2400;
     worldToScreen = env.worldToScreen; tileToWorldCenter = env.tileToWorldCenter; idx = env.idx; inMap = env.inMap;
     clamp = env.clamp; getEntityById = env.getEntityById;
     REPAIR_WRENCH_IMG = env.REPAIR_WRENCH_IMG || _ensureImg(REPAIR_WRENCH_IMG, env.REPAIR_WRENCH_PNG);
@@ -1647,7 +1657,7 @@
           ctx.lineTo(x, y + oy);
           ctx.lineTo(x - ox, y);
           ctx.closePath();
-          const a = clamp(oreAt / ORE_VALUE, 0, 1);
+          const a = clamp(oreAt / ORE_MAX, 0, 1);
           ctx.fillStyle = `rgba(255,215,0,${0.12 + 0.2 * a})`;
           ctx.fill();
         }
@@ -1665,7 +1675,7 @@
       ctx.fillStyle = base;
       ctx.fill();
       if (oreAt > 0) {
-        const a = clamp(oreAt/ORE_VALUE,0,1);
+        const a = clamp(oreAt/ORE_MAX,0,1);
         ctx.fillStyle = `rgba(255,215,0,${0.10+0.28*a})`;
         ctx.fill();
       }
@@ -2681,6 +2691,29 @@
           ctx.fill();
         }
       }
+    }
+
+    if (cloudsImage && typeof state.t === "number") {
+      ctx.save();
+      const tw = cloudsImage.width;
+      const th = cloudsImage.height;
+      const drift = (state.t * 12) % Math.max(1, tw);
+      const driftY = (state.t * 6) % Math.max(1, th);
+      ctx.globalAlpha = 0.22;
+      ctx.globalCompositeOperation = "multiply";
+      for (let py = -th; py < H + th; py += th) {
+        for (let px = -tw; px < W + tw; px += tw) {
+          ctx.drawImage(cloudsImage, px + drift, py + driftY * 0.5, tw, th);
+        }
+      }
+      ctx.globalCompositeOperation = "source-over";
+      ctx.globalAlpha = 0.08;
+      for (let py = -th; py < H + th; py += th) {
+        for (let px = -tw; px < W + tw; px += tw) {
+          ctx.drawImage(cloudsImage, px - drift * 0.7, py - driftY * 0.3, tw, th);
+        }
+      }
+      ctx.restore();
     }
 
     if (state.build.active && state.build.kind){
