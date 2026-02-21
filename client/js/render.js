@@ -261,6 +261,7 @@
   let canvas, ctx, cam, state, TEAM, MAP_W, MAP_H, TILE, ISO_X, ISO_Y;
   let terrain, tex, ore, explored, visible, BUILD, DEFENSE, BUILD_SPRITE, NAME_KO, POWER;
   let worldToScreen, tileToWorldCenter, idx, inMap, clamp, getEntityById;
+  let repairWrenches = [];
 
   // Terrain textures (tiles + water)
   const TILE_SRC_W = 128;
