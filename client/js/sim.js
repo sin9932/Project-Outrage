@@ -1,4 +1,4 @@
-﻿// sim.js
+// sim.js
 // - Simulation tick wrapper (movement/attack/collision orchestration)
 // - Tick functions are injected via refs to avoid DOM dependencies.
 
@@ -2697,7 +2697,7 @@
                 if (u.path && u.pathI < u.path.length-1) { continue; }
     
                 const ii=idx(tx,ty);
-                const take=Math.min(140*dt, ore[ii], u.carryMax-u.carry);
+                const take=Math.min(55*dt, ore[ii], u.carryMax-u.carry);
                 ore[ii] -= take;
                 u.carry += take;
     

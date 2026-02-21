@@ -258,7 +258,7 @@
   }
 
   let canvas, ctx, cam, state, TEAM, MAP_W, MAP_H, TILE, ISO_X, ISO_Y;
-  let terrain, ore, explored, visible, BUILD, DEFENSE, BUILD_SPRITE, NAME_KO, POWER;
+  let terrain, ore, explored, visible, BUILD, DEFENSE, BUILD_SPRITE, NAME_KO, POWER, ORE_VALUE = 1200;
   let worldToScreen, tileToWorldCenter, idx, inMap, clamp, getEntityById;
 
   // === TMJ 기반 맵 타일셋 렌더러 (forest_ground.tmj) ===
@@ -879,6 +879,7 @@
     TEAM = env.TEAM; MAP_W = env.MAP_W; MAP_H = env.MAP_H; TILE = env.TILE; ISO_X = env.ISO_X; ISO_Y = env.ISO_Y;
     terrain = env.terrain; ore = env.ore; explored = env.explored; visible = env.visible;
     BUILD = env.BUILD; DEFENSE = env.DEFENSE; BUILD_SPRITE = env.BUILD_SPRITE || BUILD_SPRITE_LOCAL; NAME_KO = env.NAME_KO; POWER = env.POWER;
+    ORE_VALUE = (typeof env.ORE_VALUE === "number" && env.ORE_VALUE > 0) ? env.ORE_VALUE : 1200;
     worldToScreen = env.worldToScreen; tileToWorldCenter = env.tileToWorldCenter; idx = env.idx; inMap = env.inMap;
     clamp = env.clamp; getEntityById = env.getEntityById;
     REPAIR_WRENCH_IMG = env.REPAIR_WRENCH_IMG || _ensureImg(REPAIR_WRENCH_IMG, env.REPAIR_WRENCH_PNG);
@@ -1637,6 +1638,20 @@
         if (!gid) continue;
         drawTiledGidAt(ctx, gid, x, y, cam.zoom, TILE);
       }
+      if (oreAt > 0) {
+        const oreTs = fgTmj.tilesets.find(ts => ts.firstgid === 225);
+        if (!oreTs || !oreTs.img) {
+          ctx.beginPath();
+          ctx.moveTo(x, y - oy);
+          ctx.lineTo(x + ox, y);
+          ctx.lineTo(x, y + oy);
+          ctx.lineTo(x - ox, y);
+          ctx.closePath();
+          const a = clamp(oreAt / ORE_VALUE, 0, 1);
+          ctx.fillStyle = `rgba(255,215,0,${0.12 + 0.2 * a})`;
+          ctx.fill();
+        }
+      }
     } else {
       ctx.beginPath();
       ctx.moveTo(x, y-oy);
@@ -1650,7 +1665,7 @@
       ctx.fillStyle = base;
       ctx.fill();
       if (oreAt > 0) {
-        const a = clamp(oreAt/520,0,1);
+        const a = clamp(oreAt/ORE_VALUE,0,1);
         ctx.fillStyle = `rgba(255,215,0,${0.10+0.28*a})`;
         ctx.fill();
       }

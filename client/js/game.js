@@ -311,6 +311,9 @@ function fitMini() {
 
   const terrain = new Uint8Array(MAP_W*MAP_H); // 0 ground, 1 rock, 2 ore, 3 water
   const ore = new Uint16Array(MAP_W*MAP_H);
+  // RA2/포럼 기준: ore 타일당 양(오래 유지), gem=2배. 하베스터 적재 1000, 채취 속도는 sim.js HARVEST_RATE.
+  const ORE_VALUE = 1200;
+  const GEM_VALUE = 2400;
   const buildOcc = new Uint8Array(MAP_W*MAP_H); // 1=blocked
   const idx = (tx,ty)=> ty*MAP_W + tx;
   const inMap = (tx,ty)=> tx>=0 && ty>=0 && tx<MAP_W && ty<MAP_H;
@@ -348,7 +351,17 @@ function fitMini() {
             const gi = (ty < h && tx < w) ? oreLayer.data[ty*w + tx] : 0;
             if (gi>0){
               terrain[idx(tx,ty)] = 2;
-              ore[idx(tx,ty)] = 520;
+              ore[idx(tx,ty)] = ORE_VALUE;
+            }
+          }
+        }
+        const gemLayer = layers.find(l => l.type==="tilelayer" && (l.name||"").toLowerCase()==="gem");
+        if (gemLayer && Array.isArray(gemLayer.data)){
+          const gw = gemLayer.width || w, gh = gemLayer.height || h;
+          for (let ty=0; ty<Math.min(MAP_H, gh); ty++){
+            for (let tx=0; tx<Math.min(MAP_W, gw); tx++){
+              const gid = gemLayer.data[ty*gw+tx] & 0x1FFFFFFF;
+              if (gid > 0){ terrain[idx(tx,ty)] = 2; ore[idx(tx,ty)] = GEM_VALUE; }
             }
           }
         }
@@ -456,8 +469,7 @@ function getBaseBuildTime(kind){
     factory:  { hLevel:2, tw:3, th:4, hp:1000, vision:500, provideR: 650 },
     barracks: { hLevel:2, tw:2, th:2, hp:500,  vision:460, provideR: 600 },
     radar:    { hLevel:3, tw:2, th:2, hp:1000, vision:600, provideR: 650 },
-    turret:   { hLevel:1, tw:1, th:1, hp:400,  vision:560, provideR: 0   },
-    civ_oregen: { hLevel:0, tw:2, th:2, hp:999999, vision:0, provideR:0, attackable:false, selectable:false, hideUI:true }
+    turret:   { hLevel:1, tw:1, th:1, hp:400,  vision:560, provideR: 0   }
   };
 
   // Defense tower table (range FX & combat stats)
@@ -856,8 +868,6 @@ function buildingWorldFromTileOrigin(tx,ty,tw,th){
       attackable: (spec.attackable !== false),
       selectable: (spec.selectable !== false),
       hideUI: !!spec.hideUI,
-      civ: (kind==="civ_oregen"),
-      oregenT:0
     };
     buildings.push(b);
     // Auto-assign PRIMARY producer if none.
@@ -1778,59 +1788,6 @@ function getPowerFactor(team){
   }
   function hasRadarAlive(team){
     return buildings.some(b=>b.alive && !b.civ && b.team===team && b.kind==="radar");
-  }
-
-  function placeCivOreGens(){
-    let placed=0;
-    for (let tries=0; tries<5000 && placed<3; tries++){
-      const tx=(Math.random()*(MAP_W-4))|0;
-      const ty=(Math.random()*(MAP_H-4))|0;
-      if (isBlockedFootprint(tx,ty, BUILD.civ_oregen.tw, BUILD.civ_oregen.th)) continue;
-      let aroundOre=0;
-      for (let y=-3;y<=3;y++){
-        for (let x=-3;x<=3;x++){
-          const ax=tx+x, ay=ty+y;
-          if (!inMap(ax,ay)) continue;
-          aroundOre += ore[idx(ax,ay)];
-        }
-      }
-      if (aroundOre>900) continue;
-      addBuilding(TEAM.NEUTRAL, "civ_oregen", tx, ty);
-      placed++;
-    }
-  }
-
-  function tickCivOreGen(dt){
-    for (const b of buildings){
-      if (!b.alive || b.kind!=="civ_oregen") continue;
-      b.oregenT += dt;
-      if (b.oregenT < 0.55) continue;
-      b.oregenT = 0;
-
-      const cx = b.tx + ((b.tw/2)|0);
-      const cy = b.ty + ((b.th/2)|0);
-
-      let sum=0;
-      for (let dy=-1; dy<=1; dy++){
-        for (let dx=-1; dx<=1; dx++){
-          const tx=cx+dx, ty=cy+dy;
-          if (!inMap(tx,ty)) continue;
-          sum += ore[idx(tx,ty)];
-        }
-      }
-      if (sum>0) continue;
-
-      for (let dy=-1; dy<=1; dy++){
-        for (let dx=-1; dx<=1; dx++){
-          const tx=cx+dx, ty=cy+dy;
-          if (!inMap(tx,ty)) continue;
-          if (buildOcc[idx(tx,ty)]===1) continue;
-          if (terrain[idx(tx,ty)]===1) continue;
-          terrain[idx(tx,ty)] = 2;
-          ore[idx(tx,ty)] = Math.min(520, ore[idx(tx,ty)] + 40);
-        }
-      }
-    }
   }
 
 function boardUnitIntoIFV(unit, ifv){
@@ -4769,7 +4726,6 @@ function tickEconomyPost(dt){
     const m2 = (DEBUG_MONEY && state && state.player) ? (state.player.money || 0) : null;
     tickRepairs(dt);
     const m3 = (DEBUG_MONEY && state && state.player) ? (state.player.money || 0) : null;
-    tickCivOreGen(dt);
     // Enemy cheat money: periodic top-up so AI never stalls.
     if (state && state.enemy){
       if (state._enemyMoneyT == null) state._enemyMoneyT = 0;
@@ -4806,7 +4762,7 @@ function draw(){
     if (window.OURender && typeof window.OURender.draw === "function"){
       window.OURender.draw({
         canvas, ctx, cam, state, TEAM, MAP_W, MAP_H, TILE, ISO_X, ISO_Y,
-        terrain, ore, explored, visible, BUILD, DEFENSE, NAME_KO,
+        terrain, ore, explored, visible, BUILD, DEFENSE, NAME_KO, ORE_VALUE,
         units, buildings, bullets, traces, impacts, fires, healMarks, flashes, casings,
         gameOver, POWER,
         updateMoney: (__ou_ui && typeof __ou_ui.updateMoney === "function") ? __ou_ui.updateMoney : null,
@@ -4950,8 +4906,6 @@ function draw(){
     const eHQ = safePlace(TEAM.ENEMY, "hq", b.tx-2, b.ty-2);
 
     // Start with HQ only (both sides)
-
-    placeCivOreGens();
 
     recomputePower();
     updateVision();

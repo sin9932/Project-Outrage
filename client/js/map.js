@@ -1,4 +1,4 @@
-﻿// map.js
+// map.js
 // - Map presets + terrain/ore generation
 // - No DOM dependencies
 
@@ -113,7 +113,7 @@
       ore.fill(0);
       for (let ty=0; ty<MAP_H; ty++){
         for (let tx=0; tx<MAP_W; tx++){
-          if (terrain[idx(tx,ty)] === 2) ore[idx(tx,ty)] = 520;
+          if (terrain[idx(tx,ty)] === 2) ore[idx(tx,ty)] = 1200;
         }
       }
     }
