@@ -1,0 +1,270 @@
+{
+	"textures": [
+		{
+			"image": "ore.png",
+			"format": "RGBA8888",
+			"size": {
+				"w": 260,
+				"h": 450
+			},
+			"scale": 1,
+			"frames": [
+				{
+					"filename": "gem1.png",
+					"rotated": false,
+					"trimmed": false,
+					"sourceSize": {
+						"w": 130,
+						"h": 90
+					},
+					"spriteSourceSize": {
+						"x": 0,
+						"y": 0,
+						"w": 130,
+						"h": 90
+					},
+					"frame": {
+						"x": 0,
+						"y": 0,
+						"w": 130,
+						"h": 90
+					},
+					"anchor": {
+						"x": 0.5066,
+						"y": 0.37
+					}
+				},
+				{
+					"filename": "gem2.png",
+					"rotated": false,
+					"trimmed": false,
+					"sourceSize": {
+						"w": 130,
+						"h": 90
+					},
+					"spriteSourceSize": {
+						"x": 0,
+						"y": 0,
+						"w": 130,
+						"h": 90
+					},
+					"frame": {
+						"x": 130,
+						"y": 0,
+						"w": 130,
+						"h": 90
+					},
+					"anchor": {
+						"x": 0.5066,
+						"y": 0.37
+					}
+				},
+				{
+					"filename": "gem3.png",
+					"rotated": false,
+					"trimmed": false,
+					"sourceSize": {
+						"w": 130,
+						"h": 90
+					},
+					"spriteSourceSize": {
+						"x": 0,
+						"y": 0,
+						"w": 130,
+						"h": 90
+					},
+					"frame": {
+						"x": 0,
+						"y": 90,
+						"w": 130,
+						"h": 90
+					},
+					"anchor": {
+						"x": 0.5066,
+						"y": 0.37
+					}
+				},
+				{
+					"filename": "gem4.png",
+					"rotated": false,
+					"trimmed": false,
+					"sourceSize": {
+						"w": 130,
+						"h": 90
+					},
+					"spriteSourceSize": {
+						"x": 0,
+						"y": 0,
+						"w": 130,
+						"h": 90
+					},
+					"frame": {
+						"x": 130,
+						"y": 90,
+						"w": 130,
+						"h": 90
+					},
+					"anchor": {
+						"x": 0.5066,
+						"y": 0.37
+					}
+				},
+				{
+					"filename": "gem5.png",
+					"rotated": false,
+					"trimmed": false,
+					"sourceSize": {
+						"w": 130,
+						"h": 90
+					},
+					"spriteSourceSize": {
+						"x": 0,
+						"y": 0,
+						"w": 130,
+						"h": 90
+					},
+					"frame": {
+						"x": 0,
+						"y": 180,
+						"w": 130,
+						"h": 90
+					},
+					"anchor": {
+						"x": 0.5066,
+						"y": 0.37
+					}
+				},
+				{
+					"filename": "ore1.png",
+					"rotated": false,
+					"trimmed": false,
+					"sourceSize": {
+						"w": 130,
+						"h": 90
+					},
+					"spriteSourceSize": {
+						"x": 0,
+						"y": 0,
+						"w": 130,
+						"h": 90
+					},
+					"frame": {
+						"x": 130,
+						"y": 180,
+						"w": 130,
+						"h": 90
+					},
+					"anchor": {
+						"x": 0.5066,
+						"y": 0.37
+					}
+				},
+				{
+					"filename": "ore2.png",
+					"rotated": false,
+					"trimmed": false,
+					"sourceSize": {
+						"w": 130,
+						"h": 90
+					},
+					"spriteSourceSize": {
+						"x": 0,
+						"y": 0,
+						"w": 130,
+						"h": 90
+					},
+					"frame": {
+						"x": 0,
+						"y": 270,
+						"w": 130,
+						"h": 90
+					},
+					"anchor": {
+						"x": 0.5066,
+						"y": 0.37
+					}
+				},
+				{
+					"filename": "ore3.png",
+					"rotated": false,
+					"trimmed": false,
+					"sourceSize": {
+						"w": 130,
+						"h": 90
+					},
+					"spriteSourceSize": {
+						"x": 0,
+						"y": 0,
+						"w": 130,
+						"h": 90
+					},
+					"frame": {
+						"x": 130,
+						"y": 270,
+						"w": 130,
+						"h": 90
+					},
+					"anchor": {
+						"x": 0.5066,
+						"y": 0.37
+					}
+				},
+				{
+					"filename": "ore4.png",
+					"rotated": false,
+					"trimmed": false,
+					"sourceSize": {
+						"w": 130,
+						"h": 90
+					},
+					"spriteSourceSize": {
+						"x": 0,
+						"y": 0,
+						"w": 130,
+						"h": 90
+					},
+					"frame": {
+						"x": 0,
+						"y": 360,
+						"w": 130,
+						"h": 90
+					},
+					"anchor": {
+						"x": 0.5066,
+						"y": 0.37
+					}
+				},
+				{
+					"filename": "ore5.png",
+					"rotated": false,
+					"trimmed": false,
+					"sourceSize": {
+						"w": 130,
+						"h": 90
+					},
+					"spriteSourceSize": {
+						"x": 0,
+						"y": 0,
+						"w": 130,
+						"h": 90
+					},
+					"frame": {
+						"x": 130,
+						"y": 360,
+						"w": 130,
+						"h": 90
+					},
+					"anchor": {
+						"x": 0.5066,
+						"y": 0.37
+					}
+				}
+			]
+		}
+	],
+	"meta": {
+		"app": "https://www.codeandweb.com/texturepacker",
+		"version": "3.0",
+		"smartupdate": "$TexturePacker:SmartUpdate:3e4deec50fa52fd85ccb4fd325827d0f:f0e4eda809d2b87537c18bed77c7f01c:89e42d1351ea0073912f194f2966eff1$"
+	}
+}
