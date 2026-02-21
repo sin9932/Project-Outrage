@@ -484,13 +484,14 @@ function getBaseBuildTime(kind){
 
   const BUILD = {
     // height levels: 0 = flat, 1 = low, 2 = medium, 3 = tall
-    hq:       { hLevel:3, tw:5, th:5, hp:3000, vision:640, provideR: 750 },
-    power:    { hLevel:2, tw:2, th:2, hp:750,  vision:420, provideR: 600 },
-    refinery: { hLevel:2, tw:4, th:3, hp:1000, vision:520, provideR: 650 },
-    factory:  { hLevel:2, tw:3, th:4, hp:1000, vision:500, provideR: 650 },
-    barracks: { hLevel:2, tw:2, th:2, hp:500,  vision:460, provideR: 600 },
-    radar:    { hLevel:3, tw:2, th:2, hp:1000, vision:600, provideR: 650 },
-    turret:   { hLevel:1, tw:1, th:1, hp:400,  vision:560, provideR: 0   }
+    // vision: RA2-style wider sight so fog-of-war doesn’t feel blind (world units)
+    hq:       { hLevel:3, tw:5, th:5, hp:3000, vision:1100, provideR: 750 },
+    power:    { hLevel:2, tw:2, th:2, hp:750,  vision:680,  provideR: 600 },
+    refinery: { hLevel:2, tw:4, th:3, hp:1000, vision:820,  provideR: 650 },
+    factory:  { hLevel:2, tw:3, th:4, hp:1000, vision:800,  provideR: 650 },
+    barracks: { hLevel:2, tw:2, th:2, hp:500,  vision:720,  provideR: 600 },
+    radar:    { hLevel:3, tw:2, th:2, hp:1000, vision:950,  provideR: 650 },
+    turret:   { hLevel:1, tw:1, th:1, hp:400,  vision:780,  provideR: 0   }
   };
 
   // Defense tower table (range FX & combat stats)
