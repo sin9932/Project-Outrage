@@ -272,6 +272,7 @@
   let explosions = [];
   let infDeathFxs = [];
   let snipDeathFxs = [];
+  let getTeamCroppedSprite = _getTeamCroppedSprite;
 
   // Terrain textures (tiles + water)
   const TILE_SRC_W = 128;
