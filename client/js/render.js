@@ -1706,41 +1706,23 @@
 
   function drawBuildingShadow(b){
     const z = (cam && typeof cam.zoom === "number") ? cam.zoom : 1;
-    const tx0 = b.tx, ty0 = b.ty, tx1 = b.tx + b.tw, ty1 = b.ty + b.th;
-    const c0 = worldToScreen(tx0 * TILE, ty0 * TILE);
-    const c1 = worldToScreen(tx1 * TILE, ty0 * TILE);
-    const c2 = worldToScreen(tx1 * TILE, ty1 * TILE);
-    const c3 = worldToScreen(tx0 * TILE, ty1 * TILE);
-    const ux = 0.87;
-    const uy = 0.50;
-    const L0 = 5 * z;
-    const L1 = 16 * z;
-    const L2 = 16 * z;
-    const L3 = 10 * z;
-    const s0 = { x: c0.x + L0 * ux, y: c0.y + L0 * uy };
-    const s1 = { x: c1.x + L1 * ux, y: c1.y + L1 * uy };
-    const s2 = { x: c2.x + L2 * ux, y: c2.y + L2 * uy };
-    const s3 = { x: c3.x + L3 * ux, y: c3.y + L3 * uy };
+    const cx = (b.tx + b.tw * 0.5) * TILE;
+    const cy = (b.ty + b.th * 0.5) * TILE;
+    const p = worldToScreen(cx, cy);
+    const rx = (b.tw + b.th) * 0.5 * ISO_X * TILE * 0.5 * z;
+    const ry = (b.tw + b.th) * 0.5 * ISO_Y * TILE * 0.35 * z;
+    const offsetX = 24 * z;
+    const offsetY = 14 * z;
+    const gx = p.x + offsetX;
+    const gy = p.y + offsetY;
+    const grad = ctx.createRadialGradient(gx, gy, 0, gx, gy, Math.max(rx, ry) * 1.4);
+    grad.addColorStop(0, "rgba(0,0,0,0.28)");
+    grad.addColorStop(0.5, "rgba(0,0,0,0.12)");
+    grad.addColorStop(1, "rgba(0,0,0,0)");
     ctx.save();
     ctx.beginPath();
-    ctx.moveTo(c0.x, c0.y);
-    ctx.lineTo(c1.x, c1.y);
-    ctx.lineTo(s1.x, s1.y);
-    ctx.lineTo(s2.x, s2.y);
-    ctx.lineTo(c2.x, c2.y);
-    ctx.lineTo(c3.x, c3.y);
-    ctx.lineTo(s3.x, s3.y);
-    ctx.lineTo(s0.x, s0.y);
-    ctx.closePath();
-    ctx.fillStyle = "rgba(0,0,0,0.38)";
-    ctx.fill();
-    ctx.beginPath();
-    ctx.moveTo(s0.x, s0.y);
-    ctx.lineTo(s1.x, s1.y);
-    ctx.lineTo(s2.x, s2.y);
-    ctx.lineTo(s3.x, s3.y);
-    ctx.closePath();
-    ctx.fillStyle = "rgba(0,0,0,0.48)";
+    ctx.ellipse(gx, gy, rx, ry, 0, 0, Math.PI * 2);
+    ctx.fillStyle = grad;
     ctx.fill();
     ctx.restore();
   }
@@ -2723,23 +2705,42 @@
       }
     }
 
-    if (cloudsImage && typeof state.t === "number") {
+    if (cloudsImage && typeof state.t === "number" && typeof worldToScreen === "function" && TILE) {
       ctx.save();
+      const z = (cam && typeof cam.zoom === "number") ? cam.zoom : 1;
       const tw = cloudsImage.width;
       const th = cloudsImage.height;
-      const minCover = 2.2;
-      const scale = Math.max((W / tw) * minCover, (H / th) * minCover);
-      const cloudW = tw * scale;
-      const cloudH = th * scale;
-      const drift = (state.t * 14) % Math.max(1, Math.min(cloudW, cloudH));
-      ctx.globalAlpha = 0.38;
-      ctx.globalCompositeOperation = "multiply";
-      ctx.drawImage(cloudsImage, 0, 0, tw, th, -drift - cloudW * 0.1, -drift - cloudH * 0.1, cloudW, cloudH);
+      const cloudWorldStep = TILE * 6;
+      const driftX = (state.t * 22) % (TILE * 10);
+      const driftY = (state.t * 14) % (TILE * 10);
+      const cloudScreenW = Math.max(180, 280 * z);
+      const cloudScreenH = (th / tw) * cloudScreenW;
+      const margin = Math.max(cloudScreenW, cloudScreenH) * 1.2;
+      for (let wy = -cloudWorldStep; wy < MAP_H * TILE + cloudWorldStep; wy += cloudWorldStep) {
+        for (let wx = -cloudWorldStep; wx < MAP_W * TILE + cloudWorldStep; wx += cloudWorldStep) {
+          const worldX = wx + driftX;
+          const worldY = wy + driftY;
+          const p = worldToScreen(worldX, worldY);
+          if (p.x < -margin || p.x > W + margin || p.y < -margin || p.y > H + margin) continue;
+          ctx.globalAlpha = 0.58;
+          ctx.globalCompositeOperation = "multiply";
+          ctx.drawImage(cloudsImage, 0, 0, tw, th, p.x - cloudScreenW / 2, p.y - cloudScreenH / 2, cloudScreenW, cloudScreenH);
+        }
+      }
       ctx.globalCompositeOperation = "source-over";
-      ctx.globalAlpha = 0.15;
-      const scale2 = scale * 0.9;
-      const drift2 = (state.t * -10) % Math.max(1, Math.min(tw * scale2, th * scale2));
-      ctx.drawImage(cloudsImage, 0, 0, tw, th, -drift2 - tw * scale2 * 0.1, -drift2 - th * scale2 * 0.1, tw * scale2, th * scale2);
+      ctx.globalAlpha = 0.28;
+      const step2 = cloudWorldStep * 1.6;
+      const driftX2 = (state.t * -18) % (TILE * 10);
+      const driftY2 = (state.t * -10) % (TILE * 10);
+      for (let wy = -step2; wy < MAP_H * TILE + step2; wy += step2) {
+        for (let wx = -step2; wx < MAP_W * TILE + step2; wx += step2) {
+          const worldX = wx + driftX2;
+          const worldY = wy + driftY2;
+          const p = worldToScreen(worldX, worldY);
+          if (p.x < -margin || p.x > W + margin || p.y < -margin || p.y > H + margin) continue;
+          ctx.drawImage(cloudsImage, 0, 0, tw, th, p.x - (cloudScreenW * 0.75) / 2, p.y - (cloudScreenH * 0.75) / 2, cloudScreenW * 0.75, cloudScreenH * 0.75);
+        }
+      }
       ctx.globalAlpha = 1;
       ctx.restore();
     }
