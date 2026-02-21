@@ -2711,10 +2711,12 @@
       const tw = cloudsImage.width;
       const th = cloudsImage.height;
       const cloudWorldStep = TILE * 6;
-      const driftX = (state.t * 22) % (TILE * 10);
-      const driftY = (state.t * 14) % (TILE * 10);
+      const cloudPeriod = cloudWorldStep;
+      const driftX = (state.t * 20) % cloudPeriod;
+      const driftY = (state.t * 12) % cloudPeriod;
       const cloudScreenW = Math.max(180, 280 * z);
-      const cloudScreenH = (th / tw) * cloudScreenW;
+      const isoFlatten = 0.48;
+      const cloudScreenH = (th / tw) * cloudScreenW * isoFlatten;
       const margin = Math.max(cloudScreenW, cloudScreenH) * 1.2;
       for (let wy = -cloudWorldStep; wy < MAP_H * TILE + cloudWorldStep; wy += cloudWorldStep) {
         for (let wx = -cloudWorldStep; wx < MAP_W * TILE + cloudWorldStep; wx += cloudWorldStep) {
@@ -2722,23 +2724,35 @@
           const worldY = wy + driftY;
           const p = worldToScreen(worldX, worldY);
           if (p.x < -margin || p.x > W + margin || p.y < -margin || p.y > H + margin) continue;
+          const sx = (((wx + driftX) % cloudWorldStep) + cloudWorldStep) % cloudWorldStep / cloudWorldStep * tw;
+          const sy = (((wy + driftY) % cloudWorldStep) + cloudWorldStep) % cloudWorldStep / cloudWorldStep * th;
           ctx.globalAlpha = 0.58;
           ctx.globalCompositeOperation = "multiply";
-          ctx.drawImage(cloudsImage, 0, 0, tw, th, p.x - cloudScreenW / 2, p.y - cloudScreenH / 2, cloudScreenW, cloudScreenH);
+          ctx.drawImage(cloudsImage, sx, sy, tw - sx, th - sy, p.x - cloudScreenW / 2, p.y - cloudScreenH / 2, cloudScreenW * (tw - sx) / tw, cloudScreenH * (th - sy) / th);
+          if (sx > 0) ctx.drawImage(cloudsImage, 0, sy, sx, th - sy, p.x - cloudScreenW / 2 + cloudScreenW * (tw - sx) / tw, p.y - cloudScreenH / 2, cloudScreenW * sx / tw, cloudScreenH * (th - sy) / th);
+          if (sy > 0) ctx.drawImage(cloudsImage, sx, 0, tw - sx, sy, p.x - cloudScreenW / 2, p.y - cloudScreenH / 2 + cloudScreenH * (th - sy) / th, cloudScreenW * (tw - sx) / tw, cloudScreenH * sy / th);
+          if (sx > 0 && sy > 0) ctx.drawImage(cloudsImage, 0, 0, sx, sy, p.x - cloudScreenW / 2 + cloudScreenW * (tw - sx) / tw, p.y - cloudScreenH / 2 + cloudScreenH * (th - sy) / th, cloudScreenW * sx / tw, cloudScreenH * sy / th);
         }
       }
       ctx.globalCompositeOperation = "source-over";
       ctx.globalAlpha = 0.28;
       const step2 = cloudWorldStep * 1.6;
-      const driftX2 = (state.t * -18) % (TILE * 10);
-      const driftY2 = (state.t * -10) % (TILE * 10);
+      const driftX2 = (state.t * -16) % cloudPeriod;
+      const driftY2 = (state.t * -8) % cloudPeriod;
+      const cloudScreenW2 = cloudScreenW * 0.75;
+      const cloudScreenH2 = cloudScreenH * 0.75;
       for (let wy = -step2; wy < MAP_H * TILE + step2; wy += step2) {
         for (let wx = -step2; wx < MAP_W * TILE + step2; wx += step2) {
           const worldX = wx + driftX2;
           const worldY = wy + driftY2;
           const p = worldToScreen(worldX, worldY);
           if (p.x < -margin || p.x > W + margin || p.y < -margin || p.y > H + margin) continue;
-          ctx.drawImage(cloudsImage, 0, 0, tw, th, p.x - (cloudScreenW * 0.75) / 2, p.y - (cloudScreenH * 0.75) / 2, cloudScreenW * 0.75, cloudScreenH * 0.75);
+          const sx = (((wx + driftX2) % step2) + step2) % step2 / step2 * tw;
+          const sy = (((wy + driftY2) % step2) + step2) % step2 / step2 * th;
+          ctx.drawImage(cloudsImage, sx, sy, tw - sx, th - sy, p.x - cloudScreenW2 / 2, p.y - cloudScreenH2 / 2, cloudScreenW2 * (tw - sx) / tw, cloudScreenH2 * (th - sy) / th);
+          if (sx > 0) ctx.drawImage(cloudsImage, 0, sy, sx, th - sy, p.x - cloudScreenW2 / 2 + cloudScreenW2 * (tw - sx) / tw, p.y - cloudScreenH2 / 2, cloudScreenW2 * sx / tw, cloudScreenH2 * (th - sy) / th);
+          if (sy > 0) ctx.drawImage(cloudsImage, sx, 0, tw - sx, sy, p.x - cloudScreenW2 / 2, p.y - cloudScreenH2 / 2 + cloudScreenH2 * (th - sy) / th, cloudScreenW2 * (tw - sx) / tw, cloudScreenH2 * sy / th);
+          if (sx > 0 && sy > 0) ctx.drawImage(cloudsImage, 0, 0, sx, sy, p.x - cloudScreenW2 / 2 + cloudScreenW2 * (tw - sx) / tw, p.y - cloudScreenH2 / 2 + cloudScreenH2 * (th - sy) / th, cloudScreenW2 * sx / tw, cloudScreenH2 * sy / th);
         }
       }
       ctx.globalAlpha = 1;
