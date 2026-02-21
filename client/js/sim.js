@@ -1587,7 +1587,7 @@
 
       const dx = sp.x - u.x, dy = sp.y - u.y;
       const d2 = dx*dx + dy*dy;
-      if (d2 < 0.25){
+      if (d2 < 4){
         u.x = sp.x; u.y = sp.y;
         u.vx = 0; u.vy = 0;
         u.holdPos = true;
@@ -1698,7 +1698,7 @@
 
       const dx = sp.x - u.x, dy = sp.y - u.y;
       const d2 = dx*dx + dy*dy;
-      if (d2 < 0.25){
+      if (d2 < 4){
         u.x = sp.x; u.y = sp.y;
         u.vx = 0; u.vy = 0;
         u.holdPos = true;
@@ -2093,13 +2093,17 @@
           const shouldRest = (u.alive && !u.inTransport && u.target==null && (ot0==="idle" || ot0==="guard") &&
                               !(u.kind==="harvester" && (u.returning || u.manualOre!=null)));
           if (shouldRest){
-            // If we just entered rest, store the anchor position.
-            if (u.restX==null || u.restY==null) { u.restX = u.x; u.restY = u.y; }
-            // Kill any leftover movement state that could create "one-step" drift.
+            const cls = (UNIT[u.kind] && UNIT[u.kind].cls) ? UNIT[u.kind].cls : "";
+            if (cls==="inf" && u.subSlot!=null && inMap(tileOfX(u.x), tileOfY(u.y))){
+              const tx = tileOfX(u.x), ty = tileOfY(u.y);
+              const sp = tileToWorldSubslot(tx, ty, u.subSlot & 3);
+              u.restX = sp.x; u.restY = sp.y;
+            } else if (u.restX==null || u.restY==null) {
+              u.restX = u.x; u.restY = u.y;
+            }
             u.path = null; u.pathI = 0;
             u.vx = 0; u.vy = 0;
             u.stuckT = 0; u.stuckTime = 0; u.yieldCd = 0; u.avoidCd = 0;
-            // Snap back every tick (absolute). This sacrifices tiny overlap corrections, but removes the bug 100%.
             u.x = u.restX; u.y = u.restY;
           } else {
             u.restX = null; u.restY = null;
