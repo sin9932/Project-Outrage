@@ -1,4 +1,4 @@
-﻿// ou_ui.js
+// ou_ui.js
 // - UI updates extracted from game.js (Stage 5)
 // - Keep this file tiny + dependency-injected.
 
@@ -950,7 +950,27 @@ function ensureBadge(btn){
 
       const spawnChips = Array.from(document.querySelectorAll(".chip.spawn"));
       const moneyChips = Array.from(document.querySelectorAll(".chip.money"));
-      const mapChips = Array.from(document.querySelectorAll(".chip.map"));
+      let mapChips = Array.from(document.querySelectorAll(".chip.map"));
+
+      // Force only one map option in UI: FOREST (Tiled .tmj)
+      // - Removes/hides other map chips so pregame UI only exposes the forest map.
+      // - Sets the remaining chip's dataset.map to `tmj:forest_ground`.
+      if (mapChips && mapChips.length){
+        const keep = mapChips[0];
+        for (let i=1;i<mapChips.length;i++){
+          const c = mapChips[i];
+          if (!c) continue;
+          try{ c.remove(); }catch(_e){ try{ c.style.display = "none"; }catch(_e2){} }
+        }
+        try{
+          keep.dataset.map = "tmj:forest_ground";
+          keep.textContent = "FOREST";
+          // Optional: clear legacy map size hints; .tmj loader reads real size.
+          if (keep.dataset){ delete keep.dataset.mapw; delete keep.dataset.maph; }
+        }catch(_e){}
+        // Refresh list after DOM edits
+        mapChips = Array.from(document.querySelectorAll(".chip.map"));
+      }
 
       function setSpawnChip(target){
         for (const c of spawnChips) c.classList.remove("on");
@@ -986,9 +1006,12 @@ function ensureBadge(btn){
         chip.addEventListener("click", ()=>setMapChip(chip));
       }
 
-      if (defaultMap){
-        const hit = mapChips.find(c => (c.dataset && c.dataset.map) === defaultMap);
-        if (hit) setMapChip(hit);
+      // Default map selection
+      // - If URL/defaultMap matches, use it.
+      // - Otherwise, always fall back to the (only) FOREST chip.
+      if (mapChips && mapChips.length){
+        const hit = defaultMap ? mapChips.find(c => (c.dataset && c.dataset.map) === defaultMap) : null;
+        setMapChip(hit || mapChips[0]);
       }
     }
 
