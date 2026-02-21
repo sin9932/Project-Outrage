@@ -67,6 +67,7 @@
     const followPath = r.followPath;
     
     
+    let _aliveCache = [];
     const spawnTrailPuff = r.spawnTrailPuff;
     const spawnDmgSmokePuff = r.spawnDmgSmokePuff;
     const crushInfantry = r.crushInfantry;
@@ -708,7 +709,9 @@
     function resolveUnitOverlaps(){
       const clsOf = (u)=> (u && UNIT[u.kind] && UNIT[u.kind].cls) ? UNIT[u.kind].cls : "";
       const effCollR = (u)=> (clsOf(u)==="inf" ? 9 : (u.r||18));
-      const alive = units.filter(u=>u.alive && !u.inTransport);
+      _aliveCache.length = 0;
+      for (const u of units) if (u.alive && !u.inTransport) _aliveCache.push(u);
+      const alive = _aliveCache;
       const n = alive.length;
       if (n<2) return;
 
@@ -742,7 +745,7 @@
       const grid = new Map();
       const key = (cx,cy)=> (cx<<16) ^ cy;
 
-      const iters = 5;
+      const iters = n > 50 ? 3 : 5;
       const basePushK = 0.85;
       const baseMaxPush = 18.0;
       const eps = 1.0;
@@ -2064,11 +2067,12 @@
     
           // HARD IDLE LOCK: if a unit should be stationary, freeze it completely (no path, no nudges, no steering drift).
           // Auto-attack fix: if we can shoot and we're idle/guard/attackmove with no target, acquire enemies automatically.
-          // This runs BEFORE the idle lock so units don't stay frozen when enemies are in sight.
+          // Throttle: don't run findNearestEnemyFor every frame for every unit (huge cost in mass combat).
           if (!u.inTransport && !u.hidden && u.team!==TEAM.CIV && (u.dmg||0)>0 && (u.range||0)>0){
             const otPre = u.order && u.order.type;
             const wantsAuto = (!u.target && (otPre==="idle" || otPre==="guard" || otPre==="guard_return" || otPre==="attackmove"));
-            if (wantsAuto && u.aggroCd<=0){
+            if (wantsAuto && u.aggroCd<=0 && state.t >= (u._nextAcquire||0)){
+              u._nextAcquire = state.t + 0.12;
               const sniperMode = (u.kind==="sniper" || (u.kind==="ifv" && u.passKind==="sniper"));
       const manualLock = !!(u.order && u.order.manual && u.order.allowAuto!==true);
               const vis = (UNIT[u.kind]?.vision || 300);
@@ -2185,8 +2189,8 @@
               };
               if (!isRepairableVeh(rt)){ u.repairTarget=null; rt=null; }
     
-              if (!rt && allowAutoRepair){
-                // auto-acquire nearest damaged vehicle
+              if (!rt && allowAutoRepair && state.t >= (u._nextRepairSearch||0)){
+                u._nextRepairSearch = state.t + 0.4;
                 let best=null, bestD2=Infinity;
                 for (const tu of units){
                   if (!isRepairableVeh(tu)) continue;
@@ -2303,10 +2307,11 @@
       }
     
       // (3) If attacking a building, but a unit is nearby, switch to that unit (non-sniper only)
-      // Player manual-locked attack must NOT retarget.
-      if (!sniperMode && u.aggroCd<=0 && u.order && u.order.type==="attack" && !(u.order.manual && u.order.lockTarget)){
+      // Player manual-locked attack must NOT retarget. Throttle to reduce cost in mass combat.
+      if (!sniperMode && u.aggroCd<=0 && state.t >= (u._nextAcquire||0) && u.order && u.order.type==="attack" && !(u.order.manual && u.order.lockTarget)){
         const cur = getEntityById(u.target);
         if (cur && BUILD[cur.kind]){
+          u._nextAcquire = state.t + 0.12;
           const vis = UNIT[u.kind].vision || 280;
           const cand = findNearestEnemyFor(u.team, u.x, u.y, vis, false, true); // unitOnly
           if (cand){
@@ -2324,7 +2329,8 @@
         (u.order.type==="idle" || u.order.type==="guard" || u.order.type==="guard_return" ||
          (u.order.type==="move" && !(u.forceMoveUntil && state.t < u.forceMoveUntil)));
     
-      if (u.aggroCd<=0 && okAuto){
+      if (u.aggroCd<=0 && okAuto && state.t >= (u._nextAcquire||0)){
+        u._nextAcquire = state.t + 0.12;
         const vis = UNIT[u.kind].vision || 280;
         const cand = findNearestEnemyFor(u.team, u.x, u.y, vis, sniperMode, true); // unitOnly
         if (cand){
@@ -2400,7 +2406,9 @@
                 continue;
               }
     
-              // scan for enemy in vision, then engage (will be handled by attack state)
+              // scan for enemy in vision, then engage. Throttle to reduce cost in mass combat.
+              if (state.t < (u._nextAcquire||0)) { settleInfantryToSubslot(u, dt); continue; }
+              u._nextAcquire = state.t + 0.12;
               const scanR = Math.max(u.vision||0, (u.range||0));
               const enemy = findNearestAttackMoveTargetFor(u.team, u.x, u.y, scanR);
               if (enemy){
@@ -2420,25 +2428,32 @@
             // Attack-move: march toward destination, but engage enemies on the way.
     
             if (u.order.type==="attackmove"){
-              const enemy = findNearestAttackMoveTargetFor(u.team, u.x, u.y, u.range||0, u.kind);
-              if (enemy){
-                const lock = (u.team===TEAM.ENEMY);
-                u.order={type:"attack", x:u.x, y:u.y, tx:null,ty:null, manual:lock, allowAuto:!lock, lockTarget:lock};
-                u.target=enemy.id;
-                setPathTo(u, enemy.x, enemy.y);
-                u.repathCd=0.25;
+              if (state.t >= (u._nextAcquire||0)) {
+                u._nextAcquire = state.t + 0.12;
+                const enemy = findNearestAttackMoveTargetFor(u.team, u.x, u.y, u.range||0, u.kind);
+                if (enemy){
+                  const lock = (u.team===TEAM.ENEMY);
+                  u.order={type:"attack", x:u.x, y:u.y, tx:null,ty:null, manual:lock, allowAuto:!lock, lockTarget:lock};
+                  u.target=enemy.id;
+                  setPathTo(u, enemy.x, enemy.y);
+                  u.repathCd=0.25;
+                } else {
+                  followPath(u, dt);
+                  crushInfantry(u);
+                }
               } else {
                 followPath(u, dt);
                 crushInfantry(u);
               }
               continue;
             }
-    
+
             // Keep infantry glued to its tile sub-slot after arrival (prevents post-arrival vibration when stacked).
             settleInfantryToSubslot(u, dt);
     
-            // Guard/idle auto-acquire: if standing idle and an enemy enters range, engage.
-            if (u.order.type==="idle" && (u.range||0)>0 && u.kind!=="engineer"){
+            // Guard/idle auto-acquire: if standing idle and an enemy enters range, engage. Throttle in mass combat.
+            if (u.order.type==="idle" && (u.range||0)>0 && u.kind!=="engineer" && state.t >= (u._nextAcquire||0)){
+              u._nextAcquire = state.t + 0.12;
               const sniperMode = (u.kind==="sniper" || (u.kind==="ifv" && u.passKind==="sniper"));
       const manualLock = !!(u.order && u.order.manual && u.order.allowAuto!==true);
               const enemy = findNearestEnemyFor(u.team, u.x, u.y, u.range||0, sniperMode, true);
@@ -3201,18 +3216,23 @@
             const ot = u.order ? u.order.type : null;
             if (ot !== "attack" && ot !== "forcefire"){
               let desired = null;
-    
-              const tgt = findNearestEnemyFor(u.team, u.x, u.y, u.range, false, true);
-              if (tgt && tgt.alive && tgt.kind !== "harvester"){
-                desired = worldVecToDir8(tgt.x - u.x, tgt.y - u.y);
-              } else {
+              if (state.t >= (u._nextTurretScan||0)){
+                u._nextTurretScan = state.t + 0.08;
+                const tgt = findNearestEnemyFor(u.team, u.x, u.y, u.range, false, true);
+                if (tgt && tgt.alive && tgt.kind !== "harvester"){
+                  desired = worldVecToDir8(tgt.x - u.x, tgt.y - u.y);
+                  u._lastTurretDesired = desired;
+                } else u._lastTurretDesired = null;
+              }
+              if (desired == null) desired = u._lastTurretDesired;
+              if (desired == null){
                 const vx = u.vx || 0, vy = u.vy || 0;
                 const spd = Math.hypot(vx, vy);
                 if (spd > 20) desired = worldVecToDir8(vx, vy);
                 else if (typeof u.bodyDir === "number") desired = u.bodyDir;
                 else if (typeof u.dir === "number") desired = u.dir;
               }
-    
+
               if (desired != null){
                 _tankUpdateTurret(u, desired, dt);
               }
