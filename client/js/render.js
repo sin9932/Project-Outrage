@@ -2709,14 +2709,13 @@
       const z = (cam && typeof cam.zoom === "number") ? cam.zoom : 1;
       const tw = cloudsImage.width;
       const th = cloudsImage.height;
-      const cloudWorldStep = TILE * 6;
-      const cloudPeriod = cloudWorldStep;
-      const driftX = (state.t * 20) % cloudPeriod;
-      const driftY = (state.t * 12) % cloudPeriod;
-      const cloudScreenW = Math.max(180, 280 * z);
       const isoFlatten = 0.48;
+      const worldW = MAP_W * TILE;
+      const worldH = MAP_H * TILE;
+      const driftX = (state.t * 18) % (TILE * 12);
+      const driftY = (state.t * 10) % (TILE * 12);
+      const cloudScreenW = Math.max(W, H) * 2.2;
       const cloudScreenH = (th / tw) * cloudScreenW * isoFlatten;
-      const margin = Math.max(cloudScreenW, cloudScreenH) * 1.2;
       let cloudBuf = null;
       try {
         cloudBuf = document.createElement("canvas");
@@ -2726,41 +2725,16 @@
       const cctx = cloudBuf ? cloudBuf.getContext("2d") : null;
       if (cctx) {
         cctx.clearRect(0, 0, W, H);
+        const cx1 = worldW * 0.35 + driftX;
+        const cy1 = worldH * 0.35 + driftY;
+        const p1 = worldToScreen(cx1, cy1);
         cctx.globalAlpha = 0.58;
-        for (let wy = -cloudWorldStep; wy < MAP_H * TILE + cloudWorldStep; wy += cloudWorldStep) {
-          for (let wx = -cloudWorldStep; wx < MAP_W * TILE + cloudWorldStep; wx += cloudWorldStep) {
-            const worldX = wx + driftX;
-            const worldY = wy + driftY;
-            const p = worldToScreen(worldX, worldY);
-            if (p.x < -margin || p.x > W + margin || p.y < -margin || p.y > H + margin) continue;
-            const sx = (((wx + driftX) % cloudWorldStep) + cloudWorldStep) % cloudWorldStep / cloudWorldStep * tw;
-            const sy = (((wy + driftY) % cloudWorldStep) + cloudWorldStep) % cloudWorldStep / cloudWorldStep * th;
-            cctx.drawImage(cloudsImage, sx, sy, tw - sx, th - sy, p.x - cloudScreenW / 2, p.y - cloudScreenH / 2, cloudScreenW * (tw - sx) / tw, cloudScreenH * (th - sy) / th);
-            if (sx > 0) cctx.drawImage(cloudsImage, 0, sy, sx, th - sy, p.x - cloudScreenW / 2 + cloudScreenW * (tw - sx) / tw, p.y - cloudScreenH / 2, cloudScreenW * sx / tw, cloudScreenH * (th - sy) / th);
-            if (sy > 0) cctx.drawImage(cloudsImage, sx, 0, tw - sx, sy, p.x - cloudScreenW / 2, p.y - cloudScreenH / 2 + cloudScreenH * (th - sy) / th, cloudScreenW * (tw - sx) / tw, cloudScreenH * sy / th);
-            if (sx > 0 && sy > 0) cctx.drawImage(cloudsImage, 0, 0, sx, sy, p.x - cloudScreenW / 2 + cloudScreenW * (tw - sx) / tw, p.y - cloudScreenH / 2 + cloudScreenH * (th - sy) / th, cloudScreenW * sx / tw, cloudScreenH * sy / th);
-          }
-        }
+        cctx.drawImage(cloudsImage, 0, 0, tw, th, p1.x - cloudScreenW / 2, p1.y - cloudScreenH / 2, cloudScreenW, cloudScreenH);
+        const cx2 = worldW * 0.7 - driftX * 0.6;
+        const cy2 = worldH * 0.65 - driftY * 0.6;
+        const p2 = worldToScreen(cx2, cy2);
         cctx.globalAlpha = 0.28;
-        const step2 = cloudWorldStep * 1.6;
-        const driftX2 = (state.t * -16) % cloudPeriod;
-        const driftY2 = (state.t * -8) % cloudPeriod;
-        const cloudScreenW2 = cloudScreenW * 0.75;
-        const cloudScreenH2 = cloudScreenH * 0.75;
-        for (let wy = -step2; wy < MAP_H * TILE + step2; wy += step2) {
-          for (let wx = -step2; wx < MAP_W * TILE + step2; wx += step2) {
-            const worldX = wx + driftX2;
-            const worldY = wy + driftY2;
-            const p = worldToScreen(worldX, worldY);
-            if (p.x < -margin || p.x > W + margin || p.y < -margin || p.y > H + margin) continue;
-            const sx = (((wx + driftX2) % step2) + step2) % step2 / step2 * tw;
-            const sy = (((wy + driftY2) % step2) + step2) % step2 / step2 * th;
-            cctx.drawImage(cloudsImage, sx, sy, tw - sx, th - sy, p.x - cloudScreenW2 / 2, p.y - cloudScreenH2 / 2, cloudScreenW2 * (tw - sx) / tw, cloudScreenH2 * (th - sy) / th);
-            if (sx > 0) cctx.drawImage(cloudsImage, 0, sy, sx, th - sy, p.x - cloudScreenW2 / 2 + cloudScreenW2 * (tw - sx) / tw, p.y - cloudScreenH2 / 2, cloudScreenW2 * sx / tw, cloudScreenH2 * (th - sy) / th);
-            if (sy > 0) cctx.drawImage(cloudsImage, sx, 0, tw - sx, sy, p.x - cloudScreenW2 / 2, p.y - cloudScreenH2 / 2 + cloudScreenH2 * (th - sy) / th, cloudScreenW2 * (tw - sx) / tw, cloudScreenH2 * sy / th);
-            if (sx > 0 && sy > 0) cctx.drawImage(cloudsImage, 0, 0, sx, sy, p.x - cloudScreenW2 / 2 + cloudScreenW2 * (tw - sx) / tw, p.y - cloudScreenH2 / 2 + cloudScreenH2 * (th - sy) / th, cloudScreenW2 * sx / tw, cloudScreenH2 * sy / th);
-          }
-        }
+        cctx.drawImage(cloudsImage, 0, 0, tw, th, p2.x - (cloudScreenW * 0.85) / 2, p2.y - (cloudScreenH * 0.85) / 2, cloudScreenW * 0.85, cloudScreenH * 0.85);
         cctx.globalAlpha = 1;
         ctx.save();
         ctx.globalCompositeOperation = "multiply";
@@ -2849,15 +2823,16 @@
     });
 
     for (const ent of drawables){
+      ctx.save();
       const isB=!!BUILD[ent.kind];
       const tx=isB?ent.tx:(ent.x/TILE)|0;
       const ty=isB?ent.ty:(ent.y/TILE)|0;
       let rX = ent.x, rY = ent.y;
 
-      if (ent.team===TEAM.ENEMY && inMap(tx,ty) && !explored[TEAM.PLAYER][idx(tx,ty)]) continue;
+      if (ent.team===TEAM.ENEMY && inMap(tx,ty) && !explored[TEAM.PLAYER][idx(tx,ty)]){ ctx.restore(); continue; }
 
       if (isB){
-        if (ent.civ) continue;
+        if (ent.civ){ ctx.restore(); continue; }
 
         ctx.save();
         let fill="#1b2636", stroke="#2b3d55";
@@ -2905,10 +2880,10 @@
         }
         ctx.restore();
       } else {
-        if (ent.kind==="_fx_inf_die"){ drawInfDeathFxOne(ent.fxRef); continue; }
-        if (ent.kind==="_fx_snip_die"){ drawSnipDeathFxOne(ent.fxRef); continue; }
-        if (ent.hidden || ent.inTransport) continue;
-        if (ent.kind==="sniper" && ent.cloaked && ent.team===TEAM.ENEMY) continue;
+        if (ent.kind==="_fx_inf_die"){ drawInfDeathFxOne(ent.fxRef); ctx.restore(); continue; }
+        if (ent.kind==="_fx_snip_die"){ drawSnipDeathFxOne(ent.fxRef); ctx.restore(); continue; }
+        if (ent.hidden || ent.inTransport){ ctx.restore(); continue; }
+        if (ent.kind==="sniper" && ent.cloaked && ent.team===TEAM.ENEMY){ ctx.restore(); continue; }
         const p=worldToScreen(rX,rY);
         let c = (ent.team===TEAM.PLAYER) ? state.colors.player : state.colors.enemy;
 
@@ -3015,6 +2990,7 @@
           ctx.fillRect(p.x-ent.r, p.y+ent.r+6, ent.r*2*cr, 4);
         }
       }
+      ctx.restore();
     }
 
     if (typeof drawWrenchFx === "function") drawWrenchFx();
