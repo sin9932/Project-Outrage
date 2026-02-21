@@ -913,6 +913,10 @@
   let TANK_DIR_TO_IDLE_IDX, MUZZLE_DIR_TO_IDLE_IDX;
   let getUnitSpec;
 
+  let REPAIR_WRENCH_IMG = new Image();
+  let CON_YARD_PNG = "";
+  const CON_YARD_IMG = new Image();
+
   function _ensureImg(cur, url){
     if (cur) return cur;
     if (!url) return cur;
