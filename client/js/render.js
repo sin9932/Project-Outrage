@@ -2,6 +2,7 @@
 // Minimap renderer split from game.js (Step 1)
 (function(){
   "use strict";
+  const _assetRef = (typeof ASSET_REF !== "undefined") ? ASSET_REF : null;
 
   function _parseTPTexturesAtlas(json){
     if (!json) return null;
@@ -551,11 +552,11 @@
   }
 
   // === Large explosion FX (exp1) atlas (json + png) ===
-  let EXP1_PNG  = (ASSET_REF && ASSET_REF.sprite && ASSET_REF.sprite.eff && ASSET_REF.sprite.eff.exp1)
-    ? ASSET_REF.sprite.eff.exp1.png
+  let EXP1_PNG  = (_assetRef && _assetRef.sprite && _assetRef.sprite.eff && _assetRef.sprite.eff.exp1)
+    ? _assetRef.sprite.eff.exp1.png
     : "";
-  let EXP1_JSON = (ASSET_REF && ASSET_REF.sprite && ASSET_REF.sprite.eff && ASSET_REF.sprite.eff.exp1)
-    ? ASSET_REF.sprite.eff.exp1.json
+  let EXP1_JSON = (_assetRef && _assetRef.sprite && _assetRef.sprite.eff && _assetRef.sprite.eff.exp1)
+    ? _assetRef.sprite.eff.exp1.json
     : "";
   const EXP1_IMG = new Image();
   if (EXP1_PNG) EXP1_IMG.src = EXP1_PNG;
