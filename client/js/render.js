@@ -271,6 +271,7 @@
   let bloodPuffs = [];
   let explosions = [];
   let infDeathFxs = [];
+  let snipDeathFxs = [];
 
   // Terrain textures (tiles + water)
   const TILE_SRC_W = 128;
