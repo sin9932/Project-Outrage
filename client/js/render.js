@@ -2685,6 +2685,28 @@
       }
     }
 
+    if (typeof worldToScreen === "function" && buildings && buildings.length > 0) {
+      const z = (cam && typeof cam.zoom === "number") ? cam.zoom : 1;
+      ctx.save();
+      ctx.globalCompositeOperation = "lighter";
+      for (const b of buildings) {
+        if (!b.alive || b.civ) continue;
+        const p = worldToScreen(b.x, b.y);
+        const r = (b.tw + b.th) * TILE * 0.7 * z;
+        const grad = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, r);
+        grad.addColorStop(0, "rgba(255,252,245,0.18)");
+        grad.addColorStop(0.35, "rgba(255,248,235,0.08)");
+        grad.addColorStop(0.7, "rgba(255,245,230,0.02)");
+        grad.addColorStop(1, "rgba(255,255,255,0)");
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.globalCompositeOperation = "source-over";
+      ctx.restore();
+    }
+
     if (cloudsImage && typeof state.t === "number" && typeof worldToScreen === "function" && TILE) {
       const z = (cam && typeof cam.zoom === "number") ? cam.zoom : 1;
       const tw = cloudsImage.width;
