@@ -1,4 +1,4 @@
-Ôªø// render.js
+// render.js
 // Minimap renderer split from game.js (Step 1)
 (function(){
   "use strict";
@@ -446,14 +446,14 @@
     }catch(_e){}
   })();
 
-  const BUILD_SPRITE_LOCAL = {
+ const BUILD_SPRITE_LOCAL = {
     hq: {
       img: CON_YARD_IMG,
       // We draw ONLY the non-transparent bbox (crop), so all numbers below are bbox-relative.
       // Measured from con_yard_n.png:
       //  bbox: x=256, y=130, w=1536, h=1251
-      //  south-tip pivot (full image): x‚âà1016.5, y=1380
-      //  pivot in bbox-space: x‚âà760.5, y=1250
+      //  south-tip pivot (full image): x?1016.5, y=1380
+      //  pivot in bbox-space: x?760.5, y=1250
       crop:  { x: 256, y: 130, w: 1536, h: 1251 },
       pivot: null, // pivot is controlled via SPRITE_TUNE (see below)
       teamColor: true // apply team palette to accent pixels
@@ -562,7 +562,7 @@
   let EXP1_FRAMES = null;
 
   // EXP1 pivot tuning:
-  // (fx.x, fx.y) is "Î∞îÎã• Ï†ïÏ§ëÏïô" Í∏∞Ï§Ä. ÏïÑÎûò Í∞íÏúºÎ°ú Ìè≠Î∞ú Ï§ëÏã¨ÏùÑ ÎßûÏ∂òÎã§.
+  // (fx.x, fx.y) is "πŸ¥⁄ ¡§¡ﬂæ”" ±‚¡ÿ. æ∆∑° ∞™¿∏∑Œ ∆¯πﬂ ¡ﬂΩ…¿ª ∏¬√·¥Ÿ.
   // pivot: 0..1 (0=left/top, 1=right/bottom)
   let EXP1_PIVOT_X = 0.50;
   let EXP1_PIVOT_Y = 0.52;
@@ -935,8 +935,12 @@
     REPAIR_WRENCH_IMG = env.REPAIR_WRENCH_IMG || _ensureImg(REPAIR_WRENCH_IMG, env.REPAIR_WRENCH_PNG);
     repairWrenches = env.repairWrenches || [];
     exp1Fxs = env.exp1Fxs || [];
-    if (env.CON_YARD_PNG && !CON_YARD_PNG){
+    if (env.CON_YARD_PNG){
       CON_YARD_PNG = env.CON_YARD_PNG;
+    }
+    if (env.CON_YARD_IMG && env.CON_YARD_IMG.src){
+      CON_YARD_IMG.src = env.CON_YARD_IMG.src;
+    } else if (CON_YARD_PNG){
       CON_YARD_IMG.src = CON_YARD_PNG;
     }
     if (env.EXP1_PNG && !EXP1_PNG){
@@ -1272,7 +1276,7 @@
 
   // The PNG contains 8 poses (idle), arranged in a 3x3 grid with the bottom-right cell empty.
   // Order definition (USER-LOCKED): start at top-left and go right:
-  // [0]=Îèô(E), [1]=ÎèôÎ∂Å(NE), [2]=Î∂Å(N), [3]=Î∂ÅÏÑú(NW), [4]=ÏÑú(W), [5]=ÎÇ®ÏÑú(SW), [6]=ÎÇ®(S), [7]=ÎèôÎÇ®(SE)
+  // [0]=µø(E), [1]=µø∫œ(NE), [2]=∫œ(N), [3]=∫œº≠(NW), [4]=º≠(W), [5]=≥≤º≠(SW), [6]=≥≤(S), [7]=µø≥≤(SE)
   // Bounding boxes were auto-trimmed from the provided file (inf_idle_tex.png 1800x1800).
   const LOCAL_INF_IDLE_ATLAS = [
     { x:226, y: 90, w:199, h:420 }, // 0 E
@@ -2273,7 +2277,7 @@
     const p=worldToScreen(b.x,b.y);
     const yy = p.y - (Math.max(b.tw,b.th)*ISO_Y*cam.zoom) - 40;
     const xx = p.x + ISO_X*(b.tw*0.72)*cam.zoom;
-    const text="Ï£ºÏöî";
+    const text="¡÷ø‰";
     ctx.save();
     ctx.font="bold 12px system-ui";
     ctx.textAlign="left";
@@ -2950,7 +2954,7 @@
           ctx.font=(16*cam.zoom).toFixed(0)+"px system-ui, -apple-system, Segoe UI, Roboto, sans-serif";
           ctx.textAlign="center"; ctx.textBaseline="middle";
           ctx.fillStyle="rgba(255,235,120,0.95)";
-          ctx.fillText("‚ö°", p2.x, p2.y-ISO_Y*0.25);
+          ctx.fillText("?", p2.x, p2.y-ISO_Y*0.25);
         }
 
         const p=worldToScreen(rX,rY);
@@ -3366,7 +3370,7 @@
       const msg="GAME OVER";
       ctx.fillText(msg, W/2-ctx.measureText(msg).width/2, H/2);
       ctx.font="16px system-ui";
-      const sub="ÏÉàÎ°úÍ≥†Ïπ®ÌïòÎ©¥ Ïû¨ÏãúÏûë";
+      const sub="ªı∑Œ∞Ìƒß«œ∏È ¿ÁΩ√¿€";
       ctx.fillText(sub, W/2-ctx.measureText(sub).width/2, H/2+28);
     }
   }

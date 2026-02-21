@@ -579,6 +579,8 @@ function getBaseBuildTime(kind){
   //  - non-transparent bbox width ≈ 1536px
   //  - pivot is SOUTH corner center (bottom-most point) at x=1024, y=1381 (in original image px)
   const CON_YARD_PNG = ASSET.sprite.const.normal.con_yard;
+  const CON_YARD_IMG = new Image();
+  CON_YARD_IMG.src = CON_YARD_PNG;
   // === Sprite tuning knobs (YOU edit these) ===
   // pivotNudge is in SOURCE pixels (bbox-space, before scaling).
   // offsetNudge is in SCREEN pixels (after scaling, before zoom).
@@ -751,6 +753,8 @@ function getBaseBuildTime(kind){
 
   // === Repair wrench FX sprite sheet (7 frames, 602x602 each) ===
   const REPAIR_WRENCH_PNG = ASSET.sprite.unit.inf.wrench;
+  const REPAIR_WRENCH_IMG = new Image();
+  REPAIR_WRENCH_IMG.src = REPAIR_WRENCH_PNG;
 
 
 
@@ -4815,6 +4819,8 @@ function draw(){
         exp1Fxs,
         EXP1_PNG, EXP1_JSON,
         CON_YARD_PNG,
+        CON_YARD_IMG,
+        REPAIR_WRENCH_IMG,
         smokeWaves, smokePuffs, dustPuffs, dmgSmokePuffs, bloodStains, bloodPuffs,
         explosions,
         INF_DIE_PNG,
