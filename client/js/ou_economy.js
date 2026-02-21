@@ -186,7 +186,7 @@
 
       const need = kindToProducer(kind);
 
-      // Keep RA2-ish restriction: can't queue without having a producer.
+      // Can't queue without having a producer.
       const hasProducer = buildings.some(b=>b.alive && !b.civ && b.team===TEAM.PLAYER && b.kind===need);
       if (!hasProducer){ toast("생산 건물이 없습니다"); return; }
 
@@ -313,7 +313,7 @@
 
           const pf=getPowerFactor(b.team);
           const sameCount = buildings.filter(x=>x.alive && !x.civ && x.team===b.team && x.kind===b.kind).length || 1;
-          // RA2/YR rules(md).ini MultipleFactory: build time multiplier = MULTIPLE_FACTORY^(sameCount-1)
+          // MultipleFactory: build time multiplier = MULTIPLE_FACTORY^(sameCount-1)
           // 즉, 속도(진행률)는 1 / MULTIPLE_FACTORY^(sameCount-1)
           const mf = Math.min(20, sameCount); // 안전 상한
           const multiSpeed = 1 / Math.pow(MULTIPLE_FACTORY, (mf - 1));
@@ -351,7 +351,7 @@
       }
     }
 
-          // Money drains while progress advances (RA2-ish).
+          // Money drains while progress advances.
           const teamWallet = (b.team===TEAM.PLAYER) ? state.player : state.enemy;
           const costTotal = q.cost ?? (COST[q.kind]||0);
           const tNeed = q.tNeed || 0.001;
@@ -408,15 +408,16 @@
             }
             const u = addUnit(spawnB.team, q.kind, sp.x, sp.y);
 
-            // Rally / waypoint
-            if (spawnB.rally && spawnB.rally.x!=null && spawnB.rally.y!=null){
+            // Harvester: start idle so sim assigns harvest order next tick (avoids "idle harvester" bug for enemy).
+            if (q.kind === "harvester"){
+              u.order = { type:"idle", x: u.x, y: u.y, tx: null, ty: null };
+              u.target = null;
+            } else if (spawnB.rally && spawnB.rally.x!=null && spawnB.rally.y!=null){
               u.order = { type:"move", x:spawnB.rally.x, y:spawnB.rally.y, tx:null, ty:null };
               u.target = null;
               setPathTo(u, spawnB.rally.x, spawnB.rally.y);
               u.repathCd = 0.25;
-
             } else {
-              // No rally set: eject newly produced unit away from the producer entrance to avoid door jams.
               const fp = findNearestFreePoint(u.x, u.y, u, 6);
               if (fp){
                 u.order = { type:"move", x:fp.x, y:fp.y, tx:null, ty:null };

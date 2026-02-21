@@ -48,7 +48,7 @@
       nextThink: 0,
       rally: { x: 0, y: 0 },
       waveT: 0,
-      // build queue for enemy (RA2-ish money drain)
+      // build queue for enemy
       build: { queue: null, ready: null },
       // high-level mode
       mode: "build", // build | rally | attack | defend
@@ -265,7 +265,7 @@
     }
 
     function aiTryStartBuild(kind) {
-      // Only one building build at a time (simple, RA2-ish sidebar)
+      // Only one building build at a time (simple sidebar)
       if (ai.build.queue || ai.build.ready) return false;
       if (!aiEnemyHas("hq")) return false;
 

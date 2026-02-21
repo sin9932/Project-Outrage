@@ -140,7 +140,7 @@
       }
     }
 
-    // RA2: ore/gem can be damaged by explosives; damage = weapon damage (1:1), splash falls off linearly (PercentAtMax 0.02)
+    // Ore/gem can be damaged by explosives; damage = weapon damage (1:1), splash falls off linearly.
     function applyOreDamageInRadius(xWorld, yWorld, radiusWorld, dmg){
       if (!ore || radiusWorld <= 0) return;
       const r2 = radiusWorld * radiusWorld;
@@ -333,7 +333,7 @@
         const range=spec.range;
         if (b.shootCd>0) continue;
 
-        // Low power: powered defenses go offline (RA2-ish)
+        // Low power: powered defenses go offline
         if (POWER.turretUse>0 && isUnderPower && isUnderPower(b.team)){
           continue;
         }
@@ -431,7 +431,7 @@
 
         // splash (units/buildings)
         if (applyAreaDamageAt) applyAreaDamageAt(ix, iy, 38, (bl.dmg||0)*0.45, bl.ownerId, bl.team);
-        // RA2: missile damages ore/gem in radius, linear falloff (100% center, 2% edge)
+        // Missile damages ore/gem in radius, linear falloff.
         applyOreDamageInRadius(ix, iy, 38, bl.dmg||0);
       }
 
@@ -508,7 +508,7 @@
               impacts.push({x:bl.x,y:bl.y,vx:Math.cos(ang)*spd,vy:Math.sin(ang)*spd,life:0.22,delay:0});
             }
 
-            // RA2: tank shell damages ore/gem at impact cell (weapon damage = ore credit loss 1:1)
+            // Tank shell damages ore/gem at impact cell (weapon damage = ore credit loss 1:1)
             try{
               const owner2 = getEntityById(bl.ownerId);
               if (owner2 && owner2.kind==="tank"){
@@ -2072,7 +2072,7 @@
             const otPre = u.order && u.order.type;
             const wantsAuto = (!u.target && (otPre==="idle" || otPre==="guard" || otPre==="guard_return" || otPre==="attackmove"));
             if (wantsAuto && u.aggroCd<=0 && state.t >= (u._nextAcquire||0)){
-              u._nextAcquire = state.t + 0.12;
+              u._nextAcquire = state.t + 0.18 + (u.id % 7) * 0.02;
               const sniperMode = (u.kind==="sniper" || (u.kind==="ifv" && u.passKind==="sniper"));
       const manualLock = !!(u.order && u.order.manual && u.order.allowAuto!==true);
               const vis = (UNIT[u.kind]?.vision || 300);
@@ -2311,7 +2311,7 @@
       if (!sniperMode && u.aggroCd<=0 && state.t >= (u._nextAcquire||0) && u.order && u.order.type==="attack" && !(u.order.manual && u.order.lockTarget)){
         const cur = getEntityById(u.target);
         if (cur && BUILD[cur.kind]){
-          u._nextAcquire = state.t + 0.12;
+          u._nextAcquire = state.t + 0.18 + (u.id % 7) * 0.02;
           const vis = UNIT[u.kind].vision || 280;
           const cand = findNearestEnemyFor(u.team, u.x, u.y, vis, false, true); // unitOnly
           if (cand){
@@ -2330,7 +2330,7 @@
          (u.order.type==="move" && !(u.forceMoveUntil && state.t < u.forceMoveUntil)));
     
       if (u.aggroCd<=0 && okAuto && state.t >= (u._nextAcquire||0)){
-        u._nextAcquire = state.t + 0.12;
+        u._nextAcquire = state.t + 0.18 + (u.id % 7) * 0.02;
         const vis = UNIT[u.kind].vision || 280;
         const cand = findNearestEnemyFor(u.team, u.x, u.y, vis, sniperMode, true); // unitOnly
         if (cand){
@@ -2408,7 +2408,7 @@
     
               // scan for enemy in vision, then engage. Throttle to reduce cost in mass combat.
               if (state.t < (u._nextAcquire||0)) { settleInfantryToSubslot(u, dt); continue; }
-              u._nextAcquire = state.t + 0.12;
+              u._nextAcquire = state.t + 0.18 + (u.id % 7) * 0.02;
               const scanR = Math.max(u.vision||0, (u.range||0));
               const enemy = findNearestAttackMoveTargetFor(u.team, u.x, u.y, scanR);
               if (enemy){
@@ -2429,7 +2429,7 @@
     
             if (u.order.type==="attackmove"){
               if (state.t >= (u._nextAcquire||0)) {
-                u._nextAcquire = state.t + 0.12;
+                u._nextAcquire = state.t + 0.18 + (u.id % 7) * 0.02;
                 const enemy = findNearestAttackMoveTargetFor(u.team, u.x, u.y, u.range||0, u.kind);
                 if (enemy){
                   const lock = (u.team===TEAM.ENEMY);
@@ -2453,7 +2453,7 @@
     
             // Guard/idle auto-acquire: if standing idle and an enemy enters range, engage. Throttle in mass combat.
             if (u.order.type==="idle" && (u.range||0)>0 && u.kind!=="engineer" && state.t >= (u._nextAcquire||0)){
-              u._nextAcquire = state.t + 0.12;
+              u._nextAcquire = state.t + 0.18 + (u.id % 7) * 0.02;
               const sniperMode = (u.kind==="sniper" || (u.kind==="ifv" && u.passKind==="sniper"));
       const manualLock = !!(u.order && u.order.manual && u.order.allowAuto!==true);
               const enemy = findNearestEnemyFor(u.team, u.x, u.y, u.range||0, sniperMode, true);

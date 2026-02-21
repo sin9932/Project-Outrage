@@ -311,8 +311,7 @@ function fitMini() {
 
   const terrain = new Uint8Array(MAP_W*MAP_H); // 0 ground, 1 rock, 2 ore, 3 water
   const ore = new Uint16Array(MAP_W*MAP_H);
-  const isGem = new Uint8Array(MAP_W*MAP_H);   // RA2: gem 타일 = 입금 시 2배
-  // RA2/포럼 기준: ore·gem 타일당 적재량. TMJ(Tiled)에서 ore/gem 레이어 타일 ID로 수정 가능.
+  const isGem = new Uint8Array(MAP_W*MAP_H);
   // ore 타일셋 firstgid=225, localId 0~9 → 600,800,…,2400. gem 레이어 localId 0~3 → 1200,1600,2000,2400.
   const ORE_FIRSTGID = 225;
   const ORE_BASE = 600;
@@ -444,7 +443,6 @@ function fitMini() {
 
 
   // Sidebar-style build time (seconds). Simple deterministic rule: time scales with cost.
-  // RA2/YR-style base build speed: "minutes to produce a 1000-credit item"
 // See: BuildSpeed / Build time references.
 const BUILD_SPEED_MIN_PER_1000 = 0.8; // rules(md).ini 기본값: 1000크레딧 생산에 걸리는 시간(분) (BuildSpeed)
 const MULTIPLE_FACTORY = 0.8; // rules(md).ini MultipleFactory: 공장/막사 등 같은 생산시설 추가 시 빌드타임 누적 곱 (0.8^(n-1))
@@ -472,7 +470,6 @@ function getBaseBuildTime(kind){
 
 
 
-// RA2-ish multi-factory bonus: effective build time scales ~ 1 / (#producers).
 // Example ref: community tables show ~13s at 1 factory for 1000-cost, ~6s at 2, ~4s at 3. (rounded)
 
 
@@ -484,13 +481,13 @@ function getBaseBuildTime(kind){
 
   const BUILD = {
     // height levels: 0 = flat, 1 = low, 2 = medium, 3 = tall
-    // vision: RA2-style wider sight so fog-of-war doesn’t feel blind (world units)
-    hq:       { hLevel:3, tw:5, th:5, hp:3000, vision:1100, provideR: 750 },
-    power:    { hLevel:2, tw:2, th:2, hp:750,  vision:680,  provideR: 600 },
-    refinery: { hLevel:2, tw:4, th:3, hp:1000, vision:820,  provideR: 650 },
-    factory:  { hLevel:2, tw:3, th:4, hp:1000, vision:800,  provideR: 650 },
-    barracks: { hLevel:2, tw:2, th:2, hp:500,  vision:720,  provideR: 600 },
-    radar:    { hLevel:3, tw:2, th:2, hp:1000, vision:950,  provideR: 650 },
+    // vision: world units
+    hq:       { hLevel:3, tw:5, th:5, hp:3000, vision:1100, provideR: 16 * TILE },
+    power:    { hLevel:2, tw:2, th:2, hp:750,  vision:680,  provideR: 4 * TILE },
+    refinery: { hLevel:2, tw:4, th:3, hp:1000, vision:820,  provideR: 5.5 * TILE },
+    factory:  { hLevel:2, tw:3, th:4, hp:1000, vision:800,  provideR: 5.5 * TILE },
+    barracks: { hLevel:2, tw:2, th:2, hp:500,  vision:720,  provideR: 4 * TILE },
+    radar:    { hLevel:3, tw:2, th:2, hp:1000, vision:950,  provideR: 4 * TILE },
     turret:   { hLevel:1, tw:1, th:1, hp:400,  vision:780,  provideR: 0   }
   };
 
@@ -687,7 +684,7 @@ function getBaseBuildTime(kind){
   }
 
   function _turnStepToward(fromDir, goalDir){
-    // Hull turning (RA2-ish): uses S->SE->E->NE->N->NW->W->SW sequence.
+    // Hull turning: S->SE->E->NE->N->NW->W->SW sequence.
     return _turnStepTowardSeq(_cwSeq, fromDir, goalDir);
   }
 
@@ -954,7 +951,7 @@ function spawnFreeHarvester(team, nearBuilding){
 }
 
 function onBuildingPlaced(b){
-  // Refinery spawns a free harvester nearby (RA2-ish).
+  // Refinery spawns a free harvester nearby.
   if (b.kind==="refinery"){
     spawnFreeHarvester(b.team, b);
   }
@@ -1104,7 +1101,6 @@ function footprintBlockedMask(tx,ty,tw,th){
 
 
   function inBuildRadius(team, wx, wy){
-  // If the side has lost its HQ, it cannot place ANY buildings until HQ is rebuilt.
     if (!buildings.some(b=>b.alive && !b.civ && b.team===team && b.kind==='hq')) return false;
 
     for (const b of buildings){
@@ -1113,7 +1109,7 @@ function footprintBlockedMask(tx,ty,tw,th){
       if (b.civ) continue;
       if ((b.provideR||0) <= 0) continue;
       const r = b.provideR;
-      if (dist2(b.x,b.y,wx,wy) <= r*r) return true;
+      if (dist2(b.x, b.y, wx, wy) <= r * r) return true;
     }
     return false;
   }
@@ -1353,7 +1349,6 @@ function followPath(u, dt){
     // Waypoint world target
 let wx = (p.tx+0.5)*TILE, wy=(p.ty+0.5)*TILE;
 
-// RA2-feel queueing for infantry:
 // Instead of having everyone steer to tile center (then push/correct/jitter),
 // pick a temporary sub-slot for the NEXT waypoint tile. If no slot is available, WAIT.
 if (u.cls==="inf"){
@@ -1600,7 +1595,7 @@ if (u.cls==="inf"){
       const fd = worldVecToDir8(ax, ay);
 
       if (u.kind === "tank" || u.kind === "harvester"){
-        // RA2-style: hull turns in place before actually translating.
+        // Hull turns in place before actually translating.
         if (u.bodyDir == null) u.bodyDir = (u.dir!=null ? u.dir : 6);
 
         if (fd !== u.bodyDir){
@@ -1972,12 +1967,12 @@ function tryUnloadIFV(ifv){
 //      - a burst of dusty smoke blobs + lingering smoke puffs.
 //      (kept deterministic-ish and cheap)
 try{
-  // Restored: "noisy gradient" smoke blob burst (no circular shockwave/ring).
-  const puffN = Math.floor(26 * _smkS);
+  // Fewer puffs per frame to avoid freeze on destroy (spread cost).
+  const puffN = Math.min(12, Math.floor(18 * _smkS));
   for (let i=0;i<puffN;i++){
     spawnSmokePuff(b.x, b.y, 1.35 * _smkS);
   }
-  const hazeN = Math.floor(6 * _smkS);
+  const hazeN = Math.min(4, Math.floor(4 * _smkS));
   for (let i=0;i<hazeN;i++){
     spawnSmokeHaze(b.x, b.y, 1.10 * _smkS);
   }
@@ -2335,8 +2330,8 @@ function updateBlood(dt){
       parts: []
     };
 
-    // Streak sparks (fast, thin)
-    const sparkN = 54;
+    // Streak sparks (fast, thin) - reduced count to avoid freeze on destroy
+    const sparkN = 28;
     for (let i=0;i<sparkN;i++){
       const ang = (-Math.PI/2) + (Math.random()*Math.PI) + (Math.random()*0.35 - 0.175);
       const spd = 420 + Math.random()*520;
@@ -2353,7 +2348,7 @@ function updateBlood(dt){
     }
 
     // Flame plumes (slow, rising)
-    const flameN = 34;
+    const flameN = 18;
     for (let i=0;i<flameN;i++){
       const ang = Math.random()*Math.PI*2;
       const spd = 70 + Math.random()*120;
@@ -2371,7 +2366,7 @@ function updateBlood(dt){
     }
 
     // A few embers (mid speed)
-    const emberN = 28;
+    const emberN = 14;
     for (let i=0;i<emberN;i++){
       const ang = (-Math.PI/2) + (Math.random()*Math.PI);
       const spd = 170 + Math.random()*220;
@@ -2443,7 +2438,6 @@ function updateBlood(dt){
   }
 
 // Player production request queues (FIFO per factory type).
-// Infantry + Engineer share the Barracks queue (RA2-style).
 const prodFIFO = { barracks: [], factory: [] };
 const prodTotal = { infantry:0, engineer:0, sniper:0, tank:0, harvester:0, ifv:0 };
 const QCAP = 30;
@@ -3018,7 +3012,7 @@ const refund = Math.floor((COST[b.kind]||0) * 0.5);
     if (b.team===TEAM.PLAYER) state.player.money += refund;
     else state.enemy.money += refund;
 
-    // Selling evacuates units at full HP (RA2-ish flavor).
+    // Selling evacuates units at full HP.
     spawnEvacUnitsFromBuilding(b, false);
 
     // Barracks / Power Plant: play "construction" animation in reverse, then remove footprint.
@@ -3203,7 +3197,7 @@ function stampCmd(e, type, x, y, targetId=null){
     const offsets = buildFormationOffsets(Math.max(16, ids.length*6));
     const used = new Set();
   const infCount = new Map();
-    // RA2-feel: for infantry, assign a stable destination sub-slot per target tile
+    // For infantry, assign a stable destination sub-slot per target tile
     const __tileSubMask = new Map();
     let k=0;
     for (const id of ids){
@@ -3255,7 +3249,7 @@ function stampCmd(e, type, x, y, targetId=null){
         }
       }
       // if nothing free, fall back to base tile center
-      if (!chosen) chosen={tx:baseTx, ty:baseTy};// RA2-feel: vehicles still go to tile center; infantry go to a reserved sub-slot inside the tile
+      if (!chosen) chosen={tx:baseTx, ty:baseTy};
 const cls = (UNIT[e.kind] && UNIT[e.kind].cls) ? UNIT[e.kind].cls : "";
 let wp;
 let subSlot = null;
@@ -3794,7 +3788,7 @@ const keys=new Set();
       }
     }
 
-    // Guard mode (RA2-style): press G
+    // Guard mode: press G
     if (k==="g"){ issueGuard(); e.preventDefault(); return; }
 
     // IFV unload: press D
@@ -5014,9 +5008,12 @@ if (__ou_ui && typeof __ou_ui.bindPregameStart === "function"){
           REPAIR_WRENCH_PNG, EXP1_PNG, CON_YARD_PNG
         ]);
 
-        // Prewarm refinery frame-tint cache to avoid flicker on first build/destroy
+        // Prewarm building atlases (incl. death) so first destroy doesn't freeze or flicker
         if (PO.buildings && typeof PO.buildings.prewarm === "function"){
-          PO.buildings.prewarm({ state, teams: [TEAM.PLAYER, TEAM.ENEMY], kinds: ["refinery"] });
+          PO.buildings.prewarm({ state, teams: [TEAM.PLAYER, TEAM.ENEMY], kinds: ["barracks", "power", "refinery"] });
+        }
+        if (PO.buildings && typeof PO.buildings.preload === "function"){
+          PO.buildings.preload().catch(() => {});
         }
         if (__ou_ui && typeof __ou_ui.setPregameLoading === "function"){
           __ou_ui.setPregameLoading({ loading: false });
