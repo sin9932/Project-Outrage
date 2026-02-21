@@ -2706,7 +2706,6 @@
     }
 
     if (cloudsImage && typeof state.t === "number" && typeof worldToScreen === "function" && TILE) {
-      ctx.save();
       const z = (cam && typeof cam.zoom === "number") ? cam.zoom : 1;
       const tw = cloudsImage.width;
       const th = cloudsImage.height;
@@ -2718,45 +2717,58 @@
       const isoFlatten = 0.48;
       const cloudScreenH = (th / tw) * cloudScreenW * isoFlatten;
       const margin = Math.max(cloudScreenW, cloudScreenH) * 1.2;
-      for (let wy = -cloudWorldStep; wy < MAP_H * TILE + cloudWorldStep; wy += cloudWorldStep) {
-        for (let wx = -cloudWorldStep; wx < MAP_W * TILE + cloudWorldStep; wx += cloudWorldStep) {
-          const worldX = wx + driftX;
-          const worldY = wy + driftY;
-          const p = worldToScreen(worldX, worldY);
-          if (p.x < -margin || p.x > W + margin || p.y < -margin || p.y > H + margin) continue;
-          const sx = (((wx + driftX) % cloudWorldStep) + cloudWorldStep) % cloudWorldStep / cloudWorldStep * tw;
-          const sy = (((wy + driftY) % cloudWorldStep) + cloudWorldStep) % cloudWorldStep / cloudWorldStep * th;
-          ctx.globalAlpha = 0.58;
-          ctx.globalCompositeOperation = "multiply";
-          ctx.drawImage(cloudsImage, sx, sy, tw - sx, th - sy, p.x - cloudScreenW / 2, p.y - cloudScreenH / 2, cloudScreenW * (tw - sx) / tw, cloudScreenH * (th - sy) / th);
-          if (sx > 0) ctx.drawImage(cloudsImage, 0, sy, sx, th - sy, p.x - cloudScreenW / 2 + cloudScreenW * (tw - sx) / tw, p.y - cloudScreenH / 2, cloudScreenW * sx / tw, cloudScreenH * (th - sy) / th);
-          if (sy > 0) ctx.drawImage(cloudsImage, sx, 0, tw - sx, sy, p.x - cloudScreenW / 2, p.y - cloudScreenH / 2 + cloudScreenH * (th - sy) / th, cloudScreenW * (tw - sx) / tw, cloudScreenH * sy / th);
-          if (sx > 0 && sy > 0) ctx.drawImage(cloudsImage, 0, 0, sx, sy, p.x - cloudScreenW / 2 + cloudScreenW * (tw - sx) / tw, p.y - cloudScreenH / 2 + cloudScreenH * (th - sy) / th, cloudScreenW * sx / tw, cloudScreenH * sy / th);
+      let cloudBuf = null;
+      try {
+        cloudBuf = document.createElement("canvas");
+        cloudBuf.width = W;
+        cloudBuf.height = H;
+      } catch (e) { cloudBuf = null; }
+      const cctx = cloudBuf ? cloudBuf.getContext("2d") : null;
+      if (cctx) {
+        cctx.clearRect(0, 0, W, H);
+        cctx.globalAlpha = 0.58;
+        for (let wy = -cloudWorldStep; wy < MAP_H * TILE + cloudWorldStep; wy += cloudWorldStep) {
+          for (let wx = -cloudWorldStep; wx < MAP_W * TILE + cloudWorldStep; wx += cloudWorldStep) {
+            const worldX = wx + driftX;
+            const worldY = wy + driftY;
+            const p = worldToScreen(worldX, worldY);
+            if (p.x < -margin || p.x > W + margin || p.y < -margin || p.y > H + margin) continue;
+            const sx = (((wx + driftX) % cloudWorldStep) + cloudWorldStep) % cloudWorldStep / cloudWorldStep * tw;
+            const sy = (((wy + driftY) % cloudWorldStep) + cloudWorldStep) % cloudWorldStep / cloudWorldStep * th;
+            cctx.drawImage(cloudsImage, sx, sy, tw - sx, th - sy, p.x - cloudScreenW / 2, p.y - cloudScreenH / 2, cloudScreenW * (tw - sx) / tw, cloudScreenH * (th - sy) / th);
+            if (sx > 0) cctx.drawImage(cloudsImage, 0, sy, sx, th - sy, p.x - cloudScreenW / 2 + cloudScreenW * (tw - sx) / tw, p.y - cloudScreenH / 2, cloudScreenW * sx / tw, cloudScreenH * (th - sy) / th);
+            if (sy > 0) cctx.drawImage(cloudsImage, sx, 0, tw - sx, sy, p.x - cloudScreenW / 2, p.y - cloudScreenH / 2 + cloudScreenH * (th - sy) / th, cloudScreenW * (tw - sx) / tw, cloudScreenH * sy / th);
+            if (sx > 0 && sy > 0) cctx.drawImage(cloudsImage, 0, 0, sx, sy, p.x - cloudScreenW / 2 + cloudScreenW * (tw - sx) / tw, p.y - cloudScreenH / 2 + cloudScreenH * (th - sy) / th, cloudScreenW * sx / tw, cloudScreenH * sy / th);
+          }
         }
-      }
-      ctx.globalCompositeOperation = "source-over";
-      ctx.globalAlpha = 0.28;
-      const step2 = cloudWorldStep * 1.6;
-      const driftX2 = (state.t * -16) % cloudPeriod;
-      const driftY2 = (state.t * -8) % cloudPeriod;
-      const cloudScreenW2 = cloudScreenW * 0.75;
-      const cloudScreenH2 = cloudScreenH * 0.75;
-      for (let wy = -step2; wy < MAP_H * TILE + step2; wy += step2) {
-        for (let wx = -step2; wx < MAP_W * TILE + step2; wx += step2) {
-          const worldX = wx + driftX2;
-          const worldY = wy + driftY2;
-          const p = worldToScreen(worldX, worldY);
-          if (p.x < -margin || p.x > W + margin || p.y < -margin || p.y > H + margin) continue;
-          const sx = (((wx + driftX2) % step2) + step2) % step2 / step2 * tw;
-          const sy = (((wy + driftY2) % step2) + step2) % step2 / step2 * th;
-          ctx.drawImage(cloudsImage, sx, sy, tw - sx, th - sy, p.x - cloudScreenW2 / 2, p.y - cloudScreenH2 / 2, cloudScreenW2 * (tw - sx) / tw, cloudScreenH2 * (th - sy) / th);
-          if (sx > 0) ctx.drawImage(cloudsImage, 0, sy, sx, th - sy, p.x - cloudScreenW2 / 2 + cloudScreenW2 * (tw - sx) / tw, p.y - cloudScreenH2 / 2, cloudScreenW2 * sx / tw, cloudScreenH2 * (th - sy) / th);
-          if (sy > 0) ctx.drawImage(cloudsImage, sx, 0, tw - sx, sy, p.x - cloudScreenW2 / 2, p.y - cloudScreenH2 / 2 + cloudScreenH2 * (th - sy) / th, cloudScreenW2 * (tw - sx) / tw, cloudScreenH2 * sy / th);
-          if (sx > 0 && sy > 0) ctx.drawImage(cloudsImage, 0, 0, sx, sy, p.x - cloudScreenW2 / 2 + cloudScreenW2 * (tw - sx) / tw, p.y - cloudScreenH2 / 2 + cloudScreenH2 * (th - sy) / th, cloudScreenW2 * sx / tw, cloudScreenH2 * sy / th);
+        cctx.globalAlpha = 0.28;
+        const step2 = cloudWorldStep * 1.6;
+        const driftX2 = (state.t * -16) % cloudPeriod;
+        const driftY2 = (state.t * -8) % cloudPeriod;
+        const cloudScreenW2 = cloudScreenW * 0.75;
+        const cloudScreenH2 = cloudScreenH * 0.75;
+        for (let wy = -step2; wy < MAP_H * TILE + step2; wy += step2) {
+          for (let wx = -step2; wx < MAP_W * TILE + step2; wx += step2) {
+            const worldX = wx + driftX2;
+            const worldY = wy + driftY2;
+            const p = worldToScreen(worldX, worldY);
+            if (p.x < -margin || p.x > W + margin || p.y < -margin || p.y > H + margin) continue;
+            const sx = (((wx + driftX2) % step2) + step2) % step2 / step2 * tw;
+            const sy = (((wy + driftY2) % step2) + step2) % step2 / step2 * th;
+            cctx.drawImage(cloudsImage, sx, sy, tw - sx, th - sy, p.x - cloudScreenW2 / 2, p.y - cloudScreenH2 / 2, cloudScreenW2 * (tw - sx) / tw, cloudScreenH2 * (th - sy) / th);
+            if (sx > 0) cctx.drawImage(cloudsImage, 0, sy, sx, th - sy, p.x - cloudScreenW2 / 2 + cloudScreenW2 * (tw - sx) / tw, p.y - cloudScreenH2 / 2, cloudScreenW2 * sx / tw, cloudScreenH2 * (th - sy) / th);
+            if (sy > 0) cctx.drawImage(cloudsImage, sx, 0, tw - sx, sy, p.x - cloudScreenW2 / 2, p.y - cloudScreenH2 / 2 + cloudScreenH2 * (th - sy) / th, cloudScreenW2 * (tw - sx) / tw, cloudScreenH2 * sy / th);
+            if (sx > 0 && sy > 0) cctx.drawImage(cloudsImage, 0, 0, sx, sy, p.x - cloudScreenW2 / 2 + cloudScreenW2 * (tw - sx) / tw, p.y - cloudScreenH2 / 2 + cloudScreenH2 * (th - sy) / th, cloudScreenW2 * sx / tw, cloudScreenH2 * sy / th);
+          }
         }
+        cctx.globalAlpha = 1;
+        ctx.save();
+        ctx.globalCompositeOperation = "multiply";
+        ctx.globalAlpha = 1;
+        ctx.drawImage(cloudBuf, 0, 0, W, H, 0, 0, W, H);
+        ctx.globalCompositeOperation = "source-over";
+        ctx.restore();
       }
-      ctx.globalAlpha = 1;
-      ctx.restore();
     }
 
     if (state.build.active && state.build.kind){
@@ -2847,6 +2859,7 @@
       if (isB){
         if (ent.civ) continue;
 
+        ctx.save();
         let fill="#1b2636", stroke="#2b3d55";
         if (ent.team===TEAM.PLAYER){ fill="rgba(10,40,70,0.9)"; stroke=state.colors.player; }
         if (ent.team===TEAM.ENEMY){  fill="rgba(70,10,10,0.9)"; stroke=state.colors.enemy; }
@@ -2890,6 +2903,7 @@
           ctx.lineWidth=2;
           drawFootprintDiamond(ent, "rgba(0,0,0,0)", "rgba(255,255,255,0.9)");
         }
+        ctx.restore();
       } else {
         if (ent.kind==="_fx_inf_die"){ drawInfDeathFxOne(ent.fxRef); continue; }
         if (ent.kind==="_fx_snip_die"){ drawSnipDeathFxOne(ent.fxRef); continue; }
