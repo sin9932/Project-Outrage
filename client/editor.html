@@ -9,7 +9,7 @@
   #wrap { display:flex; height:100vh; }
   #left { width:300px; padding:14px; background:#121826; box-shadow: inset -1px 0 0 rgba(255,255,255,0.05); overflow:auto; }
   #right { flex:1; display:flex; align-items:flex-start; justify-content:flex-start; overflow:auto; }
-  canvas { background:#0b0f16; border:1px solid rgba(255,255,255,0.12); display:block; margin:16px; }
+  canvas { background:#0b0f16; border:1px solid rgba(255,255,255,0.12); image-rendering: pixelated; display:block; margin:16px; }
   h1 { font-size:16px; margin:0 0 12px; }
   .row { margin:10px 0; }
   .btn { width:100%; padding:8px 10px; margin:4px 0; border:0; border-radius:8px; background:#1c2638; color:#e6eef8; cursor:pointer; }
@@ -34,8 +34,14 @@
     </div>
     <div class="row">
       <label>Brush</label>
-            <div class="group">Base</div>\n      <button class="btn active" data-brush="grass_green">Grass Green</button>\n      <button class="btn" data-brush="grass_medium">Grass Medium</button>\n      <button class="btn" data-brush="grass_dry">Grass Dry</button>\n      <button class="btn" data-brush="forest">Forest Ground</button>\n      <button class="btn" data-brush="sand">Sand</button>\n      <button class="btn" data-brush="dirt">Dirt</button>\n      <button class="btn" data-brush="dirt_dark">Dirt Dark</button>\n      <button class="btn" data-brush="stone">Stone Path</button>\n      <button class="btn" data-brush="water1">Water</button>\n      <button class="btn" data-brush="water2">Water 2</button>\n      <div class="group">Special</div>
-      <button class="btn" data-brush="beacon">Starting Beacon</button>
+      <div class="group">Base</div>
+      <button class="btn active" data-brush="grass">Grass</button>
+      <button class="btn" data-brush="sand">Sand</button>
+      <button class="btn" data-brush="breek1">Breek 1</button>
+      <button class="btn" data-brush="breek2">Breek 2</button>
+      <button class="btn" data-brush="ore">Ore</button>
+      <button class="btn" data-brush="water1">Water</button>
+      <button class="btn" data-brush="water2">Water 2</button>
       <div class="group">Road (Overlay)</div>
       <div class="grid">
         <button class="btn" data-brush="road1">R1</button>
@@ -76,10 +82,5 @@
 <script src="./js/editor.js" defer></script>
 </body>
 </html>
-
-
-
-
-
 
 
