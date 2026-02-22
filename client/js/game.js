@@ -2609,7 +2609,22 @@ function resolveUnitOverlaps(){
   if (__ou_sim && typeof __ou_sim.resolveUnitOverlaps === "function") return __ou_sim.resolveUnitOverlaps();
 }
   function updateVision(){
-  if (__ou_sim && typeof __ou_sim.updateVision === "function") return __ou_sim.updateVision();
+  if (__ou_sim && typeof __ou_sim.updateVision === "function") __ou_sim.updateVision();
+  // sim ref/타이밍 이슈 시에도 건물 발자국은 반드시 밝혀 두기 (맵 전부 검은 현상 방지)
+  for (const b of buildings){
+    if (!b || !b.alive || b.civ) continue;
+    if (b.team !== TEAM.PLAYER && b.team !== TEAM.ENEMY) continue;
+    const tw = b.tw ?? (BUILD[b.kind] && BUILD[b.kind].tw) ?? 1;
+    const th = b.th ?? (BUILD[b.kind] && BUILD[b.kind].th) ?? 1;
+    for (let ty = b.ty; ty < b.ty + th; ty++){
+      for (let tx = b.tx; tx < b.tx + tw; tx++){
+        if (!inMap(tx, ty)) continue;
+        const i = idx(tx, ty);
+        explored[b.team][i] = 1;
+        visible[b.team][i] = 1;
+      }
+    }
+  }
 }
   function recomputePower(){
   // Prefer economy module's power calc, but fall back if missing/NaN/0/0 while buildings exist.
