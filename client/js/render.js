@@ -2751,49 +2751,47 @@
     }
 
     if (cloudsImage && typeof state.t === "number") {
-      const tw = cloudsImage.width;
-      const th = cloudsImage.height;
-      const isoFlatten = 0.48;
-      // Fixed screen size: no cam.zoom so clouds don't scale with game zoom; always viewport-fixed.
-      const cloudScreenW = Math.max(W, H) * 3.2;
-      const cloudScreenH = (th / tw) * cloudScreenW * isoFlatten;
-      const scrollSpeedX = 24;
-      const scrollSpeedY = 14;
-      const offsetX = (state.t * scrollSpeedX) % cloudScreenW;
-      const offsetY = (state.t * scrollSpeedY) % cloudScreenH;
-      let cloudBuf = null;
-      try {
-        cloudBuf = document.createElement("canvas");
-        cloudBuf.width = W;
-        cloudBuf.height = H;
-      } catch (e) { cloudBuf = null; }
-      const cctx = cloudBuf ? cloudBuf.getContext("2d") : null;
-      if (cctx) {
-        cctx.clearRect(0, 0, W, H);
+      let overlay = canvas._cloudOverlay;
+      if (!overlay || overlay.parentNode !== canvas.parentNode) {
+        overlay = document.createElement("canvas");
+        overlay.id = "cloud-overlay";
+        overlay.style.cssText = "position:fixed;inset:0;width:100vw;height:100vh;pointer-events:none;z-index:1;display:block;mix-blend-mode:overlay;";
+        if (canvas.parentNode) canvas.parentNode.appendChild(overlay);
+        canvas._cloudOverlay = overlay;
+      }
+      if (overlay.width !== W || overlay.height !== H) {
+        overlay.width = W;
+        overlay.height = H;
+      }
+      const octx = overlay.getContext("2d");
+      if (octx) {
+        const tw = cloudsImage.width;
+        const th = cloudsImage.height;
+        const isoFlatten = 0.48;
+        const cloudScreenW = Math.max(W, H) * 3.2;
+        const cloudScreenH = (th / tw) * cloudScreenW * isoFlatten;
+        const scrollSpeedX = 24;
+        const scrollSpeedY = 14;
+        const offsetX = (state.t * scrollSpeedX) % cloudScreenW;
+        const offsetY = (state.t * scrollSpeedY) % cloudScreenH;
+        octx.clearRect(0, 0, W, H);
         const drawTiled = (alpha, scale) => {
           const w = cloudScreenW * scale;
           const h = cloudScreenH * scale;
           const phaseX = (offsetX * scale) % w;
           const phaseY = (offsetY * scale) % h;
-          cctx.globalAlpha = alpha;
+          octx.globalAlpha = alpha;
           for (let i = -1; i <= 2; i++) {
             for (let j = -1; j <= 2; j++) {
               const sx = -phaseX + i * w;
               const sy = -phaseY + j * h;
-              cctx.drawImage(cloudsImage, 0, 0, tw, th, sx, sy, w, h);
+              octx.drawImage(cloudsImage, 0, 0, tw, th, sx, sy, w, h);
             }
           }
         };
         drawTiled(0.58, 1);
         drawTiled(0.28, 0.85);
-        cctx.globalAlpha = 1;
-        ctx.save();
-        ctx.setTransform(1, 0, 0, 1, 0, 0);
-        ctx.globalCompositeOperation = "multiply";
-        ctx.globalAlpha = 1;
-        ctx.drawImage(cloudBuf, 0, 0, W, H, 0, 0, W, H);
-        ctx.globalCompositeOperation = "source-over";
-        ctx.restore();
+        octx.globalAlpha = 1;
       }
     }
 
