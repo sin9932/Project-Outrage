@@ -2694,9 +2694,16 @@
       const ox = ISO_X * z;
       const oy = ISO_Y * z;
       const eps = Math.max(10, ox * 0.38);
+      const W = canvas.width, H = canvas.height;
 
-      ctx.save();
-      ctx.fillStyle = "rgba(0,0,0,1)";
+      if (!canvas._fogBuf || canvas._fogBuf.width !== W || canvas._fogBuf.height !== H) {
+        canvas._fogBuf = document.createElement("canvas");
+        canvas._fogBuf.width = W;
+        canvas._fogBuf.height = H;
+      }
+      const fogCtx = canvas._fogBuf.getContext("2d");
+      fogCtx.clearRect(0, 0, W, H);
+      fogCtx.fillStyle = "rgba(0,0,0,1)";
       for (let s=0; s<=(MAP_W-1)+(MAP_H-1); s++){
         for (let ty=0; ty<MAP_H; ty++){
           const tx=s-ty;
@@ -2708,15 +2715,18 @@
           const c = tileToWorldCenter(tx,ty);
           const p = worldToScreen(c.x,c.y);
           const x = p.x, y = p.y;
-          ctx.beginPath();
-          ctx.moveTo(x, y-oy-eps);
-          ctx.lineTo(x+ox+eps, y);
-          ctx.lineTo(x, y+oy+eps);
-          ctx.lineTo(x-ox-eps, y);
-          ctx.closePath();
-          ctx.fill();
+          fogCtx.beginPath();
+          fogCtx.moveTo(x, y-oy-eps);
+          fogCtx.lineTo(x+ox+eps, y);
+          fogCtx.lineTo(x, y+oy+eps);
+          fogCtx.lineTo(x-ox-eps, y);
+          fogCtx.closePath();
+          fogCtx.fill();
         }
       }
+      ctx.save();
+      ctx.filter = "blur(3px)";
+      ctx.drawImage(canvas._fogBuf, 0, 0, W, H, 0, 0, W, H);
       ctx.restore();
     })();
 
