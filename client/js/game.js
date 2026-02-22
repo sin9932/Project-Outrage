@@ -4939,31 +4939,11 @@ function draw(){
     }
 
     // Start with HQ only (both sides)
-    // 전장의 안개: 본진 발자국을 반드시 revealed로 표시 (sim 미호출/지연 시에도 맵이 새까맣지 않도록)
-    revealBuildingFootprints();
 
     recomputePower();
     updateVision();
     if (pHQ) centerCameraOn(pHQ.x, pHQ.y);
     updateSelectionUI();
-  }
-
-  function revealBuildingFootprints(){
-    for (const b of buildings){
-      if (!b || !b.alive || b.civ) continue;
-      const t = b.team;
-      if (t !== TEAM.PLAYER && t !== TEAM.ENEMY) continue;
-      const tw = b.tw || (BUILD[b.kind] && BUILD[b.kind].tw) || 1;
-      const th = b.th || (BUILD[b.kind] && BUILD[b.kind].th) || 1;
-      for (let ty = b.ty; ty < b.ty + th; ty++){
-        for (let tx = b.tx; tx < b.tx + tw; tx++){
-          if (!inMap(tx, ty)) continue;
-          const i = idx(tx, ty);
-          explored[t][i] = 1;
-          visible[t][i] = 1;
-        }
-      }
-    }
   }
 
   // ✅ 시작 버튼 이벤트 복구 (이게 빠지면 "아무 버튼도 안눌림"처럼 보임)
