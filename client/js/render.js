@@ -2684,22 +2684,15 @@
     }
 
     (function drawFogLayer(){
-      // 전장의 안개 끄기(맵 전체 밝히기)면 안개 레이어 자체를 그리지 않음 (블러가 맵 전체를 덮는 현상 방지)
       if (typeof getFogEnabled === "function" && !getFogEnabled()) return;
-
-      if (!canvas._fogBuf || canvas._fogBuf.width !== W || canvas._fogBuf.height !== H) {
-        canvas._fogBuf = document.createElement("canvas");
-        canvas._fogBuf.width = W;
-        canvas._fogBuf.height = H;
-      }
-      const fogCtx = canvas._fogBuf.getContext("2d");
-      fogCtx.clearRect(0, 0, W, H);
 
       const z = (cam && typeof cam.zoom === "number") ? cam.zoom : 1;
       const ox = ISO_X * z;
       const oy = ISO_Y * z;
       const eps = Math.max(10, ox * 0.38);
 
+      ctx.save();
+      ctx.fillStyle = "rgba(0,0,0,1)";
       for (let s=0; s<=(MAP_W-1)+(MAP_H-1); s++){
         for (let ty=0; ty<MAP_H; ty++){
           const tx=s-ty;
@@ -2711,26 +2704,15 @@
           const c = tileToWorldCenter(tx,ty);
           const p = worldToScreen(c.x,c.y);
           const x = p.x, y = p.y;
-          fogCtx.fillStyle = "rgba(0,0,0,1)";
-          const r = Math.max(ox + eps, oy + eps) * 1.15;
-          const grd = fogCtx.createRadialGradient(x, y, 0, x, y, r);
-          grd.addColorStop(0, fogCtx.fillStyle);
-          grd.addColorStop(0.6, fogCtx.fillStyle);
-          grd.addColorStop(1, "rgba(0,0,0,0)");
-          fogCtx.fillStyle = grd;
-          fogCtx.beginPath();
-          fogCtx.moveTo(x, y-oy-eps);
-          fogCtx.lineTo(x+ox+eps, y);
-          fogCtx.lineTo(x, y+oy+eps);
-          fogCtx.lineTo(x-ox-eps, y);
-          fogCtx.closePath();
-          fogCtx.fill();
+          ctx.beginPath();
+          ctx.moveTo(x, y-oy-eps);
+          ctx.lineTo(x+ox+eps, y);
+          ctx.lineTo(x, y+oy+eps);
+          ctx.lineTo(x-ox-eps, y);
+          ctx.closePath();
+          ctx.fill();
         }
       }
-
-      ctx.save();
-      ctx.filter = "blur(8px)";
-      ctx.drawImage(canvas._fogBuf, 0, 0, W, H, 0, 0, W, H);
       ctx.restore();
     })();
 
