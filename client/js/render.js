@@ -273,7 +273,8 @@
     { firstgid: 113, image: "forest_ground_128x64.png", tw: 128, th: 64, columns: 8, spacing: 0, margin: 0 },
     { firstgid: 169, image: "grass_medium_128x64.png", tw: 128, th: 64, columns: 8, spacing: 0, margin: 0 },
     { firstgid: 225, image: "ore.png",                tw: 128, th: 88, columns: 2, spacing: 2, margin: 0 },
-    { firstgid: 235, image: "start_beacon_128x64.png", tw: 128, th: 64, columns: 8, spacing: 0, margin: 0 }
+    { firstgid: 235, image: "start_beacon_128x64.png", tw: 128, th: 64, columns: 8, spacing: 0, margin: 0 },
+    { firstgid: 236, image: "tree_forest.png",       tw: 130, th: 221, columns: 3, spacing: 0, margin: 0 }
   ];
 
   function loadImage(src) {
@@ -319,6 +320,7 @@
       .catch(() => loadImage(CLOUDS_IMAGE_URL_JPG).then(img => { cloudsImage = img; }).catch(() => {}));
   })();
 
+  const TALL_SPRITE_TH = 100;
   function drawTiledGidAt(ctx, gid, centerX, centerY, zoom, tileWorldSize) {
     if (!fgTmj || !gid) return;
     const raw = gid & 0x1FFFFFFF;
@@ -338,12 +340,23 @@
     const row = Math.floor(localId / ts.columns);
     const sx = ts.margin + col * (ts.tw + ts.spacing);
     const sy = ts.margin + row * (ts.th + ts.spacing);
-    const scaleX = (tileWorldSize * (zoom || 1)) / ts.tw;
-    const scaleY = ((tileWorldSize / 2) * (zoom || 1)) / ts.th;
-    const dw = ts.tw * scaleX;
-    const dh = ts.th * scaleY;
-    const dx = centerX - dw / 2;
-    const dy = centerY - dh / 2;
+    const z = zoom || 1;
+    let dw, dh, dx, dy;
+    if (ts.th > TALL_SPRITE_TH) {
+      const baseW = tileWorldSize * z;
+      const k = baseW / ts.tw;
+      dw = ts.tw * k;
+      dh = ts.th * k;
+      dx = centerX - dw / 2;
+      dy = centerY - dh;
+    } else {
+      const scaleX = (tileWorldSize * z) / ts.tw;
+      const scaleY = ((tileWorldSize / 2) * z) / ts.th;
+      dw = ts.tw * scaleX;
+      dh = ts.th * scaleY;
+      dx = centerX - dw / 2;
+      dy = centerY - dh / 2;
+    }
     ctx.drawImage(ts.img, sx, sy, ts.tw, ts.th, dx, dy, dw, dh);
   }
 
@@ -1641,6 +1654,7 @@
         const layer = fgTmj.layers[li];
         const name = (layer.name || "").toLowerCase();
         if (name === "start") continue;
+        if (name === "tree") continue;
         if (name === "ore" || name === "gem") {
           if (oreAt <= 0) continue;
         }
@@ -2858,6 +2872,30 @@
       drawables.push({ id: 9100000+i, kind: "_fx_snip_die", alive: true, team: fx.team, x: fx.x, y: fx.y, fxRef: fx });
     }
 
+    if (fgTmj && explored) {
+      const treeLayer = fgTmj.layers.find(l => (l.name || "").toLowerCase() === "tree");
+      if (treeLayer && Array.isArray(treeLayer.data)) {
+        const tw = treeLayer.width || fgTmj.mapW, th = treeLayer.height || fgTmj.mapH;
+        for (let ty = 0; ty < th; ty++) {
+          for (let tx = 0; tx < tw; tx++) {
+            if (!inMap(tx, ty)) continue;
+            const i = idx(tx, ty);
+            if (!explored[TEAM.PLAYER][i]) continue;
+            const gid = treeLayer.data[ty * tw + tx] & 0x1FFFFFFF;
+            if (!gid) continue;
+            drawables.push({
+              id: 8000000 + i,
+              kind: "_tree",
+              tx, ty,
+              x: (tx + 0.5) * TILE,
+              y: (ty + 0.5) * TILE,
+              gid
+            });
+          }
+        }
+      }
+    }
+
     drawables.sort((a,b)=>{
       const aIsB=!!BUILD[a.kind], bIsB=!!BUILD[b.kind];
       const aKey = aIsB ? ((a.tx + a.ty) + (a.tw + a.th - 2)) : ((a.x + a.y)/TILE);
@@ -2869,6 +2907,13 @@
 
     for (const ent of drawables){
       ctx.save();
+      if (ent.kind === "_tree") {
+        const c = tileToWorldCenter(ent.tx, ent.ty);
+        const p = worldToScreen(c.x, c.y);
+        drawTiledGidAt(ctx, ent.gid, p.x, p.y, cam.zoom, TILE);
+        ctx.restore();
+        continue;
+      }
       const isB=!!BUILD[ent.kind];
       const tx=isB?ent.tx:(ent.x/TILE)|0;
       const ty=isB?ent.ty:(ent.y/TILE)|0;
