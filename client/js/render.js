@@ -1652,6 +1652,20 @@
     const tileScreenW = 2 * ox;
     const tileScreenH = 2 * oy;
 
+    const i = idx(tx,ty);
+    const iExp = explored[TEAM.PLAYER][i];
+    if (!iExp && typeof getFogEnabled === "function" && getFogEnabled()) {
+      ctx.beginPath();
+      ctx.moveTo(x, y - oy);
+      ctx.lineTo(x + ox, y);
+      ctx.lineTo(x, y + oy);
+      ctx.lineTo(x - ox, y);
+      ctx.closePath();
+      ctx.fillStyle = "#000000";
+      ctx.fill();
+      return;
+    }
+
     const inFgBounds = fgTmj && tx < fgTmj.mapW && ty < fgTmj.mapH;
     const oreAt = inFgBounds ? ore[idx(tx,ty)] : 0;
 
