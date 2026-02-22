@@ -1042,10 +1042,10 @@ function ensureBadge(btn){
             ctx.fillRect(0, 0, mapThumb.width, mapThumb.height);
             ctx.fillStyle = "#888";
             ctx.font = "14px system-ui";
-            ctx.fillText("forest_ground_thumb.png 필요", 50, 120);
+            ctx.fillText("forest_ground.png 필요", 50, 120);
           }
         };
-        img.src = "asset/sprite/map/editmap/forest_ground_thumb.png";
+        img.src = "asset/sprite/map/editmap/forest_ground.png";
       }
 
       for (const chip of spawnChips){
