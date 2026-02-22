@@ -1266,7 +1266,7 @@ function ensureBadge(btn){
         { key: "infantryProduced", label: "고기분쇄기", desc: "가장 많은 보병 생산" },
         { key: "vehicleKills", label: "탱크헌터", desc: "가장 많은 적 기갑유닛 처치" },
         { key: "armorProduced", label: "몽땅 쓸어주마", desc: "가장 많은 기갑 공격유닛 생산" },
-        { key: "sniperInfantryKills", label: "사일런트 킬러", desc: "가장 많은 적 보병을 저격병/저격IFV로 처치" },
+        { key: "sniperInfantryKills", label: "안되겠소 쏩시다!", desc: "가장 많은 적 보병을 저격병/저격IFV로 처치" },
         { key: "turretBuilt", label: "철의 장막", desc: "가장 많은 방어시설 건설" },
         { key: "engineerCaptures", label: "너희 기지 다 내꺼다요", desc: "가장 많은 적 건물 엔지니어 점령" },
         { key: "cupRamen", label: "컵라면 뚝딱!", desc: "3분 만에 승리", time: 180 },
