@@ -1586,6 +1586,10 @@
       const tx = tileOfX(u.x), ty = tileOfY(u.y);
       if (!inMap(tx,ty)) return;
 
+      const center = tileToWorldCenter(tx, ty);
+      const toCenter2 = (u.x - center.x)**2 + (u.y - center.y)**2;
+      if (toCenter2 > (0.42 * TILE) ** 2) return;
+
       const ss = (u.subSlot==null) ? 0 : (u.subSlot & 3);
       const sp = tileToWorldSubslot(tx, ty, ss);
 
@@ -1696,6 +1700,10 @@
 
       const tx = tileOfX(u.x), ty = tileOfY(u.y);
       if (!inMap(tx,ty)) return;
+
+      const center = tileToWorldCenter(tx, ty);
+      const toCenter2 = (u.x - center.x)**2 + (u.y - center.y)**2;
+      if (toCenter2 > (0.42 * TILE) ** 2) return;
 
       const ss = (u.subSlot==null) ? 0 : (u.subSlot & 3);
       const sp = tileToWorldSubslot(tx, ty, ss);
@@ -2097,14 +2105,7 @@
           const shouldRest = (u.alive && !u.inTransport && u.target==null && (ot0==="idle" || ot0==="guard") &&
                               !(u.kind==="harvester" && (u.returning || u.manualOre!=null)));
           if (shouldRest){
-            const cls = (UNIT[u.kind] && UNIT[u.kind].cls) ? UNIT[u.kind].cls : "";
-            if (cls==="inf" && u.subSlot!=null && inMap(tileOfX(u.x), tileOfY(u.y))){
-              const tx = tileOfX(u.x), ty = tileOfY(u.y);
-              const sp = tileToWorldSubslot(tx, ty, u.subSlot & 3);
-              u.restX = sp.x; u.restY = sp.y;
-            } else if (u.restX==null || u.restY==null) {
-              u.restX = u.x; u.restY = u.y;
-            }
+            u.restX = u.x; u.restY = u.y;
             u.path = null; u.pathI = 0;
             u.vx = 0; u.vy = 0;
             u.stuckT = 0; u.stuckTime = 0; u.yieldCd = 0; u.avoidCd = 0;
