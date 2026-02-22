@@ -2644,6 +2644,7 @@
     const {
       canvas, ctx, cam, state, TEAM, MAP_W, MAP_H, TILE, ISO_X, ISO_Y,
       terrain, ore, explored, visible, BUILD, DEFENSE, NAME_KO,
+      treeHp,
       units, buildings, bullets, traces, impacts, fires, healMarks, flashes, casings,
       gameOver, POWER,
       smokeWaves, smokePuffs, dustPuffs, dmgSmokePuffs, bloodStains, bloodPuffs,
@@ -2720,10 +2721,18 @@
       for (let ty = tyLo; ty <= tyHi; ty++) {
         for (let tx = txLo; tx <= txHi; tx++) {
           if (!inMap(tx, ty)) continue;
+          if (!explored[TEAM.PLAYER][idx(tx, ty)]) continue; // 워포그: explored 타일만 조명/반짝임
           const c = tileToWorldCenter(tx, ty);
           let light = 0;
           for (const b of buildings || []) {
             if (!b.alive || b.civ) continue;
+            if (b.team === TEAM.ENEMY) {
+              let anyExp = false;
+              for (let dy = 0; dy < (b.th || 1); dy++) for (let dx = 0; dx < (b.tw || 1); dx++) {
+                if (inMap(b.tx + dx, b.ty + dy) && explored[TEAM.PLAYER][idx(b.tx + dx, b.ty + dy)]) { anyExp = true; break; }
+              }
+              if (!anyExp) continue; // 적 건물이 워포그 안이면 조명 숨김
+            }
             if (DEFENSE && DEFENSE[b.kind] && typeof isUnderPower === "function" && isUnderPower(b.team)) continue;
             const d = Math.hypot(b.x - c.x, b.y - c.y);
             const r = lightRadius * (0.6 + (b.tw + b.th) * 0.15);
@@ -2735,6 +2744,7 @@
               for (let dx = -2; dx <= 2; dx++) {
                 const ntx = tx + dx, nty = ty + dy;
                 if (!inMap(ntx, nty)) continue;
+                if (!explored[TEAM.PLAYER][idx(ntx, nty)]) continue; // 워포그: ore/gem 반짝임 숨김
                 if (ore[idx(ntx, nty)] <= 0) continue;
                 const nc = tileToWorldCenter(ntx, nty);
                 const nd = Math.hypot(c.x - nc.x, c.y - nc.y);
@@ -2881,6 +2891,7 @@
             if (!inMap(tx, ty)) continue;
             const i = idx(tx, ty);
             if (!explored[TEAM.PLAYER][i]) continue;
+            if (treeHp && treeHp[i] <= 0) continue; // 폭발로 제거된 나무
             const gid = treeLayer.data[ty * tw + tx] & 0x1FFFFFFF;
             if (!gid) continue;
             drawables.push({

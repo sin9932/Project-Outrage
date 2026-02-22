@@ -1055,6 +1055,7 @@ function addUnit(team, kind, x, y){
         if (buildOcc[ti]===1) return true;
         if (terrain[ti] !== 0) return true;
         if (ore[ti] > 0) return true;
+        if (treeHp[ti] > 0) return true; // 나무: 건물 건설 불가
         if ((occAll[ti]||0) > 0) return true; // units block placement
       }
     }
@@ -1103,6 +1104,7 @@ function footprintBlockedMask(tx,ty,tw,th){
           if (buildOcc[ti]===1) b=true;
           else if (terrain[ti] !== 0) b=true;
           else if (ore[ti] > 0) b=true;
+          else if (treeHp[ti] > 0) b=true; // 나무: 건물 건설 불가
           else if ((occAll[ti]||0) > 0) b=true;
         }
         mask[k++] = b?1:0;
