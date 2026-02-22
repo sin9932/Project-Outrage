@@ -305,6 +305,7 @@ function fitMini() {
   state.attackEvents = [];
   state.attackCycle = 0;
   state.alertFx = [];
+  state.stats = { kills: { 0: 0, 1: 0 }, losses: { 0: 0, 1: 0 }, construction: { 0: 0, 1: 0 } };
 
 
   const controlGroups = Array.from({length:10}, ()=>[]);
@@ -909,6 +910,7 @@ function buildingWorldFromTileOrigin(tx,ty,tw,th){
     }
     setBuildingOcc(b, 1);
     recomputePower();
+    if (!state._placeStartPhase && !spec.civ) recordConstruction(team);
     onBuildingPlaced(b);
     try{ if (window.PO && PO.buildings && PO.buildings.onPlaced) PO.buildings.onPlaced(b, state); }catch(_e){}
     return b;
@@ -1933,6 +1935,10 @@ function tryUnloadIFV(ifv){
     handleEntityDeath(target, srcId, srcTeam);
   }
 
+  function recordKill(team){ if (team != null && state.stats) state.stats.kills[team] = (state.stats.kills[team]||0) + 1; }
+  function recordLoss(team){ if (team != null && state.stats) state.stats.losses[team] = (state.stats.losses[team]||0) + 1; }
+  function recordConstruction(team){ if (team != null && state.stats) state.stats.construction[team] = (state.stats.construction[team]||0) + 1; }
+
   function handleEntityDeath(ent, srcId=null, srcTeam=null){
     if (!ent || !ent.alive) return;
 
@@ -1942,6 +1948,9 @@ function tryUnloadIFV(ifv){
       destroyBuilding(ent, {srcId, srcTeam});
       return;
     }
+
+    recordKill(srcTeam);
+    recordLoss(ent.team);
 
     // Unit death
     // Infantry death animation FX (7 frames, 1200x1200 each, magenta palette swapped to team color)
@@ -1963,6 +1972,9 @@ function tryUnloadIFV(ifv){
 
   function destroyBuilding(b, cause={}){
     if (!b || !b.alive) return;
+
+    recordKill(cause.srcTeam);
+    recordLoss(b.team);
 
     // 1) Evac infantry FIRST (needs the footprint while it's still logically present)
     //    If no valid spawn tile exists, it will safely skip.
@@ -2445,11 +2457,15 @@ function updateBlood(dt){
     if (!enemyAlive){
       gameOver = true;
       running = false;
-      toast("승리!");
+      if (__ou_ui && typeof __ou_ui.showResultOverlay === "function"){
+        __ou_ui.showResultOverlay({ victory: true, stats: state.stats, gameTime: state.t, colors: state.colors });
+      } else { toast("승리!"); }
     } else if (!playerAlive){
       gameOver = true;
       running = false;
-      toast("패배...");
+      if (__ou_ui && typeof __ou_ui.showResultOverlay === "function"){
+        __ou_ui.showResultOverlay({ victory: false, stats: state.stats, gameTime: state.t, colors: state.colors });
+      } else { toast("패배..."); }
     }
   }
 
@@ -4471,9 +4487,12 @@ if (state.selection.size>0 && inMap(tx,ty) && ore[idx(tx,ty)]>0){
     // 1) If this kind is currently being built at the front of some producer queue:
     //    - first right click: pause
     //    - second right click (while paused): cancel + refund paid
+    //    Prefer PRIMARY producer (player's designated barracks/factory) for consistent behavior.
     let pb=null; let q=null;
-    for (const b of buildings){
-      if (!b.alive || b.civ || b.team!==TEAM.PLAYER || b.kind!==need) continue;
+    const primary = (need==="barracks" || need==="factory") && ensurePrimaryProducer ? ensurePrimaryProducer(need) : null;
+    const toCheck = primary ? [primary, ...buildings.filter(b=>b.alive && !b.civ && b.team===TEAM.PLAYER && b.kind===need && b.id!==primary.id)] : buildings.filter(b=>b.alive && !b.civ && b.team===TEAM.PLAYER && b.kind===need);
+    for (const b of toCheck){
+      if (!b || !b.alive || b.civ || b.team!==TEAM.PLAYER || b.kind!==need) continue;
       const qq=b.buildQ && b.buildQ[0];
       if (qq && qq.kind===kind){ pb=b; q=qq; break; }
     }
@@ -4879,6 +4898,7 @@ function draw(){
     nextId=1;
     state.selection.clear();
     state.build.active=false; state.build.kind=null;
+    if (state.stats){ state.stats.kills[0]=0; state.stats.kills[1]=0; state.stats.losses[0]=0; state.stats.losses[1]=0; state.stats.construction[0]=0; state.stats.construction[1]=0; }
     prodFIFO.barracks.length=0; prodFIFO.factory.length=0;
     prodTotal.infantry=0; prodTotal.engineer=0; prodTotal.tank=0; prodTotal.harvester=0;
     state.player.money=START_MONEY; state.enemy.money=START_MONEY;
@@ -5078,7 +5098,9 @@ if (__ou_ui && typeof __ou_ui.bindPregameStart === "function"){
     explored[TEAM.ENEMY].fill(0);
     visible[TEAM.PLAYER].fill(0);
     visible[TEAM.ENEMY].fill(0);
+    state._placeStartPhase = true;
     placeStart(spawnChoice);
+    state._placeStartPhase = false;
     spawnStartingUnits();
     // 첫 프레임부터 본진/유닛 시야가 보이도록 시야 한 번 갱신 (안개 전부 검은 현상 방지)
     updateVision();

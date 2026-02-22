@@ -2781,8 +2781,9 @@
       const isoFlatten = 0.48;
       const worldW = MAP_W * TILE;
       const worldH = MAP_H * TILE;
-      const driftX = (state.t * 18) % (TILE * 12);
-      const driftY = (state.t * 10) % (TILE * 12);
+      const period = TILE * 400;
+      const driftX = (state.t * 18) % period;
+      const driftY = (state.t * 10) % period;
       const cloudScreenW = Math.max(W, H) * 3.2 * z;
       const cloudScreenH = (th / tw) * cloudScreenW * isoFlatten;
       let cloudBuf = null;

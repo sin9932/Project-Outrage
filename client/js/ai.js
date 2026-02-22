@@ -1025,7 +1025,7 @@
 
       // 목표 병력 규모: 병력만 모으고 러시 안 오는 문제 해결 - 목표 완화
       // Army size goal: lower thresholds so AI actually pushes.
-      const goal = (!hasFac && hasBar) ? 4 : ((state.t < 160) ? 5 : (state.t < 360 ? 7 : 9));
+      const goal = (!hasFac && hasBar) ? 3 : ((state.t < 160) ? 4 : (state.t < 360 ? 6 : 8));
 
       // If we have basically no army, don't "attack", keep rallying while producing.
       if (combat.length < 2) {
@@ -1039,8 +1039,8 @@
         return;
       }
 
-      // 탱크 4대 대기 제거 → 2대면 러시 허용 (무한 대기 방지)
-      if (hasFac && tankCount < 2) {
+      // 탱크 1대만 있어도 러시 허용 (무한 대기 방지)
+      if (hasFac && tankCount < 1) {
         ai.mode = "defend";
         aiCommandMoveToRally(combat);
         return;
@@ -1050,13 +1050,13 @@
       const rallyDuration = state.t - (ai.waveT || 0);
       const forcePush = rallyDuration > 25 && combat.length >= Math.max(4, Math.floor(goal * 0.8));
 
-      // Attack cadence: 웨이브 쿨다운 14초 → 8초로 단축
+      // Attack cadence: 웨이브 쿨다운 단축
       if (ai.mode !== "attack") {
         ai.mode = "rally";
         // gently pull strays back to rally
         aiCommandMoveToRally(combat.filter(u => !u.order || u.order.type !== "move"));
-        const earlyOK = (!hasFac && hasBar) ? (state.t > 60) : (state.t > 75);
-        const waveCooldown = forcePush ? 0 : 8.0;
+        const earlyOK = (!hasFac && hasBar) ? (state.t > 45) : (state.t > 55);
+        const waveCooldown = forcePush ? 0 : 5.0;
         const meetsGoal = (forcePush && combat.length >= Math.max(4, Math.floor(goal * 0.8))) || combat.length >= goal;
         if (earlyOK && meetsGoal && state.t > ai.waveT + waveCooldown) {
           ai.waveT = state.t;

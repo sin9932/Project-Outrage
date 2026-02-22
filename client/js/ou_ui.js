@@ -1183,6 +1183,95 @@ function ensureBadge(btn){
       }
     }
 
+    function showResultOverlay(env){
+      env = env || {};
+      const overlay = document.getElementById("resultOverlay");
+      const titleEl = document.getElementById("resultTitle");
+      const timeEl = document.getElementById("resultTime");
+      const tbody = document.getElementById("resultTableBody");
+      const continueBtn = document.getElementById("resultContinue");
+      if (!overlay || !tbody) return;
+
+      const victory = !!env.victory;
+      const stats = env.stats || { kills: {}, losses: {}, construction: {} };
+      const gameTime = typeof env.gameTime === "number" ? env.gameTime : 0;
+      const colors = env.colors || { player: "#4a90e2", enemy: "#e25a4a" };
+
+      if (titleEl){
+        titleEl.textContent = victory ? "승리!" : "패배...";
+        titleEl.className = "result-title " + (victory ? "victory" : "defeat");
+      }
+      if (timeEl){
+        const m = Math.floor(gameTime / 60);
+        const s = Math.floor(gameTime % 60);
+        const h = Math.floor(m / 60);
+        const mm = m % 60;
+        timeEl.textContent = "시간: " + String(h).padStart(2,"0") + ":" + String(mm).padStart(2,"0") + ":" + String(s).padStart(2,"0");
+      }
+
+      const TEAM = { PLAYER: 0, ENEMY: 1 };
+      const rows = [
+        { name: "플레이어", team: TEAM.PLAYER, color: colors.player || "#4a90e2" },
+        { name: "컴퓨터", team: TEAM.ENEMY, color: colors.enemy || "#e25a4a" }
+      ];
+
+      const vals = { k: [], l: [], c: [], s: [] };
+      for (const r of rows){
+        const k = stats.kills[r.team] || 0;
+        const l = stats.losses[r.team] || 0;
+        const c = stats.construction[r.team] || 0;
+        const score = Math.max(0, k * 100 + c * 50 - l * 30);
+        vals.k.push(k); vals.l.push(l); vals.c.push(c); vals.s.push(score);
+      }
+      const maxK = Math.max(1, ...vals.k);
+      const maxL = Math.max(1, ...vals.l);
+      const maxC = Math.max(1, ...vals.c);
+      const maxS = Math.max(1, ...vals.s);
+
+      function barCell(val, maxVal, color){
+        const pct = maxVal > 0 ? (100 * val / maxVal) : 0;
+        return `<td class="bar-cell"><div class="stat-bar-wrap"><div class="stat-bar-fill" data-pct="${pct}" style="--bar-color:${color}; background:linear-gradient(90deg, ${color}88, ${color})"></div><span class="stat-bar-label">${val.toLocaleString()}</span></div></td>`;
+      }
+
+      tbody.innerHTML = "";
+      for (let i = 0; i < rows.length; i++){
+        const r = rows[i];
+        const k = stats.kills[r.team] || 0;
+        const l = stats.losses[r.team] || 0;
+        const c = stats.construction[r.team] || 0;
+        const score = Math.max(0, k * 100 + c * 50 - l * 30);
+        const tr = document.createElement("tr");
+        tr.innerHTML = `<td>${r.name}</td>${barCell(k, maxK, r.color)}${barCell(l, maxL, r.color)}${barCell(c, maxC, r.color)}${barCell(score, maxS, r.color)}`;
+        tbody.appendChild(tr);
+      }
+
+      requestAnimationFrame(()=>{
+        requestAnimationFrame(()=>{
+          const rows = tbody.querySelectorAll("tr");
+          rows.forEach((tr, rowIdx)=>{
+            const fills = tr.querySelectorAll(".stat-bar-fill");
+            const delay = rowIdx * 0.12;
+            fills.forEach((el)=>{
+              const pct = parseFloat(el.dataset.pct) || 0;
+              el.style.transitionDelay = delay + "s";
+              el.style.width = pct + "%";
+            });
+          });
+        });
+      });
+
+      if (continueBtn && !showResultOverlay._bound){
+        showResultOverlay._bound = true;
+        continueBtn.addEventListener("click", ()=>{
+          overlay.classList.remove("show");
+          overlay.style.display = "none";
+          location.reload();
+        });
+      }
+      overlay.classList.add("show");
+      overlay.style.display = "flex";
+    }
+
     function wirePauseMenuUI(env){
       env = env || {};
       const refs = getPauseMenuRefs();
@@ -1559,6 +1648,7 @@ return {
             updateTuneOverlay,
             setPauseMenuVisible,
             wirePauseMenuUI,
+            showResultOverlay,
             isPauseOverlayTarget
     };
   };

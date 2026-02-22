@@ -317,6 +317,87 @@
 #pauseOverlay .pm .playerTop{
   display:flex; align-items:center; justify-content:space-between; gap:10px;
 }
+
+/* Result overlay (RA2-style) */
+#resultOverlay{
+  position:fixed; inset:0;
+  display:none;
+  align-items:center; justify-content:center;
+  background:rgba(0,0,0,.7);
+  z-index:12000;
+}
+#resultOverlay.show{ display:flex; }
+.result-overlay .result-panel{
+  width:min(520px, calc(100vw - 28px));
+  border:2px solid rgba(200,80,60,.5);
+  border-radius:12px;
+  background:linear-gradient(180deg, rgba(60,25,15,.95), rgba(25,12,8,.98));
+  box-shadow:0 20px 60px rgba(0,0,0,.6), inset 0 0 0 1px rgba(255,180,120,.15);
+  padding:20px;
+  color:#f4e7c2;
+}
+.result-overlay .result-title{
+  margin:0 0 14px 0;
+  font-size:22px;
+  text-align:center;
+  color:#ffdca8;
+}
+.result-overlay .result-title.victory{ color:#7fff7f; }
+.result-overlay .result-title.defeat{ color:#ff7f7f; }
+.result-overlay .result-header{
+  display:flex; justify-content:space-between; margin-bottom:12px;
+  font-size:13px; opacity:.9;
+}
+.result-overlay .result-table{
+  width:100%; border-collapse:collapse; font-size:13px;
+}
+.result-overlay .result-table th{
+  padding:8px 10px; text-align:left;
+  border-bottom:1px solid rgba(255,210,110,.25);
+  color:#ffdca8;
+}
+.result-overlay .result-table th:nth-child(n+2){ text-align:right; }
+.result-overlay .result-table td{
+  padding:8px 10px; border-bottom:1px solid rgba(255,255,255,.08);
+}
+.result-overlay .result-table td.bar-cell{
+  padding:6px 10px; min-width:80px; max-width:120px;
+}
+.result-overlay .stat-bar-wrap{
+  position:relative; height:24px; border-radius:4px;
+  background:rgba(0,0,0,.4); overflow:hidden;
+  border:1px solid rgba(255,255,255,.12);
+}
+.result-overlay .stat-bar-fill{
+  position:absolute; left:0; top:0; bottom:0;
+  width:0; min-width:0;
+  border-radius:3px;
+  transition:width .7s cubic-bezier(.34,1.2,.64,1);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.3);
+}
+.result-overlay .stat-bar-label{
+  position:absolute; inset:0;
+  display:flex; align-items:center; justify-content:center;
+  font-weight:700; font-size:12px;
+  color:#fff; text-shadow:0 1px 2px rgba(0,0,0,.8);
+  z-index:1;
+}
+.result-overlay .result-table td:nth-child(n+2){ text-align:right; }
+.result-overlay .result-footer{
+  margin-top:16px; display:flex; justify-content:flex-end;
+}
+.result-overlay .result-continue-btn{
+  padding:10px 24px;
+  font-size:14px; font-weight:700;
+  background:rgba(200,50,50,.85);
+  border:1px solid rgba(255,120,120,.5);
+  color:#fff;
+  border-radius:8px;
+  cursor:pointer;
+}
+.result-overlay .result-continue-btn:hover{
+  background:rgba(220,70,70,.95);
+}
 #pmTrackName{
   font-size:18px;
   font-weight:900;

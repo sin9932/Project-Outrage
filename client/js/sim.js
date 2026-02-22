@@ -2091,7 +2091,7 @@
             if (u.passengerId && u.passKind==="sniper"){
               u.dmg = 125; u.range = (UNIT.sniper && UNIT.sniper.range) || 1200; u.rof = 2.20/2.0; u.hitscan = true;
             } else if (u.passengerId && u.passKind==="infantry"){
-              u.dmg = 25; u.range = 620; u.rof = 0.55/2.0; u.hitscan = true;
+              u.dmg = (UNIT.infantry && UNIT.infantry.dmg) || 12; u.range = 620; u.rof = ((UNIT.infantry && UNIT.infantry.rof) || 0.55)/2.0; u.hitscan = true;
             } else if (u.passengerId && u.passKind==="engineer"){
               u.dmg = 0; u.range = 0; u.rof = UNIT.ifv.rof; u.hitscan = true;
             } else {
@@ -2219,7 +2219,7 @@
           if (u.kind==="ifv"){
             u.dmg = UNIT.ifv.dmg; u.range = UNIT.ifv.range; u.rof = UNIT.ifv.rof; u.hitscan = UNIT.ifv.hitscan;
             if (u.passKind==="infantry"){
-              u.dmg = 25; u.range = 620; u.rof = 0.55/2.0; u.hitscan = true;
+              u.dmg = (UNIT.infantry && UNIT.infantry.dmg) || 12; u.range = 620; u.rof = ((UNIT.infantry && UNIT.infantry.rof) || 0.55)/2.0; u.hitscan = true;
             } else if (u.passKind==="sniper"){
               u.dmg = 125; u.range = (UNIT.sniper && UNIT.sniper.range) || 1200; u.rof = 2.20/2.0; u.hitscan = true;
             } else if (u.passKind==="engineer"){

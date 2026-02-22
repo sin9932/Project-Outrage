@@ -8,9 +8,9 @@
 
   // --- Default Unit Specs (override by editing, or call Units.setTables) ---
   const DEFAULT_UNIT = {
-    infantry: { r:17, hp:125, speed:230, range:330, dmg:15, rof:0.55, vision:420, hitscan:true,  cls:"inf" },
-    engineer: { r:17, hp:100, speed:272, range:0,   dmg:0,  rof:0,    vision:420, cls:"inf" },
-    sniper:   { r:17, hp:125, speed:205, range:1200, dmg:125, rof:2.20, vision:1200, hitscan:true,  cls:"inf", cloak:false },
+    infantry: { r:17, hp:125, speed:200, range:330, dmg:12, rof:0.55, vision:420, hitscan:true,  cls:"inf" },
+    engineer: { r:17, hp:100, speed:200, range:0,   dmg:0,  rof:0,    vision:420, cls:"inf" },
+    sniper:   { r:17, hp:125, speed:170, range:1200, dmg:125, rof:2.20, vision:1200, hitscan:true,  cls:"inf", cloak:false },
     // NOTE: game.js uses kind==="tank" but shows name "경전차"
     tank:     { r:25, hp:400, speed:360, range:360, dmg:34, rof:0.90, vision:  680, hitscan:false, cls:"veh", spriteScale:2.0 },
     ifv:      { r:24, hp:200, speed:480, range:360, dmg:25, rof:0.85, vision: 520, hitscan:false, cls:"veh", transport:1 },
