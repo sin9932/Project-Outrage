@@ -4812,6 +4812,7 @@ function draw(){
         terrain, ore, explored, visible, BUILD, DEFENSE, NAME_KO, ORE_VALUE, ORE_MAX,
         units, buildings, bullets, traces, impacts, fires, healMarks, flashes, casings,
         gameOver, POWER,
+        running,
         updateMoney: (__ou_ui && typeof __ou_ui.updateMoney === "function") ? __ou_ui.updateMoney : null,
         updateProdBadges,
         inMap, idx, tileToWorldCenter, worldToScreen,

@@ -2662,7 +2662,10 @@
     const W=canvas.width, H=canvas.height;
     ctx.clearRect(0,0,W,H);
 
-    if (!document.body.classList.contains("started")) {
+    // started 클래스 없어도 게임이 running 이면 맵 그림 (클릭 타이밍 이슈로 검은 화면 방지)
+    const started = document.body.classList.contains("started");
+    const running = env.running === true;
+    if (!started && !running) {
       ctx.fillStyle = "#0d0d0d";
       ctx.fillRect(0, 0, W, H);
       return;
