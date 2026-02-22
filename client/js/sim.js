@@ -2551,7 +2551,8 @@
               }
             }
             const findBestOrePatch = () => {
-              // Auto-find ore patch (prefer nearby; fallback to nearest anywhere)
+              // Auto-find ore/gem patch (ore와 gem 모두 ore[] 배열에 저장됨)
+              // 나무/건물 등으로 막힌 타일 제외 (isWalkableTile)
               let best=null, bestD=Infinity;
               const cx=tileOfX(u.x), cy=tileOfY(u.y);
 
@@ -2561,9 +2562,9 @@
                 for (let dx=-R; dx<=R; dx++){
                   const tx=cx+dx, ty=cy+dy;
                   if (!inMap(tx,ty)) continue;
+                  if (!isWalkableTile(tx,ty)) continue; // 나무/지형 등 이동불가 제외
                   const ii=idx(tx,ty);
-                  if (terrain[ii]!==2) continue;
-                  if (ore[ii]<=0) continue;
+                  if (ore[ii]<=0) continue; // ore/gem 공통: ore[]에 양 저장 (terrain 무관)
                   const pTile=tileToWorldCenter(tx,ty);
                   const px=pTile.x, py=pTile.y;
                   const d=dist2(u.x,u.y,px,py);
@@ -2571,12 +2572,12 @@
                 }
               }
 
-              // 2) Global fallback: pick the nearest ore tile anywhere (not "first found")
+              // 2) Global fallback: pick the nearest ore/gem tile anywhere (not "first found")
               if (!best){
                 for (let ty=0; ty<MAP_H; ty++){
                   for (let tx=0; tx<MAP_W; tx++){
+                    if (!isWalkableTile(tx,ty)) continue;
                     const ii=idx(tx,ty);
-                    if (terrain[ii]!==2) continue;
                     if (ore[ii]<=0) continue;
                     const pTile=tileToWorldCenter(tx,ty);
                     const px=pTile.x, py=pTile.y;
@@ -2610,8 +2611,8 @@
                     u.repathCd=0.25;
                   } else {
                     u._harvestNoOreTicks = (u._harvestNoOreTicks||0) + 1;
-                    if ((u._harvestNoOreTicks||0) >= 6){ u.order.type="idle"; u._harvestNoOreTicks=0; }
-                    else u.repathCd = 0.2;
+                    if ((u._harvestNoOreTicks||0) >= 18){ u.order.type="idle"; u._harvestNoOreTicks=0; }
+                    else u.repathCd = 0.15;
                   }
                 } else {
                   u.order.type="idle";
@@ -2662,14 +2663,14 @@
                     u._harvestNoOreTicks = 0;
                   } else {
                     u._harvestNoOreTicks = (u._harvestNoOreTicks||0) + 1;
-                    if ((u._harvestNoOreTicks||0) >= 6){
+                    if ((u._harvestNoOreTicks||0) >= 18){
                       u.order = {type:"idle", x:u.x, y:u.y, tx:null, ty:null};
                       u.target = null;
                       u.path = null; u.pathI = 0;
                       u.manualOre = null;
                       u._harvestNoOreTicks = 0;
                     }
-                    u.repathCd = 0.12;
+                    u.repathCd = 0.10;
                   }
                 }
               }
@@ -2678,9 +2679,9 @@
 
             if (u.order.type==="idle"){
               u._harvestNoOreTicks = 0;
-              // If we're on ore, resume harvesting immediately (avoid idle-stall).
+              // 현재 타일에 ore 있으면 즉시 채굴
               const curTx0 = tileOfX(u.x), curTy0 = tileOfY(u.y);
-              if (inMap(curTx0, curTy0) && ore[idx(curTx0, curTy0)]>0){
+              if (inMap(curTx0, curTy0) && isWalkableTile(curTx0, curTy0) && ore[idx(curTx0, curTy0)]>0){
                 u.order = {type:"harvest", x:u.x,y:u.y, tx:curTx0, ty:curTy0};
                 if (!u.path || !u.path.length){
                   setPathTo(u, (curTx0+0.5)*TILE, (curTy0+0.5)*TILE);
@@ -2688,6 +2689,7 @@
                 }
                 continue;
               }
+              // carry 있으면 정제소로 복귀
               if ((u.carry||0) > 0 && hasAnyRefinery(u.team)){
                 const ref = findNearestRefinery(u.team,u.x,u.y);
                 if (ref){
@@ -2699,11 +2701,14 @@
                   continue;
                 }
               }
+              // ore 찾아서 채굴 (정제소 있으면 계속 재시도, 절대 포기 안 함)
               const best = findBestOrePatch();
               if (best){
                 u.order={type:"harvest", x:u.x,y:u.y, tx:best.tx, ty:best.ty};
                 setPathTo(u, (best.tx+0.5)*TILE, (best.ty+0.5)*TILE);
                 u.repathCd=0.25;
+              } else if (hasAnyRefinery(u.team)){
+                u.repathCd = 0.08; // ore 없어도 다음 틱에 재시도
               }
               continue;
             }
@@ -2719,9 +2724,9 @@
                   for (let dx=-R; dx<=R; dx++){
                     const ax=cx+dx, ay=cy+dy;
                     if (!inMap(ax,ay)) continue;
+                    if (!isWalkableTile(ax,ay)) continue;
                     const ii=idx(ax,ay);
-                    if (terrain[ii]!==2) continue;
-                    if (ore[ii]<=0) continue;
+                    if (ore[ii]<=0) continue; // ore/gem 공통
                     const pA=tileToWorldCenter(ax,ay);
                     const px=pA.x, py=pA.y;
                     const d=dist2(u.x,u.y,px,py);
@@ -2738,7 +2743,7 @@
               if (!u.path || !u.path.length){
                 // If we're already on ore, keep mining without path.
                 const cx = tileOfX(u.x), cy = tileOfY(u.y);
-                if (inMap(cx,cy) && ore[idx(cx,cy)]>0){
+                if (inMap(cx,cy) && isWalkableTile(cx,cy) && ore[idx(cx,cy)]>0){
                   u.order.tx = cx; u.order.ty = cy;
                   u._harvestNoOreTicks = 0;
                 } else {
@@ -2750,8 +2755,8 @@
                   } else {
                     // Don't go idle on first failure: retry for several ticks (pathfinding/race).
                     u._harvestNoOreTicks = (u._harvestNoOreTicks||0) + 1;
-                    if ((u._harvestNoOreTicks||0) >= 8){ u.order.type="idle"; u._harvestNoOreTicks=0; }
-                    u.repathCd = 0.15;
+                    if ((u._harvestNoOreTicks||0) >= 24){ u.order.type="idle"; u._harvestNoOreTicks=0; }
+                    u.repathCd = 0.12;
                     continue;
                   }
                 }
@@ -2785,8 +2790,11 @@
                     u.repathCd=0.25;
                   } else {
                     u._needsRef = true;
-                    if (hasAnyRefinery(u.team)) u.order.type="harvest";
-                    else u.order.type="idle";
+                    if (hasAnyRefinery(u.team)) {
+                      u.order.type="harvest";
+                      const best = findBestOrePatch();
+                      if (best){ setPathTo(u, (best.tx+0.5)*TILE, (best.ty+0.5)*TILE); u.repathCd=0.25; }
+                    } else u.order.type="idle";
                   }
                 } else {
                   u.order.type="idle";
@@ -2841,8 +2849,11 @@
                       u.repathCd=0.25;
                     } else {
                       u._needsRef = true;
-                      if (hasAnyRefinery(u.team)) u.order.type="harvest";
-                      else u.order.type="idle";
+                      if (hasAnyRefinery(u.team)) {
+                        u.order.type="harvest";
+                        const best = findBestOrePatch();
+                        if (best){ setPathTo(u, (best.tx+0.5)*TILE, (best.ty+0.5)*TILE); u.repathCd=0.25; }
+                      } else u.order.type="idle";
                     }
                   } else {
                     // No carry: try global findBestOrePatch before giving up to idle.

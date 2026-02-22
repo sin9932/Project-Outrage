@@ -1,4 +1,4 @@
-﻿// ou_ui.js
+// ou_ui.js
 // - UI updates extracted from game.js (Stage 5)
 // - Keep this file tiny + dependency-injected.
 
@@ -939,6 +939,82 @@ function ensureBadge(btn){
       }
     }
 
+    async function fetchMapThumbnailData(mapId){
+      if (mapId !== "forest_ground") return null;
+      try {
+        const resp = await fetch("asset/sprite/map/editmap/forest_ground.tmj", { cache: "force-cache" });
+        const data = await resp.json();
+        const w = data.width | 0, h = data.height | 0;
+        const layers = Array.isArray(data.layers) ? data.layers : [];
+        const baseLayer = layers.find(l => l.type === "tilelayer" && l.name === "base");
+        const oreLayer = layers.find(l => l.type === "tilelayer" && l.name === "ore");
+        const gemLayer = layers.find(l => l.type === "tilelayer" && (l.name || "").toLowerCase() === "gem");
+        const startLayer = layers.find(l => l.type === "tilelayer" && l.name === "start");
+        const mapW = Math.max(w, 40), mapH = Math.max(h, 40);
+        const terrain = new Uint8Array(mapW * mapH);
+        const idx = (tx, ty) => ty * mapW + tx;
+        if (baseLayer && Array.isArray(baseLayer.data)) {
+          for (let ty = 0; ty < h; ty++) {
+            for (let tx = 0; tx < w; tx++) {
+              const gi = baseLayer.data[ty * w + tx] || 0;
+              terrain[idx(tx, ty)] = gi > 0 ? 0 : 0;
+            }
+          }
+        }
+        if (oreLayer && Array.isArray(oreLayer.data)) {
+          for (let ty = 0; ty < h; ty++) {
+            for (let tx = 0; tx < w; tx++) {
+              const gi = oreLayer.data[ty * w + tx] || 0;
+              if (gi > 0) terrain[idx(tx, ty)] = 2;
+            }
+          }
+        }
+        if (gemLayer && Array.isArray(gemLayer.data)) {
+          const gw = gemLayer.width || w, gh = gemLayer.height || h;
+          for (let ty = 0; ty < Math.min(mapH, gh); ty++) {
+            for (let tx = 0; tx < Math.min(mapW, gw); tx++) {
+              const gid = (gemLayer.data[ty * gw + tx] || 0) & 0x1FFFFFFF;
+              if (gid > 0) terrain[idx(tx, ty)] = 2;
+            }
+          }
+        }
+        const startBeaconTiles = [];
+        if (startLayer && Array.isArray(startLayer.data)) {
+          const START_BEACON_FIRSTGID = 235;
+          for (let ty = 0; ty < h; ty++) {
+            for (let tx = 0; tx < w; tx++) {
+              const gid = (startLayer.data[ty * w + tx] || 0) & 0x1FFFFFFF;
+              if (gid >= START_BEACON_FIRSTGID) startBeaconTiles.push({ tx, ty });
+            }
+          }
+          startBeaconTiles.sort((a, b) => (a.ty * mapW + a.tx) - (b.ty * mapW + b.tx));
+          if (startBeaconTiles.length > 2) startBeaconTiles.length = 2;
+        }
+        return { terrain, mapW, mapH, startBeaconTiles };
+      } catch (e) {
+        console.error("fetchMapThumbnailData failed", e);
+        return null;
+      }
+    }
+
+    function drawMapThumbnail(canvas, data){
+      if (!canvas || !data) return;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
+      const { terrain, mapW, mapH } = data;
+      const W = canvas.width || 240, H = canvas.height || 240;
+      const cellW = W / mapW, cellH = H / mapH;
+      const idx = (tx, ty) => ty * mapW + tx;
+      for (let ty = 0; ty < mapH; ty++) {
+        for (let tx = 0; tx < mapW; tx++) {
+          const t = terrain[idx(tx, ty)] || 0;
+          if (t === 2) ctx.fillStyle = "rgba(255,180,50,0.7)";
+          else ctx.fillStyle = "rgba(60,90,50,0.85)";
+          ctx.fillRect(tx * cellW, ty * cellH, Math.ceil(cellW) + 1, Math.ceil(cellH) + 1);
+        }
+      }
+    }
+
     function initPregameUI(env){
       env = env || {};
       const onSpawnChange = env.onSpawnChange;
@@ -948,12 +1024,28 @@ function ensureBadge(btn){
       const spawnChips = Array.from(document.querySelectorAll(".chip.spawn"));
       const moneyChips = Array.from(document.querySelectorAll(".chip.money"));
       const mapChips = Array.from(document.querySelectorAll(".chip.map"));
+      const mapThumb = document.getElementById("mapThumb");
+      const mapThumbBadges = document.getElementById("mapThumbBadges");
+
+      let currentSpawn = "left";
+
+      function setSpawn(v){
+        currentSpawn = v || "left";
+        if (typeof onSpawnChange === "function") onSpawnChange(currentSpawn);
+        if (mapThumbBadges) {
+          const badges = mapThumbBadges.querySelectorAll(".spawn-badge");
+          badges.forEach((b, i) => {
+            const want = (i === 0) ? "left" : "right";
+            b.classList.toggle("selected", currentSpawn === want);
+          });
+        }
+      }
 
       function setSpawnChip(target){
         for (const c of spawnChips) c.classList.remove("on");
         if (target) target.classList.add("on");
         const v = target && target.dataset ? target.dataset.spawn : null;
-        if (typeof onSpawnChange === "function") onSpawnChange(v || "left");
+        setSpawn(v || "left");
       }
 
       function setMoneyChip(target){
@@ -968,6 +1060,39 @@ function ensureBadge(btn){
         if (target) target.classList.add("on");
         const v = target && target.dataset ? target.dataset.map : null;
         if (typeof onMapChange === "function") onMapChange(v || "plains");
+        loadMapThumbnail(v || "forest_ground");
+      }
+
+      async function loadMapThumbnail(mapId){
+        if (!mapThumb || !mapThumbBadges) return;
+        mapThumbBadges.innerHTML = "";
+        const data = await fetchMapThumbnailData(mapId);
+        if (!data) {
+          const ctx = mapThumb.getContext("2d");
+          if (ctx) {
+            ctx.fillStyle = "rgba(40,40,40,0.9)";
+            ctx.fillRect(0, 0, mapThumb.width, mapThumb.height);
+            ctx.fillStyle = "#888";
+            ctx.font = "14px system-ui";
+            ctx.fillText("맵 로드 실패", 80, 120);
+          }
+          return;
+        }
+        drawMapThumbnail(mapThumb, data);
+        const { startBeaconTiles, mapW, mapH } = data;
+        const spawnMap = ["left", "right"];
+        for (let i = 0; i < startBeaconTiles.length; i++) {
+          const { tx, ty } = startBeaconTiles[i];
+          const spawnVal = spawnMap[i] || "left";
+          const badge = document.createElement("div");
+          badge.className = "spawn-badge" + (currentSpawn === spawnVal ? " selected" : "");
+          badge.textContent = String(i + 1);
+          badge.dataset.spawn = spawnVal;
+          badge.style.left = ((tx + 0.5) / mapW * 100) + "%";
+          badge.style.top = ((ty + 0.5) / mapH * 100) + "%";
+          badge.addEventListener("click", () => setSpawn(spawnVal));
+          mapThumbBadges.appendChild(badge);
+        }
       }
 
       for (const chip of spawnChips){
@@ -979,6 +1104,7 @@ function ensureBadge(btn){
       for (const chip of mapChips){
         chip.addEventListener("click", ()=>setMapChip(chip));
       }
+      loadMapThumbnail("forest_ground");
     }
 
     function setPregameLoading(env){

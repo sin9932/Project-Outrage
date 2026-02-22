@@ -877,10 +877,10 @@
             }
           }
         } else {
-          ai.nextWave = state.t + rnd(12, 18) / (ai.apmMul || 1);
+          ai.nextWave = state.t + rnd(8, 14) / (ai.apmMul || 1);
           const tanks = [], ifvs = [];
           for (const u of eUnitsAll) { if (u.kind === "tank") tanks.push(u); else if (u.kind === "ifv" && u.passengerId) ifvs.push(u); }
-          if (tanks.length >= 6) {
+          if (tanks.length >= 3) {
             const pack = [];
             tanks.sort((a, b) => a.id - b.id);
             for (let i = 0; i < Math.min(8, tanks.length); i++) pack.push(tanks[i]);
@@ -1023,9 +1023,9 @@
       const poor = e.money < 250;
       const rich = e.money > 900;
 
-      // 목표 병력 규모: 시간이 지날수록 올라감
-      // Army size goal: earlier push before factory, larger waves later.
-      const goal = (!hasFac && hasBar) ? 4 : ((state.t < 160) ? 6 : (state.t < 360 ? 10 : 14));
+      // 목표 병력 규모: 병력만 모으고 러시 안 오는 문제 해결 - 목표 완화
+      // Army size goal: lower thresholds so AI actually pushes.
+      const goal = (!hasFac && hasBar) ? 4 : ((state.t < 160) ? 5 : (state.t < 360 ? 7 : 9));
 
       // If we have basically no army, don't "attack", keep rallying while producing.
       if (combat.length < 2) {
@@ -1033,25 +1033,32 @@
         return;
       }
 
-      if (poor || threat >= 4 || rushDefense) {
+      if (poor || threat >= 5 || rushDefense) {
         ai.mode = "defend";
         aiCommandMoveToRally(combat);
         return;
       }
 
-      if (hasFac && tankCount < 4) {
+      // 탱크 4대 대기 제거 → 2대면 러시 허용 (무한 대기 방지)
+      if (hasFac && tankCount < 2) {
         ai.mode = "defend";
         aiCommandMoveToRally(combat);
         return;
       }
 
-      // Attack cadence: keep sending waves (this was too timid before).
+      // 오래 모였으면 강제 러시 (rally 25초 초과 시 goal 80%만 있어도 푸시)
+      const rallyDuration = state.t - (ai.waveT || 0);
+      const forcePush = rallyDuration > 25 && combat.length >= Math.max(4, Math.floor(goal * 0.8));
+
+      // Attack cadence: 웨이브 쿨다운 14초 → 8초로 단축
       if (ai.mode !== "attack") {
         ai.mode = "rally";
         // gently pull strays back to rally
         aiCommandMoveToRally(combat.filter(u => !u.order || u.order.type !== "move"));
-        const earlyOK = (!hasFac && hasBar) ? (state.t > 75) : (state.t > 90);
-        if (earlyOK && combat.length >= goal && state.t > ai.waveT + 14.0) {
+        const earlyOK = (!hasFac && hasBar) ? (state.t > 60) : (state.t > 75);
+        const waveCooldown = forcePush ? 0 : 8.0;
+        const meetsGoal = (forcePush && combat.length >= Math.max(4, Math.floor(goal * 0.8))) || combat.length >= goal;
+        if (earlyOK && meetsGoal && state.t > ai.waveT + waveCooldown) {
           ai.waveT = state.t;
           const target = aiPickPlayerTarget();
           if (target) {
