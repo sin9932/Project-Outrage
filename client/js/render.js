@@ -2707,29 +2707,29 @@
     (function drawFogLayer(){
       if (typeof getFogEnabled === "function" && !getFogEnabled()) return;
 
+      // 미탐색 타일에만 검은 다이아몬드 그리기 (전체 덮기 방식은 explored 미설정 시 맵이 전부 가려짐 → 사용 안 함)
       const z = (cam && typeof cam.zoom === "number") ? cam.zoom : 1;
       const ox = ISO_X * z;
       const oy = ISO_Y * z;
+      const overlap = 3; // 인접 타일과 겹쳐서 틈 최소화
+      const fogOx = ox + overlap;
+      const fogOy = oy + overlap;
       ctx.save();
-      // 틈 없음: 전체를 검정으로 채운 뒤, 정찰된(explored) 타일만 뚫어서 표시
-      ctx.fillStyle = "rgba(0,0,0,1)";
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-      ctx.globalCompositeOperation = "destination-out";
       ctx.fillStyle = "rgba(0,0,0,1)";
       for (let s=0; s<=(MAP_W-1)+(MAP_H-1); s++){
         for (let ty=0; ty<MAP_H; ty++){
           const tx=s-ty;
           if (!inMap(tx,ty)) continue;
-          if (!explored[TEAM.PLAYER][idx(tx,ty)]) continue;
+          if (explored[TEAM.PLAYER][idx(tx,ty)]) continue;
 
           const c = tileToWorldCenter(tx,ty);
           const p = worldToScreen(c.x,c.y);
-          const x = p.x, y = p.y;
+          const x = Math.round(p.x), y = Math.round(p.y);
           ctx.beginPath();
-          ctx.moveTo(x, y - oy);
-          ctx.lineTo(x + ox, y);
-          ctx.lineTo(x, y + oy);
-          ctx.lineTo(x - ox, y);
+          ctx.moveTo(Math.round(x), Math.round(y - fogOy));
+          ctx.lineTo(Math.round(x + fogOx), Math.round(y));
+          ctx.lineTo(Math.round(x), Math.round(y + fogOy));
+          ctx.lineTo(Math.round(x - fogOx), Math.round(y));
           ctx.closePath();
           ctx.fill();
         }
