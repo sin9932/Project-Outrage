@@ -1,4 +1,4 @@
-﻿<!doctype html>
+<!doctype html>
 <html lang="ko">
 <head>
 <meta charset="utf-8" />
@@ -70,6 +70,18 @@
     </div>
     <div class="row small">
       좌클릭 드래그: 페인트. Shift+드래그: 선택. Ctrl+Z/Y: 실행취소/다시실행. Ctrl+C/V: 복붙.
+    </div>
+    <div class="row">
+      <label>Building Pivot (1:1 = 인게임 매칭)</label>
+      <div class="group">건물 스프라이트 crop 영역을 1:1로 표시. 클릭한 지점이 피벗(중심점)입니다.</div>
+      <select id="pivotBuilding">
+        <option value="hq">HQ (건설소)</option>
+      </select>
+      <div id="pivotWrap" style="max-width:100%; max-height:280px; overflow:auto; margin:8px 0; border:1px solid rgba(255,255,255,0.2); border-radius:8px; background:#0b0f16;">
+        <canvas id="pivotCanvas"></canvas>
+      </div>
+      <div id="pivotStatus" class="small" style="margin-bottom:6px;">이미지 로드 후 클릭하여 피벗 설정</div>
+      <button class="btn" id="btnCopyPivotPreset">SPRITE_TUNE_PRESET 복사 (index.html에 붙여넣기)</button>
     </div>
     <div class="row">
       <label>Minimap</label>

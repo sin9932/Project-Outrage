@@ -1,4 +1,4 @@
-﻿window.addEventListener("DOMContentLoaded", () => {
+window.addEventListener("DOMContentLoaded", () => {
   const c = document.getElementById("c");
   if (!c) { console.error("editor: canvas not found"); return; }
   const ctx = c.getContext("2d");
@@ -837,5 +837,103 @@
   initTexFromTerrain();
   setCanvasSize();
   render();
+
+  // --- Building Pivot (1:1) editor: 설정한 중심점이 인게임 SPRITE_TUNE과 동일 좌표계로 매칭됨 ---
+  const BUILD_PIVOT_CONFIG = {
+    hq: {
+      imgUrl: "asset/sprite/const/normal/con_yard_n.png",
+      crop: { x: 256, y: 130, w: 1536, h: 1251 },
+      scaleMul: 1.20,
+      anchor: "center"
+    }
+  };
+  const pivotSelect = document.getElementById("pivotBuilding");
+  const pivotCanvas = document.getElementById("pivotCanvas");
+  const pivotWrap = document.getElementById("pivotWrap");
+  const pivotStatus = document.getElementById("pivotStatus");
+  const btnCopyPivotPreset = document.getElementById("btnCopyPivotPreset");
+  let pivotBuildingImg = null;
+  let pivotValue = null;
+
+  function getPivotConfig(){
+    const kind = (pivotSelect && pivotSelect.value) || "hq";
+    return BUILD_PIVOT_CONFIG[kind] || BUILD_PIVOT_CONFIG.hq;
+  }
+
+  function drawPivotCanvas(){
+    if (!pivotCanvas) return;
+    const cfg = getPivotConfig();
+    const crop = cfg.crop;
+    if (!crop || !crop.w || !crop.h) return;
+    pivotCanvas.width = crop.w;
+    pivotCanvas.height = crop.h;
+    const pctx = pivotCanvas.getContext("2d");
+    pctx.setTransform(1,0,0,1,0,0);
+    pctx.clearRect(0, 0, crop.w, crop.h);
+    if (pivotBuildingImg && pivotBuildingImg.complete && pivotBuildingImg.naturalWidth){
+      pctx.drawImage(pivotBuildingImg, crop.x, crop.y, crop.w, crop.h, 0, 0, crop.w, crop.h);
+      if (pivotValue){
+        const px = pivotValue.x, py = pivotValue.y;
+        pctx.strokeStyle = "rgba(255,200,0,0.95)";
+        pctx.lineWidth = 2;
+        pctx.beginPath();
+        pctx.moveTo(px - 12, py); pctx.lineTo(px + 12, py);
+        pctx.moveTo(px, py - 12); pctx.lineTo(px, py + 12);
+        pctx.stroke();
+        pctx.fillStyle = "rgba(255,255,0,0.5)";
+        pctx.beginPath();
+        pctx.arc(px, py, 4, 0, Math.PI*2);
+        pctx.fill();
+      }
+    } else {
+      pctx.fillStyle = "#1a1f2e";
+      pctx.fillRect(0, 0, crop.w, crop.h);
+      pctx.fillStyle = "#6a7a8a";
+      pctx.font = "14px system-ui";
+      pctx.fillText("Loading...", 12, 24);
+    }
+  }
+
+  if (pivotCanvas){
+    pivotCanvas.addEventListener("click", (e)=>{
+      const cfg = getPivotConfig();
+      const crop = cfg.crop;
+      if (!crop || !crop.w || !crop.h) return;
+      const px = Math.max(0, Math.min(crop.w - 1, e.offsetX | 0));
+      const py = Math.max(0, Math.min(crop.h - 1, e.offsetY | 0));
+      pivotValue = { x: px, y: py };
+      if (pivotStatus) pivotStatus.textContent = "피벗(소스 픽셀): " + px + ", " + py + "  → pivotNudge: " + (px - crop.w/2).toFixed(1) + ", " + (py - crop.h/2).toFixed(1);
+      drawPivotCanvas();
+    });
+  }
+
+  if (btnCopyPivotPreset){
+    btnCopyPivotPreset.addEventListener("click", ()=>{
+      const kind = (pivotSelect && pivotSelect.value) || "hq";
+      const cfg = getPivotConfig();
+      const crop = cfg.crop;
+      if (!pivotValue || !crop){
+        try { alert("먼저 스프라이트 영역을 클릭하여 피벗을 설정하세요."); } catch(_){}
+        return;
+      }
+      const nudgeX = pivotValue.x - crop.w * 0.5;
+      const nudgeY = pivotValue.y - crop.h * 0.5;
+      const snippet = "  // Building pivot (1:1 editor → 인게임 동일 좌표)\n  window.SPRITE_TUNE_PRESET = {\n    " + kind + ": { anchor: \"" + (cfg.anchor||"center") + "\", scaleMul: " + (cfg.scaleMul||1) + ", pivotNudge: { x: " + Math.round(nudgeX) + ", y: " + Math.round(nudgeY) + " }, offsetNudge: { x: 0, y: 0 } }\n  };";
+      try {
+        navigator.clipboard.writeText(snippet);
+        if (pivotStatus) pivotStatus.textContent = "클립보드에 복사됨. index.html의 SPRITE_TUNE_PRESET 스크립트를 이 내용으로 교체하세요.";
+      } catch (e) {
+        if (pivotStatus) pivotStatus.textContent = "복사 실패: " + String(e);
+      }
+    });
+  }
+
+  if (getPivotConfig().imgUrl){
+    pivotBuildingImg = new Image();
+    pivotBuildingImg.crossOrigin = "anonymous";
+    pivotBuildingImg.onload = ()=>{ drawPivotCanvas(); if (pivotStatus) pivotStatus.textContent = "클릭하여 피벗(중심점) 설정 후 [SPRITE_TUNE_PRESET 복사]로 index.html에 붙여넣기."; };
+    pivotBuildingImg.onerror = ()=>{ if (pivotStatus) pivotStatus.textContent = "이미지 로드 실패: " + getPivotConfig().imgUrl; };
+    pivotBuildingImg.src = getPivotConfig().imgUrl;
+  }
 });
 

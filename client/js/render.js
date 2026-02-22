@@ -398,6 +398,7 @@
   }
 
   // apply HTML-provided preset (overrides persisted storage)
+  // preset.pivotNudge is in SOURCE (crop) pixels; editor.html Building Pivot (1:1)에서 맞춘 중심점이 인게임에 그대로 매칭됨.
   ;(function(){
     try{
       const preset = (typeof window !== "undefined") ? window.SPRITE_TUNE_PRESET : null;
@@ -2684,8 +2685,7 @@
           const p = worldToScreen(c.x,c.y);
           const x = p.x, y = p.y;
           const ox = ISO_X*cam.zoom, oy = ISO_Y*cam.zoom;
-
-          const eps = 2.4*cam.zoom;
+          const eps = Math.max(4, ox * 0.12);
           if (!iExp){
             ctx.fillStyle = "rgba(0,0,0,1)";
           } else {

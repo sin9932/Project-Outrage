@@ -1589,7 +1589,7 @@
 
       const center = tileToWorldCenter(tx, ty);
       const toCenter2 = (u.x - center.x)**2 + (u.y - center.y)**2;
-      if (toCenter2 > (0.12 * TILE) ** 2) return;
+      if (toCenter2 > (0.07 * TILE) ** 2) return;
 
       const i = idx(tx, ty);
       if (occInf && occInf[i] > INF_SLOT_MAX) {
@@ -1604,7 +1604,7 @@
 
       const dx = sp.x - u.x, dy = sp.y - u.y;
       const d2 = dx*dx + dy*dy;
-      if (d2 < 4){
+      if (d2 < 36){
         u.x = sp.x; u.y = sp.y;
         u.vx = 0; u.vy = 0;
         u.holdPos = true;
@@ -1612,7 +1612,7 @@
       }
 
       const d = Math.sqrt(d2);
-      const maxStep = 120 * dt;
+      const maxStep = 80 * dt;
       const step = Math.min(maxStep, d);
       const nx = dx / (d||1), ny = dy / (d||1);
       u.x += nx * step;
@@ -1713,7 +1713,7 @@
 
       const center = tileToWorldCenter(tx, ty);
       const toCenter2 = (u.x - center.x)**2 + (u.y - center.y)**2;
-      if (toCenter2 > (0.12 * TILE) ** 2) return;
+      if (toCenter2 > (0.07 * TILE) ** 2) return;
 
       const i = idx(tx, ty);
       if (occInf && occInf[i] > INF_SLOT_MAX) {
@@ -1728,7 +1728,7 @@
 
       const dx = sp.x - u.x, dy = sp.y - u.y;
       const d2 = dx*dx + dy*dy;
-      if (d2 < 4){
+      if (d2 < 36){
         u.x = sp.x; u.y = sp.y;
         u.vx = 0; u.vy = 0;
         u.holdPos = true;
@@ -1736,7 +1736,7 @@
       }
 
       const d = Math.sqrt(d2);
-      const maxStep = 120 * dt;
+      const maxStep = 80 * dt;
       const step = Math.min(maxStep, d);
       const nx = dx / (d||1), ny = dy / (d||1);
       u.x += nx * step;
