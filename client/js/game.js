@@ -5050,6 +5050,8 @@ if (__ou_ui && typeof __ou_ui.bindPregameStart === "function"){
     visible[TEAM.ENEMY].fill(0);
     placeStart(spawnChoice);
     spawnStartingUnits();
+    // 첫 프레임부터 본진/유닛 시야가 보이도록 시야 한 번 갱신 (안개 전부 검은 현상 방지)
+    updateVision();
     if (__ou_ui && typeof __ou_ui.hidePregame === "function"){
       __ou_ui.hidePregame({});
     }
