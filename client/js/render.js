@@ -2772,8 +2772,10 @@
       const tw = cloudsImage.width;
       const th = cloudsImage.height;
       const isoFlatten = 0.48;
-      const driftX = (state.t * 18) % (TILE * 12);
-      const driftY = (state.t * 10) % (TILE * 12);
+      const driftSpeedX = 10;
+      const driftSpeedY = 6;
+      const driftX = (state.t * driftSpeedX) % (TILE * 12);
+      const driftY = (state.t * driftSpeedY) % (TILE * 12);
       const cloudScreenW = Math.max(W, H) * 3.2 * z;
       const cloudScreenH = (th / tw) * cloudScreenW * isoFlatten;
       let cloudBuf = null;
