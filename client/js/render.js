@@ -1660,15 +1660,15 @@
         const layer = fgTmj.layers[li];
         const name = (layer.name || "").toLowerCase();
         if (name === "start") continue;
-        if (name === "tree") continue; // 나무는 drawables에서 깊이 정렬해 그리며, 안개 밑이면 미표시
+        if (name === "tree") continue; // 나무는 drawables에서 깊이 정렬해 그림
         if (name === "ore" || name === "gem") {
-          if (!isVisible || oreAt <= 0) continue;
+          if (!explored[TEAM.PLAYER][idx(tx,ty)] || oreAt <= 0) continue; // 정찰된 곳은 ore 계속 표시
         }
         const gid = layer.data[ty * (layer.width || fgTmj.mapW) + tx];
         if (!gid) continue;
         drawTiledGidAt(ctx, gid, x, y, cam.zoom, TILE);
       }
-      if (isVisible && oreAt > 0) {
+      if (explored[TEAM.PLAYER][idx(tx,ty)] && oreAt > 0) {
         const oreTs = fgTmj.tilesets.find(ts => ts.firstgid === 225);
         if (!oreTs || !oreTs.img) {
           ctx.beginPath();
@@ -1695,7 +1695,7 @@
       if (type===3) base = "#152535";
       ctx.fillStyle = base;
       ctx.fill();
-      if (isVisible && oreAt > 0) {
+      if (explored[TEAM.PLAYER][idx(tx,ty)] && oreAt > 0) {
         const a = clamp(oreAt/ORE_MAX,0,1);
         ctx.fillStyle = `rgba(255,215,0,${0.10+0.28*a})`;
         ctx.fill();
@@ -2707,32 +2707,29 @@
     (function drawFogLayer(){
       if (typeof getFogEnabled === "function" && !getFogEnabled()) return;
 
-      // drawIsoTile과 동일: 같은 타일 중심·같은 반축(ISO_X*cam.zoom, ISO_Y*cam.zoom)
       const z = (cam && typeof cam.zoom === "number") ? cam.zoom : 1;
       const ox = ISO_X * z;
       const oy = ISO_Y * z;
-      // 픽셀 틈 방지: 반축 2픽셀 확대 + 꼭짓점 정수로 맞춰 모서리 틈 제거
-      const overlap = 2;
-      const fogOx = ox + overlap;
-      const fogOy = oy + overlap;
       ctx.save();
+      // 틈 없음: 전체를 검정으로 채운 뒤, 정찰된(explored) 타일만 뚫어서 표시
+      ctx.fillStyle = "rgba(0,0,0,1)";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.globalCompositeOperation = "destination-out";
       ctx.fillStyle = "rgba(0,0,0,1)";
       for (let s=0; s<=(MAP_W-1)+(MAP_H-1); s++){
         for (let ty=0; ty<MAP_H; ty++){
           const tx=s-ty;
           if (!inMap(tx,ty)) continue;
-          const i=idx(tx,ty);
-          const iExp = explored[TEAM.PLAYER][i];
-          if (iExp) continue;
+          if (!explored[TEAM.PLAYER][idx(tx,ty)]) continue;
 
           const c = tileToWorldCenter(tx,ty);
           const p = worldToScreen(c.x,c.y);
-          const x = Math.round(p.x), y = Math.round(p.y);
+          const x = p.x, y = p.y;
           ctx.beginPath();
-          ctx.moveTo(Math.round(x), Math.round(y - fogOy));
-          ctx.lineTo(Math.round(x + fogOx), Math.round(y));
-          ctx.lineTo(Math.round(x), Math.round(y + fogOy));
-          ctx.lineTo(Math.round(x - fogOx), Math.round(y));
+          ctx.moveTo(x, y - oy);
+          ctx.lineTo(x + ox, y);
+          ctx.lineTo(x, y + oy);
+          ctx.lineTo(x - ox, y);
           ctx.closePath();
           ctx.fill();
         }
@@ -2926,8 +2923,8 @@
       drawables.push({ id: 9100000+i, kind: "_fx_snip_die", alive: true, team: fx.team, x: fx.x, y: fx.y, fxRef: fx });
     }
 
-    // 나무: visible 타일만 drawables에 넣어 깊이 정렬로 그림 → 안개 밑 나무 미표시, 유닛과 앞/뒤 정확
-    if (fgTmj && visible) {
+    // 나무: 정찰된(explored) 타일만 drawables에 넣어 깊이 정렬로 그림 → 한번 정찰한 곳은 나무 계속 표시
+    if (fgTmj && explored) {
       const treeLayer = fgTmj.layers.find(l => (l.name || "").toLowerCase() === "tree");
       if (treeLayer && Array.isArray(treeLayer.data)) {
         const tw = treeLayer.width || fgTmj.mapW, th = treeLayer.height || fgTmj.mapH;
@@ -2935,7 +2932,7 @@
           for (let tx = 0; tx < tw; tx++) {
             if (!inMap(tx, ty)) continue;
             const i = idx(tx, ty);
-            if (!visible[TEAM.PLAYER][i]) continue;
+            if (!explored[TEAM.PLAYER][i]) continue;
             if (treeHp && treeHp[i] <= 0) continue;
             const gid = treeLayer.data[ty * tw + tx] & 0x1FFFFFFF;
             if (!gid) continue;
