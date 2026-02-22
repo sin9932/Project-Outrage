@@ -1660,6 +1660,7 @@
         const layer = fgTmj.layers[li];
         const name = (layer.name || "").toLowerCase();
         if (name === "start") continue;
+        if (name === "tree") continue; // 나무는 drawables에서 깊이 정렬해 그리며, 안개 밑이면 미표시
         if (name === "ore" || name === "gem") {
           if (!isVisible || oreAt <= 0) continue;
         }
@@ -2671,7 +2672,8 @@
       drawBuildingSprite,
       worldVecToDir8,
       isUnderPower, clamp,
-      getFogEnabled
+      getFogEnabled,
+      treeHp
     } = env;
 
     const W=canvas.width, H=canvas.height;
@@ -2709,8 +2711,8 @@
       const z = (cam && typeof cam.zoom === "number") ? cam.zoom : 1;
       const ox = ISO_X * z;
       const oy = ISO_Y * z;
-      // 픽셀 틈 방지: 타일과 같은 XY·크기 기반으로, 반축을 1픽셀 확대해 인접 타일과 겹쳐 틈 제거
-      const overlap = 1;
+      // 픽셀 틈 방지: 반축 2픽셀 확대 + 꼭짓점 정수로 맞춰 모서리 틈 제거
+      const overlap = 2;
       const fogOx = ox + overlap;
       const fogOy = oy + overlap;
       ctx.save();
@@ -2727,10 +2729,10 @@
           const p = worldToScreen(c.x,c.y);
           const x = Math.round(p.x), y = Math.round(p.y);
           ctx.beginPath();
-          ctx.moveTo(x, y - fogOy);
-          ctx.lineTo(x + fogOx, y);
-          ctx.lineTo(x, y + fogOy);
-          ctx.lineTo(x - fogOx, y);
+          ctx.moveTo(Math.round(x), Math.round(y - fogOy));
+          ctx.lineTo(Math.round(x + fogOx), Math.round(y));
+          ctx.lineTo(Math.round(x), Math.round(y + fogOy));
+          ctx.lineTo(Math.round(x - fogOx), Math.round(y));
           ctx.closePath();
           ctx.fill();
         }
@@ -2924,6 +2926,32 @@
       drawables.push({ id: 9100000+i, kind: "_fx_snip_die", alive: true, team: fx.team, x: fx.x, y: fx.y, fxRef: fx });
     }
 
+    // 나무: visible 타일만 drawables에 넣어 깊이 정렬로 그림 → 안개 밑 나무 미표시, 유닛과 앞/뒤 정확
+    if (fgTmj && visible) {
+      const treeLayer = fgTmj.layers.find(l => (l.name || "").toLowerCase() === "tree");
+      if (treeLayer && Array.isArray(treeLayer.data)) {
+        const tw = treeLayer.width || fgTmj.mapW, th = treeLayer.height || fgTmj.mapH;
+        for (let ty = 0; ty < th; ty++) {
+          for (let tx = 0; tx < tw; tx++) {
+            if (!inMap(tx, ty)) continue;
+            const i = idx(tx, ty);
+            if (!visible[TEAM.PLAYER][i]) continue;
+            if (treeHp && treeHp[i] <= 0) continue;
+            const gid = treeLayer.data[ty * tw + tx] & 0x1FFFFFFF;
+            if (!gid) continue;
+            drawables.push({
+              id: 8000000 + i,
+              kind: "_tree",
+              tx, ty,
+              x: (tx + 0.5) * TILE,
+              y: (ty + 0.5) * TILE,
+              gid
+            });
+          }
+        }
+      }
+    }
+
     drawables.sort((a,b)=>{
       const aIsB=!!BUILD[a.kind], bIsB=!!BUILD[b.kind];
       const aKey = aIsB ? ((a.tx + a.ty) + (a.tw + a.th - 2)) : ((a.x + a.y)/TILE);
@@ -2935,6 +2963,13 @@
 
     for (const ent of drawables){
       ctx.save();
+      if (ent.kind === "_tree") {
+        const c = tileToWorldCenter(ent.tx, ent.ty);
+        const p = worldToScreen(c.x, c.y);
+        drawTiledGidAt(ctx, ent.gid, p.x, p.y, cam.zoom, TILE);
+        ctx.restore();
+        continue;
+      }
       const isB=!!BUILD[ent.kind];
       const tx=isB?ent.tx:(ent.x/TILE)|0;
       const ty=isB?ent.ty:(ent.y/TILE)|0;
