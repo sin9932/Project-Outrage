@@ -321,6 +321,8 @@
   })();
 
   const TERRAIN_TILE_SCALE = 1.28;
+  /** 지형(128x64)보다 세로가 긴 스프라이트(나무 등)는 비율 유지, 바닥을 타일 중심에 맞춤 */
+  const TALL_SPRITE_THRESHOLD = 100;
   function drawTiledGidAt(ctx, gid, centerX, centerY, zoom, tileWorldSize) {
     if (!fgTmj || !gid) return;
     const raw = gid & 0x1FFFFFFF;
@@ -340,12 +342,25 @@
     const row = Math.floor(localId / ts.columns);
     const sx = ts.margin + col * (ts.tw + ts.spacing);
     const sy = ts.margin + row * (ts.th + ts.spacing);
-    const scaleX = (tileWorldSize * (zoom || 1)) / ts.tw;
-    const scaleY = ((tileWorldSize / 2) * (zoom || 1)) / ts.th;
-    const dw = ts.tw * scaleX * (TERRAIN_TILE_SCALE || 1);
-    const dh = ts.th * scaleY * (TERRAIN_TILE_SCALE || 1);
-    const dx = centerX - dw / 2;
-    const dy = centerY - dh / 2;
+    const z = zoom || 1;
+    const scale = TERRAIN_TILE_SCALE || 1;
+    let dw, dh, dx, dy;
+    if (ts.th > TALL_SPRITE_THRESHOLD) {
+      // 나무 등 세로 긴 스프라이트: 타일 너비에 맞추고 비율 유지, 바닥을 타일 중심에
+      const baseW = tileWorldSize * z * scale;
+      const k = baseW / ts.tw;
+      dw = ts.tw * k;
+      dh = ts.th * k;
+      dx = centerX - dw / 2;
+      dy = centerY - dh; // 바닥이 (centerX, centerY)에 오도록
+    } else {
+      const scaleX = (tileWorldSize * z) / ts.tw;
+      const scaleY = ((tileWorldSize / 2) * z) / ts.th;
+      dw = ts.tw * scaleX * scale;
+      dh = ts.th * scaleY * scale;
+      dx = centerX - dw / 2;
+      dy = centerY - dh / 2;
+    }
     ctx.drawImage(ts.img, sx, sy, ts.tw, ts.th, dx, dy, dw, dh);
   }
 
@@ -2690,10 +2705,14 @@
     (function drawFogLayer(){
       if (typeof getFogEnabled === "function" && !getFogEnabled()) return;
 
+      // drawIsoTile과 동일: 같은 타일 중심·같은 반축(ISO_X*cam.zoom, ISO_Y*cam.zoom)
       const z = (cam && typeof cam.zoom === "number") ? cam.zoom : 1;
       const ox = ISO_X * z;
       const oy = ISO_Y * z;
-      // 지형 타일과 동일한 다이아몬드(ox, oy)로 그려서 타일 경계에 맞게 깔끔하게
+      // 픽셀 틈 방지: 타일과 같은 XY·크기 기반으로, 반축을 1픽셀 확대해 인접 타일과 겹쳐 틈 제거
+      const overlap = 1;
+      const fogOx = ox + overlap;
+      const fogOy = oy + overlap;
       ctx.save();
       ctx.fillStyle = "rgba(0,0,0,1)";
       for (let s=0; s<=(MAP_W-1)+(MAP_H-1); s++){
@@ -2706,12 +2725,12 @@
 
           const c = tileToWorldCenter(tx,ty);
           const p = worldToScreen(c.x,c.y);
-          const x = p.x, y = p.y;
+          const x = Math.round(p.x), y = Math.round(p.y);
           ctx.beginPath();
-          ctx.moveTo(x, y - oy);
-          ctx.lineTo(x + ox, y);
-          ctx.lineTo(x, y + oy);
-          ctx.lineTo(x - ox, y);
+          ctx.moveTo(x, y - fogOy);
+          ctx.lineTo(x + fogOx, y);
+          ctx.lineTo(x, y + fogOy);
+          ctx.lineTo(x - fogOx, y);
           ctx.closePath();
           ctx.fill();
         }
