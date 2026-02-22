@@ -2861,8 +2861,7 @@
               }
               continue;
             }
-          }
-    if (u.kind==="engineer"){
+          if (u.kind==="engineer"){
             if (u.order.type==="move"){
               followPath(u,dt);
             } else if (u.order.type==="repairenter"){
