@@ -69,6 +69,7 @@
     <div class="hint">
       목표: <b>인게임 buildings.js 수식 그대로</b>로 렌더링해서, 여기서 잡은 <b>pivot 값이 인게임 타일맵과 1:1</b>로 맞게.
       <br/>핵심: JSON은 <b>anchor가 아니라 pivot</b>을 써야 인게임에 먹는다.
+      <br/>1:1 매칭: <b>Use DZ</b> 체크 해제, <b>Cam zoom=1, View zoom=1, pan=0</b>에서 맞추고 → Apply pivot → Download patched JSON을 게임 atlas로 사용.
     </div>
 
     <div class="row" style="margin-top:10px;">
@@ -199,9 +200,10 @@
     </div>
 
     <div class="check">
-      <input id="useDZ" type="checkbox" checked/>
+      <input id="useDZ" type="checkbox"/>
       <label for="useDZ" style="margin:0">Use DZ (barracks): sy = worldToScreenY - max(tw,th)*ISO_Y*(BASE_SCALE*cam.zoom)</label>
     </div>
+    <div class="hint" style="margin-top:2px;">인게임 1:1 매칭: buildings.js는 DZ를 쓰지 않으므로 <b>Use DZ 체크 해제</b> 상태에서 피벗을 맞추면 게임과 동일하게 보입니다.</div>
 
     <hr/>
 

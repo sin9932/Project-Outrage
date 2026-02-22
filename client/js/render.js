@@ -2676,32 +2676,55 @@
         const i=idx(tx,ty);
 
         drawIsoTile(tx,ty,terrain[i]);
+      }
+    }
 
-        const iVis = visible[TEAM.PLAYER][i];
-        const iExp = explored[TEAM.PLAYER][i];
+    (function drawFogLayer(){
+      if (!canvas._fogBuf || canvas._fogBuf.width !== W || canvas._fogBuf.height !== H) {
+        canvas._fogBuf = document.createElement("canvas");
+        canvas._fogBuf.width = W;
+        canvas._fogBuf.height = H;
+      }
+      const fogCtx = canvas._fogBuf.getContext("2d");
+      fogCtx.clearRect(0, 0, W, H);
 
-        if (!iExp || !iVis){
+      const z = (cam && typeof cam.zoom === "number") ? cam.zoom : 1;
+      const ox = ISO_X * z;
+      const oy = ISO_Y * z;
+      const eps = Math.max(8, ox * 0.32);
+
+      for (let s=0; s<=(MAP_W-1)+(MAP_H-1); s++){
+        for (let ty=0; ty<MAP_H; ty++){
+          const tx=s-ty;
+          if (!inMap(tx,ty)) continue;
+          const i=idx(tx,ty);
+          const iVis = visible[TEAM.PLAYER][i];
+          const iExp = explored[TEAM.PLAYER][i];
+          if (iExp && iVis) continue;
+
           const c = tileToWorldCenter(tx,ty);
           const p = worldToScreen(c.x,c.y);
           const x = p.x, y = p.y;
-          const ox = ISO_X*cam.zoom, oy = ISO_Y*cam.zoom;
-          const eps = Math.max(4, ox * 0.12);
           if (!iExp){
-            ctx.fillStyle = "rgba(0,0,0,1)";
+            fogCtx.fillStyle = "rgba(0,0,0,1)";
           } else {
-            ctx.fillStyle = "rgba(0,0,0,0.10)";
+            fogCtx.fillStyle = "rgba(0,0,0,0.10)";
           }
-
-          ctx.beginPath();
-          ctx.moveTo(x, y-oy-eps);
-          ctx.lineTo(x+ox+eps, y);
-          ctx.lineTo(x, y+oy+eps);
-          ctx.lineTo(x-ox-eps, y);
-          ctx.closePath();
-          ctx.fill();
+          fogCtx.beginPath();
+          fogCtx.moveTo(x, y-oy-eps);
+          fogCtx.lineTo(x+ox+eps, y);
+          fogCtx.lineTo(x, y+oy+eps);
+          fogCtx.lineTo(x-ox-eps, y);
+          fogCtx.closePath();
+          fogCtx.fill();
         }
       }
-    }
+
+      ctx.save();
+      ctx.filter = "blur(4px)";
+      ctx.drawImage(canvas._fogBuf, 0, 0, W, H, 0, 0, W, H);
+      ctx.restore();
+    })();
 
     if (typeof worldToScreen === "function" && typeof tileToWorldCenter === "function" && (buildings?.length > 0 || ore)) {
       const z = (cam && typeof cam.zoom === "number") ? cam.zoom : 1;
