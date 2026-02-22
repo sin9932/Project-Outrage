@@ -1273,15 +1273,25 @@ function ensureBadge(btn){
 
       if (victory && victoryBgmTracks.length > 0){
         const bgm = env.bgm;
-        if (bgm && typeof bgm.stopAll === "function") bgm.stopAll();
         const track = victoryBgmTracks[Math.floor(Math.random() * victoryBgmTracks.length)];
-        try {
-          const a = new Audio(track);
-          a.volume = (global.__bgmUserVol != null) ? global.__bgmUserVol : 0.7;
-          a.loop = true;
-          a.play().catch(()=>{});
-          showResultOverlay._victoryAudio = a;
-        } catch(_){}
+        if (bgm && bgm.audio){
+          try {
+            if (typeof bgm.stopAll === "function") bgm.stopAll();
+            bgm.audio.src = track;
+            bgm.audio.loop = true;
+            bgm.audio.volume = (global.__bgmUserVol != null) ? global.__bgmUserVol : 0.7;
+            bgm.audio.play().catch(()=>{});
+            showResultOverlay._victoryAudio = bgm.audio;
+          } catch(_){}
+        } else {
+          try {
+            const a = new Audio(track);
+            a.volume = (global.__bgmUserVol != null) ? global.__bgmUserVol : 0.7;
+            a.loop = true;
+            a.play().catch(()=>{});
+            showResultOverlay._victoryAudio = a;
+          } catch(_){}
+        }
       }
 
       overlay.classList.add("show");
