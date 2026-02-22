@@ -274,7 +274,7 @@
     { firstgid: 169, image: "grass_medium_128x64.png", tw: 128, th: 64, columns: 8, spacing: 0, margin: 0 },
     { firstgid: 225, image: "ore.png",                tw: 128, th: 88, columns: 2, spacing: 2, margin: 0 },
     { firstgid: 235, image: "start_beacon_128x64.png", tw: 128, th: 64, columns: 8, spacing: 0, margin: 0 },
-    { firstgid: 291, image: "tree_forest.png",       tw: 130, th: 221, columns: 3, spacing: 0, margin: 0 }
+    { firstgid: 236, image: "tree_forest.png",       tw: 130, th: 221, columns: 3, spacing: 0, margin: 0 }
   ];
 
   function loadImage(src) {
@@ -2693,17 +2693,9 @@
       const z = (cam && typeof cam.zoom === "number") ? cam.zoom : 1;
       const ox = ISO_X * z;
       const oy = ISO_Y * z;
-      const eps = Math.max(10, ox * 0.38);
-      const W = canvas.width, H = canvas.height;
-
-      if (!canvas._fogBuf || canvas._fogBuf.width !== W || canvas._fogBuf.height !== H) {
-        canvas._fogBuf = document.createElement("canvas");
-        canvas._fogBuf.width = W;
-        canvas._fogBuf.height = H;
-      }
-      const fogCtx = canvas._fogBuf.getContext("2d");
-      fogCtx.clearRect(0, 0, W, H);
-      fogCtx.fillStyle = "rgba(0,0,0,1)";
+      // 지형 타일과 동일한 다이아몬드(ox, oy)로 그려서 타일 경계에 맞게 깔끔하게
+      ctx.save();
+      ctx.fillStyle = "rgba(0,0,0,1)";
       for (let s=0; s<=(MAP_W-1)+(MAP_H-1); s++){
         for (let ty=0; ty<MAP_H; ty++){
           const tx=s-ty;
@@ -2715,18 +2707,15 @@
           const c = tileToWorldCenter(tx,ty);
           const p = worldToScreen(c.x,c.y);
           const x = p.x, y = p.y;
-          fogCtx.beginPath();
-          fogCtx.moveTo(x, y-oy-eps);
-          fogCtx.lineTo(x+ox+eps, y);
-          fogCtx.lineTo(x, y+oy+eps);
-          fogCtx.lineTo(x-ox-eps, y);
-          fogCtx.closePath();
-          fogCtx.fill();
+          ctx.beginPath();
+          ctx.moveTo(x, y - oy);
+          ctx.lineTo(x + ox, y);
+          ctx.lineTo(x, y + oy);
+          ctx.lineTo(x - ox, y);
+          ctx.closePath();
+          ctx.fill();
         }
       }
-      ctx.save();
-      ctx.filter = "blur(3px)";
-      ctx.drawImage(canvas._fogBuf, 0, 0, W, H, 0, 0, W, H);
       ctx.restore();
     })();
 
