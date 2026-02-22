@@ -2654,7 +2654,8 @@
       rectFromDrag, refreshPrimaryBuildingBadgesUI,
       drawBuildingSprite,
       worldVecToDir8,
-      isUnderPower, clamp
+      isUnderPower, clamp,
+      getFogEnabled
     } = env;
 
     const W=canvas.width, H=canvas.height;
@@ -2683,6 +2684,9 @@
     }
 
     (function drawFogLayer(){
+      // 전장의 안개 끄기(맵 전체 밝히기)면 안개 레이어 자체를 그리지 않음 (블러가 맵 전체를 덮는 현상 방지)
+      if (typeof getFogEnabled === "function" && !getFogEnabled()) return;
+
       if (!canvas._fogBuf || canvas._fogBuf.width !== W || canvas._fogBuf.height !== H) {
         canvas._fogBuf = document.createElement("canvas");
         canvas._fogBuf.width = W;

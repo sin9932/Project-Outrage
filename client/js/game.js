@@ -4836,7 +4836,8 @@ function draw(){
         getUnitSpec: (kind)=> (window.G && G.Units && typeof G.Units.getSpec==="function") ? G.Units.getSpec(kind) : null,
         worldVecToDir8,
         isUnderPower, clamp,
-        infDeathFxs, snipDeathFxs
+        infDeathFxs, snipDeathFxs,
+        getFogEnabled: () => !!fogEnabled
       });
     }
   }
