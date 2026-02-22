@@ -1667,15 +1667,16 @@
         }
       }
     } else {
+      // fgTmj 미로드 시 fallback: 너무 검게 나오지 않도록 약간 밝은 색
       ctx.beginPath();
       ctx.moveTo(x, y-oy);
       ctx.lineTo(x+ox, y);
       ctx.lineTo(x, y+oy);
       ctx.lineTo(x-ox, y);
       ctx.closePath();
-      let base = "#0c121a";
-      if (type===1) base = "#101621";
-      if (type===3) base = "#0b1624";
+      let base = "#1a2433";
+      if (type===1) base = "#202a38";
+      if (type===3) base = "#152535";
       ctx.fillStyle = base;
       ctx.fill();
       if (isVisible && oreAt > 0) {

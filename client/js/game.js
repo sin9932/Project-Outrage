@@ -4954,6 +4954,16 @@ function draw(){
       eHQ = safePlace(TEAM.ENEMY, "hq", b.tx - hqCenterOffTx, b.ty - hqCenterOffTy);
     }
 
+    // 본진/적 본진 발자국 즉시 밝히기 (첫 프레임부터 검게 나오지 않도록)
+    for (const b of buildings){
+      if (!b || !b.alive || (b.team !== TEAM.PLAYER && b.team !== TEAM.ENEMY)) continue;
+      const tw = b.tw ?? (BUILD[b.kind] && BUILD[b.kind].tw) ?? 1;
+      const th = b.th ?? (BUILD[b.kind] && BUILD[b.kind].th) ?? 1;
+      for (let ty = b.ty; ty < b.ty + th; ty++)
+        for (let tx = b.tx; tx < b.tx + tw; tx++)
+          if (inMap(tx, ty)){ const i = idx(tx, ty); explored[b.team][i] = 1; visible[b.team][i] = 1; }
+    }
+
     // Start with HQ only (both sides)
 
     recomputePower();
