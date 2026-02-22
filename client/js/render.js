@@ -1683,12 +1683,20 @@
     }
   }
 
-  function drawFootprintDiamond(b, fill, stroke){
+  function drawFootprintDiamond(b, fill, stroke, scaleInv){
     const tx0=b.tx, ty0=b.ty, tx1=b.tx+b.tw, ty1=b.ty+b.th;
-    const c0=worldToScreen(tx0*TILE, ty0*TILE);
-    const c1=worldToScreen(tx1*TILE, ty0*TILE);
-    const c2=worldToScreen(tx1*TILE, ty1*TILE);
-    const c3=worldToScreen(tx0*TILE, ty1*TILE);
+    let c0=worldToScreen(tx0*TILE, ty0*TILE);
+    let c1=worldToScreen(tx1*TILE, ty0*TILE);
+    let c2=worldToScreen(tx1*TILE, ty1*TILE);
+    let c3=worldToScreen(tx0*TILE, ty1*TILE);
+    if (scaleInv != null && scaleInv !== 1) {
+      const cx = (c0.x + c1.x + c2.x + c3.x) / 4;
+      const cy = (c0.y + c1.y + c2.y + c3.y) / 4;
+      c0 = { x: cx + (c0.x - cx) * scaleInv, y: cy + (c0.y - cy) * scaleInv };
+      c1 = { x: cx + (c1.x - cx) * scaleInv, y: cy + (c1.y - cy) * scaleInv };
+      c2 = { x: cx + (c2.x - cx) * scaleInv, y: cy + (c2.y - cy) * scaleInv };
+      c3 = { x: cx + (c3.x - cx) * scaleInv, y: cy + (c3.y - cy) * scaleInv };
+    }
 
     ctx.beginPath();
     ctx.moveTo(c0.x,c0.y);
@@ -1792,7 +1800,9 @@
     ctx.restore();
   }
 
-  function drawFootprintTiles(tx, ty, tw, th, mask, okFill, badFill, okStroke, badStroke){
+  function drawFootprintTiles(tx, ty, tw, th, mask, okFill, badFill, okStroke, badStroke, scaleInv){
+    const hx = (scaleInv != null && scaleInv !== 1) ? (ISO_X * scaleInv) : ISO_X;
+    const hy = (scaleInv != null && scaleInv !== 1) ? (ISO_Y * scaleInv) : ISO_Y;
     let k=0;
     for (let y=0; y<th; y++){
       for (let x=0; x<tw; x++){
@@ -1801,10 +1811,10 @@
         k++;
         const p=worldToScreen((ttx+0.5)*TILE, (tty+0.5)*TILE);
         ctx.beginPath();
-        ctx.moveTo(p.x, p.y-ISO_Y);
-        ctx.lineTo(p.x+ISO_X, p.y);
-        ctx.lineTo(p.x, p.y+ISO_Y);
-        ctx.lineTo(p.x-ISO_X, p.y);
+        ctx.moveTo(p.x, p.y-hy);
+        ctx.lineTo(p.x+hx, p.y);
+        ctx.lineTo(p.x, p.y+hy);
+        ctx.lineTo(p.x-hx, p.y);
         ctx.closePath();
         ctx.fillStyle = blocked ? badFill : okFill;
         ctx.strokeStyle = blocked ? badStroke : okStroke;
@@ -2750,20 +2760,24 @@
       ctx.restore();
     }
 
-    if (cloudsImage && typeof state.t === "number") {
+    if (cloudsImage && typeof state.t === "number" && typeof worldToScreen === "function" && TILE) {
       if (canvas._cloudOverlay && canvas._cloudOverlay.parentNode) {
         canvas._cloudOverlay.remove();
         canvas._cloudOverlay = null;
       }
+      const worldW = MAP_W * TILE;
+      const worldH = MAP_H * TILE;
       const tw = cloudsImage.width;
       const th = cloudsImage.height;
       const isoFlatten = 0.48;
-      const cloudScreenW = Math.max(W, H) * 3.2;
+      const period = TILE * 12;
+      const driftX = (state.t * 18) % period;
+      const driftY = (state.t * 10) % period;
+      const p0 = worldToScreen(0, 0);
+      const pW = worldToScreen(period, 0);
+      const pH = worldToScreen(0, period);
+      const cloudScreenW = Math.hypot(pW.x - p0.x, pW.y - p0.y);
       const cloudScreenH = (th / tw) * cloudScreenW * isoFlatten;
-      const scrollSpeedX = 24;
-      const scrollSpeedY = 14;
-      const offsetX = (state.t * scrollSpeedX) % cloudScreenW;
-      const offsetY = (state.t * scrollSpeedY) % cloudScreenH;
       let cloudBuf = null;
       try {
         cloudBuf = document.createElement("canvas");
@@ -2772,26 +2786,25 @@
       } catch (e) { cloudBuf = null; }
       const cctx = cloudBuf ? cloudBuf.getContext("2d") : null;
       if (cctx) {
-        cctx.clearRect(0, 0, W, H);
-        const drawTiled = (alpha, scale) => {
+        cctx.fillStyle = "#ffffff";
+        cctx.fillRect(0, 0, W, H);
+        const drawLayer = (baseWx, baseWy, alpha, scale) => {
           const w = cloudScreenW * scale;
           const h = cloudScreenH * scale;
-          const phaseX = (offsetX * scale) % w;
-          const phaseY = (offsetY * scale) % h;
           cctx.globalAlpha = alpha;
-          for (let i = -1; i <= 2; i++) {
-            for (let j = -1; j <= 2; j++) {
-              const sx = -phaseX + i * w;
-              const sy = -phaseY + j * h;
-              cctx.drawImage(cloudsImage, 0, 0, tw, th, sx, sy, w, h);
+          for (let i = -1; i <= 1; i++) {
+            for (let j = -1; j <= 1; j++) {
+              const cx = baseWx + driftX + i * period;
+              const cy = baseWy + driftY + j * period;
+              const sc = worldToScreen(cx, cy);
+              cctx.drawImage(cloudsImage, 0, 0, tw, th, sc.x - w / 2, sc.y - h / 2, w, h);
             }
           }
         };
-        drawTiled(0.58, 1);
-        drawTiled(0.28, 0.85);
+        drawLayer(worldW * 0.35, worldH * 0.35, 0.58, 1);
+        drawLayer(worldW * 0.7, worldH * 0.65, 0.28, 0.85);
         cctx.globalAlpha = 1;
         ctx.save();
-        ctx.setTransform(1, 0, 0, 1, 0, 0);
         ctx.globalCompositeOperation = "multiply";
         ctx.globalAlpha = 1;
         ctx.drawImage(cloudBuf, 0, 0, W, H, 0, 0, W, H);
@@ -2819,26 +2832,21 @@
       }
 
       const z = (cam && typeof cam.zoom === "number") ? cam.zoom : 1;
-      const center = worldToScreen((tx + spec.tw/2)*TILE, (ty + spec.th/2)*TILE);
-      ctx.save();
-      ctx.translate(center.x, center.y);
-      ctx.scale(1/z, 1/z);
-      ctx.translate(-center.x, -center.y);
+      const scaleInv = z;
 
       ctx.globalAlpha=0.62;
       drawFootprintTiles(
         tx, ty, spec.tw, spec.th,
         fp.mask,
         "rgba(120,255,170,0.22)", "rgba(255,120,120,0.22)",
-        "rgba(120,255,170,0.78)", "rgba(255,120,120,0.78)"
+        "rgba(120,255,170,0.78)", "rgba(255,120,120,0.78)",
+        scaleInv
       );
       ctx.globalAlpha=1;
 
       ctx.globalAlpha=0.78;
-      drawFootprintDiamond(ghost, "rgba(0,0,0,0)", fp.blocked ? "rgba(255,120,120,0.90)" : "rgba(120,255,170,0.90)");
+      drawFootprintDiamond(ghost, "rgba(0,0,0,0)", fp.blocked ? "rgba(255,120,120,0.90)" : "rgba(120,255,170,0.90)", scaleInv);
       ctx.globalAlpha=1;
-
-      ctx.restore();
 
       const dspec = DEFENSE[kind];
       if (dspec && dspec.range){
