@@ -2755,7 +2755,7 @@
       if (!overlay || overlay.parentNode !== canvas.parentNode) {
         overlay = document.createElement("canvas");
         overlay.id = "cloud-overlay";
-        overlay.style.cssText = "position:fixed;inset:0;width:100vw;height:100vh;pointer-events:none;z-index:1;display:block;mix-blend-mode:overlay;";
+        overlay.style.cssText = "position:fixed;inset:0;width:100vw;height:100vh;pointer-events:none;z-index:1;display:block;mix-blend-mode:multiply;";
         if (canvas.parentNode) canvas.parentNode.appendChild(overlay);
         canvas._cloudOverlay = overlay;
       }
@@ -2813,6 +2813,13 @@
         fp.blocked = true;
       }
 
+      const z = (cam && typeof cam.zoom === "number") ? cam.zoom : 1;
+      const center = worldToScreen((tx + spec.tw/2)*TILE, (ty + spec.th/2)*TILE);
+      ctx.save();
+      ctx.translate(center.x, center.y);
+      ctx.scale(1/z, 1/z);
+      ctx.translate(-center.x, -center.y);
+
       ctx.globalAlpha=0.62;
       drawFootprintTiles(
         tx, ty, spec.tw, spec.th,
@@ -2825,6 +2832,8 @@
       ctx.globalAlpha=0.78;
       drawFootprintDiamond(ghost, "rgba(0,0,0,0)", fp.blocked ? "rgba(255,120,120,0.90)" : "rgba(120,255,170,0.90)");
       ctx.globalAlpha=1;
+
+      ctx.restore();
 
       const dspec = DEFENSE[kind];
       if (dspec && dspec.range){
