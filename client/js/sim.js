@@ -1588,7 +1588,7 @@
 
       const center = tileToWorldCenter(tx, ty);
       const toCenter2 = (u.x - center.x)**2 + (u.y - center.y)**2;
-      if (toCenter2 > (0.25 * TILE) ** 2) return;
+      if (toCenter2 > (0.12 * TILE) ** 2) return;
 
       const ss = (u.subSlot==null) ? 0 : (u.subSlot & 3);
       const sp = tileToWorldSubslot(tx, ty, ss);
@@ -1703,7 +1703,7 @@
 
       const center = tileToWorldCenter(tx, ty);
       const toCenter2 = (u.x - center.x)**2 + (u.y - center.y)**2;
-      if (toCenter2 > (0.25 * TILE) ** 2) return;
+      if (toCenter2 > (0.12 * TILE) ** 2) return;
 
       const ss = (u.subSlot==null) ? 0 : (u.subSlot & 3);
       const sp = tileToWorldSubslot(tx, ty, ss);
