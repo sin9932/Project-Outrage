@@ -2488,23 +2488,18 @@ function updateBlood(dt){
     return hasB;
   }
 
+  const GAMEOVER_WINDDOWN = 2.5;
+  const GAMEOVER_FADE_DUR = 1.8;
+
   function checkElimination(){
-    if (gameOver) return;
+    if (gameOver || state.gameOverPending) return;
     const enemyAlive = hasControllableAssets(TEAM.ENEMY);
     const playerAlive = hasControllableAssets(TEAM.PLAYER);
 
     if (!enemyAlive){
-      gameOver = true;
-      running = false;
-      if (__ou_ui && typeof __ou_ui.showResultOverlay === "function"){
-        __ou_ui.showResultOverlay({ victory: true, stats: state.stats, gameTime: state.t, colors: state.colors, bgm: BGM, victoryBgmTracks: ASSET.music.victory });
-      } else { toast("승리!"); }
+      state.gameOverPending = { victory: true, endT: state.t + GAMEOVER_WINDDOWN };
     } else if (!playerAlive){
-      gameOver = true;
-      running = false;
-      if (__ou_ui && typeof __ou_ui.showResultOverlay === "function"){
-        __ou_ui.showResultOverlay({ victory: false, stats: state.stats, gameTime: state.t, colors: state.colors });
-      } else { toast("패배..."); }
+      state.gameOverPending = { victory: false, endT: state.t + GAMEOVER_WINDDOWN };
     }
   }
 
@@ -4867,13 +4862,15 @@ function showUnitPathFx(u){ /* disabled */ }
 
 
 function draw(){
+    const gameOverFadeAlpha = (state.gameOverFade && state.gameOverFade.dur > 0)
+      ? Math.min(1, state.gameOverFade.t / state.gameOverFade.dur) : 0;
     if (window.OURender && typeof window.OURender.draw === "function"){
       window.OURender.draw({
         canvas, ctx, cam, state, TEAM, MAP_W, MAP_H, TILE, ISO_X, ISO_Y,
         terrain, ore, explored, visible, BUILD, DEFENSE, NAME_KO, ORE_VALUE, ORE_MAX,
         treeHp,
         units, buildings, bullets, traces, impacts, fires, healMarks, flashes, casings,
-        gameOver, POWER,
+        gameOver, gameOverFadeAlpha, POWER,
         running,
         updateMoney: (__ou_ui && typeof __ou_ui.updateMoney === "function") ? __ou_ui.updateMoney : null,
         updateProdBadges,
@@ -4939,6 +4936,8 @@ function draw(){
     state.selection.clear();
     state.build.active=false; state.build.kind=null;
     if (state.stats){ state.stats.kills[0]=0; state.stats.kills[1]=0; state.stats.losses[0]=0; state.stats.losses[1]=0; state.stats.construction[0]=0; state.stats.construction[1]=0; }
+    state.gameOverPending = null;
+    state.gameOverFade = null;
     prodFIFO.barracks.length=0; prodFIFO.factory.length=0;
     prodTotal.infantry=0; prodTotal.engineer=0; prodTotal.tank=0; prodTotal.harvester=0;
     state.player.money=START_MONEY; state.enemy.money=START_MONEY;
@@ -5295,10 +5294,27 @@ function sanityCheck(){
     const dt = Math.min(0.033, (now-last)/1000);
     last=now;
 
-    if (running && !gameOver && !pauseMenuOpen){
+    if (state.gameOverFade){
+      state.gameOverFade.t += dt;
+      if (state.gameOverFade.t >= state.gameOverFade.dur){
+        gameOver = true;
+        running = false;
+        const v = state.gameOverVictory;
+        if (__ou_ui && typeof __ou_ui.showResultOverlay === "function"){
+          __ou_ui.showResultOverlay({ victory: v, stats: state.stats, gameTime: state.t, colors: state.colors, bgm: BGM, victoryBgmTracks: ASSET.music.victory });
+        } else { toast(v ? "승리!" : "패배..."); }
+        state.gameOverFade = null;
+      }
+    } else if (running && !gameOver && !pauseMenuOpen){
       const speedMul = state.speedMul || 1;
       const simDt = dt * speedMul;
       state.t += simDt;
+
+      if (state.gameOverPending && state.t >= state.gameOverPending.endT){
+        state.gameOverFade = { t: 0, dur: GAMEOVER_FADE_DUR };
+        state.gameOverVictory = state.gameOverPending.victory;
+        state.gameOverPending = null;
+      }
 
       // Finalize barracks selling AFTER reverse-build animation completes
       let _needPower=false, _needElim=false;

@@ -1267,7 +1267,7 @@ function ensureBadge(btn){
         { key: "fiveMin", label: "5분 순삭", desc: "5분 만에 승리", time: 300, priority: 1 },
         { key: "engineerCaptures", label: "너희 기지 다 내꺼다요", desc: "가장 많은 적 건물 엔지니어 점령", priority: 2 },
         { key: "sniperInfantryKills", label: "안되겠소 쏩시다!", desc: "가장 많은 적 보병을 저격병/저격IFV로 처치", priority: 3 },
-        { key: "vehicleKills", label: "탱크헌터", desc: "가장 많은 적 기갑유닛 처치", priority: 4 },
+        { key: "vehicleKills", label: "탱크헌터", desc: "가장 많은 적 기갑유닛 처치", priority: 4, minVal: 2 },
         { key: "armorProduced", label: "몽땅 쓸어주마", desc: "가장 많은 기갑 공격유닛 생산", priority: 5 },
         { key: "infantryProduced", label: "고기분쇄기", desc: "가장 많은 보병 생산", priority: 6 },
         { key: "turretBuilt", label: "철의 장막", desc: "가장 많은 방어시설 건설", priority: 7 }
@@ -1280,14 +1280,21 @@ function ensureBadge(btn){
           let val = 0, winner = null;
           if (it.time){
             if (gameTime <= it.time){
-              winner = victory ? "player" : "computer";
-              val = Math.floor(gameTime);
+              if (it.time === 180){
+                winner = victory ? "player" : "computer";
+                val = Math.floor(gameTime);
+              } else if (it.time === 300 && gameTime > 180){
+                winner = victory ? "player" : "computer";
+                val = Math.floor(gameTime);
+              }
             }
           } else {
             const pv = (m[it.key] && m[it.key][P]) || 0;
             const ev = (m[it.key] && m[it.key][E]) || 0;
             if (pv > ev){ winner = "player"; val = pv; }
             else if (ev > pv){ winner = "computer"; val = ev; }
+            const minV = it.minVal || 1;
+            if (winner && val < minV) winner = null;
           }
           if (winner) items.push({ label: it.label, desc: it.desc, val, time: !!it.time, winner, priority: it.priority });
         }

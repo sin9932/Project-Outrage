@@ -2646,7 +2646,7 @@
       terrain, ore, explored, visible, BUILD, DEFENSE, NAME_KO,
       treeHp,
       units, buildings, bullets, traces, impacts, fires, healMarks, flashes, casings,
-      gameOver, POWER,
+      gameOver, gameOverFadeAlpha = 0, POWER,
       smokeWaves, smokePuffs, dustPuffs, dmgSmokePuffs, bloodStains, bloodPuffs,
       updateMoney, updateProdBadges,
       inMap, idx, tileToWorldCenter, worldToScreen,
@@ -3375,16 +3375,13 @@
       ctx.fillRect(r.x0,r.y0,r.x1-r.x0,r.y1-r.y0);
     }
 
-    if (gameOver){
-      ctx.fillStyle="rgba(0,0,0,0.55)";
+    if (gameOverFadeAlpha > 0){
+      ctx.fillStyle = "rgba(0,0,0," + gameOverFadeAlpha + ")";
       ctx.fillRect(0,0,W,H);
-      ctx.fillStyle="#e6eef7";
-      ctx.font="bold 44px system-ui";
-      const msg="GAME OVER";
-      ctx.fillText(msg, W/2-ctx.measureText(msg).width/2, H/2);
-      ctx.font="16px system-ui";
-      const sub="재시작하려면 클릭";
-      ctx.fillText(sub, W/2-ctx.measureText(sub).width/2, H/2+28);
+    }
+    if (gameOver){
+      ctx.fillStyle="rgba(0,0,0,1)";
+      ctx.fillRect(0,0,W,H);
     }
   }
 
