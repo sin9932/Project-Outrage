@@ -305,7 +305,17 @@ function fitMini() {
   state.attackEvents = [];
   state.attackCycle = 0;
   state.alertFx = [];
-  state.stats = { kills: { 0: 0, 1: 0 }, losses: { 0: 0, 1: 0 }, construction: { 0: 0, 1: 0 } };
+  state.stats = {
+    kills: { 0: 0, 1: 0 }, losses: { 0: 0, 1: 0 }, construction: { 0: 0, 1: 0 },
+    mvp: {
+      infantryProduced: { 0: 0, 1: 0 },
+      vehicleKills: { 0: 0, 1: 0 },
+      armorProduced: { 0: 0, 1: 0 },
+      sniperInfantryKills: { 0: 0, 1: 0 },
+      turretBuilt: { 0: 0, 1: 0 },
+      engineerCaptures: { 0: 0, 1: 0 }
+    }
+  };
 
 
   const controlGroups = Array.from({length:10}, ()=>[]);
@@ -911,7 +921,7 @@ function buildingWorldFromTileOrigin(tx,ty,tw,th){
     }
     setBuildingOcc(b, 1);
     recomputePower();
-    if (!state._placeStartPhase && !spec.civ) recordConstruction(team);
+    if (!state._placeStartPhase && !spec.civ) recordConstruction(team, kind);
     onBuildingPlaced(b);
     try{ if (window.PO && PO.buildings && PO.buildings.onPlaced) PO.buildings.onPlaced(b, state); }catch(_e){}
     return b;
@@ -974,7 +984,7 @@ function onBuildingPlaced(b){
   // No other buildings auto-spawn units.
 }
 
-function addUnit(team, kind, x, y){
+function addUnit(team, kind, x, y, opts){
     const spec = UNIT[kind] || UNIT.infantry;
     const u = {
       type:"unit",
@@ -1038,6 +1048,7 @@ function addUnit(team, kind, x, y){
       u.turretDir = null;
     }
     units.push(u);
+    if (!(opts && opts.skipMvp)) recordProduction(team, kind);
     return u;
   }
 
@@ -1936,9 +1947,33 @@ function tryUnloadIFV(ifv){
     handleEntityDeath(target, srcId, srcTeam);
   }
 
-  function recordKill(team){ if (team != null && state.stats) state.stats.kills[team] = (state.stats.kills[team]||0) + 1; }
+  function recordKill(team, opts){
+    if (team != null && state.stats){
+      state.stats.kills[team] = (state.stats.kills[team]||0) + 1;
+      const m = state.stats.mvp;
+      if (m && opts){
+        const isVeh = opts.targetKind && ["tank","ifv","harvester"].includes(opts.targetKind);
+        const isInf = opts.targetCls==="inf" || (opts.targetKind && ["infantry","engineer","sniper"].includes(opts.targetKind));
+        if (isVeh) m.vehicleKills[team] = (m.vehicleKills[team]||0) + 1;
+        if (isInf && opts.sniperKill) m.sniperInfantryKills[team] = (m.sniperInfantryKills[team]||0) + 1;
+      }
+    }
+  }
   function recordLoss(team){ if (team != null && state.stats) state.stats.losses[team] = (state.stats.losses[team]||0) + 1; }
-  function recordConstruction(team){ if (team != null && state.stats) state.stats.construction[team] = (state.stats.construction[team]||0) + 1; }
+  function recordConstruction(team, kind){
+    if (team != null && state.stats){
+      state.stats.construction[team] = (state.stats.construction[team]||0) + 1;
+      if (kind==="turret" && state.stats.mvp) state.stats.mvp.turretBuilt[team] = (state.stats.mvp.turretBuilt[team]||0) + 1;
+    }
+  }
+  function recordCapture(team){ if (team != null && state.stats && state.stats.mvp) state.stats.mvp.engineerCaptures[team] = (state.stats.mvp.engineerCaptures[team]||0) + 1; }
+  function recordProduction(team, kind){
+    if (team != null && state.stats && state.stats.mvp){
+      const m = state.stats.mvp;
+      if (["infantry","engineer","sniper"].includes(kind)) m.infantryProduced[team] = (m.infantryProduced[team]||0) + 1;
+      if (["tank","ifv"].includes(kind)) m.armorProduced[team] = (m.armorProduced[team]||0) + 1;
+    }
+  }
 
   function handleEntityDeath(ent, srcId=null, srcTeam=null){
     if (!ent || !ent.alive) return;
@@ -1950,7 +1985,10 @@ function tryUnloadIFV(ifv){
       return;
     }
 
-    recordKill(srcTeam);
+    const killer = srcId ? getEntityById(srcId) : null;
+    const sniperKill = killer && (killer.kind==="sniper" || (killer.kind==="ifv" && killer.passKind==="sniper"));
+    const targetCls = UNIT[ent.kind]?.cls;
+    recordKill(srcTeam, { targetKind: ent.kind, targetCls, sniperKill });
     recordLoss(ent.team);
 
     // Unit death
@@ -1974,7 +2012,7 @@ function tryUnloadIFV(ifv){
   function destroyBuilding(b, cause={}){
     if (!b || !b.alive) return;
 
-    recordKill(cause.srcTeam);
+    recordKill(cause.srcTeam, { targetKind: b.kind, targetCls: null, sniperKill: false });
     recordLoss(b.team);
 
     // 1) Evac infantry FIRST (needs the footprint while it's still logically present)
@@ -3022,7 +3060,7 @@ function _ou_collectPlayerProdHeads(){
         sp = findSpawnPointNear(b, kind, {ignoreUnits:true});
       }
       if (!sp) return null; // no valid spawn point found
-      const u = addUnit(team, kind, sp.x, sp.y);
+      const u = addUnit(team, kind, sp.x, sp.y, { skipMvp: true });
       u.hp = Math.max(1, u.hpMax*hpFrac);
       return u;
     };
@@ -3109,6 +3147,7 @@ const refund = Math.floor((COST[b.kind]||0) * 0.5);
       enqueueEcon({ type:"sellByIdAny", id: b.id });
     }
 
+    recordCapture(engineer.team);
     recomputePower();
     checkElimination();
     engineer.alive=false;

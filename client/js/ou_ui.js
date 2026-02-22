@@ -1189,12 +1189,13 @@ function ensureBadge(btn){
       const titleEl = document.getElementById("resultTitle");
       const timeEl = document.getElementById("resultTime");
       const tbody = document.getElementById("resultTableBody");
+      const mvpEl = document.getElementById("resultMvp");
       const continueBtn = document.getElementById("resultContinue");
       if (!overlay || !tbody) return;
 
       const victory = !!env.victory;
       const victoryBgmTracks = Array.isArray(env.victoryBgmTracks) ? env.victoryBgmTracks : [];
-      const stats = env.stats || { kills: {}, losses: {}, construction: {} };
+      const stats = env.stats || { kills: {}, losses: {}, construction: {}, mvp: {} };
       const gameTime = typeof env.gameTime === "number" ? env.gameTime : 0;
       const colors = env.colors || { player: "#4a90e2", enemy: "#e25a4a" };
 
@@ -1260,6 +1261,50 @@ function ensureBadge(btn){
           });
         });
       });
+
+      const mvpList = [
+        { key: "infantryProduced", label: "고기분쇄기", desc: "가장 많은 보병 생산" },
+        { key: "vehicleKills", label: "탱크헌터", desc: "가장 많은 적 기갑유닛 처치" },
+        { key: "armorProduced", label: "몽땅 쓸어주마", desc: "가장 많은 기갑 공격유닛 생산" },
+        { key: "sniperInfantryKills", label: "사일런트 킬러", desc: "가장 많은 적 보병을 저격병/저격IFV로 처치" },
+        { key: "turretBuilt", label: "철의 장막", desc: "가장 많은 방어시설 건설" },
+        { key: "engineerCaptures", label: "너희 기지 다 내꺼다요", desc: "가장 많은 적 건물 엔지니어 점령" },
+        { key: "cupRamen", label: "컵라면 뚝딱!", desc: "3분 만에 승리", time: 180 },
+        { key: "fiveMin", label: "5분 순삭", desc: "5분 만에 승리", time: 300 }
+      ];
+      if (mvpEl){
+        const m = stats.mvp || {};
+        const P = 0, E = 1;
+        const items = [];
+        for (const it of mvpList){
+          let val = 0, winner = null;
+          if (it.time){
+            if (gameTime <= it.time){
+              winner = victory ? "player" : "computer";
+              val = Math.floor(gameTime);
+            }
+          } else {
+            const pv = (m[it.key] && m[it.key][P]) || 0;
+            const ev = (m[it.key] && m[it.key][E]) || 0;
+            if (pv > ev){ winner = "player"; val = pv; }
+            else if (ev > pv){ winner = "computer"; val = ev; }
+          }
+          if (winner) items.push({ label: it.label, desc: it.desc, val, time: !!it.time, winner });
+        }
+        const fmtVal = (x)=>{
+          if (x.time){
+            const mm = Math.floor(x.val / 60), s = x.val % 60;
+            return mm + ":" + String(s).padStart(2, "0");
+          }
+          return x.val.toLocaleString();
+        };
+        const winnerName = (w)=> w === "player" ? "플레이어" : "컴퓨터";
+        const winnerColor = (w)=> w === "player" ? (colors.player || "#4a90e2") : (colors.enemy || "#e25a4a");
+        mvpEl.innerHTML = items.length ? "<div class=\"result-mvp-title\">MVP</div>" + items.map(x =>
+          `<div class="result-mvp-item"><span class="mvp-label">${x.label}</span><span class="mvp-winner" style="color:${winnerColor(x.winner)}">${winnerName(x.winner)}</span><span class="mvp-val">${fmtVal(x)}</span><span class="mvp-desc">${x.desc}</span></div>`
+        ).join("") : "";
+        mvpEl.style.display = items.length ? "block" : "none";
+      }
 
       if (continueBtn && !showResultOverlay._bound){
         showResultOverlay._bound = true;

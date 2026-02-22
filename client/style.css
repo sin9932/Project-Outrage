@@ -383,6 +383,25 @@
   z-index:1;
 }
 .result-overlay .result-table td:nth-child(n+2){ text-align:right; }
+.result-overlay .result-mvp{
+  margin-top:16px; padding-top:14px;
+  border-top:1px solid rgba(255,210,110,.25);
+  display:none;
+}
+.result-overlay .result-mvp-title{
+  font-size:14px; font-weight:700; color:#ffdca8;
+  margin-bottom:10px;
+}
+.result-overlay .result-mvp-item{
+  display:flex; align-items:center; gap:10px;
+  padding:6px 0; font-size:12px;
+  border-bottom:1px solid rgba(255,255,255,.06);
+}
+.result-overlay .result-mvp-item:last-child{ border-bottom:none; }
+.result-overlay .mvp-label{ font-weight:700; color:#ffcc66; min-width:140px; }
+.result-overlay .mvp-winner{ font-weight:700; min-width:56px; }
+.result-overlay .mvp-val{ font-weight:700; color:#7fff7f; min-width:50px; text-align:right; }
+.result-overlay .mvp-desc{ font-size:11px; opacity:.85; }
 .result-overlay .result-footer{
   margin-top:16px; display:flex; justify-content:flex-end;
 }
