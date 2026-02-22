@@ -1582,6 +1582,7 @@
       if (u.target!=null) return;
       const ot = u.order && u.order.type;
       if (ot!=="idle" && ot!=="guard") return;
+      if (((u.id + (Math.floor((state.t || 0) * 120) | 0)) % 2) !== 0) return;
 
       const tx = tileOfX(u.x), ty = tileOfY(u.y);
       if (!inMap(tx,ty)) return;
@@ -1589,6 +1590,14 @@
       const center = tileToWorldCenter(tx, ty);
       const toCenter2 = (u.x - center.x)**2 + (u.y - center.y)**2;
       if (toCenter2 > (0.12 * TILE) ** 2) return;
+
+      const i = idx(tx, ty);
+      if (occInf && occInf[i] > INF_SLOT_MAX) {
+        u.x = center.x; u.y = center.y;
+        u.vx = 0; u.vy = 0;
+        u.holdPos = true;
+        return;
+      }
 
       const ss = (u.subSlot==null) ? 0 : (u.subSlot & 3);
       const sp = tileToWorldSubslot(tx, ty, ss);
@@ -1697,6 +1706,7 @@
       if (u.target!=null) return;
       const ot = u.order && u.order.type;
       if (ot!=="idle" && ot!=="guard") return;
+      if (((u.id + (Math.floor((state.t || 0) * 120) | 0)) % 2) !== 0) return;
 
       const tx = tileOfX(u.x), ty = tileOfY(u.y);
       if (!inMap(tx,ty)) return;
@@ -1704,6 +1714,14 @@
       const center = tileToWorldCenter(tx, ty);
       const toCenter2 = (u.x - center.x)**2 + (u.y - center.y)**2;
       if (toCenter2 > (0.12 * TILE) ** 2) return;
+
+      const i = idx(tx, ty);
+      if (occInf && occInf[i] > INF_SLOT_MAX) {
+        u.x = center.x; u.y = center.y;
+        u.vx = 0; u.vy = 0;
+        u.holdPos = true;
+        return;
+      }
 
       const ss = (u.subSlot==null) ? 0 : (u.subSlot & 3);
       const sp = tileToWorldSubslot(tx, ty, ss);
