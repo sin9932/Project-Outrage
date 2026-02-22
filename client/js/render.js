@@ -2656,6 +2656,13 @@
 
     const W=canvas.width, H=canvas.height;
     ctx.clearRect(0,0,W,H);
+
+    if (!document.body.classList.contains("started")) {
+      ctx.fillStyle = "#0d0d0d";
+      ctx.fillRect(0, 0, W, H);
+      return;
+    }
+
     if (typeof updateMoney === "function") updateMoney(state.player.money);
     if (typeof updateProdBadges === "function") updateProdBadges();
 
@@ -2826,7 +2833,6 @@
       }
 
       const z = (cam && typeof cam.zoom === "number") ? cam.zoom : 1;
-      const scaleInv = z;
 
       ctx.globalAlpha=0.62;
       drawFootprintTiles(
@@ -2834,12 +2840,12 @@
         fp.mask,
         "rgba(120,255,170,0.22)", "rgba(255,120,120,0.22)",
         "rgba(120,255,170,0.78)", "rgba(255,120,120,0.78)",
-        scaleInv
+        z
       );
       ctx.globalAlpha=1;
 
       ctx.globalAlpha=0.78;
-      drawFootprintDiamond(ghost, "rgba(0,0,0,0)", fp.blocked ? "rgba(255,120,120,0.90)" : "rgba(120,255,170,0.90)", scaleInv);
+      drawFootprintDiamond(ghost, "rgba(0,0,0,0)", fp.blocked ? "rgba(255,120,120,0.90)" : "rgba(120,255,170,0.90)");
       ctx.globalAlpha=1;
 
       const dspec = DEFENSE[kind];
