@@ -482,7 +482,7 @@ function getBaseBuildTime(kind){
   const BUILD = {
     // height levels: 0 = flat, 1 = low, 2 = medium, 3 = tall
     // vision: world units
-    hq:       { hLevel:3, tw:5, th:5, hp:3000, vision:1100, provideR: 16 * TILE },
+    hq:       { hLevel:3, tw:5, th:5, hp:3000, vision:1100, provideR: 10 * TILE },
     power:    { hLevel:2, tw:2, th:2, hp:750,  vision:680,  provideR: 4 * TILE },
     refinery: { hLevel:2, tw:4, th:3, hp:1000, vision:820,  provideR: 5.5 * TILE },
     factory:  { hLevel:2, tw:3, th:4, hp:1000, vision:800,  provideR: 5.5 * TILE },

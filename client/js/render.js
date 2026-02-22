@@ -319,6 +319,7 @@
       .catch(() => loadImage(CLOUDS_IMAGE_URL_JPG).then(img => { cloudsImage = img; }).catch(() => {}));
   })();
 
+  const TERRAIN_TILE_SCALE = 1.28;
   function drawTiledGidAt(ctx, gid, centerX, centerY, zoom, tileWorldSize) {
     if (!fgTmj || !gid) return;
     const raw = gid & 0x1FFFFFFF;
@@ -340,8 +341,8 @@
     const sy = ts.margin + row * (ts.th + ts.spacing);
     const scaleX = (tileWorldSize * (zoom || 1)) / ts.tw;
     const scaleY = ((tileWorldSize / 2) * (zoom || 1)) / ts.th;
-    const dw = ts.tw * scaleX;
-    const dh = ts.th * scaleY;
+    const dw = ts.tw * scaleX * (TERRAIN_TILE_SCALE || 1);
+    const dh = ts.th * scaleY * (TERRAIN_TILE_SCALE || 1);
     const dx = centerX - dw / 2;
     const dy = centerY - dh / 2;
     ctx.drawImage(ts.img, sx, sy, ts.tw, ts.th, dx, dy, dw, dh);
@@ -2765,18 +2766,15 @@
         canvas._cloudOverlay.remove();
         canvas._cloudOverlay = null;
       }
+      const z = (cam && typeof cam.zoom === "number") ? cam.zoom : 1;
       const worldW = MAP_W * TILE;
       const worldH = MAP_H * TILE;
       const tw = cloudsImage.width;
       const th = cloudsImage.height;
       const isoFlatten = 0.48;
-      const period = TILE * 12;
-      const driftX = (state.t * 18) % period;
-      const driftY = (state.t * 10) % period;
-      const p0 = worldToScreen(0, 0);
-      const pW = worldToScreen(period, 0);
-      const pH = worldToScreen(0, period);
-      const cloudScreenW = Math.hypot(pW.x - p0.x, pW.y - p0.y);
+      const driftX = (state.t * 18) % (TILE * 12);
+      const driftY = (state.t * 10) % (TILE * 12);
+      const cloudScreenW = Math.max(W, H) * 3.2 * z;
       const cloudScreenH = (th / tw) * cloudScreenW * isoFlatten;
       let cloudBuf = null;
       try {
@@ -2786,23 +2784,17 @@
       } catch (e) { cloudBuf = null; }
       const cctx = cloudBuf ? cloudBuf.getContext("2d") : null;
       if (cctx) {
-        cctx.fillStyle = "#ffffff";
-        cctx.fillRect(0, 0, W, H);
-        const drawLayer = (baseWx, baseWy, alpha, scale) => {
-          const w = cloudScreenW * scale;
-          const h = cloudScreenH * scale;
-          cctx.globalAlpha = alpha;
-          for (let i = -1; i <= 1; i++) {
-            for (let j = -1; j <= 1; j++) {
-              const cx = baseWx + driftX + i * period;
-              const cy = baseWy + driftY + j * period;
-              const sc = worldToScreen(cx, cy);
-              cctx.drawImage(cloudsImage, 0, 0, tw, th, sc.x - w / 2, sc.y - h / 2, w, h);
-            }
-          }
-        };
-        drawLayer(worldW * 0.35, worldH * 0.35, 0.58, 1);
-        drawLayer(worldW * 0.7, worldH * 0.65, 0.28, 0.85);
+        cctx.clearRect(0, 0, W, H);
+        const cx1 = worldW * 0.35 + driftX;
+        const cy1 = worldH * 0.35 + driftY;
+        const p1 = worldToScreen(cx1, cy1);
+        cctx.globalAlpha = 0.58;
+        cctx.drawImage(cloudsImage, 0, 0, tw, th, p1.x - cloudScreenW / 2, p1.y - cloudScreenH / 2, cloudScreenW, cloudScreenH);
+        const cx2 = worldW * 0.7 - driftX * 0.6;
+        const cy2 = worldH * 0.65 - driftY * 0.6;
+        const p2 = worldToScreen(cx2, cy2);
+        cctx.globalAlpha = 0.28;
+        cctx.drawImage(cloudsImage, 0, 0, tw, th, p2.x - (cloudScreenW * 0.85) / 2, p2.y - (cloudScreenH * 0.85) / 2, cloudScreenW * 0.85, cloudScreenH * 0.85);
         cctx.globalAlpha = 1;
         ctx.save();
         ctx.globalCompositeOperation = "multiply";
