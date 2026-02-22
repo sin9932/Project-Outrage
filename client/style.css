@@ -390,18 +390,48 @@
 }
 .result-overlay .result-mvp-title{
   font-size:14px; font-weight:700; color:#ffdca8;
-  margin-bottom:10px;
+  margin-bottom:12px;
 }
-.result-overlay .result-mvp-item{
-  display:flex; align-items:center; gap:10px;
-  padding:6px 0; font-size:12px;
-  border-bottom:1px solid rgba(255,255,255,.06);
+.result-overlay .result-mvp-cards{
+  display:flex; flex-wrap:wrap; gap:10px;
+  justify-content:center;
 }
-.result-overlay .result-mvp-item:last-child{ border-bottom:none; }
-.result-overlay .mvp-label{ font-weight:700; color:#ffcc66; min-width:140px; }
-.result-overlay .mvp-winner{ font-weight:700; min-width:56px; }
-.result-overlay .mvp-val{ font-weight:700; color:#7fff7f; min-width:50px; text-align:right; }
-.result-overlay .mvp-desc{ font-size:11px; opacity:.85; }
+.result-overlay .mvp-card{
+  flex:1 1 100px; min-width:90px; max-width:130px;
+  padding:12px 10px;
+  border-radius:10px;
+  border:2px solid var(--mvp-color, rgba(255,210,110,.5));
+  background:linear-gradient(180deg, rgba(30,20,15,.95), rgba(15,10,8,.98));
+  box-shadow:0 0 12px var(--mvp-color),
+             inset 0 0 0 1px rgba(255,255,255,.08);
+  text-align:center;
+  transition:transform .2s, box-shadow .2s;
+}
+.result-overlay .mvp-card.mvp-card-top{
+  box-shadow:0 0 24px var(--mvp-color),
+             0 0 12px var(--mvp-color),
+             inset 0 0 0 1px rgba(255,255,255,.12);
+  transform:scale(1.02);
+}
+.result-overlay .mvp-card-title{
+  font-size:11px; font-weight:700; color:#ffdca8;
+  margin-bottom:4px; line-height:1.2;
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+.result-overlay .mvp-card-winner{
+  font-size:10px; font-weight:600;
+  color:var(--mvp-color);
+  margin-bottom:6px;
+}
+.result-overlay .mvp-card-val{
+  font-size:22px; font-weight:800; color:#fff;
+  text-shadow:0 0 6px var(--mvp-color);
+  margin-bottom:4px;
+}
+.result-overlay .mvp-card-desc{
+  font-size:9px; color:rgba(255,255,255,.75);
+  line-height:1.25;
+}
 .result-overlay .result-footer{
   margin-top:16px; display:flex; justify-content:flex-end;
 }

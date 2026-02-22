@@ -1263,14 +1263,14 @@ function ensureBadge(btn){
       });
 
       const mvpList = [
-        { key: "infantryProduced", label: "고기분쇄기", desc: "가장 많은 보병 생산" },
-        { key: "vehicleKills", label: "탱크헌터", desc: "가장 많은 적 기갑유닛 처치" },
-        { key: "armorProduced", label: "몽땅 쓸어주마", desc: "가장 많은 기갑 공격유닛 생산" },
-        { key: "sniperInfantryKills", label: "안되겠소 쏩시다!", desc: "가장 많은 적 보병을 저격병/저격IFV로 처치" },
-        { key: "turretBuilt", label: "철의 장막", desc: "가장 많은 방어시설 건설" },
-        { key: "engineerCaptures", label: "너희 기지 다 내꺼다요", desc: "가장 많은 적 건물 엔지니어 점령" },
-        { key: "cupRamen", label: "컵라면 뚝딱!", desc: "3분 만에 승리", time: 180 },
-        { key: "fiveMin", label: "5분 순삭", desc: "5분 만에 승리", time: 300 }
+        { key: "cupRamen", label: "컵라면 뚝딱!", desc: "3분 만에 승리", time: 180, priority: 0 },
+        { key: "fiveMin", label: "5분 순삭", desc: "5분 만에 승리", time: 300, priority: 1 },
+        { key: "engineerCaptures", label: "너희 기지 다 내꺼다요", desc: "가장 많은 적 건물 엔지니어 점령", priority: 2 },
+        { key: "sniperInfantryKills", label: "안되겠소 쏩시다!", desc: "가장 많은 적 보병을 저격병/저격IFV로 처치", priority: 3 },
+        { key: "vehicleKills", label: "탱크헌터", desc: "가장 많은 적 기갑유닛 처치", priority: 4 },
+        { key: "armorProduced", label: "몽땅 쓸어주마", desc: "가장 많은 기갑 공격유닛 생산", priority: 5 },
+        { key: "infantryProduced", label: "고기분쇄기", desc: "가장 많은 보병 생산", priority: 6 },
+        { key: "turretBuilt", label: "철의 장막", desc: "가장 많은 방어시설 건설", priority: 7 }
       ];
       if (mvpEl){
         const m = stats.mvp || {};
@@ -1289,8 +1289,10 @@ function ensureBadge(btn){
             if (pv > ev){ winner = "player"; val = pv; }
             else if (ev > pv){ winner = "computer"; val = ev; }
           }
-          if (winner) items.push({ label: it.label, desc: it.desc, val, time: !!it.time, winner });
+          if (winner) items.push({ label: it.label, desc: it.desc, val, time: !!it.time, winner, priority: it.priority });
         }
+        items.sort((a,b)=> (a.priority||99) - (b.priority||99));
+        const displayItems = items.slice(0, 4);
         const fmtVal = (x)=>{
           if (x.time){
             const mm = Math.floor(x.val / 60), s = x.val % 60;
@@ -1300,10 +1302,10 @@ function ensureBadge(btn){
         };
         const winnerName = (w)=> w === "player" ? "플레이어" : "컴퓨터";
         const winnerColor = (w)=> w === "player" ? (colors.player || "#4a90e2") : (colors.enemy || "#e25a4a");
-        mvpEl.innerHTML = items.length ? "<div class=\"result-mvp-title\">MVP</div>" + items.map(x =>
-          `<div class="result-mvp-item"><span class="mvp-label">${x.label}</span><span class="mvp-winner" style="color:${winnerColor(x.winner)}">${winnerName(x.winner)}</span><span class="mvp-val">${fmtVal(x)}</span><span class="mvp-desc">${x.desc}</span></div>`
-        ).join("") : "";
-        mvpEl.style.display = items.length ? "block" : "none";
+        mvpEl.innerHTML = displayItems.length ? "<div class=\"result-mvp-title\">MVP</div><div class=\"result-mvp-cards\">" + displayItems.map((x,i)=>
+          `<div class="mvp-card ${i===0 ? "mvp-card-top" : ""}" style="--mvp-color:${winnerColor(x.winner)}"><div class="mvp-card-title">${x.label}</div><div class="mvp-card-winner">${winnerName(x.winner)}</div><div class="mvp-card-val">${fmtVal(x)}</div><div class="mvp-card-desc">${x.desc}</div></div>`
+        ).join("") + "</div>" : "";
+        mvpEl.style.display = displayItems.length ? "block" : "none";
       }
 
       if (continueBtn && !showResultOverlay._bound){
