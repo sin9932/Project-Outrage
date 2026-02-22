@@ -2707,12 +2707,6 @@
     (function drawFogLayer(){
       if (typeof getFogEnabled === "function" && !getFogEnabled()) return;
 
-      let hasExplored = false;
-      for (let i = 0; i < MAP_W * MAP_H; i++) {
-        if (explored[TEAM.PLAYER][i]) { hasExplored = true; break; }
-      }
-      if (!hasExplored) return;
-
       const W = canvas.width, H = canvas.height;
       if (!canvas._fogBuf || canvas._fogBuf.width !== W || canvas._fogBuf.height !== H) {
         canvas._fogBuf = document.createElement("canvas");
