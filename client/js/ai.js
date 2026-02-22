@@ -437,6 +437,12 @@
       inf.sort((a, b) => dist2(ai.rally.x, ai.rally.y, a.x, a.y) - dist2(ai.rally.x, ai.rally.y, b.x, b.y));
       return inf[0];
     }
+    function aiPickNearestPlayerInfantryTo(unit) {
+      const inf = units.filter(u => u.alive && u.team === TEAM.PLAYER && (UNIT[u.kind] && UNIT[u.kind].cls === "inf") && !u.inTransport && !u.hidden);
+      if (!inf.length) return null;
+      inf.sort((a, b) => dist2(unit.x, unit.y, a.x, a.y) - dist2(unit.x, unit.y, b.x, b.y));
+      return inf[0];
+    }
 
     function aiThreatNearBase() {
       const centers = aiEnemyCenters();
@@ -685,14 +691,16 @@
           }
         }
 
-        // Sniper-IFV: hunt player infantry then kite away to rally
+        // Sniper-IFV: 플레이어 보병 있으면 적극 사냥, 없으면 기지 방어
         if (ifv.passKind === "sniper") {
-          const prey = aiPickPlayerInfantry();
+          const prey = aiPickNearestPlayerInfantryTo(ifv);
           if (prey) {
-            ifv.order = { type: "attackmove", x: prey.x, y: prey.y };
+            ifv.order = { type: "attackmove", x: prey.x, y: prey.y, tx: null, ty: null };
+            ifv.target = null;
           } else {
-            // default to rally/pressure toward center
-            ifv.order = { type: "move", x: ai.rally.x, y: ai.rally.y };
+            const dp = aiDefendPoint();
+            ifv.order = { type: "move", x: dp.x, y: dp.y, tx: null, ty: null };
+            ifv.target = null;
           }
         }
       }
@@ -830,9 +838,39 @@
 
       // Emergency defense: if base took a hit, pull nearby units to defend.
       aiEmergencyDefend(eUnits);
+
+      // 적 저격병: 항상 먼저 적용 (rushDefense 등 early return 전). 플레이어 보병 있으면 사냥, 없으면 기지 방어.
+      const playerHasInf = playerInf.length > 0;
+      if (snipers.length) {
+        const dp = aiDefendPoint();
+        if (playerHasInf) {
+          for (const s of snipers) {
+            if (s.inTransport) continue;
+            const prey = aiPickNearestPlayerInfantryTo(s);
+            if (prey) {
+              s.order = { type: "attack", x: s.x, y: s.y, tx: null, ty: null, manual: true, allowAuto: false, lockTarget: true };
+              s.target = prey.id;
+              setPathTo(s, prey.x, prey.y);
+              s.repathCd = 0.25;
+            } else {
+              s.order = { type: "move", x: dp.x, y: dp.y, tx: null, ty: null };
+              setPathTo(s, dp.x, dp.y);
+              s.repathCd = 0.35;
+            }
+          }
+        } else {
+          for (const s of snipers) {
+            if (s.inTransport) continue;
+            s.order = { type: "move", x: dp.x, y: dp.y, tx: null, ty: null };
+            setPathTo(s, dp.x, dp.y);
+            s.repathCd = 0.35;
+          }
+        }
+      }
+
       if (rushDefense){
         ai.mode = "defend";
-        aiCommandMoveToRally(eUnits.filter(u => u.kind !== "harvester"));
+        aiCommandMoveToRally(eUnits.filter(u => u.kind !== "harvester" && u.kind !== "sniper"));
       }
 
       // Vehicle crush response: if harvester/tank is attacked by infantry, force-move into them.
@@ -856,7 +894,7 @@
       // If we're countering a heavy infantry rush before factory, stay defensive.
       if (infRushThreat && !hasFac){
         ai.mode = "defend";
-        aiCommandMoveToRally(eUnits.filter(u => u.kind !== "harvester"));
+        aiCommandMoveToRally(eUnits.filter(u => u.kind !== "harvester" && u.kind !== "sniper"));
         return;
       }
 
@@ -879,7 +917,7 @@
         } else {
           ai.nextWave = state.t + rnd(8, 14) / (ai.apmMul || 1);
           const tanks = [], ifvs = [];
-          for (const u of eUnitsAll) { if (u.kind === "tank") tanks.push(u); else if (u.kind === "ifv" && u.passengerId) ifvs.push(u); }
+          for (const u of eUnitsAll) { if (u.kind === "tank") tanks.push(u); else if (u.kind === "ifv" && u.passengerId && u.passKind !== "sniper") ifvs.push(u); }
           if (tanks.length >= 3) {
             const pack = [];
             tanks.sort((a, b) => a.id - b.id);
@@ -912,7 +950,7 @@
       }
 
       // Army behavior: rally -> attack waves, plus engineer harassment (combat/engs/snipers/idleIFVs from single pass above)
-      const playerHasInf = playerInf.length > 0;
+      // playerHasInf already defined above (sniper block)
 
       // Engineer harassment (value-aware) - keep trying to capture high-value and sell.
       if (engs.length && state.t > 140 && combat.length >= 4) {
@@ -1082,38 +1120,7 @@
         const target = aiPickPlayerTarget();
         if (target) aiCommandAttackWave(combat, target);
       }
-
-      // Snipers should avoid solo engagements and prefer IFV usage.
-      if (snipers.length) {
-        // If no player infantry, stay in defensive posture near rally.
-        if (!playerHasInf || idleIFVs.length > 0) {
-          const dp = aiDefendPoint();
-          for (const s of snipers) {
-            if (s.inTransport) continue;
-            s.order = { type: "move", x: dp.x, y: dp.y, tx: null, ty: null };
-            setPathTo(s, dp.x, dp.y);
-            s.repathCd = 0.35;
-          }
-        }
-        for (const s of snipers) {
-          if (s.inTransport) continue;
-          if (idleIFVs.length > 0) continue; // wait for IFV pickup
-          const prey = aiPickPlayerInfantry();
-          // Let IFVs come pick snipers up (do not chase IFVs).
-          // No IFV available: target player infantry only (may move near tanks/turrets but doesn't target them).
-          if (prey) {
-            s.order = { type: "attack", x: s.x, y: s.y, tx: null, ty: null };
-            s.target = prey.id;
-            setPathTo(s, prey.x, prey.y);
-            s.repathCd = 0.25;
-          } else {
-            // Fallback: keep near rally, do not attack harvesters.
-            s.order = { type: "move", x: ai.rally.x, y: ai.rally.y, tx: null, ty: null };
-            setPathTo(s, ai.rally.x, ai.rally.y);
-            s.repathCd = 0.35;
-          }
-        }
-      }
+      // sniper block already handled above (before rushDefense)
     }
 
     return {

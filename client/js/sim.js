@@ -1810,20 +1810,33 @@
 
     function findNearestAttackMoveTargetFor(team, wx, wy, radius, attackerKind){
       const enemyTeam = (team===TEAM.PLAYER) ? TEAM.ENEMY : TEAM.PLAYER;
+      const enemySniper = (team===TEAM.ENEMY && attackerKind==="sniper");
       let best=null, bestD=Infinity;
       const r2=radius*radius;
 
       for (const u of units){
         if (!u.alive || u.team!==enemyTeam || u.inTransport || u.hidden) continue;
         if (attackerKind==="sniper" && (u.kind==="tank" || u.kind==="harvester")) continue;
+        if (enemySniper && (UNIT[u.kind]?.cls!=="inf")) continue; // 적 저격병: 보병만 공격
         const d2=dist2(wx,wy,u.x,u.y);
         if (d2<=r2 && d2<bestD){ best=u; bestD=d2; }
       }
-      for (const b of buildings){
-        if (!b.alive || b.team!==enemyTeam) continue;
-        if (b.kind!=="turret") continue;
-        const d2=dist2(wx,wy,b.x,b.y);
-        if (d2<=r2 && d2<bestD){ best=b; bestD=d2; }
+      if (!enemySniper){
+        if (attackerKind!=="sniper"){
+          for (const b of buildings){
+            if (!b.alive || b.team!==enemyTeam || b.civ) continue;
+            if (b.attackable===false) continue;
+            const d2=dist2(wx,wy,b.x,b.y);
+            if (d2<=r2 && d2<bestD){ best=b; bestD=d2; }
+          }
+        } else {
+          for (const b of buildings){
+            if (!b.alive || b.team!==enemyTeam || b.civ) continue;
+            if (b.attackable===false || b.kind!=="turret") continue;
+            const d2=dist2(wx,wy,b.x,b.y);
+            if (d2<=r2 && d2<bestD){ best=b; bestD=d2; }
+          }
+        }
       }
       return best;
     }
@@ -2469,7 +2482,8 @@
               if (state.t < (u._nextAcquire||0)) { settleInfantryToSubslot(u, dt); continue; }
               u._nextAcquire = state.t + 0.18 + (u.id % 7) * 0.02;
               const scanR = Math.max(u.vision||0, (u.range||0));
-              const enemy = findNearestAttackMoveTargetFor(u.team, u.x, u.y, scanR);
+              const atkKind = (u.kind==="ifv" && u.passKind==="sniper") ? "sniper" : u.kind;
+              const enemy = findNearestAttackMoveTargetFor(u.team, u.x, u.y, scanR, atkKind);
               if (enemy){
                 const lock = (u.team===TEAM.ENEMY);
                 u.order={type:"attack", x:u.x, y:u.y, tx:null,ty:null, manual:lock, allowAuto:!lock, lockTarget:lock};
@@ -2489,7 +2503,8 @@
             if (u.order.type==="attackmove"){
               if (state.t >= (u._nextAcquire||0)) {
                 u._nextAcquire = state.t + 0.18 + (u.id % 7) * 0.02;
-                const enemy = findNearestAttackMoveTargetFor(u.team, u.x, u.y, u.range||0, u.kind);
+                const atkKind = (u.kind==="ifv" && u.passKind==="sniper") ? "sniper" : u.kind;
+                const enemy = findNearestAttackMoveTargetFor(u.team, u.x, u.y, u.range||0, atkKind);
                 if (enemy){
                   const lock = (u.team===TEAM.ENEMY);
                   u.order={type:"attack", x:u.x, y:u.y, tx:null,ty:null, manual:lock, allowAuto:!lock, lockTarget:lock};
@@ -2550,11 +2565,14 @@
                 u.crushTargetId = null;
               }
             }
-            const findBestOrePatch = () => {
+            const findBestOrePatch = (center) => {
               // Auto-find ore/gem patch (ore와 gem 모두 ore[] 배열에 저장됨)
               // 나무/건물 등으로 막힌 타일 제외 (isWalkableTile)
+              // center: optional {x,y} for search origin (e.g. refinery when harvester at dock)
+              const wx = (center && center.x != null) ? center.x : u.x;
+              const wy = (center && center.y != null) ? center.y : u.y;
               let best=null, bestD=Infinity;
-              const cx=tileOfX(u.x), cy=tileOfY(u.y);
+              const cx=tileOfX(wx), cy=tileOfY(wy);
 
               // 1) Nearby scan (cheap)
               const R=18;
@@ -2567,7 +2585,7 @@
                   if (ore[ii]<=0) continue; // ore/gem 공통: ore[]에 양 저장 (terrain 무관)
                   const pTile=tileToWorldCenter(tx,ty);
                   const px=pTile.x, py=pTile.y;
-                  const d=dist2(u.x,u.y,px,py);
+                  const d=dist2(wx,wy,px,py);
                   if (d<bestD){ bestD=d; best={tx,ty}; }
                 }
               }
@@ -2581,7 +2599,7 @@
                     if (ore[ii]<=0) continue;
                     const pTile=tileToWorldCenter(tx,ty);
                     const px=pTile.x, py=pTile.y;
-                    const d=dist2(u.x,u.y,px,py);
+                    const d=dist2(wx,wy,px,py);
                     if (d<bestD){ bestD=d; best={tx,ty}; }
                   }
                 }
@@ -2655,22 +2673,29 @@
                   u.repathCd=0.25;
                 } else {
                   // After deposit: immediately resume auto-harvest; retry a few times before idle.
-                  const best = findBestOrePatch();
+                  // Refinery-on-ore: harvester at dock may not see ore (blocked by building); try refinery center.
+                  let best = findBestOrePatch();
+                  if (!best && ref) best = findBestOrePatch({x:ref.x, y:ref.y});
                   if (best){
                     u.order={type:"harvest", x:u.x,y:u.y, tx:best.tx, ty:best.ty};
                     setPathTo(u, (best.tx+0.5)*TILE, (best.ty+0.5)*TILE);
                     u.repathCd=0.25;
                     u._harvestNoOreTicks = 0;
                   } else {
+                    // findBestOrePatch null: switch to harvest so harvest block can retry (seekNearbyOre, path loss recovery).
+                    // Refinery-on-ore edge case: at dock after deposit, nearby ore depleted/blocked; harvest block has better retry.
+                    const cx = tileOfX(u.x), cy = tileOfY(u.y);
+                    u.order = {type:"harvest", x:u.x, y:u.y, tx:cx, ty:cy};
+                    u.path = null; u.pathI = 0;
                     u._harvestNoOreTicks = (u._harvestNoOreTicks||0) + 1;
-                    if ((u._harvestNoOreTicks||0) >= 18){
+                    if ((u._harvestNoOreTicks||0) >= 24){
                       u.order = {type:"idle", x:u.x, y:u.y, tx:null, ty:null};
                       u.target = null;
                       u.path = null; u.pathI = 0;
                       u.manualOre = null;
                       u._harvestNoOreTicks = 0;
                     }
-                    u.repathCd = 0.10;
+                    u.repathCd = 0.12;
                   }
                 }
               }
@@ -3058,7 +3083,8 @@
     
           } else if (u.order.type==="attack"){
             const t=getEntityById(u.target);
-            if (!t || t.attackable===false || !t.alive){
+            const enemySniper = (u.team===TEAM.ENEMY && (u.kind==="sniper" || (u.kind==="ifv" && u.passKind==="sniper")));
+            if (!t || t.attackable===false || !t.alive || (enemySniper && (BUILD[t.kind] || (UNIT[t.kind]?.cls==="veh")))){
               u.target=null;
               if (u.guard && u.guard.on && u.guardFrom){
                 u.order={type:"guard_return", x:u.guard.x0, y:u.guard.y0, tx:null,ty:null};

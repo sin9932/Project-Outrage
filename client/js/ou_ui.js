@@ -1193,6 +1193,7 @@ function ensureBadge(btn){
       if (!overlay || !tbody) return;
 
       const victory = !!env.victory;
+      const victoryBgmTracks = Array.isArray(env.victoryBgmTracks) ? env.victoryBgmTracks : [];
       const stats = env.stats || { kills: {}, losses: {}, construction: {} };
       const gameTime = typeof env.gameTime === "number" ? env.gameTime : 0;
       const colors = env.colors || { player: "#4a90e2", enemy: "#e25a4a" };
@@ -1263,11 +1264,26 @@ function ensureBadge(btn){
       if (continueBtn && !showResultOverlay._bound){
         showResultOverlay._bound = true;
         continueBtn.addEventListener("click", ()=>{
+          if (showResultOverlay._victoryAudio){ try{ showResultOverlay._victoryAudio.pause(); showResultOverlay._victoryAudio.src = ""; }catch(_){} }
           overlay.classList.remove("show");
           overlay.style.display = "none";
           location.reload();
         });
       }
+
+      if (victory && victoryBgmTracks.length > 0){
+        const bgm = env.bgm;
+        if (bgm && typeof bgm.stopAll === "function") bgm.stopAll();
+        const track = victoryBgmTracks[Math.floor(Math.random() * victoryBgmTracks.length)];
+        try {
+          const a = new Audio(track);
+          a.volume = (global.__bgmUserVol != null) ? global.__bgmUserVol : 0.7;
+          a.loop = true;
+          a.play().catch(()=>{});
+          showResultOverlay._victoryAudio = a;
+        } catch(_){}
+      }
+
       overlay.classList.add("show");
       overlay.style.display = "flex";
     }
