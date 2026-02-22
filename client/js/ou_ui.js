@@ -68,7 +68,7 @@ if (r.uiPowerBar && !r.__powerTipInstalled){
     t.style.pointerEvents = "none"; // avoid flicker
     t.style.padding = "6px 10px";
     t.style.borderRadius = "10px";
-    t.style.background = "rgba(0,0,0,0.75)";
+    t.style.background = "rgba(0,0,0,0.55)";
     t.style.color = "#fff";
     t.style.fontSize = "12px";
     t.style.whiteSpace = "nowrap";
@@ -288,9 +288,9 @@ if (r.uiPowerBar && !r.__powerTipInstalled){
   // Overload hint
   if (r.uiPowerFill){
     if (use >= prod){
-      r.uiPowerFill.style.background = "linear-gradient(180deg, rgba(255,190,90,0.78), rgba(140,70,20,0.78))";
+      r.uiPowerFill.style.background = "linear-gradient(180deg, rgba(255,190,90,0.58), rgba(140,70,20,0.58))";
     } else {
-      r.uiPowerFill.style.background = "linear-gradient(180deg, rgba(90,220,140,0.75), rgba(40,120,80,0.75))";
+      r.uiPowerFill.style.background = "linear-gradient(180deg, rgba(90,220,140,0.55), rgba(40,120,80,0.55))";
     }
   }
 }
@@ -1279,14 +1279,14 @@ function ensureBadge(btn){
             if (typeof bgm.stopAll === "function") bgm.stopAll();
             bgm.audio.src = track;
             bgm.audio.loop = true;
-            bgm.audio.volume = (global.__bgmUserVol != null) ? global.__bgmUserVol : 0.7;
+            bgm.audio.volume = (global.__bgmUserVol != null) ? global.__bgmUserVol : 0.5;
             bgm.audio.play().catch(()=>{});
             showResultOverlay._victoryAudio = bgm.audio;
           } catch(_){}
         } else {
           try {
             const a = new Audio(track);
-            a.volume = (global.__bgmUserVol != null) ? global.__bgmUserVol : 0.7;
+            a.volume = (global.__bgmUserVol != null) ? global.__bgmUserVol : 0.5;
             a.loop = true;
             a.play().catch(()=>{});
             showResultOverlay._victoryAudio = a;
@@ -1347,9 +1347,9 @@ function ensureBadge(btn){
             refs.repeat.textContent = (m==="one") ? "반복: 1곡" : (m==="all" ? "반복: 전체" : "반복: 없음");
           },
           setVol: (v)=>{
-            if (refs.vol) refs.vol.value = String(v ?? 0.7);
+            if (refs.vol) refs.vol.value = String(v ?? 0.5);
             if (refs.volVal){
-              const n = Number.isFinite(v) ? v : 0.7;
+              const n = Number.isFinite(v) ? v : 0.5;
               refs.volVal.textContent = String(Math.max(1, Math.min(10, Math.round(n * 10))));
             }
           },
@@ -1385,7 +1385,7 @@ function ensureBadge(btn){
 
       if (refs.vol) refs.vol.addEventListener("input", ()=>{
         const v = parseFloat(refs.vol.value);
-        if (refs.volVal) refs.volVal.textContent = String(Math.max(1, Math.min(10, Math.round((Number.isFinite(v) ? v : 0.7) * 10))));
+        if (refs.volVal) refs.volVal.textContent = String(Math.max(1, Math.min(10, Math.round((Number.isFinite(v) ? v : 0.5) * 10))));
         if (typeof env.onVol === "function") env.onVol(v);
       });
       if (refs.bright) refs.bright.addEventListener("input", ()=>{

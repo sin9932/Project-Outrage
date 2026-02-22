@@ -13,7 +13,7 @@
     const audio = new Audio();
     audio.preload = "auto";
     audio.loop = false; // we advance manually
-    audio.volume = 0.70;
+    audio.volume = 0.5;
 
     // WebAudio analyser (for EQ bars). Created on user gesture.
     let _ctx = null;
@@ -132,7 +132,7 @@
           try { audio.currentTime = 0; } catch(_e){}
           audio.play().catch(()=>{});
           state.fade.from = 0;
-          state.fade.to = (global.__bgmUserVol!=null) ? global.__bgmUserVol : 0.55;
+          state.fade.to = (global.__bgmUserVol!=null) ? global.__bgmUserVol : 0.5;
           state.fade.t = 0;
         } else {
           // finished fade in
@@ -211,7 +211,7 @@
       if (!ui) return;
       if (typeof ui.setTrack === "function") ui.setTrack(prettyName() || "(none)");
       if (typeof ui.setPlay === "function") ui.setPlay(!audio.paused);
-      if (typeof ui.setVol === "function") ui.setVol((global.__bgmUserVol!=null?global.__bgmUserVol:audio.volume));
+      if (typeof ui.setVol === "function") ui.setVol((global.__bgmUserVol!=null?global.__bgmUserVol:0.5));
       if (typeof ui.setTime === "function") ui.setTime(audio.currentTime, audio.duration);
       if (typeof ui.setShuffle === "function") ui.setShuffle(!!state.shuffle);
       if (typeof ui.setRepeat === "function") ui.setRepeat(state.repeat);
