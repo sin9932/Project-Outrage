@@ -2068,6 +2068,19 @@
     
           u._justShot = false;
     
+          // IFV weapon stats by passenger: apply early so u.range/u.dmg are correct for rest of tick (저격IFV 사정거리 = 저격병과 동일).
+          if (u.kind==="ifv"){
+            if (u.passengerId && u.passKind==="sniper"){
+              u.dmg = 125; u.range = (UNIT.sniper && UNIT.sniper.range) || 1200; u.rof = 2.20/2.0; u.hitscan = true;
+            } else if (u.passengerId && u.passKind==="infantry"){
+              u.dmg = 25; u.range = 620; u.rof = 0.55/2.0; u.hitscan = true;
+            } else if (u.passengerId && u.passKind==="engineer"){
+              u.dmg = 0; u.range = 0; u.rof = UNIT.ifv.rof; u.hitscan = true;
+            } else {
+              u.dmg = UNIT.ifv.dmg; u.range = UNIT.ifv.range; u.rof = UNIT.ifv.rof; u.hitscan = UNIT.ifv.hitscan;
+            }
+          }
+    
           // If a movement order is active, cancel any lingering firing pose
           if (u.order && (u.order.type==="move" || u.order.type==="attackmove")){ u.fireHoldT=0; u.fireDir=null; }
           // Also: if we're currently moving and we did NOT fire this tick, don't keep the firing pose.
@@ -2184,14 +2197,13 @@
             if (u.repairCd>0) u.repairCd -= dt;
           }
     
-          // IFV weapon mode switching based on passenger.
+          // IFV weapon mode switching based on passenger (dmg/range/rof already set at tick start; keep in sync for engineer repair branch).
           if (u.kind==="ifv"){
-            // Default (unloaded) stats. Needed so IFV doesn't get stuck at dmg=0 after unloading an engineer.
             u.dmg = UNIT.ifv.dmg; u.range = UNIT.ifv.range; u.rof = UNIT.ifv.rof; u.hitscan = UNIT.ifv.hitscan;
             if (u.passKind==="infantry"){
-              u.dmg = 25; u.range = 620; u.rof = 0.55/2.0; u.hitscan = true; // +10 bonus dmg, 2x ROF
+              u.dmg = 25; u.range = 620; u.rof = 0.55/2.0; u.hitscan = true;
             } else if (u.passKind==="sniper"){
-              u.dmg = 125; u.range = UNIT.sniper.range; u.rof = 2.20/2.0; u.hitscan = true;
+              u.dmg = 125; u.range = (UNIT.sniper && UNIT.sniper.range) || 1200; u.rof = 2.20/2.0; u.hitscan = true;
             } else if (u.passKind==="engineer"){
               // Engineer IFV: repairs friendly vehicles (auto + manual).
               // Rules:
@@ -2572,7 +2584,6 @@
                 u.target = ref ? ref.id : null;
               }
               if (!ref){
-                // If any refinery exists, keep working instead of stalling.
                 if (hasAnyRefinery(u.team)){
                   const best = findBestOrePatch();
                   if (best){
@@ -2580,7 +2591,9 @@
                     setPathTo(u, (best.tx+0.5)*TILE, (best.ty+0.5)*TILE);
                     u.repathCd=0.25;
                   } else {
-                    u.order.type="idle";
+                    u._harvestNoOreTicks = (u._harvestNoOreTicks||0) + 1;
+                    if ((u._harvestNoOreTicks||0) >= 6){ u.order.type="idle"; u._harvestNoOreTicks=0; }
+                    else u.repathCd = 0.2;
                   }
                 } else {
                   u.order.type="idle";
@@ -2622,18 +2635,23 @@
                   setPathTo(u, (u.manualOre.tx+0.5)*TILE, (u.manualOre.ty+0.5)*TILE);
                   u.repathCd=0.25;
                 } else {
-                  // After deposit: immediately resume auto-harvest.
+                  // After deposit: immediately resume auto-harvest; retry a few times before idle.
                   const best = findBestOrePatch();
                   if (best){
                     u.order={type:"harvest", x:u.x,y:u.y, tx:best.tx, ty:best.ty};
                     setPathTo(u, (best.tx+0.5)*TILE, (best.ty+0.5)*TILE);
                     u.repathCd=0.25;
+                    u._harvestNoOreTicks = 0;
                   } else {
-                    u.order = {type:"idle", x:u.x, y:u.y, tx:null, ty:null};
-                    u.target = null;
-                    u.path = null; u.pathI = 0;
-                    u.manualOre = null;
-                    u.repathCd = 0.10;
+                    u._harvestNoOreTicks = (u._harvestNoOreTicks||0) + 1;
+                    if ((u._harvestNoOreTicks||0) >= 6){
+                      u.order = {type:"idle", x:u.x, y:u.y, tx:null, ty:null};
+                      u.target = null;
+                      u.path = null; u.pathI = 0;
+                      u.manualOre = null;
+                      u._harvestNoOreTicks = 0;
+                    }
+                    u.repathCd = 0.12;
                   }
                 }
               }
@@ -2641,6 +2659,7 @@
             }
 
             if (u.order.type==="idle"){
+              u._harvestNoOreTicks = 0;
               // If we're on ore, resume harvesting immediately (avoid idle-stall).
               const curTx0 = tileOfX(u.x), curTy0 = tileOfY(u.y);
               if (inMap(curTx0, curTy0) && ore[idx(curTx0, curTy0)]>0){
@@ -2651,7 +2670,6 @@
                 }
                 continue;
               }
-              // If we have cargo and any refinery exists, return to it.
               if ((u.carry||0) > 0 && hasAnyRefinery(u.team)){
                 const ref = findNearestRefinery(u.team,u.x,u.y);
                 if (ref){
@@ -2668,9 +2686,6 @@
                 u.order={type:"harvest", x:u.x,y:u.y, tx:best.tx, ty:best.ty};
                 setPathTo(u, (best.tx+0.5)*TILE, (best.ty+0.5)*TILE);
                 u.repathCd=0.25;
-              } else {
-                // If a refinery exists but no ore found, keep idle but recheck next tick.
-                u.order.type = "idle";
               }
               continue;
             }
@@ -2707,14 +2722,18 @@
                 const cx = tileOfX(u.x), cy = tileOfY(u.y);
                 if (inMap(cx,cy) && ore[idx(cx,cy)]>0){
                   u.order.tx = cx; u.order.ty = cy;
+                  u._harvestNoOreTicks = 0;
                 } else {
                   const best = findBestOrePatch();
                   if (best){
                     u.order.tx=best.tx; u.order.ty=best.ty;
-                    setPathTo(u, (best.tx+0.5)*TILE, (best.ty+0.5)*TILE);
+                    if (setPathTo(u, (best.tx+0.5)*TILE, (best.ty+0.5)*TILE)) u._harvestNoOreTicks = 0;
                     u.repathCd=0.25;
                   } else {
-                    u.order.type="idle";
+                    // Don't go idle on first failure: retry for several ticks (pathfinding/race).
+                    u._harvestNoOreTicks = (u._harvestNoOreTicks||0) + 1;
+                    if ((u._harvestNoOreTicks||0) >= 8){ u.order.type="idle"; u._harvestNoOreTicks=0; }
+                    u.repathCd = 0.15;
                     continue;
                   }
                 }
@@ -2729,8 +2748,15 @@
                     u.repathCd=0.25;
                     continue;
                   }
+                  // No nearby ore: try global findBestOrePatch before giving up.
+                  const best = findBestOrePatch();
+                  if (best){
+                    u.order.tx=best.tx; u.order.ty=best.ty;
+                    setPathTo(u, (best.tx+0.5)*TILE, (best.ty+0.5)*TILE);
+                    u.repathCd=0.25;
+                    continue;
+                  }
                 }
-                // No nearby ore: deposit if we have cargo, otherwise idle.
                 if (u.carry>0){
                   const ref=findNearestRefinery(u.team,u.x,u.y);
                   if (ref){
@@ -2741,12 +2767,8 @@
                     u.repathCd=0.25;
                   } else {
                     u._needsRef = true;
-                    // If any refinery exists, keep harvesting instead of stalling.
-                    if (hasAnyRefinery(u.team)){
-                      u.order.type="harvest";
-                    } else {
-                      u.order.type="idle";
-                    }
+                    if (hasAnyRefinery(u.team)) u.order.type="harvest";
+                    else u.order.type="idle";
                   }
                 } else {
                   u.order.type="idle";
@@ -2785,7 +2807,7 @@
                     u.order.type="idle";
                   }
                 } else if (ore[ii] <= 0){
-                  // Current tile depleted: keep mining nearby ore if any.
+                  // Current tile depleted: nearby ore, then global ore, then return or idle.
                   const n=seekNearbyOre();
                   if (n){
                     u.order.tx=n.tx; u.order.ty=n.ty;
@@ -2793,23 +2815,29 @@
                     u.repathCd=0.25;
                   } else if (u.carry>0){
                     const ref=findNearestRefinery(u.team,u.x,u.y);
-                  if (ref){
-                    u.target = ref.id;
-                    u.order.type="return";
-                    const dock=getDockPoint(ref,u);
-                    setPathTo(u,dock.x,dock.y);
-                    u.repathCd=0.25;
+                    if (ref){
+                      u.target = ref.id;
+                      u.order.type="return";
+                      const dock=getDockPoint(ref,u);
+                      setPathTo(u,dock.x,dock.y);
+                      u.repathCd=0.25;
+                    } else {
+                      u._needsRef = true;
+                      if (hasAnyRefinery(u.team)) u.order.type="harvest";
+                      else u.order.type="idle";
+                    }
                   } else {
-                    u._needsRef = true;
-                    if (hasAnyRefinery(u.team)){
-                      u.order.type="harvest";
+                    // No carry: try global findBestOrePatch before giving up to idle.
+                    const best = findBestOrePatch();
+                    if (best){
+                      u.order.tx=best.tx; u.order.ty=best.ty;
+                      setPathTo(u, (best.tx+0.5)*TILE, (best.ty+0.5)*TILE);
+                      u.repathCd=0.25;
                     } else {
                       u.order.type="idle";
+                      u.manualOre=null;
                     }
                   }
-                } else {
-                  u.order.type="idle";
-                  u.manualOre=null;
                 }
                 }
               }

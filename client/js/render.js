@@ -1626,7 +1626,8 @@
     return true;
   }
 
-  function drawIsoTile(tx,ty,type){
+  function drawIsoTile(tx,ty,type, isVisible){
+    if (isVisible === undefined) isVisible = true;
     const c=tileToWorldCenter(tx,ty);
     const wx=c.x, wy=c.y;
     const p=worldToScreen(wx,wy);
@@ -1644,13 +1645,13 @@
         const name = (layer.name || "").toLowerCase();
         if (name === "start") continue;
         if (name === "ore" || name === "gem") {
-          if (oreAt <= 0) continue;
+          if (!isVisible || oreAt <= 0) continue;
         }
         const gid = layer.data[ty * (layer.width || fgTmj.mapW) + tx];
         if (!gid) continue;
         drawTiledGidAt(ctx, gid, x, y, cam.zoom, TILE);
       }
-      if (oreAt > 0) {
+      if (isVisible && oreAt > 0) {
         const oreTs = fgTmj.tilesets.find(ts => ts.firstgid === 225);
         if (!oreTs || !oreTs.img) {
           ctx.beginPath();
@@ -1676,7 +1677,7 @@
       if (type===3) base = "#0b1624";
       ctx.fillStyle = base;
       ctx.fill();
-      if (oreAt > 0) {
+      if (isVisible && oreAt > 0) {
         const a = clamp(oreAt/ORE_MAX,0,1);
         ctx.fillStyle = `rgba(255,215,0,${0.10+0.28*a})`;
         ctx.fill();
@@ -2675,7 +2676,8 @@
         if (!inMap(tx,ty)) continue;
         const i=idx(tx,ty);
 
-        drawIsoTile(tx,ty,terrain[i]);
+        const iVis = visible[TEAM.PLAYER][i];
+        drawIsoTile(tx,ty,terrain[i], iVis);
       }
     }
 
@@ -2691,25 +2693,26 @@
       const z = (cam && typeof cam.zoom === "number") ? cam.zoom : 1;
       const ox = ISO_X * z;
       const oy = ISO_Y * z;
-      const eps = Math.max(8, ox * 0.32);
+      const eps = Math.max(10, ox * 0.38);
 
       for (let s=0; s<=(MAP_W-1)+(MAP_H-1); s++){
         for (let ty=0; ty<MAP_H; ty++){
           const tx=s-ty;
           if (!inMap(tx,ty)) continue;
           const i=idx(tx,ty);
-          const iVis = visible[TEAM.PLAYER][i];
           const iExp = explored[TEAM.PLAYER][i];
-          if (iExp && iVis) continue;
+          if (iExp) continue;
 
           const c = tileToWorldCenter(tx,ty);
           const p = worldToScreen(c.x,c.y);
           const x = p.x, y = p.y;
-          if (!iExp){
-            fogCtx.fillStyle = "rgba(0,0,0,1)";
-          } else {
-            fogCtx.fillStyle = "rgba(0,0,0,0.10)";
-          }
+          fogCtx.fillStyle = "rgba(0,0,0,1)";
+          const r = Math.max(ox + eps, oy + eps) * 1.15;
+          const grd = fogCtx.createRadialGradient(x, y, 0, x, y, r);
+          grd.addColorStop(0, fogCtx.fillStyle);
+          grd.addColorStop(0.6, fogCtx.fillStyle);
+          grd.addColorStop(1, "rgba(0,0,0,0)");
+          fogCtx.fillStyle = grd;
           fogCtx.beginPath();
           fogCtx.moveTo(x, y-oy-eps);
           fogCtx.lineTo(x+ox+eps, y);
@@ -2721,7 +2724,7 @@
       }
 
       ctx.save();
-      ctx.filter = "blur(4px)";
+      ctx.filter = "blur(8px)";
       ctx.drawImage(canvas._fogBuf, 0, 0, W, H, 0, 0, W, H);
       ctx.restore();
     })();
@@ -2747,11 +2750,15 @@
       for (let ty = tyLo; ty <= tyHi; ty++) {
         for (let tx = txLo; tx <= txHi; tx++) {
           if (!inMap(tx, ty)) continue;
+          const ti = idx(tx, ty);
+          if (!visible[TEAM.PLAYER][ti]) continue;
           const c = tileToWorldCenter(tx, ty);
           let light = 0;
           for (const b of buildings || []) {
             if (!b.alive || b.civ) continue;
             if (DEFENSE && DEFENSE[b.kind] && typeof isUnderPower === "function" && isUnderPower(b.team)) continue;
+            const bi = inMap(b.tx, b.ty) ? idx(b.tx, b.ty) : -1;
+            if (bi >= 0 && b.team !== TEAM.PLAYER && !visible[TEAM.PLAYER][bi]) continue;
             const d = Math.hypot(b.x - c.x, b.y - c.y);
             const r = lightRadius * (0.6 + (b.tw + b.th) * 0.15);
             if (d < r) light = Math.max(light, 1 - d / r);

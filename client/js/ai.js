@@ -776,7 +776,7 @@
       // Single pass: fill reused arrays and counts (avoids many .filter() allocations).
       ai._eUnits.length = 0; ai._eUnitsAll.length = 0; ai._playerInf.length = 0; ai._enemyInf.length = 0;
       ai._combat.length = 0; ai._engs.length = 0; ai._snipers.length = 0; ai._idleIFVs.length = 0; ai._infFromEUnitsAll.length = 0; ai._eIFVsWithEng.length = 0; ai._eIFVsAll.length = 0; ai._eEngSnip.length = 0;
-      let playerInfCount = 0, enemyInfCount = 0, tankCount = 0;
+      let playerInfCount = 0, enemyInfCount = 0, tankCount = 0, playerSniperCount = 0, playerSniperIFVCount = 0;
       for (const u of units) {
         if (!u.alive) continue;
         if (u.team === TEAM.ENEMY) {
@@ -790,12 +790,16 @@
           if (u.kind === "tank") tankCount++;
           if (u.kind === "infantry") { ai._enemyInf.push(u); enemyInfCount++; }
         } else if (u.team === TEAM.PLAYER) {
+          if (u.kind === "sniper" && !u.inTransport && !u.hidden) playerSniperCount++;
+          if (u.kind === "ifv" && u.passengerId && u.passKind === "sniper") playerSniperIFVCount++;
           if (UNIT[u.kind] && UNIT[u.kind].cls === "inf" && !u.inTransport && !u.hidden) {
             ai._playerInf.push(u);
             playerInfCount++;
           }
         }
       }
+      const playerHasSniperThreat = (playerSniperCount > 0 || playerSniperIFVCount > 0);
+      const ENEMY_INF_RUSH_MIN = 5; // 적 보병이 이 수 이상일 때만 저격 대응 러시
       const eUnits = ai._eUnits, playerInf = ai._playerInf, enemyInf = ai._enemyInf;
       const combat = ai._combat, engs = ai._engs, snipers = ai._snipers, idleIFVs = ai._idleIFVs;
       const infRushThreat = (playerInfCount >= 10 || (playerInfCount >= enemyInfCount + 6));
@@ -894,6 +898,16 @@
               }
             }
           }
+        }
+      }
+
+      // 플레이어에게 저격병/저격IFV가 있고, 적 보병이 일정량 이상일 때: 현재 보병으로 러시. 목표는 본진(attackmove라 길목 유닛/건물 우선 격파 후 저격 제거). 저격/저격IFV가 없어지면 이 블록 미적용 → 평상시 AI.
+      if (playerHasSniperThreat && enemyInfCount >= ENEMY_INF_RUSH_MIN) {
+        const dest = phq ? { x: phq.x, y: phq.y } : { x: WORLD_W * 0.5, y: WORLD_H * 0.5 };
+        for (const u of enemyInf) {
+          if (u.inTransport) continue;
+          u.order = { type: "attackmove", x: dest.x, y: dest.y, tx: null, ty: null, manual: true, allowAuto: true, lockTarget: false };
+          u.target = null;
         }
       }
 
