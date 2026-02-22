@@ -1640,7 +1640,7 @@
     const inFgBounds = fgTmj && tx < fgTmj.mapW && ty < fgTmj.mapH;
     const oreAt = inFgBounds ? ore[idx(tx,ty)] : 0;
 
-    if (inFgBounds && fgTmj.tilesets.every(ts => ts.img)) {
+    if (inFgBounds && fgTmj) {
       for (let li = 0; li < fgTmj.layers.length; li++) {
         const layer = fgTmj.layers[li];
         const name = (layer.name || "").toLowerCase();
