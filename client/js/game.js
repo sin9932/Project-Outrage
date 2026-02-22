@@ -330,6 +330,8 @@ function fitMini() {
     return Math.min(ORE_MAX, ORE_BASE + localId * ORE_STEP);
   }
   const buildOcc = new Uint8Array(MAP_W*MAP_H); // 1=blocked
+  const TREE_HP_MAX = 5; // 나무: 폭발형 무기로 약 5회 피격 시 제거 (RA2 스타일)
+  const treeHp = new Uint8Array(MAP_W*MAP_H);  // 0=없음, 1~TREE_HP_MAX=나무 HP
   const idx = (tx,ty)=> ty*MAP_W + tx;
   const inMap = (tx,ty)=> tx>=0 && ty>=0 && tx<MAP_W && ty<MAP_H;
 
@@ -344,6 +346,7 @@ function fitMini() {
     terrain.fill(0);
     ore.fill(0);
     isGem.fill(0);
+    treeHp.fill(0);
     startBeaconTiles = [];
     try{
       const resp = await fetch("asset/sprite/map/editmap/forest_ground.tmj", { cache:"force-cache" });
@@ -396,6 +399,16 @@ function fitMini() {
         }
         startBeaconTiles.sort((a,b)=> (a.ty*MAP_W+a.tx) - (b.ty*MAP_W+b.tx));
         if (startBeaconTiles.length > 2) startBeaconTiles.length = 2;
+      }
+      const treeLayer = layers.find(l => l.type==="tilelayer" && (l.name||"").toLowerCase()==="tree");
+      if (treeLayer && Array.isArray(treeLayer.data)){
+        const tw = treeLayer.width || w, th = treeLayer.height || h;
+        for (let ty=0; ty<Math.min(MAP_H, th); ty++){
+          for (let tx=0; tx<Math.min(MAP_W, tw); tx++){
+            const gid = treeLayer.data[ty*tw+tx] & 0x1FFFFFFF;
+            if (gid > 0) treeHp[idx(tx,ty)] = TREE_HP_MAX;
+          }
+        }
       }
     }catch(e){
       console.error("forest_ground.tmj load failed", e);
@@ -1119,6 +1132,7 @@ function footprintBlockedMask(tx,ty,tw,th){
     const t = terrain[idx(tx,ty)];
     if (t===1 || t===3) return false;
     if (buildOcc[idx(tx,ty)]===1) return false;
+    if (treeHp[idx(tx,ty)] > 0) return false; // 나무: 모든 지상 유닛 이동 불가
     return true;
   }
 
@@ -2500,6 +2514,7 @@ const __ou_sim = (window.OUSim && typeof window.OUSim.create==="function")
       infSlotMask1,
       INF_SLOT_MAX,
       terrain,
+      treeHp,
       TILE,
       MAP_W,
       MAP_H,

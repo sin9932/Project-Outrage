@@ -1,0 +1,320 @@
+{
+	"textures": [
+		{
+			"image": "tree_forest.png",
+			"format": "RGBA8888",
+			"size": {
+				"w": 396,
+				"h": 892
+			},
+			"scale": 1,
+			"frames": [
+				{
+					"filename": "12.png",
+					"rotated": false,
+					"trimmed": false,
+					"sourceSize": {
+						"w": 130,
+						"h": 221
+					},
+					"spriteSourceSize": {
+						"x": 0,
+						"y": 0,
+						"w": 130,
+						"h": 221
+					},
+					"frame": {
+						"x": 1,
+						"y": 1,
+						"w": 130,
+						"h": 221
+					},
+					"anchor": {
+						"x": 0.5066,
+						"y": 0.37
+					}
+				},
+				{
+					"filename": "forest_tree01.png",
+					"rotated": false,
+					"trimmed": false,
+					"sourceSize": {
+						"w": 130,
+						"h": 221
+					},
+					"spriteSourceSize": {
+						"x": 0,
+						"y": 0,
+						"w": 130,
+						"h": 221
+					},
+					"frame": {
+						"x": 133,
+						"y": 1,
+						"w": 130,
+						"h": 221
+					},
+					"anchor": {
+						"x": 0.5066,
+						"y": 0.37
+					}
+				},
+				{
+					"filename": "forest_tree02.png",
+					"rotated": false,
+					"trimmed": false,
+					"sourceSize": {
+						"w": 130,
+						"h": 221
+					},
+					"spriteSourceSize": {
+						"x": 0,
+						"y": 0,
+						"w": 130,
+						"h": 221
+					},
+					"frame": {
+						"x": 265,
+						"y": 1,
+						"w": 130,
+						"h": 221
+					},
+					"anchor": {
+						"x": 0.5066,
+						"y": 0.37
+					}
+				},
+				{
+					"filename": "forest_tree03.png",
+					"rotated": false,
+					"trimmed": false,
+					"sourceSize": {
+						"w": 130,
+						"h": 221
+					},
+					"spriteSourceSize": {
+						"x": 0,
+						"y": 0,
+						"w": 130,
+						"h": 221
+					},
+					"frame": {
+						"x": 1,
+						"y": 224,
+						"w": 130,
+						"h": 221
+					},
+					"anchor": {
+						"x": 0.5066,
+						"y": 0.37
+					}
+				},
+				{
+					"filename": "forest_tree04.png",
+					"rotated": false,
+					"trimmed": false,
+					"sourceSize": {
+						"w": 130,
+						"h": 221
+					},
+					"spriteSourceSize": {
+						"x": 0,
+						"y": 0,
+						"w": 130,
+						"h": 221
+					},
+					"frame": {
+						"x": 133,
+						"y": 224,
+						"w": 130,
+						"h": 221
+					},
+					"anchor": {
+						"x": 0.5066,
+						"y": 0.37
+					}
+				},
+				{
+					"filename": "forest_tree05.png",
+					"rotated": false,
+					"trimmed": false,
+					"sourceSize": {
+						"w": 130,
+						"h": 221
+					},
+					"spriteSourceSize": {
+						"x": 0,
+						"y": 0,
+						"w": 130,
+						"h": 221
+					},
+					"frame": {
+						"x": 265,
+						"y": 224,
+						"w": 130,
+						"h": 221
+					},
+					"anchor": {
+						"x": 0.5066,
+						"y": 0.37
+					}
+				},
+				{
+					"filename": "forest_tree06.png",
+					"rotated": false,
+					"trimmed": false,
+					"sourceSize": {
+						"w": 130,
+						"h": 221
+					},
+					"spriteSourceSize": {
+						"x": 0,
+						"y": 0,
+						"w": 130,
+						"h": 221
+					},
+					"frame": {
+						"x": 1,
+						"y": 447,
+						"w": 130,
+						"h": 221
+					},
+					"anchor": {
+						"x": 0.5066,
+						"y": 0.37
+					}
+				},
+				{
+					"filename": "forest_tree07.png",
+					"rotated": false,
+					"trimmed": false,
+					"sourceSize": {
+						"w": 130,
+						"h": 221
+					},
+					"spriteSourceSize": {
+						"x": 0,
+						"y": 0,
+						"w": 130,
+						"h": 221
+					},
+					"frame": {
+						"x": 133,
+						"y": 447,
+						"w": 130,
+						"h": 221
+					},
+					"anchor": {
+						"x": 0.5066,
+						"y": 0.37
+					}
+				},
+				{
+					"filename": "forest_tree08.png",
+					"rotated": false,
+					"trimmed": false,
+					"sourceSize": {
+						"w": 130,
+						"h": 221
+					},
+					"spriteSourceSize": {
+						"x": 0,
+						"y": 0,
+						"w": 130,
+						"h": 221
+					},
+					"frame": {
+						"x": 265,
+						"y": 447,
+						"w": 130,
+						"h": 221
+					},
+					"anchor": {
+						"x": 0.5066,
+						"y": 0.37
+					}
+				},
+				{
+					"filename": "forest_tree09.png",
+					"rotated": false,
+					"trimmed": false,
+					"sourceSize": {
+						"w": 130,
+						"h": 221
+					},
+					"spriteSourceSize": {
+						"x": 0,
+						"y": 0,
+						"w": 130,
+						"h": 221
+					},
+					"frame": {
+						"x": 1,
+						"y": 670,
+						"w": 130,
+						"h": 221
+					},
+					"anchor": {
+						"x": 0.5066,
+						"y": 0.37
+					}
+				},
+				{
+					"filename": "forest_tree10.png",
+					"rotated": false,
+					"trimmed": false,
+					"sourceSize": {
+						"w": 130,
+						"h": 221
+					},
+					"spriteSourceSize": {
+						"x": 0,
+						"y": 0,
+						"w": 130,
+						"h": 221
+					},
+					"frame": {
+						"x": 133,
+						"y": 670,
+						"w": 130,
+						"h": 221
+					},
+					"anchor": {
+						"x": 0.5066,
+						"y": 0.37
+					}
+				},
+				{
+					"filename": "forest_tree11.png",
+					"rotated": false,
+					"trimmed": false,
+					"sourceSize": {
+						"w": 130,
+						"h": 221
+					},
+					"spriteSourceSize": {
+						"x": 0,
+						"y": 0,
+						"w": 130,
+						"h": 221
+					},
+					"frame": {
+						"x": 265,
+						"y": 670,
+						"w": 130,
+						"h": 221
+					},
+					"anchor": {
+						"x": 0.5066,
+						"y": 0.37
+					}
+				}
+			]
+		}
+	],
+	"meta": {
+		"app": "https://www.codeandweb.com/texturepacker",
+		"version": "3.0",
+		"smartupdate": "$TexturePacker:SmartUpdate:8dde9163148071a72cfca7d1e5619a04:d00634cda5d68ce717b817998859fa23:6e242e39fd1dbe260d21b619ff7174b4$"
+	}
+}

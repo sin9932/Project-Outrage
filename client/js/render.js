@@ -273,7 +273,8 @@
     { firstgid: 113, image: "forest_ground_128x64.png", tw: 128, th: 64, columns: 8, spacing: 0, margin: 0 },
     { firstgid: 169, image: "grass_medium_128x64.png", tw: 128, th: 64, columns: 8, spacing: 0, margin: 0 },
     { firstgid: 225, image: "ore.png",                tw: 128, th: 88, columns: 2, spacing: 2, margin: 0 },
-    { firstgid: 235, image: "start_beacon_128x64.png", tw: 128, th: 64, columns: 8, spacing: 0, margin: 0 }
+    { firstgid: 235, image: "start_beacon_128x64.png", tw: 128, th: 64, columns: 8, spacing: 0, margin: 0 },
+    { firstgid: 291, image: "tree_forest.png",       tw: 130, th: 221, columns: 3, spacing: 0, margin: 0 }
   ];
 
   function loadImage(src) {

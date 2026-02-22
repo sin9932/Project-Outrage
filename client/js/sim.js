@@ -40,6 +40,7 @@
     const infSlotMask1 = r.infSlotMask1 || null;
     const INF_SLOT_MAX = r.INF_SLOT_MAX || 4;
     const terrain = r.terrain || [];
+    const treeHp = r.treeHp || null;
     const TILE = r.TILE || 48;
     const WORLD_W = r.WORLD_W || 0;
     const WORLD_H = r.WORLD_H || 0;
@@ -128,7 +129,21 @@
       return true;
     }
 
-    function applyAreaDamageAt(x,y, radius, dmg, srcId=null, srcTeam=null){
+    function applyTreeDamageInRadius(x, y, radius) {
+      if (!treeHp || !MAP_W || !MAP_H || !TILE) return;
+      const r2 = radius * radius;
+      const half = TILE / 2;
+      for (let ty = 0; ty < MAP_H; ty++) {
+        for (let tx = 0; tx < MAP_W; tx++) {
+          const cx = tx * TILE + half, cy = ty * TILE + half;
+          if (dist2(x, y, cx, cy) > r2) continue;
+          const i = idx(tx, ty);
+          if (treeHp[i] > 0) treeHp[i] -= 1;
+        }
+      }
+    }
+
+    function applyAreaDamageAt(x,y, radius, dmg, srcId=null, srcTeam=null, isExplosive=false){
       const r2 = radius*radius;
       for (const u of units){
         if (!u.alive || u.inTransport || u.hidden) continue;
@@ -138,6 +153,7 @@
         if (!b.alive || b.civ) continue;
         if (dist2(x,y,b.x,b.y) <= r2){ applyDamage(b, dmg, srcId, srcTeam); }
       }
+      if (isExplosive) applyTreeDamageInRadius(x, y, radius);
     }
 
     // Ore/gem can be damaged by explosives; damage = weapon damage (1:1), splash falls off linearly.
@@ -429,8 +445,8 @@
           }
         }
 
-        // splash (units/buildings)
-        if (applyAreaDamageAt) applyAreaDamageAt(ix, iy, 38, (bl.dmg||0)*0.45, bl.ownerId, bl.team);
+        // splash (units/buildings); 폭발형이라 나무도 피격
+        if (applyAreaDamageAt) applyAreaDamageAt(ix, iy, 38, (bl.dmg||0)*0.45, bl.ownerId, bl.team, true);
         // Missile damages ore/gem in radius, linear falloff.
         applyOreDamageInRadius(ix, iy, 38, bl.dmg||0);
       }
@@ -508,6 +524,8 @@
               impacts.push({x:bl.x,y:bl.y,vx:Math.cos(ang)*spd,vy:Math.sin(ang)*spd,life:0.22,delay:0});
             }
 
+            // 경전차 포탄: 폭발 반경 내 나무 1회 피격 (RA2 스타일)
+            if (applyTreeDamageInRadius) applyTreeDamageInRadius(bl.x, bl.y, 22);
             // Tank shell damages ore/gem at impact cell (weapon damage = ore credit loss 1:1)
             try{
               const owner2 = getEntityById(bl.ownerId);
@@ -2999,7 +3017,7 @@
                 } else if (u.kind==="tank") {
                   spawnBullet(u.team, u.x, u.y, tx, ty, Math.max(1, u.dmg*0.6), u.id, { kind:"shell", dur: 0.12, h: 18 });
                   const d = Math.max(1, u.dmg*0.45);
-                  applyAreaDamageAt(tx,ty, 22, d, u.id, u.team);
+                  applyAreaDamageAt(tx,ty, 22, d, u.id, u.team, true);
                   applyOreDamageInRadius(tx, ty, 22, d);
                 } else if (u.kind==="ifv") {
                   // IFV force-fire should use its normal weapon visuals (no tank arc).
@@ -3022,7 +3040,7 @@
                 } else {
                   spawnBullet(u.team, u.x, u.y, tx, ty, Math.max(1, u.dmg*0.6), u.id, { sp: 720 });
                   const d = Math.max(1, u.dmg*0.35);
-                  applyAreaDamageAt(tx,ty, 20, d, u.id, u.team);
+                  applyAreaDamageAt(tx,ty, 20, d, u.id, u.team, true);
                   applyOreDamageInRadius(tx, ty, 20, d);
                 }
               }
