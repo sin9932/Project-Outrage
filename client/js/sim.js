@@ -1588,7 +1588,7 @@
 
       const center = tileToWorldCenter(tx, ty);
       const toCenter2 = (u.x - center.x)**2 + (u.y - center.y)**2;
-      if (toCenter2 > (0.42 * TILE) ** 2) return;
+      if (toCenter2 > (0.25 * TILE) ** 2) return;
 
       const ss = (u.subSlot==null) ? 0 : (u.subSlot & 3);
       const sp = tileToWorldSubslot(tx, ty, ss);
@@ -1703,7 +1703,7 @@
 
       const center = tileToWorldCenter(tx, ty);
       const toCenter2 = (u.x - center.x)**2 + (u.y - center.y)**2;
-      if (toCenter2 > (0.42 * TILE) ** 2) return;
+      if (toCenter2 > (0.25 * TILE) ** 2) return;
 
       const ss = (u.subSlot==null) ? 0 : (u.subSlot & 3);
       const sp = tileToWorldSubslot(tx, ty, ss);
@@ -2110,6 +2110,8 @@
             u.vx = 0; u.vy = 0;
             u.stuckT = 0; u.stuckTime = 0; u.yieldCd = 0; u.avoidCd = 0;
             u.x = u.restX; u.y = u.restY;
+            const cls = (UNIT[u.kind] && UNIT[u.kind].cls) ? UNIT[u.kind].cls : "";
+            if (cls === "inf") u.holdPos = true;
           } else {
             u.restX = null; u.restY = null;
           }
