@@ -2751,13 +2751,12 @@
     }
 
     if (cloudsImage && typeof state.t === "number") {
-      const z = (cam && typeof cam.zoom === "number") ? cam.zoom : 1;
       const tw = cloudsImage.width;
       const th = cloudsImage.height;
       const isoFlatten = 0.48;
-      const cloudScreenW = Math.max(W, H) * 3.2 * z;
+      // Fixed screen size: no cam.zoom so clouds don't scale with game zoom; always viewport-fixed.
+      const cloudScreenW = Math.max(W, H) * 3.2;
       const cloudScreenH = (th / tw) * cloudScreenW * isoFlatten;
-      // Seamless tiling: scroll offset wraps at tile size so wrap is invisible; draw 3x3 grid so coverage is continuous.
       const scrollSpeedX = 24;
       const scrollSpeedY = 14;
       const offsetX = (state.t * scrollSpeedX) % cloudScreenW;
@@ -2789,6 +2788,7 @@
         drawTiled(0.28, 0.85);
         cctx.globalAlpha = 1;
         ctx.save();
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
         ctx.globalCompositeOperation = "multiply";
         ctx.globalAlpha = 1;
         ctx.drawImage(cloudBuf, 0, 0, W, H, 0, 0, W, H);
