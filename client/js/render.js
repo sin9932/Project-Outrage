@@ -2711,16 +2711,24 @@
       for (let i = 0; i < MAP_W * MAP_H; i++) {
         if (explored[TEAM.PLAYER][i]) { hasExplored = true; break; }
       }
-      if (!hasExplored) return; // 정찰된 타일이 하나도 없으면 안개 안 그림 → 맵 가려짐 방지
+      if (!hasExplored) return;
+
+      const W = canvas.width, H = canvas.height;
+      if (!canvas._fogBuf || canvas._fogBuf.width !== W || canvas._fogBuf.height !== H) {
+        canvas._fogBuf = document.createElement("canvas");
+        canvas._fogBuf.width = W;
+        canvas._fogBuf.height = H;
+      }
+      const fogCtx = canvas._fogBuf.getContext("2d");
+      fogCtx.clearRect(0, 0, W, H);
+      fogCtx.fillStyle = "rgba(0,0,0,1)";
+      fogCtx.fillRect(0, 0, W, H);
+      fogCtx.globalCompositeOperation = "destination-out";
+      fogCtx.fillStyle = "rgba(0,0,0,1)";
 
       const z = (cam && typeof cam.zoom === "number") ? cam.zoom : 1;
       const ox = ISO_X * z;
       const oy = ISO_Y * z;
-      ctx.save();
-      ctx.fillStyle = "rgba(0,0,0,1)";
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-      ctx.globalCompositeOperation = "destination-out";
-      ctx.fillStyle = "rgba(0,0,0,1)";
       for (let s=0; s<=(MAP_W-1)+(MAP_H-1); s++){
         for (let ty=0; ty<MAP_H; ty++){
           const tx=s-ty;
@@ -2730,16 +2738,16 @@
           const c = tileToWorldCenter(tx,ty);
           const p = worldToScreen(c.x,c.y);
           const x = Math.round(p.x), y = Math.round(p.y);
-          ctx.beginPath();
-          ctx.moveTo(x, Math.round(y - oy));
-          ctx.lineTo(Math.round(x + ox), y);
-          ctx.lineTo(x, Math.round(y + oy));
-          ctx.lineTo(Math.round(x - ox), y);
-          ctx.closePath();
-          ctx.fill();
+          fogCtx.beginPath();
+          fogCtx.moveTo(x, Math.round(y - oy));
+          fogCtx.lineTo(Math.round(x + ox), y);
+          fogCtx.lineTo(x, Math.round(y + oy));
+          fogCtx.lineTo(Math.round(x - ox), y);
+          fogCtx.closePath();
+          fogCtx.fill();
         }
       }
-      ctx.restore();
+      ctx.drawImage(canvas._fogBuf, 0, 0, W, H, 0, 0, W, H);
     })();
 
     if (typeof worldToScreen === "function" && typeof tileToWorldCenter === "function" && (buildings?.length > 0 || ore)) {
