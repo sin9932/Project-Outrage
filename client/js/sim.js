@@ -2658,6 +2658,7 @@
                   const add = Math.floor(u.carry);
                   if (u.team===TEAM.PLAYER) state.player.money += add;
                   else state.enemy.money += add;
+                  if (state.stats) state.stats.harvest[u.team] = (state.stats.harvest[u.team]||0) + add;
                   u.carry = 0;
                   u._needsRef = false;
                   // Trigger refinery "active" animation (deposit pulse)

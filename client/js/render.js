@@ -1013,7 +1013,7 @@
     return "tank_muzzle_idle" + (map[idx] || 1) + ".png";
   }
 
-  function drawTPFrame(atlas, filename, screenX, screenY, scale, team, anchorOverride=null, offsetOverride=null){
+  function drawTPFrame(atlas, filename, screenX, screenY, scale, team, anchorOverride=null, offsetOverride=null, scaleY=null){
     if (!atlas || !atlas.img || !atlas.img.complete || !atlas.frames) return false;
     const fr = atlas.frames.get(filename);
     if (!fr) return false;
@@ -1022,6 +1022,7 @@
     const sss = fr.spriteSourceSize || { x:0, y:0, w: crop.w, h: crop.h };
     const srcS = fr.sourceSize || { w: crop.w, h: crop.h };
     const anc = anchorOverride || fr.anchor || { x:0.5, y:0.5 };
+    const scaleV = (scaleY != null) ? scaleY : scale;
 
     const sx = (crop.x|0), sy = (crop.y|0), sw = (crop.w|0), sh = (crop.h|0);
 
@@ -1036,10 +1037,10 @@
     }
 
     const dx = screenX - (anc.x * srcS.w * scale) + (sss.x * scale);
-    const dy = screenY - (anc.y * srcS.h * scale) + (sss.y * scale);
+    const dy = screenY - (anc.y * srcS.h * scaleV) + (sss.y * scaleV);
     const odx = (offsetOverride && offsetOverride.x) ? (offsetOverride.x * scale) : 0;
-    const ody = (offsetOverride && offsetOverride.y) ? (offsetOverride.y * scale) : 0;
-    ctx.drawImage(srcImg, ssx, ssy, sw, sh, dx + odx, dy + ody, sw*scale, sh*scale);
+    const ody = (offsetOverride && offsetOverride.y) ? (offsetOverride.y * scaleV) : 0;
+    ctx.drawImage(srcImg, ssx, ssy, sw, sh, dx + odx, dy + ody, sw*scale, sh*scaleV);
     return true;
   }
 
@@ -1623,16 +1624,17 @@
     if (!HARVESTER || !HARVESTER.ok) return false;
     if (typeof drawTPFrame !== "function" || typeof tankBodyFrameName !== "function") return false;
     const spec = (typeof getUnitSpec === "function") ? (getUnitSpec("harvester") || getUnitSpec("tank")) : null;
-    const specScale = (spec && spec.spriteScale != null) ? spec.spriteScale : 1;
-    const s = (cam.zoom || 1) * (HARVESTER_BASE_SCALE || 1) * specScale;
+    const base = (cam.zoom || 1) * (HARVESTER_BASE_SCALE || 1);
+    const scaleX = base * ((spec && spec.spriteScaleX != null) ? spec.spriteScaleX : (spec && spec.spriteScale != null) ? spec.spriteScale : 1);
+    const scaleY = base * ((spec && spec.spriteScaleY != null) ? spec.spriteScaleY : (spec && spec.spriteScale != null) ? spec.spriteScale : 1);
 
     const bodyName = tankBodyFrameName(u);
     const atlas = (bodyName.indexOf("_mov")>=0) ? HARVESTER.mov : HARVESTER.idle;
 
-    const ok = drawTPFrame(atlas, bodyName, p.x, p.y, s, u.team);
+    const ok = drawTPFrame(atlas, bodyName, p.x, p.y, scaleX, u.team, null, null, scaleY);
     if (!ok){
-      drawTPFrame(HARVESTER.mov, bodyName, p.x, p.y, s, u.team);
-      drawTPFrame(HARVESTER.idle, bodyName, p.x, p.y, s, u.team);
+      drawTPFrame(HARVESTER.mov, bodyName, p.x, p.y, scaleX, u.team, null, null, scaleY);
+      drawTPFrame(HARVESTER.idle, bodyName, p.x, p.y, scaleX, u.team, null, null, scaleY);
     }
     return true;
   }
@@ -2135,7 +2137,7 @@
     const p=worldToScreen(b.x,b.y);
     const yy = p.y - (Math.max(b.tw,b.th)*ISO_Y*cam.zoom) - 40;
     const xx = p.x + ISO_X*(b.tw*0.72)*cam.zoom;
-    const text="二쇱슂";
+    const text="주요";
     ctx.save();
     ctx.font="bold 12px system-ui";
     ctx.textAlign="left";

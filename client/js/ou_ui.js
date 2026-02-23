@@ -1195,7 +1195,7 @@ function ensureBadge(btn){
 
       const victory = !!env.victory;
       const victoryBgmTracks = Array.isArray(env.victoryBgmTracks) ? env.victoryBgmTracks : [];
-      const stats = env.stats || { kills: {}, losses: {}, construction: {}, mvp: {} };
+      const stats = env.stats || { kills: {}, losses: {}, construction: {}, harvest: {}, mvp: {} };
       const gameTime = typeof env.gameTime === "number" ? env.gameTime : 0;
       const colors = env.colors || { player: "#4a90e2", enemy: "#e25a4a" };
 
@@ -1217,22 +1217,26 @@ function ensureBadge(btn){
         { name: "컴퓨터", team: TEAM.ENEMY, color: colors.enemy || "#e25a4a" }
       ];
 
-      const vals = { k: [], l: [], c: [], s: [] };
+      const vals = { k: [], l: [], c: [], h: [], s: [] };
       for (const r of rows){
         const k = stats.kills[r.team] || 0;
         const l = stats.losses[r.team] || 0;
         const c = stats.construction[r.team] || 0;
-        const score = Math.max(0, k * 100 + c * 50 - l * 30);
-        vals.k.push(k); vals.l.push(l); vals.c.push(c); vals.s.push(score);
+        const h = stats.harvest[r.team] || 0;
+        const score = k * 100 + c * 50 - l * 30 + Math.floor(h / 10);
+        vals.k.push(k); vals.l.push(l); vals.c.push(c); vals.h.push(h); vals.s.push(score);
       }
       const maxK = Math.max(1, ...vals.k);
       const maxL = Math.max(1, ...vals.l);
       const maxC = Math.max(1, ...vals.c);
-      const maxS = Math.max(1, ...vals.s);
+      const maxH = Math.max(1, ...vals.h);
+      const minS = Math.min(...vals.s);
+      const maxS = Math.max(1, Math.max(...vals.s) - minS);
 
-      function barCell(val, maxVal, color){
-        const pct = maxVal > 0 ? (100 * val / maxVal) : 0;
-        return `<td class="bar-cell"><div class="stat-bar-wrap"><div class="stat-bar-fill" data-pct="${pct}" style="--bar-color:${color}; background:linear-gradient(90deg, ${color}88, ${color})"></div><span class="stat-bar-label">${val.toLocaleString()}</span></div></td>`;
+      function barCell(val, maxVal, color, isScore){
+        const pct = isScore && maxS > 0 ? (100 * (val - minS) / maxS) : (maxVal > 0 ? (100 * val / maxVal) : 0);
+        const displayVal = typeof val === "number" ? val.toLocaleString() : String(val);
+        return `<td class="bar-cell"><div class="stat-bar-wrap"><div class="stat-bar-fill" data-pct="${Math.max(0, Math.min(100, pct))}" style="--bar-color:${color}; background:linear-gradient(90deg, ${color}88, ${color})"></div><span class="stat-bar-label">${displayVal}</span></div></td>`;
       }
 
       tbody.innerHTML = "";
@@ -1241,9 +1245,10 @@ function ensureBadge(btn){
         const k = stats.kills[r.team] || 0;
         const l = stats.losses[r.team] || 0;
         const c = stats.construction[r.team] || 0;
-        const score = Math.max(0, k * 100 + c * 50 - l * 30);
+        const h = stats.harvest[r.team] || 0;
+        const score = k * 100 + c * 50 - l * 30 + Math.floor(h / 10);
         const tr = document.createElement("tr");
-        tr.innerHTML = `<td>${r.name}</td>${barCell(k, maxK, r.color)}${barCell(l, maxL, r.color)}${barCell(c, maxC, r.color)}${barCell(score, maxS, r.color)}`;
+        tr.innerHTML = `<td>${r.name}</td>${barCell(k, maxK, r.color, false)}${barCell(l, maxL, r.color, false)}${barCell(c, maxC, r.color, false)}${barCell(h, maxH, r.color, false)}${barCell(score, maxS, r.color, true)}`;
         tbody.appendChild(tr);
       }
 
@@ -1355,6 +1360,11 @@ function ensureBadge(btn){
 
       overlay.classList.add("show");
       overlay.style.display = "flex";
+      overlay.style.opacity = "0";
+      overlay.style.transition = "opacity 0.6s ease-out";
+      requestAnimationFrame(()=>{
+        requestAnimationFrame(()=>{ overlay.style.opacity = "1"; });
+      });
     }
 
     function wirePauseMenuUI(env){

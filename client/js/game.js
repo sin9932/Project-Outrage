@@ -306,7 +306,7 @@ function fitMini() {
   state.attackCycle = 0;
   state.alertFx = [];
   state.stats = {
-    kills: { 0: 0, 1: 0 }, losses: { 0: 0, 1: 0 }, construction: { 0: 0, 1: 0 },
+    kills: { 0: 0, 1: 0 }, losses: { 0: 0, 1: 0 }, construction: { 0: 0, 1: 0 }, harvest: { 0: 0, 1: 0 },
     mvp: {
       infantryProduced: { 0: 0, 1: 0 },
       vehicleKills: { 0: 0, 1: 0 },
@@ -1847,6 +1847,14 @@ function boardUnitIntoIFV(unit, ifv){
 
   ifv.passengerId = unit.id;
   ifv.passKind = unit.kind;
+  if (unit.kind==="sniper"){
+    const sr = (UNIT.sniper && UNIT.sniper.range) || 1200;
+    ifv.dmg = 125; ifv.range = sr; ifv.rof = 2.20/2.0; ifv.hitscan = true;
+  } else if (unit.kind==="infantry"){
+    ifv.dmg = (UNIT.infantry && UNIT.infantry.dmg) || 12; ifv.range = 620; ifv.rof = 0.55/2.0; ifv.hitscan = true;
+  } else if (unit.kind==="engineer"){
+    ifv.dmg = 0; ifv.range = 0; ifv.hitscan = true;
+  }
   unit.inTransport = ifv.id;
   unit.hidden = true;
   unit.selectable = false;
@@ -1873,6 +1881,14 @@ function tryBoardIFV(ifv){
 
   ifv.passengerId = cand.id;
   ifv.passKind = cand.kind;
+  if (cand.kind==="sniper"){
+    const sr = (UNIT.sniper && UNIT.sniper.range) || 1200;
+    ifv.dmg = 125; ifv.range = sr; ifv.rof = 2.20/2.0; ifv.hitscan = true;
+  } else if (cand.kind==="infantry"){
+    ifv.dmg = (UNIT.infantry && UNIT.infantry.dmg) || 12; ifv.range = 620; ifv.rof = 0.55/2.0; ifv.hitscan = true;
+  } else if (cand.kind==="engineer"){
+    ifv.dmg = 0; ifv.range = 0; ifv.hitscan = true;
+  }
   cand.inTransport = ifv.id;
   cand.hidden = true;
   cand.selectable = false;
@@ -4935,7 +4951,7 @@ function draw(){
     nextId=1;
     state.selection.clear();
     state.build.active=false; state.build.kind=null;
-    if (state.stats){ state.stats.kills[0]=0; state.stats.kills[1]=0; state.stats.losses[0]=0; state.stats.losses[1]=0; state.stats.construction[0]=0; state.stats.construction[1]=0; }
+    if (state.stats){ state.stats.kills[0]=0; state.stats.kills[1]=0; state.stats.losses[0]=0; state.stats.losses[1]=0; state.stats.construction[0]=0; state.stats.construction[1]=0; state.stats.harvest[0]=0; state.stats.harvest[1]=0; }
     state.gameOverPending = null;
     state.gameOverFade = null;
     prodFIFO.barracks.length=0; prodFIFO.factory.length=0;
