@@ -1298,7 +1298,12 @@ function ensureBadge(btn){
           }
           if (winner) items.push({ label: it.label, desc: it.desc, val, time: !!it.time, winner, priority: it.priority });
         }
-        items.sort((a,b)=> (a.priority||99) - (b.priority||99));
+        items.sort((a,b)=>{
+          const aTime = !!a.time, bTime = !!b.time;
+          if (aTime && !bTime) return -1;
+          if (!aTime && bTime) return 1;
+          return (a.priority||99) - (b.priority||99);
+        });
         const displayItems = items.slice(0, 4);
         const fmtVal = (x)=>{
           if (x.time){

@@ -2497,9 +2497,9 @@ function updateBlood(dt){
     const playerAlive = hasControllableAssets(TEAM.PLAYER);
 
     if (!enemyAlive){
-      state.gameOverPending = { victory: true, endT: state.t + GAMEOVER_WINDDOWN };
+      state.gameOverPending = { victory: true, endT: state.t + GAMEOVER_WINDDOWN, endGameTime: state.t };
     } else if (!playerAlive){
-      state.gameOverPending = { victory: false, endT: state.t + GAMEOVER_WINDDOWN };
+      state.gameOverPending = { victory: false, endT: state.t + GAMEOVER_WINDDOWN, endGameTime: state.t };
     }
   }
 
@@ -5301,7 +5301,7 @@ function sanityCheck(){
         running = false;
         const v = state.gameOverVictory;
         if (__ou_ui && typeof __ou_ui.showResultOverlay === "function"){
-          __ou_ui.showResultOverlay({ victory: v, stats: state.stats, gameTime: state.t, colors: state.colors, bgm: BGM, victoryBgmTracks: ASSET.music.victory });
+          __ou_ui.showResultOverlay({ victory: v, stats: state.stats, gameTime: state.gameOverEndGameTime ?? state.t, colors: state.colors, bgm: BGM, victoryBgmTracks: ASSET.music.victory });
         } else { toast(v ? "승리!" : "패배..."); }
         state.gameOverFade = null;
       }
@@ -5313,6 +5313,7 @@ function sanityCheck(){
       if (state.gameOverPending && state.t >= state.gameOverPending.endT){
         state.gameOverFade = { t: 0, dur: GAMEOVER_FADE_DUR };
         state.gameOverVictory = state.gameOverPending.victory;
+        state.gameOverEndGameTime = state.gameOverPending.endGameTime;
         state.gameOverPending = null;
       }
 
