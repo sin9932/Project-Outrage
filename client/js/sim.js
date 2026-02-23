@@ -84,6 +84,7 @@
     const applyDamage = r.applyDamage;
     const isWalkableTile = r.isWalkableTile;
     const updateExplosions = r.updateExplosions;
+    const updateDebris = r.updateDebris;
 
     function segIntersectsCircle(ax,ay,bx,by, cx,cy, r){
       // segment AB to circle C
@@ -672,6 +673,7 @@
       }
 
       if (updateExplosions) updateExplosions(dt);
+      if (updateDebris) updateDebris(dt);
 
       for (let i=healMarks.length-1;i>=0;i--){
         const h = healMarks[i];

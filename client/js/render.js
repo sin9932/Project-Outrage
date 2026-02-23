@@ -363,7 +363,7 @@
   let REPAIR_WRENCH_IMG, repairWrenches;
   let exp1Fxs;
   let smokeWaves, smokePuffs, dustPuffs, dmgSmokePuffs, bloodStains, bloodPuffs;
-  let explosions;
+  let explosions, debris, debrisTrail;
   let drawBuildingSprite;
   let getTeamCroppedSprite;
   let INF_DIE_IMG, SNIP_DIE_IMG;
@@ -924,6 +924,8 @@
     dustPuffs = env.dustPuffs || []; dmgSmokePuffs = env.dmgSmokePuffs || [];
     bloodStains = env.bloodStains || []; bloodPuffs = env.bloodPuffs || [];
     explosions = env.explosions || [];
+    debris = env.debris || [];
+    debrisTrail = env.debrisTrail || [];
     infDeathFxs = env.infDeathFxs || [];
     snipDeathFxs = env.snipDeathFxs || [];
     // Local SPRITE_TUNE is authoritative (loaded from storage/preset)
@@ -3289,6 +3291,44 @@
       PO.buildings.drawGhosts(ctx, cam, helpers, state);
     }}catch(_e){}
 
+    if ((debrisTrail && debrisTrail.length > 0) || (debris && debris.length > 0)){
+      const z = (typeof cam !== "undefined" && cam && typeof cam.zoom==="number") ? cam.zoom : 1;
+      if (debrisTrail && debrisTrail.length > 0){
+        for (const t of debrisTrail){
+          const pp = worldToScreen(t.x, t.y);
+          const a = Math.max(0, t.life / Math.max(0.001, t.ttl));
+          const rr = (t.r || 12) * z * a;
+          ctx.save();
+          ctx.globalCompositeOperation = "lighter";
+          ctx.globalAlpha = 0.75 * a;
+          const gt = ctx.createRadialGradient(pp.x, pp.y, 0, pp.x, pp.y, rr);
+          gt.addColorStop(0, "rgba(255,255,200,0.9)");
+          gt.addColorStop(0.4, "rgba(255,180,60,0.6)");
+          gt.addColorStop(0.7, "rgba(255,100,30,0.3)");
+          gt.addColorStop(1, "rgba(255,80,20,0)");
+          ctx.fillStyle = gt;
+          ctx.beginPath();
+          ctx.arc(pp.x, pp.y, rr, 0, Math.PI*2);
+          ctx.fill();
+          ctx.restore();
+        }
+      }
+      if (debris && debris.length > 0){
+        for (const d of debris){
+          const p = worldToScreen(d.x, d.y);
+          const a = Math.max(0, 1 - d.t / Math.max(0.001, d.ttl));
+          ctx.save();
+          ctx.translate(p.x, p.y);
+          ctx.rotate(d.rot || 0);
+          ctx.globalAlpha = 0.85 * a;
+          ctx.fillStyle = "rgba(100,85,70,0.9)";
+          const w = (d.w || 12) * z;
+          const h = (d.h || 8) * z;
+          ctx.fillRect(-w/2, -h/2, w, h);
+          ctx.restore();
+        }
+      }
+    }
     if (typeof drawExplosions === "function") drawExplosions(ctx);
     if (typeof drawSmokeWaves === "function") drawSmokeWaves(ctx);
     if (typeof drawDustPuffs === "function") drawDustPuffs(ctx);
