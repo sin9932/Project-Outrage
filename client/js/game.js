@@ -826,37 +826,6 @@ function tileToWorldSubslot(tx, ty, slot){
 
   const MAX_INF_PER_TILE = 1;
   const MAX_VEH_PER_TILE = 1;
-  
-  function isSqueezedTile(tx, ty){
-    // Returns true if this tile is a "too-narrow" gap between building footprints or inside a building corner.
-    // This prevents units from selecting waypoints that are geometrically impossible (causes corner-bounce).
-    const B = (x,y)=> (inMap(x,y) && buildOcc[idx(x,y)]===1);
-    // 1-tile corridor between two building tiles
-    if (B(tx-1,ty) && B(tx+1,ty)) return true;
-    if (B(tx,ty-1) && B(tx,ty+1)) return true;
-    // inside corners (diagonal squeeze)
-    if (B(tx-1,ty) && B(tx,ty-1)) return true;
-    if (B(tx+1,ty) && B(tx,ty-1)) return true;
-    if (B(tx-1,ty) && B(tx,ty+1)) return true;
-    if (B(tx+1,ty) && B(tx,ty+1)) return true;
-    return false;
-  }
-
-
-  // Find a nearby free tile for a short "yield" step (used when infantry yields to vehicles).
-  // Returns {tx,ty} or null.
-  
-
-
-
-
-function heuristic(ax,ay,bx,by){
-    const dx=Math.abs(ax-bx), dy=Math.abs(ay-by);
-    const D=10, D2=14;
-    return D*(dx+dy) + (D2-2*D)*Math.min(dx,dy);
-  }
-
-  
 
   // Occupancy-aware A* for unit movement: treats other friendly units' occupied/reserved tiles as blocked.
   // This prevents infantry "강행돌파" into occupied tiles and reduces vehicle oscillation at chokepoints.
@@ -1488,14 +1457,6 @@ function updateProdBadges(){
 // Ensure PRIMARY producer id points to a living building; if not, reassign to first available.
 function ensurePrimaryProducer(kind){
     return (__ou_econ && __ou_econ.ensurePrimaryProducer) ? __ou_econ.ensurePrimaryProducer(kind) : undefined;
-  }
-
-function findProducer(team, kind){
-    return (__ou_econ && __ou_econ.findProducer) ? __ou_econ.findProducer(team, kind) : null;
-  }
-
-function normalizeProducerQueues(producerType){
-    return (__ou_econ && __ou_econ.normalizeProducerQueues) ? __ou_econ.normalizeProducerQueues(producerType) : undefined;
   }
 
 function feedProducers(){
@@ -2219,8 +2180,6 @@ if (state.selection.size>0 && inMap(tx,ty) && ore[idx(tx,ty)]>0){
   }
 
   function selectInRect(r, additive){ return __ou_selection ? __ou_selection.selectInRect(r, additive) : false; }
-  function getAllPlayerUnitsOfKind(kind){ return __ou_selection ? __ou_selection.getAllPlayerUnitsOfKind(kind) : []; }
-  function isSelectionExactly(ids){ return __ou_selection ? __ou_selection.isSelectionExactly(ids) : false; }
   function selectSameType(){ if (__ou_selection) __ou_selection.selectSameType(); }
 
   
