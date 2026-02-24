@@ -86,11 +86,11 @@
         );
         const inCooldown = (u._noProdUntil && state.t < u._noProdUntil);
         if (nearProd && !inCooldown) {
-          const rx = ai.rally.x + rnd(-TILE * 2.4, TILE * 2.4);
-          const ry = ai.rally.y + rnd(-TILE * 2.4, TILE * 2.4);
+          const rx = ai.rally.x + rnd(-TILE * 1.2, TILE * 1.2);
+          const ry = ai.rally.y + rnd(-TILE * 1.2, TILE * 1.2);
           u.order = { type: "move", x: rx, y: ry, tx: null, ty: null };
           setPathTo(u, rx, ry);
-          u.repathCd = 0.06;
+          u.repathCd = 0.5;
           u._noProdUntil = state.t + 7.0;
         }
       }
@@ -191,7 +191,11 @@
     }
 
     function aiPickRally() {
-      // Aggressive rally: stage forward toward player HQ/buildings (avoid HQ-hugging)
+      // Rally를 안정화: 매 틱 rnd()로 흔들리면 유닛들이 계속 재경로 → 이동질 발생
+      const RALLY_UPDATE_INTERVAL = 5.5;
+      if (state.t < (ai.rallyUpdateAt || 0)) return;
+      ai.rallyUpdateAt = state.t + RALLY_UPDATE_INTERVAL;
+
       const ehq = buildings.find(b => b.alive && !b.civ && b.team === TEAM.ENEMY && b.kind === "hq");
       const phq = buildings.find(b => b.alive && !b.civ && b.team === TEAM.PLAYER && b.kind === "hq");
       let tx = phq ? phq.x : WORLD_W * 0.5;
@@ -201,12 +205,11 @@
         if (pb) { tx = pb.x; ty = pb.y; }
       }
       if (ehq) {
-        // Keep rally closer to enemy base to avoid overextension.
-        ai.rally.x = ehq.x + (tx - ehq.x) * 0.25 + rnd(-TILE * 1.2, TILE * 1.2);
-        ai.rally.y = ehq.y + (ty - ehq.y) * 0.25 + rnd(-TILE * 1.2, TILE * 1.2);
+        ai.rally.x = ehq.x + (tx - ehq.x) * 0.25 + rnd(-TILE * 0.8, TILE * 0.8);
+        ai.rally.y = ehq.y + (ty - ehq.y) * 0.25 + rnd(-TILE * 0.8, TILE * 0.8);
       } else {
-        ai.rally.x = tx + rnd(-TILE * 1.2, TILE * 1.2);
-        ai.rally.y = ty + rnd(-TILE * 1.2, TILE * 1.2);
+        ai.rally.x = tx + rnd(-TILE * 0.8, TILE * 0.8);
+        ai.rally.y = ty + rnd(-TILE * 0.8, TILE * 0.8);
       }
       ai.rally.x = clamp(ai.rally.x, 0, WORLD_W);
       ai.rally.y = clamp(ai.rally.y, 0, WORLD_H);
@@ -257,11 +260,13 @@
         const ot = eng.order && eng.order.type;
         if (ot && ot !== "idle" && ot !== "guard") continue;
         // If hanging near own base (HQ/refinery), push to rally to avoid "rubbing"
-        if (dist2(eng.x, eng.y, dp.x, dp.y) < (TILE*6)*(TILE*6)){
-          const rx = ai.rally.x + rnd(-TILE * 2.2, TILE * 2.2);
-          const ry = ai.rally.y + rnd(-TILE * 2.2, TILE * 2.2);
+        const nearRally = dist2(eng.x, eng.y, ai.rally.x, ai.rally.y) < (TILE * 3) * (TILE * 3);
+        if (!nearRally && dist2(eng.x, eng.y, dp.x, dp.y) < (TILE*6)*(TILE*6)){
+          const rx = ai.rally.x + rnd(-TILE * 1.0, TILE * 1.0);
+          const ry = ai.rally.y + rnd(-TILE * 1.0, TILE * 1.0);
           eng.order = { type: "move", x: rx, y: ry, tx: null, ty: null };
           setPathTo(eng, rx, ry);
+          eng.repathCd = 0.5;
         }
       }
     }
@@ -393,8 +398,9 @@
       }
     }
 
-    const RALLY_ISSUE_INTERVAL = 2.4;
-    const RALLY_MOVE_THRESH2 = (TILE * 3) * (TILE * 3);
+    const RALLY_ISSUE_INTERVAL = 3.5;
+    const RALLY_MOVE_THRESH2 = (TILE * 4) * (TILE * 4);
+    const RALLY_ARRIVED_D2 = (TILE * 2.5) * (TILE * 2.5); // 이미 도착 근처면 재명령 안 함
     function aiCommandMoveToRally(list) {
       const rallyDx = ai.rally.x - ai.lastRallyX, rallyDy = ai.rally.y - ai.lastRallyY;
       const rallyMoved = (rallyDx * rallyDx + rallyDy * rallyDy) > RALLY_MOVE_THRESH2;
@@ -402,10 +408,12 @@
       ai.lastRallyIssue = state.t;
       ai.lastRallyX = ai.rally.x;
       ai.lastRallyY = ai.rally.y;
-      let k = 0; const spacing = 46;
+      const spacing = 52;
+      let k = 0;
       for (const u of list) {
-        // Keep empty IFVs back for passenger pickup.
         if (u.kind === "ifv" && !u.passengerId) continue;
+        const d2 = dist2(u.x, u.y, ai.rally.x, ai.rally.y);
+        if (d2 < RALLY_ARRIVED_D2 && u.order && u.order.type === "attackmove") continue; // 이미 집결 근처면 스킵
         const col = k % 5, row = (k / 5) | 0;
         const ox = (col - 2) * spacing;
         const oy = row * spacing - spacing;
@@ -415,7 +423,7 @@
         u.order = { type: "attackmove", x: gx, y: gy, tx: null, ty: null, manual:true, allowAuto:true, lockTarget:false };
         u.restX = null; u.restY = null;
         setPathTo(u, gx, gy);
-        u.repathCd = 0.55;
+        u.repathCd = 0.7;
         k++;
       }
     }
@@ -1126,8 +1134,9 @@
       // Attack cadence: 웨이브 쿨다운 단축
       if (ai.mode !== "attack") {
         ai.mode = "rally";
-        // gently pull strays back to rally
-        aiCommandMoveToRally(combat.filter(u => !u.order || u.order.type !== "move"));
+        // idle/guard만 집결로 당김 (attackmove 재명령 방지 → 이동질 감소)
+        const strays = combat.filter(u => !u.order || u.order.type === "idle" || u.order.type === "guard");
+        if (strays.length) aiCommandMoveToRally(strays);
         const earlyOK = (!hasFac && hasBar) ? (state.t > 45) : (state.t > 55);
         const waveCooldown = forcePush ? 0 : 5.0;
         const meetsGoal = (forcePush && combat.length >= Math.max(4, Math.floor(goal * 0.8))) || combat.length >= goal;
