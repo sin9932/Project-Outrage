@@ -50,6 +50,41 @@
     const findSpawnPointNear = ctx.findSpawnPointNear || null;
     const findNearestFreePoint = ctx.findNearestFreePoint || null;
 
+    // Build placement (optional - needs refs from game.js)
+    const BUILD = ctx.BUILD || {};
+    const TILE = (typeof ctx.TILE==="number") ? ctx.TILE : 64;
+    const MAP_W = (typeof ctx.MAP_W==="number") ? ctx.MAP_W : 32;
+    const MAP_H = (typeof ctx.MAP_H==="number") ? ctx.MAP_H : 32;
+    const buildingWorldFromTileOrigin = ctx.buildingWorldFromTileOrigin || null;
+    const inBuildRadius = ctx.inBuildRadius || (()=>false);
+    const isBlockedFootprint = ctx.isBlockedFootprint || (()=>true);
+    const addBuilding = ctx.addBuilding || noop;
+
+    function tryPlaceBuild() {
+      const build = state.build || {};
+      const kind = build.kind;
+      if (!kind || !buildingWorldFromTileOrigin || !addBuilding) return;
+      const spec = BUILD[kind];
+      if (!spec) return;
+      const hover = state.hover || {};
+      let tx = (hover.wx / TILE) | 0;
+      let ty = (hover.wy / TILE) | 0;
+      tx = clamp(tx, 0, MAP_W - spec.tw);
+      ty = clamp(ty, 0, MAP_H - spec.th);
+      const wpos = buildingWorldFromTileOrigin(tx, ty, spec.tw, spec.th);
+      if (typeof inBuildRadius !== "function" || !inBuildRadius(TEAM.PLAYER, wpos.cx, wpos.cy)) return;
+      if (isBlockedFootprint(tx, ty, spec.tw, spec.th)) return;
+      addBuilding(TEAM.PLAYER, kind, tx, ty);
+      if (build.lane && state.buildLane) {
+        const lane = state.buildLane[build.lane];
+        if (lane && lane.ready === kind) lane.ready = null;
+      }
+      build.active = false;
+      build.kind = null;
+      build.lane = null;
+      if (typeof state.suppressClickUntil === "number") state.suppressClickUntil = (state.t || 0) + 0.12;
+    }
+
     // -------------------------
     // Power / rates
     // -------------------------
@@ -579,6 +614,9 @@
     return {
       // shared data (by reference)
       prodFIFO, prodTotal, QCAP,
+
+      // build placement
+      tryPlaceBuild,
 
       // build lanes
       getBaseBuildTime,

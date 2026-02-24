@@ -8,6 +8,12 @@
   const OUUI = global.OUUI || (global.OUUI = {});
   const isFn = (v) => typeof v === "function";
 
+  // Selection Set delegated from game.js state.selection
+  OUUI.selection = new Set();
+
+  // Build placement mode state (active placement UI)
+  OUUI.build = { active: false, kind: null, lane: null };
+
   // Canvas resize + pointer helpers (DPR shared internally)
   OUUI.createCanvasHelpers = function createCanvasHelpers(canvas, mmCanvas) {
     const dprRef = { value: 1 };

@@ -109,6 +109,16 @@
       clampCamera();
     }
 
+    /** Apply pan from stored camIso + pointer delta. Called by input handlers. */
+    function applyPan(camIsoX, camIsoY, dx, dy) {
+      const camIsoXNew = camIsoX - dx;
+      const camIsoYNew = camIsoY - dy;
+      const w = isoToWorld(camIsoXNew, camIsoYNew);
+      cam.x = w.x;
+      cam.y = w.y;
+      clampCamera();
+    }
+
     const camShake = { t: 0, dur: 0, mag: 0, freq: 0, ox: 0, oy: 0, active: false };
 
     function startCamShake(dur = 0.55, mag = 18, freq = 34) {
@@ -143,6 +153,7 @@
       worldToIso,
       isoToWorld,
       clampCamera,
+      applyPan,
       worldToScreen,
       screenToWorld,
       centerCameraOn,

@@ -142,12 +142,12 @@
     debug: { fastProd: false },
     player: { money: 10000, powerProd: 0, powerUse: 0 },
     enemy:  { money: 10000, powerProd: 0, powerUse: 0 },
-    build:{ active:false, kind:null, lane:null },
+    build: (window.OUUI && window.OUUI.build) ? window.OUUI.build : { active:false, kind:null, lane:null },
     buildLane:{ main:{queue:null,ready:null,fifo:[]}, def:{queue:null,ready:null,fifo:[]} },
     primary:{ player:{ barracks:null, factory:null }, enemy:{ barracks:null, factory:null } },
     lastClick:{ t:0, id:null },
-    selection: new Set(),
-    hover: { px:0, py:0, wx:0, wy:0, entId:null, t0:0 },
+    selection: (window.OUUI && window.OUUI.selection) ? window.OUUI.selection : new Set(),
+    hover: (window.OUInput && window.OUInput.hover) ? window.OUInput.hover : { px:0, py:0, wx:0, wy:0, entId:null, t0:0 },
     drag: (window.OUInput && window.OUInput.drag) ? window.OUInput.drag : { on:false, moved:false, x0:0, y0:0, x1:0, y1:0 },
     pan:  (window.OUInput && window.OUInput.pan) ? window.OUInput.pan : { on:false, x0:0, y0:0, camIsoX:0, camIsoY:0 },
     colors: { player:"#0000ff", enemy:"#ff0000" },
@@ -1331,7 +1331,16 @@ const __ou_econ = (window.OUEconomy && typeof window.OUEconomy.create==="functio
       addUnit,
       setPathTo,
       findSpawnPointNear,
-      findNearestFreePoint
+      findNearestFreePoint,
+      // build placement (tryPlaceBuild)
+      buildingWorldFromTileOrigin,
+      inBuildRadius,
+      isBlockedFootprint,
+      addBuilding,
+      TILE,
+      MAP_W,
+      MAP_H,
+      BUILD
     })
   : null;
 
@@ -2002,183 +2011,10 @@ function pickEntityAtWorld(wx,wy){
   const stampCmd = __cmdThrottle ? __cmdThrottle.stampCmd : () => {};
   const buildFormationOffsets = (window.OU && window.OU.buildFormationOffsets) ? window.OU.buildFormationOffsets : (maxN) => Array.from({ length: Math.min(maxN, 1) }, (_, i) => ({ dx: 0, dy: 0 }));
 
-  function issueMoveAll(x,y){
-    const ids=[...state.selection];
-    // Snap click to nearest tile center
-    const snap = snapWorldToTileCenter(x,y);
-    const baseTx=snap.tx, baseTy=snap.ty;
-
-    // Directional intent inside the clicked tile (helps picking the adjacent side when the tile is occupied).
-    const baseCenter = tileToWorldCenter(baseTx, baseTy);
-    const intentVX = x - baseCenter.x;
-    const intentVY = y - baseCenter.y;
-
-
-    // Precompute candidate offsets sized to selection
-    const offsets = buildFormationOffsets(Math.max(16, ids.length*6));
-    const used = new Set();
-  const infCount = new Map();
-    // For infantry, assign a stable destination sub-slot per target tile
-    const __tileSubMask = new Map();
-    let k=0;
-    for (const id of ids){
-      const e=getEntityById(id);
-      if (!e || e.team!==TEAM.PLAYER) continue;
-      if (BUILD[e.kind]) continue;
-      if (shouldIgnoreCmd(e,'move',x,y,null)) continue;
-
-      e.guard=null; e.guardFrom=false;
-      e.restX=null; e.restY=null;
-      e.target=null;
-      // Cancel firing animation immediately when moving
-      e.fireHoldT=0; e.fireDir=null;
-      e.forceMoveUntil = state.t + 1.25;
-      e.repathCd=0.15;
-
-      // pick best nearby free tile among offsets, biased to the actual mouse world point (x,y)
-      // so clicking near a unit lets you place destinations to its side/front more predictably.
-      let chosen=null;
-      let bestScore=1e18;
-      for (let j=0; j<offsets.length; j++){
-        const tx = baseTx + offsets[j].dx;
-        const ty = baseTy + offsets[j].dy;
-        if (!inMap(tx,ty)) continue;
-        const key = tx+"," + ty;
-        if(UNIT[e.kind]?.cls!=="inf") { if(used.has(key)) continue; }
-        else { const c = infCount.get(key)||0; if(c>=INF_SLOT_MAX) continue; infCount.set(key,c+1); }
-        if (!canEnterTile(e, tx, ty)) continue;
-        const wpC = tileToWorldCenter(tx,ty);
-        // score: distance to the actual click + tiny ring penalty (prefer closer rings)
-        const dxw = (wpC.x - x), dyw = (wpC.y - y);
-        const ring = (Math.abs(offsets[j].dx)+Math.abs(offsets[j].dy));
-        const dot = (offsets[j].dx*intentVX + offsets[j].dy*intentVY);
-        // Lower score is better; dot>0 means tile is in the direction you clicked within the occupied tile.
-        const score = dxw*dxw + dyw*dyw + ring*9 - dot*1.2;
-        if (score < bestScore){
-          bestScore=score;
-          chosen={tx,ty};
-        }
-        // Early exit for perfect hit
-        if (score < 1) break;
-      }
-      // reserve chosen now (so other units won't pick it)
-      if (chosen){
-        if (!reserveTile(e, chosen.tx, chosen.ty)){
-          chosen=null;
-        } else {
-          used.add(chosen.tx+","+chosen.ty);
-        }
-      }
-      // if nothing free, fall back to base tile center
-      if (!chosen) chosen={tx:baseTx, ty:baseTy};
-const cls = (UNIT[e.kind] && UNIT[e.kind].cls) ? UNIT[e.kind].cls : "";
-let wp;
-let subSlot = null;
-if (cls==="inf"){
-  const tkey = chosen.tx + "," + chosen.ty;
-  let mask = __tileSubMask.get(tkey) || 0;
-  let pick = 0;
-  for (let s=0; s<4; s++){
-    if (((mask>>s)&1)===0){ pick=s; break; }
-  }
-  subSlot = pick;
-  mask = (mask | (1<<pick)) & 0x0F;
-  __tileSubMask.set(tkey, mask);
-  wp = tileToWorldSubslot(chosen.tx, chosen.ty, pick);
-} else {
-  wp = tileToWorldCenter(chosen.tx, chosen.ty);
-}
-e.order={type:"move", x:wp.x, y:wp.y, tx:chosen.tx, ty:chosen.ty, subSlot:subSlot};
-
-      e.holdPos = false;
-
-      pushOrderFx(e.id,"move",wp.x,wp.y,null,"rgba(90,255,90,0.95)");
-      setPathTo(e, wp.x, wp.y);
-      showUnitPathFx(e, wp.x, wp.y, "rgba(255,255,255,0.85)");
-      stampCmd(e,'move',wp.x,wp.y,null);
-      k++;
-    }
-  }
-
-  function issueMoveCombatOnly(x,y){
-    const ids=[...state.selection];
-    let k=0; const spacing=46;
-    for (const id of ids){
-      const e=getEntityById(id);
-      if (!e || e.team!==TEAM.PLAYER) continue;
-      if (BUILD[e.kind]) continue;
-      if (e.kind==="harvester") continue;
-      if (shouldIgnoreCmd(e,'move',x,y,null)) continue;
-      const col=k%5, row=(k/5)|0;
-      const ox=(col-2)*spacing;
-      const oy=row*spacing - spacing;
-      let gx=x+ox, gy=y+oy;
-      const spot=findNearestFreePoint(gx,gy,e,4);
-      if (spot && spot.found){ gx=spot.x; gy=spot.y; }
-      e.order={type:"move", x:gx, y:gy, tx:null,ty:null, manual:true, allowAuto:false, lockTarget:false};
-      e.restX=null; e.restY=null;
-      e.target=null;
-      // Cancel firing animation immediately when moving
-      e.fireHoldT=0; e.fireDir=null;
-      pushOrderFx(e.id,"move",gx,gy,null,"rgba(90,255,90,0.95)");
-      e.forceMoveUntil = state.t + 1.25;
-      setPathTo(e, gx, gy);
-      showUnitPathFx(e, gx, gy, "rgba(255,255,255,0.85)");
-      e.repathCd=0.25;
-      stampCmd(e,'move',gx,gy,null);
-      k++;
-    }
-  }
-  function issueAttackMove(x,y){
-    const ids=[...state.selection];
-    let k=0; const spacing=46;
-    for (const id of ids){
-      const u=getEntityById(id);
-      if (!u || u.team!==TEAM.PLAYER) continue;
-      if (BUILD[u.kind]) continue;
-      u.guard=null; u.guardFrom=false;
-      if (u.kind==="harvester" || u.kind==="engineer") continue;
-      if ((u.range||0) <= 0) continue;
-
-      const col=k%5, row=(k/5)|0;
-      const ox=(col-2)*spacing;
-      const oy=row*spacing - spacing;
-      let gx=x+ox, gy=y+oy;
-      const spot=findNearestFreePoint(gx,gy,u,4);
-      if (spot && spot.found){ gx=spot.x; gy=spot.y; }
-
-            if (shouldIgnoreCmd(u,'attackmove',gx,gy,null)) { k++; continue; }
-u.order={type:"attackmove", x:gx, y:gy, tx:null,ty:null, manual:true, allowAuto:true, lockTarget:false};
-      u.holdPos = false;
-      u.target=null;
-      // Cancel firing animation immediately when moving (attack-move)
-      u.fireHoldT=0; u.fireDir=null;
-      setPathTo(u, gx, gy);
-      pushOrderFx(u.id,"attackmove",gx,gy,null,"rgba(255,90,90,0.95)");
-      u.repathCd=0.25;
-      k++;
-      stampCmd(u,'attackmove',gx,gy,null);
-    }
-  }
-
-
-  function issueGuard(){
-    const ids=[...state.selection];
-    for (const id of ids){
-      const u=getEntityById(id);
-      if (!u || u.team!==TEAM.PLAYER) continue;
-      if (BUILD[u.kind]) continue;
-      if ((u.range||0)<=0 || u.kind==="engineer" || u.kind==="harvester") continue;
-
-      u.guard = { on:true, x0:u.x, y0:u.y };
-      u.order = { type:"guard", x:u.x, y:u.y, tx:null,ty:null };
-      u.target = null;
-      u.path = null;
-
-      // quick feedback ring
-      showUnitPathFx(u, u.x, u.y, "rgba(120,255,120,0.9)");
-    }
-  }
+  function issueMoveAll(x,y){ if (__ou_commands) return __ou_commands.issueMoveAll(x,y); }
+  function issueMoveCombatOnly(x,y){ if (__ou_commands) return __ou_commands.issueMoveCombatOnly(x,y); }
+  function issueAttackMove(x,y){ if (__ou_commands) return __ou_commands.issueAttackMove(x,y); }
+  function issueGuard(){ if (__ou_commands) return __ou_commands.issueGuard(); }
   function assignControlGroup(n){
     if (n<1 || n>9) return;
     const prev = controlGroups[n] || [];
@@ -2224,236 +2060,23 @@ function getChasePointForAttack(u, t){
   const p = (__ou_sim && __ou_sim.getStandoffPoint) ? __ou_sim.getStandoffPoint(u, t, want, isB, tr, seed) : null;
   return p || {x:t.x, y:t.y};
 }
-function issueAttack(targetId){
-    const t=getEntityById(targetId);
-    if (!t || t.attackable===false) return;
 
-    const ids=[...state.selection];
-    const spacing=0.85*TILE;
-    // Assign deterministic encirclement slots (multi-ring) so large groups don't queue behind each other.
-    const atkUnits = [];
-    for (let k=0;k<ids.length;k++){
-      const uu=getEntityById(ids[k]);
-      if (!uu || !uu.alive || uu.type!=="unit") continue;
-      const isEngIFV = (uu.kind==="ifv" && uu.passKind==="engineer");
-      if (isEngIFV) continue;
-      if (!uu.canAttack) continue;
-      atkUnits.push(uu);
-    }
-    // Use group centroid as the "front" reference so rings distribute around the target consistently.
-    let cx=0, cy=0;
-    for (const uu of atkUnits){ cx+=uu.x; cy+=uu.y; }
-    if (atkUnits.length){ cx/=atkUnits.length; cy/=atkUnits.length; }
-    const baseAng = Math.atan2(cy - t.y, cx - t.x);
-    // Slots per ring: roughly one per ~0.9 tile of circumference at preferred distance
-    const baseDist = Math.max(2*TILE, (atkUnits[0] && atkUnits[0].range ? (atkUnits[0].range*0.85) : 2*TILE));
-    const slotsPerRing = clamp(((Math.PI*2*baseDist)/(TILE*0.9))|0, 8, 16);
-    for (let j=0;j<atkUnits.length;j++){
-      const uu = atkUnits[j];
-      const ring = (j/slotsPerRing)|0;
-      const idx = j - ring*slotsPerRing;
-      const ringCount = Math.min(slotsPerRing, atkUnits.length - ring*slotsPerRing);
-      const ang = baseAng + (idx / Math.max(1, ringCount)) * (Math.PI*2);
-      uu.atkSlotT = t.id;
-      uu.atkSlotAng = ang;
-      uu.atkSlotRing = ring;    }
+  const __ou_commands = (window.OUCommands && typeof window.OUCommands.create === "function")
+    ? window.OUCommands.create({
+        state, getEntityById, TEAM, BUILD, UNIT, setPathTo, pushOrderFx, showUnitPathFx,
+        canEnterTile, reserveTile, findNearestFreePoint, tileToWorldCenter, tileToWorldSubslot,
+        inMap, snapWorldToTileCenter, buildFormationOffsets, shouldIgnoreCmd, stampCmd,
+        TILE, getClosestPointOnBuilding, getChasePointForAttack, tileOfX, tileOfY, toast, INF_SLOT_MAX, clamp
+      })
+    : null;
 
-
-    for (let i=0;i<ids.length;i++){
-      const u=getEntityById(ids[i]);
-      if (!u || !u.alive || u.type!=="unit") continue;
-
-      // If an Engineer-IFV is selected with combat units, treat attack-click as MOVE (support vehicle),
-      // while other combat units perform the attack.
-      const isEngIFV = (u.kind==="ifv" && u.passKind==="engineer");
-
-      if (!isEngIFV){
-        if (!u.canAttack) continue;
-      } else {
-        // engineer IFV never attacks; it will move toward the target
-        u.target = null;
-        u.forceFire = null;
-      }
-      if (state.mode==="repair" || state.mode==="sell") continue;
-      if (shouldIgnoreCmd(u,"attack",u.x,u.y,targetId)) continue;
-
-      // formation offset to reduce clumping
-      const ring=Math.floor(Math.sqrt(i));
-      const ang=(i*2.1)%(Math.PI*2);
-      const off=(ring+1)*spacing;
-      const ox=Math.cos(ang)*off;
-      const oy=Math.sin(ang)*off;
-
-      if (isEngIFV){
-        u.order = { type:"move", x:u.x, y:u.y, tx:null, ty:null, manual:true, allowAuto:false, lockTarget:false };
-      u.holdPos = false;
-        const p=getChasePointForAttack(u,t);
-        const ok=setPathTo(u, p.x+ox, p.y+oy);
-        if (!ok){
-          const gx = p.x+ox, gy = p.y+oy;
-          const gtx = tileOfX(gx), gty = tileOfY(gy);
-          u.path = [{tx:gtx, ty:gty}]; u.pathI=0;
-        }
-        u.orderFx = {t:0.55, kind:"move", x:p.x+ox, y:p.y+oy, targetId};
-        pushOrderFx(u.id,"move",p.x+ox,p.y+oy,targetId,"rgba(90,255,90,0.95)");
-      } else {
-        u.order={type:"attack", x:u.x, y:u.y, tx:null, ty:null, manual:true, allowAuto:false, lockTarget:true};
-        u.target=targetId;
-        u.forceFire=null;
-
-        const p=getChasePointForAttack(u,t);
-        const ok=setPathTo(u, p.x+ox, p.y+oy);
-        if (!ok){
-          const gx = p.x+ox, gy = p.y+oy;
-          const gtx = tileOfX(gx), gty = tileOfY(gy);
-          u.path = [{tx:gtx, ty:gty}]; u.pathI=0;
-        }
-        u.orderFx = {t:0.55, kind:"attack", x:p.x+ox, y:p.y+oy, targetId};
-        pushOrderFx(u.id,"attack",p.x+ox,p.y+oy,targetId,"rgba(255,70,70,0.95)");
-      }
-    }
-  }
-
-  // Ctrl+LeftClick force-fire/force-attack: ignores team, persists until another order is given.
-  function issueForceAttack(targetId){
-    const t=getEntityById(targetId);
-    if (!t || t.attackable===false || !t.alive) return;
-    for (const id of state.selection){
-      const e=getEntityById(id);
-      if (!e || e.team!==TEAM.PLAYER) continue;
-      // Buildings: allow turret to force-attack too.
-      if (BUILD[e.kind]){
-        if (e.kind==="turret"){
-          e.forceFire = { mode:"id", id: targetId };
-          toast("공격 지정");
-        }
-        continue;
-      }
-      if (e.kind==="harvester"||e.kind==="engineer") continue;
-      if ((e.range||0)<=0) continue;
-      e.guard=null; e.guardFrom=false;
-            if (shouldIgnoreCmd(e,'forceattack',e.x,e.y,targetId)) continue;
-e.order={type:"attack", x:e.x,y:e.y, tx:null,ty:null, manual:true, allowAuto:false, lockTarget:true, allowFriendly: (t.team===e.team)};
-      e.holdPos = false;
-      e.target=targetId;
-      e.forceFire = null;
-      const p=getChasePointForAttack(e, t);
-      setPathTo(e, p.x, p.y);
-      pushOrderFx(e.id,"attack",p.x,p.y,targetId,"rgba(255,70,70,0.95)");
-      e.repathCd=0.35;
-      stampCmd(e,'attack',p.x,p.y,targetId);
-    }
-  }
-
-  function issueForceFirePos(x,y){
-    for (const id of state.selection){
-      const e=getEntityById(id);
-      if (!e || e.team!==TEAM.PLAYER) continue;
-      if (BUILD[e.kind]){
-        if (e.kind==="turret"){
-          e.forceFire = { mode:"pos", x, y };
-          toast("공격 지정");
-        }
-        continue;
-      }
-      if (e.kind==="harvester"||e.kind==="engineer") continue;
-      if ((e.range||0)<=0) continue;
-      e.guard=null; e.guardFrom=false;
-      e.target=null;
-      e.forceFire = { x, y };
-            if (shouldIgnoreCmd(e,'forcefire',x,y,null)) continue;
-e.order={type:"forcefire", x, y, tx:null,ty:null};
-      setPathTo(e, x, y);
-      showUnitPathFx(e, x, y, "rgba(255,80,80,0.95)");
-      e.repathCd=0.35;
-      stampCmd(e,'forcefire',x,y,null);
-    }
-  }
-
-  function issueCapture(targetId){
-    const t=getEntityById(targetId);
-    if (!t || t.civ) return;
-    for (const id of state.selection){
-      const e=getEntityById(id);
-      if (!e || e.team!==TEAM.PLAYER) continue;
-      if (e.kind!=="engineer") continue;
-      if (shouldIgnoreCmd(e,'capture',e.x,e.y,targetId)) continue;
-      e.order={type:"capture", x:e.x,y:e.y, tx:null,ty:null};
-      e.target=targetId;
-      const dock=getClosestPointOnBuilding(t,e);
-      setPathTo(e, dock.x, dock.y);
-      showUnitPathFx(e, t.x, t.y, "rgba(255,220,120,0.95)");
-      e.repathCd=0.35;
-      stampCmd(e,'capture',dock.x,dock.y,targetId);
-    }
-  }
-
-
-// Engineer can enter any damaged friendly building to instantly fully repair it (engineer is consumed).
-function issueEngineerRepair(targetId){
-  const t=getEntityById(targetId);
-  if (!t || !BUILD[t.kind] || t.civ) return;
-  if (t.team!==TEAM.PLAYER) return;
-  if (t.hp >= t.hpMax-0.5){ toast("수리 불필요"); return; }
-  for (const id of state.selection){
-    const e=getEntityById(id);
-    if (!e || e.team!==TEAM.PLAYER) continue;
-    if (e.kind!=="engineer") continue;
-    const dock=getClosestPointOnBuilding(t,e);
-    if (shouldIgnoreCmd(e,'repairenter',dock.x,dock.y,targetId)) continue;
-    e.order={type:"repairenter", x:e.x,y:e.y, tx:null,ty:null};
-    e.target=targetId;
-    setPathTo(e, dock.x, dock.y);
-    showUnitPathFx(e, dock.x, dock.y, "rgba(120,255,120,0.95)");
-    e.repathCd=0.35;
-    stampCmd(e,'repairenter',dock.x,dock.y,targetId);
-  }
-}
-
-  function issueHarvest(tx,ty){
-    const gx = (tx+0.5)*TILE, gy = (ty+0.5)*TILE;
-    for (const id of state.selection){
-      const u=getEntityById(id);
-      if (!u || u.team!==TEAM.PLAYER || u.kind!=="harvester") continue;
-      if (shouldIgnoreCmd(u,'harvest',gx,gy,null)) continue;
-
-      u.manualOre={tx,ty};
-      u.order={type:"harvest", x:u.x,y:u.y, tx,ty};
-      u.returning=false;
-      u.path=null; u.pathI=0;
-
-      setPathTo(u, gx, gy);
-      // Harvest is treated as an "attack-style" order for feedback: red line + red endpoint.
-      pushOrderFx(u.id,"harvest",gx,gy,null,"rgba(255,70,70,0.95)");
-      showUnitPathFx(u, gx, gy, "rgba(255,90,90,0.85)");
-      stampCmd(u,'harvest',gx,gy,null);
-
-      u.repathCd=0.25;
-      u.stuckTime=0;
-    }
-  }
-
-  
-function issueIFVRepair(targetId){
-  const t=getEntityById(targetId);
-  if (!t || !t.alive || t.team!==TEAM.PLAYER) return;
-  if (BUILD[t.kind]) return;
-  const tcls = (UNIT[t.kind] && UNIT[t.kind].cls) ? UNIT[t.kind].cls : "";
-  if (tcls!=="veh") return;
-  if (t.hp >= t.hpMax-0.5){ toast("수리 불필요"); return; }
-
-  for (const id of state.selection){
-    const u=getEntityById(id);
-    if (!u || !u.alive || u.team!==TEAM.PLAYER) continue;
-    if (u.kind!=="ifv" || u.passKind!=="engineer") continue;
-    u.repairTarget = t.id;
-    u.order = {type:"move", x:u.x,y:u.y, tx:null,ty:null};
-    setPathTo(u, t.x, t.y);
-    u.repathCd = 0.25;
-  }
-  toast("IFV 수리");
-}
-
+    function issueAttack(targetId){ if (__ou_commands) return __ou_commands.issueAttack(targetId); }
+  function issueForceAttack(targetId){ if (__ou_commands) return __ou_commands.issueForceAttack(targetId); }
+  function issueForceFirePos(x,y){ if (__ou_commands) return __ou_commands.issueForceFirePos(x,y); }
+  function issueCapture(targetId){ if (__ou_commands) return __ou_commands.issueCapture(targetId); }
+  function issueEngineerRepair(targetId){ if (__ou_commands) return __ou_commands.issueEngineerRepair(targetId); }
+  function issueHarvest(tx,ty){ if (__ou_commands) return __ou_commands.issueHarvest(tx,ty); }
+  function issueIFVRepair(targetId){ if (__ou_commands) return __ou_commands.issueIFVRepair(targetId); }
 function crushInfantry(mover){
   // 차량(탱크/굴착기)이 적 보병과 겹치면 즉사. IFV는 제외.
   if (mover.kind!=="tank" && mover.kind!=="harvester") return;
@@ -2472,90 +2095,7 @@ function crushInfantry(mover){
   }
 }
 
-  function issueForceMoveAll(x,y){
-    const ids=[...state.selection];
-    // Snap click to nearest tile center
-    const snap = snapWorldToTileCenter(x,y);
-    const baseTx=snap.tx, baseTy=snap.ty;
-
-    const baseCenter = tileToWorldCenter(baseTx, baseTy);
-    const intentVX = x - baseCenter.x;
-    const intentVY = y - baseCenter.y;
-
-    const offsets = buildFormationOffsets(Math.max(16, ids.length*6));
-    const used = new Set();
-    const infCount = new Map();
-    const __tileSubMask = new Map();
-    let k=0;
-    for (const id of ids){
-      const e=getEntityById(id);
-      if (!e || e.team!==TEAM.PLAYER) continue;
-      if (BUILD[e.kind]) continue;
-      if (shouldIgnoreCmd(e,'move',x,y,null)) continue;
-
-      e.guard=null; e.guardFrom=false;
-      e.restX=null; e.restY=null;
-      e.target=null;
-      e.fireHoldT=0; e.fireDir=null;
-      e.forceMoveUntil = state.t + 2.5;
-      e.repathCd=0.10;
-
-      let chosen=null;
-      let bestScore=1e18;
-      for (let j=0; j<offsets.length; j++){
-        const tx = baseTx + offsets[j].dx;
-        const ty = baseTy + offsets[j].dy;
-        if (!inMap(tx,ty)) continue;
-        const key = tx+"," + ty;
-        if(UNIT[e.kind]?.cls!=="inf") { if(used.has(key)) continue; }
-        else { const c = infCount.get(key)||0; if(c>=INF_SLOT_MAX) continue; infCount.set(key,c+1); }
-        if (!canEnterTile(e, tx, ty)) continue;
-        const wpC = tileToWorldCenter(tx,ty);
-        const dxw = (wpC.x - x), dyw = (wpC.y - y);
-        const ring = (Math.abs(offsets[j].dx)+Math.abs(offsets[j].dy));
-        const dot = (offsets[j].dx*intentVX + offsets[j].dy*intentVY);
-        const score = dxw*dxw + dyw*dyw + ring*9 - dot*1.2;
-        if (score < bestScore){
-          bestScore=score;
-          chosen={tx,ty};
-        }
-        if (score < 1) break;
-      }
-      if (chosen){
-        if (!reserveTile(e, chosen.tx, chosen.ty)){
-          chosen=null;
-        } else {
-          used.add(chosen.tx+","+chosen.ty);
-        }
-      }
-      if (!chosen) chosen={tx:baseTx, ty:baseTy};
-      const cls = (UNIT[e.kind] && UNIT[e.kind].cls) ? UNIT[e.kind].cls : "";
-      let wp;
-      let subSlot = null;
-      if (cls==="inf"){
-        const tkey = chosen.tx + "," + chosen.ty;
-        let mask = __tileSubMask.get(tkey) || 0;
-        let pick = 0;
-        for (let s=0; s<4; s++){
-          if (((mask>>s)&1)===0){ pick=s; break; }
-        }
-        subSlot = pick;
-        mask = (mask | (1<<pick)) & 0x0F;
-        __tileSubMask.set(tkey, mask);
-        wp = tileToWorldSubslot(chosen.tx, chosen.ty, pick);
-      } else {
-        wp = tileToWorldCenter(chosen.tx, chosen.ty);
-      }
-      e.order={type:"move", x:wp.x, y:wp.y, tx:chosen.tx, ty:chosen.ty, subSlot:subSlot, manual:true, allowAuto:false, lockTarget:false};
-
-      e.holdPos = false;
-      pushOrderFx(e.id,"move",wp.x,wp.y,null,"rgba(90,255,90,0.95)");
-      setPathTo(e, wp.x, wp.y);
-      showUnitPathFx(e, wp.x, wp.y, "rgba(255,255,255,0.85)");
-      stampCmd(e,'move',wp.x,wp.y,null);
-      k++;
-    }
-  }
+  function issueForceMoveAll(x,y){ if (__ou_commands) return __ou_commands.issueForceMoveAll(x,y); }
 
 const keys=new Set();
   // DEBUG: Delete key toggles building-destruction click mode (any team)
@@ -2758,11 +2298,15 @@ const keys=new Set();
     if (state.pan.on){
       const dx = (p.x - state.pan.x0);
       const dy = (p.y - state.pan.y0);
-      const camIsoX = state.pan.camIsoX - dx;
-      const camIsoY = state.pan.camIsoY - dy;
-      const ww = isoToWorld(camIsoX, camIsoY);
-      cam.x=ww.x; cam.y=ww.y;
-      clampCamera();
+      if (__ou_cam && typeof __ou_cam.applyPan === "function") {
+        __ou_cam.applyPan(state.pan.camIsoX, state.pan.camIsoY, dx, dy);
+      } else {
+        const camIsoX = state.pan.camIsoX - dx;
+        const camIsoY = state.pan.camIsoY - dy;
+        const ww = isoToWorld(camIsoX, camIsoY);
+        cam.x=ww.x; cam.y=ww.y;
+        clampCamera();
+      }
       return;
     }
 
@@ -3017,11 +2561,10 @@ if (state.selection.size>0 && inMap(tx,ty) && ore[idx(tx,ty)]>0){
 
 
   function rectFromDrag(){
-    const x0=Math.min(state.drag.x0,state.drag.x1);
-    const y0=Math.min(state.drag.y0,state.drag.y1);
-    const x1=Math.max(state.drag.x0,state.drag.x1);
-    const y1=Math.max(state.drag.y0,state.drag.y1);
-    return {x0,y0,x1,y1};
+    if (window.OUInput && typeof window.OUInput.getRectFromDrag === "function")
+      return window.OUInput.getRectFromDrag();
+    const d = state.drag;
+    return { x0: Math.min(d.x0,d.x1), y0: Math.min(d.y0,d.y1), x1: Math.max(d.x0,d.x1), y1: Math.max(d.y0,d.y1) };
   }
 
   function selectInRect(r, additive){
@@ -3508,33 +3051,28 @@ if (state.selection.size>0 && inMap(tx,ty) && ore[idx(tx,ty)]>0){
   }
 
   function tryPlaceBuild(){
+    if (__ou_econ && typeof __ou_econ.tryPlaceBuild === "function") {
+      __ou_econ.tryPlaceBuild();
+      return;
+    }
     const kind=state.build.kind;
     if (!kind) return;
-
-    // Placement phase: cost is already paid during BUILD, so no upfront deduction here.
     const spec=BUILD[kind];
     const s = snapHoverToTileOrigin(kind);
     const tx=s.tx, ty=s.ty;
-
     const wpos=buildingWorldFromTileOrigin(tx,ty,spec.tw,spec.th);
-
     if (!inBuildRadius(TEAM.PLAYER, wpos.cx, wpos.cy)) return;
     if (isBlockedFootprint(tx,ty,spec.tw,spec.th)) return;
-
     addBuilding(TEAM.PLAYER, kind, tx,ty);
-
-    // consume READY item (lane-based)
     if (state.build.lane){
       const lane = state.buildLane[state.build.lane];
       if (lane && lane.ready === kind) lane.ready = null;
     }
-
-    // exit placement (no refund)
     state.build.active = false;
     state.build.kind = null;
     state.build.lane = null;
     state.suppressClickUntil = state.t + 0.12;
-}
+  }
 
 function refreshPrimaryBuildingBadgesUI(){
   if (!__ou_ui || !__ou_ui.refreshPrimaryBuildingBadgesUI) return;
@@ -4024,6 +3562,7 @@ function validateWorld(){
 }
 
 function sanityCheck(){
+    // followPath, isBlockedWorldPoint -> sim.js; setPathTo delegates to __ou_sim
     const must = [
       "setPathTo","findPath","issueIFVRepair","boardUnitIntoIFV","unboardIFV","resolveUnitOverlaps"
     ];
