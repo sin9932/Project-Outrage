@@ -589,11 +589,8 @@ function getBaseBuildTime(kind){
 
 const buildingWorldFromTileOrigin = __tileHelpers ? __tileHelpers.buildingWorldFromTileOrigin : (tx,ty,tw,th)=>{ const w=tw*TILE, h=th*TILE; return { cx: tx*TILE + w/2, cy: ty*TILE + h/2, w, h }; };
   function setBuildingOcc(b, v){
-    for (let ty=b.ty; ty<b.ty+b.th; ty++){
-      for (let tx=b.tx; tx<b.tx+b.tw; tx++){
-        if (inMap(tx,ty)) buildOcc[idx(tx,ty)] = v;
-      }
-    }
+    if (__ou_footprint && __ou_footprint.setBuildingOcc) __ou_footprint.setBuildingOcc(b, v);
+    else { for (let ty=b.ty; ty<b.ty+b.th; ty++) for (let tx=b.tx; tx<b.tx+b.tw; tx++) if (inMap(tx,ty)) buildOcc[idx(tx,ty)] = v; }
   }
 
   function addBuilding(team, kind, tx, ty){
@@ -631,7 +628,7 @@ const buildingWorldFromTileOrigin = __tileHelpers ? __tileHelpers.buildingWorldF
     setBuildingOcc(b, 1);
     recomputePower();
     if (!state._placeStartPhase && !spec.civ && __ou_sim && __ou_sim.recordConstruction) __ou_sim.recordConstruction(team, kind);
-    onBuildingPlaced(b);
+    if (__ou_econ && __ou_econ.onBuildingPlaced) __ou_econ.onBuildingPlaced(b);
     try{ if (window.PO && PO.buildings && PO.buildings.onPlaced) PO.buildings.onPlaced(b, state); }catch(_e){}
     return b;
   }
@@ -642,55 +639,6 @@ function hasBuilding(team, kind){
     if (b.alive && !b.civ && b.team===team && b.kind===kind) return true;
   }
   return false;
-}
-
-function findHarvesterSpawnNearBuilding(b){
-  // Find a nearby free tile to spawn a vehicle-sized unit.
-  // Prefer tiles around the footprint perimeter.
-  const cx = b.tx + (b.tw>>1);
-  const cy = b.ty + (b.th>>1);
-  const maxR = 12;
-  for (let r=1; r<=maxR; r++){
-    for (let dy=-r; dy<=r; dy++){
-      for (let dx=-r; dx<=r; dx++){
-        if (Math.abs(dx)!==r && Math.abs(dy)!==r) continue; // perimeter only
-        const tx = cx + dx;
-        const ty = cy + dy;
-        if (!inMap(tx,ty)) continue;
-        const i=idx(tx,ty);
-        if (terrain[i]!==0) continue;
-        if (buildOcc[i]===1) continue;
-        if (ore[i]>0) continue;
-        if ((occAll[i]||0)>0) continue;
-        const p = tileToWorldCenter(tx,ty);
-        return { x:p.x, y:p.y };
-      }
-    }
-  }
-  // Fallback: just outside the building center
-  return { x: b.x + TILE, y: b.y + TILE };
-}
-
-function spawnFreeHarvester(team, nearBuilding){
-  const p = findHarvesterSpawnNearBuilding(nearBuilding);
-  const u = addUnit(team, "harvester", p.x, p.y);
-  // Immediately start auto-harvest (idle triggers ore search)
-  u.order = {type:"idle", x:u.x, y:u.y, tx:null, ty:null};
-  u.manualOre = null;
-  u.returning = false;
-  u.target = null;
-      u.holdPos = false;
-  u.path = null; u.pathI=0;
-  u.repathCd = 0.10;
-  return u;
-}
-
-function onBuildingPlaced(b){
-  // Refinery spawns a free harvester nearby.
-  if (b.kind==="refinery"){
-    spawnFreeHarvester(b.team, b);
-  }
-  // No other buildings auto-spawn units.
 }
 
 function addUnit(team, kind, x, y, opts){
@@ -767,75 +715,9 @@ function addUnit(team, kind, x, y, opts){
     return null;
   }
 
-  function isBlockedFootprint(tx,ty,tw,th){
-    // Any blocked tile inside footprint makes placement invalid.
-    // Blocked if: out of bounds, existing building, impassable terrain, ore, or any unit occupying the tile.
-    if (tx<0||ty<0||tx+tw>MAP_W||ty+th>MAP_H) return true;
-    for (let y=ty; y<ty+th; y++){
-      for (let x=tx; x<tx+tw; x++){
-        if (!inMap(x,y)) return true;
-        const ti = idx(x,y);
-        if (buildOcc[ti]===1) return true;
-        if (terrain[ti] !== 0) return true;
-        if (ore[ti] > 0) return true;
-        if (treeHp[ti] > 0) return true; // 나무: 건물 건설 불가
-        if ((occAll[ti]||0) > 0) return true; // units block placement
-      }
-    }
-    
-    // Extra safety: block if ANY unit's collision circle overlaps the footprint AABB,
-    // even if its center tile is just outside (prevents "build over unit" edge cases).
-    const wpos = buildingWorldFromTileOrigin(tx,ty,tw,th);
-    for (const u of units){
-      if (!u.alive || u.inTransport || u.hidden) continue;
-      const rr = (u.r||18) + 2;
-      if (dist2PointToRect(u.x,u.y, wpos.cx, wpos.cy, wpos.w, wpos.h) <= rr*rr) return true;
-    }
-
-    return false;
-  }
-
-  
-  function isTooCloseToOtherBuildings(tx,ty,tw,th, gapTiles=1){
-    // Enforce a small gap between buildings (AI de-clumping).
-    const x0 = tx - gapTiles, y0 = ty - gapTiles;
-    const x1 = tx + tw + gapTiles - 1, y1 = ty + th + gapTiles - 1;
-    for (let y=y0; y<=y1; y++){
-      for (let x=x0; x<=x1; x++){
-        if (!inMap(x,y)) continue;
-        if (buildOcc[idx(x,y)]===1) return true;
-      }
-    }
-    return false;
-  }
-
-function footprintBlockedMask(tx,ty,tw,th){
-    // Returns {blocked:boolean, mask:Uint8Array} where mask[i]=1 if the footprint tile is blocked.
-    const mask = new Uint8Array(tw*th);
-    let any=false;
-    if (tx<0||ty<0||tx+tw>MAP_W||ty+th>MAP_H){
-      mask.fill(1);
-      return {blocked:true, mask};
-    }
-    let k=0;
-    for (let y=ty; y<ty+th; y++){
-      for (let x=tx; x<tx+tw; x++){
-        let b=false;
-        if (!inMap(x,y)) b=true;
-        else{
-          const ti=idx(x,y);
-          if (buildOcc[ti]===1) b=true;
-          else if (terrain[ti] !== 0) b=true;
-          else if (ore[ti] > 0) b=true;
-          else if (treeHp[ti] > 0) b=true; // 나무: 건물 건설 불가
-          else if ((occAll[ti]||0) > 0) b=true;
-        }
-        mask[k++] = b?1:0;
-        if (b) any=true;
-      }
-    }
-    return {blocked:any, mask};
-  }
+  function isBlockedFootprint(tx,ty,tw,th){ return __ou_footprint && __ou_footprint.isBlockedFootprint ? __ou_footprint.isBlockedFootprint(tx,ty,tw,th) : true; }
+  function isTooCloseToOtherBuildings(tx,ty,tw,th, gapTiles=1){ return __ou_footprint && __ou_footprint.isTooCloseToOtherBuildings ? __ou_footprint.isTooCloseToOtherBuildings(tx,ty,tw,th, gapTiles) : false; }
+  function footprintBlockedMask(tx,ty,tw,th){ return __ou_footprint && __ou_footprint.footprintBlockedMask ? __ou_footprint.footprintBlockedMask(tx,ty,tw,th) : { blocked: true, mask: new Uint8Array((tw||1)*(th||1)) }; }
 
 
   function inBuildRadius(team, wx, wy){
@@ -892,6 +774,13 @@ function isBlockedWorldPointEx(u, x, y, padExtra){
   const occId = occAnyId;
   // Reservation grid for next-tile claims to prevent deadlocks at intersections.
   const occResId = new Int32Array(MAP_W*MAP_H);
+
+  const __ou_footprint = (window.OU && typeof window.OU.createFootprintHelpers === "function")
+    ? window.OU.createFootprintHelpers({
+        buildOcc, buildings, terrain, ore, treeHp, occAll, units,
+        MAP_W, MAP_H, inMap, idx, buildingWorldFromTileOrigin, dist2PointToRect
+      })
+    : null;
 
 // Infantry sub-slot system (4 infantry per tile, arranged as 4 points inside the diamond)
 // We assign a stable-ish subSlot per infantry per frame based on per-tile counters (team-separated).
@@ -1048,96 +937,9 @@ function getPowerFactor(team){
     return buildings.some(b=>b.alive && !b.civ && b.team===team && b.kind==="radar");
   }
 
-function boardUnitIntoIFV(unit, ifv){
-  if (!unit || !ifv) return false;
-  if (!unit.alive || !ifv.alive) return false;
-  if (ifv.kind!=="ifv" || ifv.team!==unit.team) return false;
-  if (ifv.passengerId) return false;
-  if (unit.inTransport) return false;
-  if (unit.kind!=="infantry" && unit.kind!=="engineer" && unit.kind!=="sniper") return false;
-
-  ifv.passengerId = unit.id;
-  ifv.passKind = unit.kind;
-  if (unit.kind==="sniper"){
-    const sr = (UNIT.sniper && UNIT.sniper.range) || 1200;
-    ifv.dmg = 125; ifv.range = sr; ifv.rof = 2.20/2.0; ifv.hitscan = true;
-  } else if (unit.kind==="infantry"){
-    ifv.dmg = (UNIT.infantry && UNIT.infantry.dmg) || 12; ifv.range = 620; ifv.rof = 0.55/2.0; ifv.hitscan = true;
-  } else if (unit.kind==="engineer"){
-    ifv.dmg = 0; ifv.range = 0; ifv.hitscan = true;
-  }
-  unit.inTransport = ifv.id;
-  unit.hidden = true;
-  unit.selectable = false;
-  unit.wantsBoard = null;
-  return true;
-}
-
-
-
-
-function tryBoardIFV(ifv){
-  if (!ifv || !ifv.alive || ifv.kind!=="ifv" || ifv.team!==TEAM.PLAYER) return false;
-  if (ifv.passengerId) { toast("이미 탑승중"); return true; }
-
-  let cand=null;
-  for (const id of state.selection){
-    const u=getEntityById(id);
-    if (!u || !u.alive || u.team!==TEAM.PLAYER) continue;
-    if (u.kind!=="infantry" && u.kind!=="engineer" && u.kind!=="sniper") continue;
-    const d2 = dist2(u.x,u.y,ifv.x,ifv.y);
-    if (d2<=65*65){ cand=u; break; }
-  }
-  if (!cand){ toast("탑승할 보병이 근처에 없음"); return true; }
-
-  ifv.passengerId = cand.id;
-  ifv.passKind = cand.kind;
-  if (cand.kind==="sniper"){
-    const sr = (UNIT.sniper && UNIT.sniper.range) || 1200;
-    ifv.dmg = 125; ifv.range = sr; ifv.rof = 2.20/2.0; ifv.hitscan = true;
-  } else if (cand.kind==="infantry"){
-    ifv.dmg = (UNIT.infantry && UNIT.infantry.dmg) || 12; ifv.range = 620; ifv.rof = 0.55/2.0; ifv.hitscan = true;
-  } else if (cand.kind==="engineer"){
-    ifv.dmg = 0; ifv.range = 0; ifv.hitscan = true;
-  }
-  cand.inTransport = ifv.id;
-  cand.hidden = true;
-  cand.selectable = false;
-  state.selection.delete(cand.id);
-  updateSelectionUI();
-  toast("탑승");
-  return true;
-}
-
-function tryUnloadIFV(ifv){
-  if (!ifv || !ifv.alive || ifv.kind!=="ifv" || ifv.team!==TEAM.PLAYER) return false;
-  if (!ifv.passengerId) return false;
-  const u=getEntityById(ifv.passengerId);
-
-  const sp = findNearestFreePoint(ifv.x+TILE*0.8, ifv.y+TILE*0.2, ifv, 6);
-  // IFV 주변 4타일 이내만 허용 (벽 너머 순간이동 방지)
-  const maxUnloadDist2 = (4 * TILE) * (4 * TILE);
-  const spValid = sp && (sp.found || (sp.x!=null && sp.y!=null)) && dist2(ifv.x, ifv.y, sp.x, sp.y) <= maxUnloadDist2;
-  const x = spValid ? sp.x : (ifv.x + TILE*0.8);
-  const y = spValid ? sp.y : (ifv.y + TILE*0.2);
-
-  if (!spValid){
-    toast("하차할 공간이 없습니다");
-    return false;
-  }
-  if (u){
-    u.inTransport = null;
-    u.hidden = false;
-    u.selectable = true;
-    u.x=x; u.y=y;
-    u.order = {type:"move", x:x, y:y, tx:null, ty:null};
-    setPathTo(u, x, y);
-  }
-  ifv.passengerId = null;
-  ifv.passKind = null;
-  toast("하차");
-  return true;
-}
+function boardUnitIntoIFV(unit, ifv){ return __ou_commands && __ou_commands.boardUnitIntoIFV ? __ou_commands.boardUnitIntoIFV(unit, ifv) : false; }
+function tryBoardIFV(ifv){ return __ou_commands && __ou_commands.tryBoardIFV ? __ou_commands.tryBoardIFV(ifv) : false; }
+function tryUnloadIFV(ifv){ return __ou_commands && __ou_commands.tryUnloadIFV ? __ou_commands.tryUnloadIFV(ifv) : false; }
 
 
 
@@ -1348,7 +1150,9 @@ const __ou_econ = (window.OUEconomy && typeof window.OUEconomy.create==="functio
       TILE,
       MAP_W,
       MAP_H,
-      BUILD
+      BUILD,
+      // harvester spawn (refinery)
+      terrain, buildOcc, ore, occAll, inMap, idx, tileToWorldCenter
     })
   : null;
 
@@ -1357,8 +1161,9 @@ if (!__ou_econ) console.warn("[ou_economy] missing: include js/ou_economy.js bef
 // Selection module hookup (ou_selection.js)
 const __ou_selection = (window.OUSelection && typeof window.OUSelection.create === "function")
   ? window.OUSelection.create({
-      state, units, controlGroups, BUILD, TEAM,
-      getEntityById, worldToScreen, cam, toast, updateSelectionUI
+      state, units, buildings, controlGroups, BUILD, TEAM, UNIT,
+      getEntityById, worldToScreen, cam, toast, updateSelectionUI,
+      tileOfX, tileOfY, inMap, explored, idx, tileToWorldSubslot, dist2, pointInPoly, ISO_X, TILE
     })
   : null;
 
@@ -1922,48 +1727,7 @@ const refund = Math.floor((COST[b.kind]||0) * 0.5);
   const buildingScreenPoly = (window.OU && typeof window.OU.createBuildingScreenPoly === "function")
     ? window.OU.createBuildingScreenPoly(TILE, worldToScreen)
     : (b)=>{ const p=worldToScreen(b.x,b.y); return [p,p,p,p]; };
-function pickEntityAtWorld(wx,wy){
-    const m=worldToScreen(wx,wy);
-
-    for (let i=units.length-1;i>=0;i--){
-      const u=units[i];
-      if (!u.alive) continue;
-      if (u.inTransport) continue;
-      const tx=tileOfX(u.x), ty=tileOfY(u.y);
-      if (u.team===TEAM.ENEMY && inMap(tx,ty) && !explored[TEAM.PLAYER][idx(tx,ty)]) continue;
-      let p;
-      {
-        const tx=tileOfX(u.x), ty=tileOfY(u.y);
-        const cls = (UNIT[u.kind] && UNIT[u.kind].cls) ? UNIT[u.kind].cls : "";
-        if (cls==="inf"){
-          const sp = tileToWorldSubslot(tx,ty,(u.subSlot|0));
-          p=worldToScreen(sp.x, sp.y);
-        } else {
-          p=worldToScreen(u.x,u.y);
-        }
-      }
-      // Shrink pick radius for IFV to prevent accidental boarding when clicking near it.
-      const pr = (u.kind==="ifv") ? (u.r*0.60) : u.r;
-      if (dist2(p.x,p.y,m.x,m.y) <= (pr*cam.zoom)*(pr*cam.zoom)) return u;
-    }
-
-    for (let i=buildings.length-1;i>=0;i--){
-      const b=buildings[i];
-      if (!b.alive || b.selectable===false) continue;
-      if (b.civ) continue;
-      if (b.team===TEAM.ENEMY && !explored[TEAM.PLAYER][idx(b.tx,b.ty)]) continue;
-
-      // Pixel-accurate isometric footprint hit-test (fixes adjacent-building mis-picks).
-      const poly = buildingScreenPoly(b);
-      if (pointInPoly(m.x,m.y,poly)) return b;
-
-      // fallback: small center radius for tiny 1x1 stuff
-      const p=worldToScreen(b.x,b.y);
-      const rad=Math.max(b.tw,b.th)*ISO_X*0.45*cam.zoom;
-      if (dist2(p.x,p.y,m.x,m.y) <= rad*rad) return b;
-    }
-    return null;
-  }
+  function pickEntityAtWorld(wx,wy){ return __ou_selection && __ou_selection.pickEntityAtWorld ? __ou_selection.pickEntityAtWorld(wx,wy) : null; }
 
 
   const __cmdThrottle = (window.OUInput && window.OUInput.createCmdThrottle) ? window.OUInput.createCmdThrottle({ state }) : null;
@@ -2002,7 +1766,8 @@ function getChasePointForAttack(u, t){
         state, getEntityById, TEAM, BUILD, UNIT, setPathTo, pushOrderFx, showUnitPathFx,
         canEnterTile, reserveTile, findNearestFreePoint, tileToWorldCenter, tileToWorldSubslot,
         inMap, snapWorldToTileCenter, buildFormationOffsets, shouldIgnoreCmd, stampCmd,
-        TILE, getClosestPointOnBuilding, getChasePointForAttack, tileOfX, tileOfY, toast, INF_SLOT_MAX, clamp
+        TILE, getClosestPointOnBuilding, getChasePointForAttack, tileOfX, tileOfY, toast, INF_SLOT_MAX, clamp,
+        dist2, updateSelectionUI
       })
     : null;
 

@@ -144,6 +144,97 @@
   }
   OU.createBuildingScreenPoly = createBuildingScreenPoly;
 
+  // Footprint helpers (building placement collision)
+  // ctx: { buildOcc, buildings, terrain, ore, treeHp, occAll, units, MAP_W, MAP_H, inMap, idx, buildingWorldFromTileOrigin, dist2PointToRect }
+  function createFootprintHelpers(ctx) {
+    const buildOcc = ctx.buildOcc || [];
+    const buildings = ctx.buildings || [];
+    const terrain = ctx.terrain || [];
+    const ore = ctx.ore || [];
+    const treeHp = ctx.treeHp || [];
+    const occAll = ctx.occAll || [];
+    const units = ctx.units || [];
+    const MAP_W = ctx.MAP_W || 32;
+    const MAP_H = ctx.MAP_H || 32;
+    const inMap = ctx.inMap || (() => false);
+    const idx = ctx.idx || ((tx, ty) => ty * MAP_W + tx);
+    const buildingWorldFromTileOrigin = ctx.buildingWorldFromTileOrigin || (() => ({ cx: 0, cy: 0, w: 0, h: 0 }));
+    const dist2PointToRect = ctx.dist2PointToRect || dist2PointToRect;
+
+    function setBuildingOcc(b, v) {
+      for (let ty = b.ty; ty < b.ty + b.th; ty++) {
+        for (let tx = b.tx; tx < b.tx + b.tw; tx++) {
+          if (inMap(tx, ty)) buildOcc[idx(tx, ty)] = v;
+        }
+      }
+    }
+
+    function isBlockedFootprint(tx, ty, tw, th) {
+      if (tx < 0 || ty < 0 || tx + tw > MAP_W || ty + th > MAP_H) return true;
+      for (let y = ty; y < ty + th; y++) {
+        for (let x = tx; x < tx + tw; x++) {
+          if (!inMap(x, y)) return true;
+          const ti = idx(x, y);
+          if (buildOcc[ti] === 1) return true;
+          if (terrain[ti] !== 0) return true;
+          if (ore[ti] > 0) return true;
+          if (treeHp[ti] > 0) return true;
+          if ((occAll[ti] || 0) > 0) return true;
+        }
+      }
+      const wpos = buildingWorldFromTileOrigin(tx, ty, tw, th);
+      for (const u of units) {
+        if (!u.alive || u.inTransport || u.hidden) continue;
+        const rr = (u.r || 18) + 2;
+        if (dist2PointToRect(u.x, u.y, wpos.cx, wpos.cy, wpos.w, wpos.h) <= rr * rr) return true;
+      }
+      return false;
+    }
+
+    function isTooCloseToOtherBuildings(tx, ty, tw, th, gapTiles) {
+      gapTiles = gapTiles ?? 1;
+      const x0 = tx - gapTiles, y0 = ty - gapTiles;
+      const x1 = tx + tw + gapTiles - 1, y1 = ty + th + gapTiles - 1;
+      for (let y = y0; y <= y1; y++) {
+        for (let x = x0; x <= x1; x++) {
+          if (!inMap(x, y)) continue;
+          if (buildOcc[idx(x, y)] === 1) return true;
+        }
+      }
+      return false;
+    }
+
+    function footprintBlockedMask(tx, ty, tw, th) {
+      const mask = new Uint8Array(tw * th);
+      let any = false;
+      if (tx < 0 || ty < 0 || tx + tw > MAP_W || ty + th > MAP_H) {
+        mask.fill(1);
+        return { blocked: true, mask };
+      }
+      let k = 0;
+      for (let y = ty; y < ty + th; y++) {
+        for (let x = tx; x < tx + tw; x++) {
+          let b = false;
+          if (!inMap(x, y)) b = true;
+          else {
+            const ti = idx(x, y);
+            if (buildOcc[ti] === 1) b = true;
+            else if (terrain[ti] !== 0) b = true;
+            else if (ore[ti] > 0) b = true;
+            else if (treeHp[ti] > 0) b = true;
+            else if ((occAll[ti] || 0) > 0) b = true;
+          }
+          mask[k++] = b ? 1 : 0;
+          if (b) any = true;
+        }
+      }
+      return { blocked: any, mask };
+    }
+
+    return { setBuildingOcc, isBlockedFootprint, isTooCloseToOtherBuildings, footprintBlockedMask };
+  }
+  OU.createFootprintHelpers = createFootprintHelpers;
+
   // Back-compat globals (only if missing)
   if (!global.clamp) global.clamp = clamp;
   if (!global.dist2) global.dist2 = dist2;

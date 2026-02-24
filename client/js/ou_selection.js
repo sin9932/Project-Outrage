@@ -10,15 +10,32 @@
     const {
       state,
       units,
+      buildings,
       controlGroups,
       BUILD,
       TEAM,
+      UNIT,
       getEntityById,
       worldToScreen,
       cam,
       toast,
-      updateSelectionUI
+      updateSelectionUI,
+      tileOfX,
+      tileOfY,
+      inMap,
+      explored,
+      idx,
+      tileToWorldSubslot,
+      dist2,
+      pointInPoly,
+      buildingScreenPoly,
+      ISO_X,
+      TILE
     } = ctx;
+
+    const _buildingScreenPoly = buildingScreenPoly || ((typeof window !== "undefined" && window.OU && typeof window.OU.createBuildingScreenPoly === "function" && TILE && worldToScreen)
+      ? window.OU.createBuildingScreenPoly(TILE, worldToScreen)
+      : (b)=>{ const p=worldToScreen(b.x,b.y); return [p,p,p,p]; });
 
     function getAllPlayerUnitsOfKind(kind){
       return units.filter(u=>u.alive && u.team===TEAM.PLAYER && u.kind===kind && u.inTransport==null).map(u=>u.id);
@@ -146,13 +163,55 @@
       updateSelectionUI();
     }
 
+    function pickEntityAtWorld(wx, wy){
+      if (!worldToScreen || !units || !buildings) return null;
+      const m = worldToScreen(wx, wy);
+      const _dist2 = dist2 || ((ax,ay,bx,by)=>{const dx=ax-bx,dy=ay-by;return dx*dx+dy*dy;});
+      const _pointInPoly = pointInPoly || (()=>false);
+
+      for (let i=units.length-1;i>=0;i--){
+        const u=units[i];
+        if (!u.alive) continue;
+        if (u.inTransport) continue;
+        const tx=tileOfX ? tileOfX(u.x) : 0, ty=tileOfY ? tileOfY(u.y) : 0;
+        if (u.team===TEAM.ENEMY && explored && inMap && idx && inMap(tx,ty) && !explored[TEAM.PLAYER][idx(tx,ty)]) continue;
+        let p;
+        const utx=tileOfX ? tileOfX(u.x) : 0, uty=tileOfY ? tileOfY(u.y) : 0;
+        const cls = (UNIT && UNIT[u.kind] && UNIT[u.kind].cls) ? UNIT[u.kind].cls : "";
+        if (cls==="inf" && tileToWorldSubslot){
+          const sp = tileToWorldSubslot(utx,uty,(u.subSlot|0));
+          p=worldToScreen(sp.x, sp.y);
+        } else {
+          p=worldToScreen(u.x,u.y);
+        }
+        const pr = (u.kind==="ifv") ? (u.r*0.60) : (u.r||10);
+        if (_dist2(p.x,p.y,m.x,m.y) <= (pr*cam.zoom)*(pr*cam.zoom)) return u;
+      }
+
+      for (let i=buildings.length-1;i>=0;i--){
+        const b=buildings[i];
+        if (!b.alive || b.selectable===false) continue;
+        if (b.civ) continue;
+        if (b.team===TEAM.ENEMY && explored && inMap && idx && !explored[TEAM.PLAYER][idx(b.tx,b.ty)]) continue;
+
+        const poly = _buildingScreenPoly(b);
+        if (_pointInPoly(m.x,m.y,poly)) return b;
+
+        const bp=worldToScreen(b.x,b.y);
+        const rad=Math.max(b.tw||1,b.th||1)*(ISO_X||1)*0.45*cam.zoom;
+        if (_dist2(bp.x,bp.y,m.x,m.y) <= rad*rad) return b;
+      }
+      return null;
+    }
+
     return {
       selectInRect,
       selectSameType,
       assignControlGroup,
       recallControlGroup,
       getAllPlayerUnitsOfKind,
-      isSelectionExactly
+      isSelectionExactly,
+      pickEntityAtWorld
     };
   };
 

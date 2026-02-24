@@ -29,8 +29,97 @@
       tileOfY,
       toast,
       INF_SLOT_MAX,
-      clamp
+      clamp,
+      dist2,
+      updateSelectionUI
     } = ctx;
+
+    function boardUnitIntoIFV(unit, ifv){
+      if (!unit || !ifv) return false;
+      if (!unit.alive || !ifv.alive) return false;
+      if (ifv.kind!=="ifv" || ifv.team!==unit.team) return false;
+      if (ifv.passengerId) return false;
+      if (unit.inTransport) return false;
+      if (unit.kind!=="infantry" && unit.kind!=="engineer" && unit.kind!=="sniper") return false;
+
+      ifv.passengerId = unit.id;
+      ifv.passKind = unit.kind;
+      if (unit.kind==="sniper"){
+        const sr = (UNIT.sniper && UNIT.sniper.range) || 1200;
+        ifv.dmg = 125; ifv.range = sr; ifv.rof = 2.20/2.0; ifv.hitscan = true;
+      } else if (unit.kind==="infantry"){
+        ifv.dmg = (UNIT.infantry && UNIT.infantry.dmg) || 12; ifv.range = 620; ifv.rof = 0.55/2.0; ifv.hitscan = true;
+      } else if (unit.kind==="engineer"){
+        ifv.dmg = 0; ifv.range = 0; ifv.hitscan = true;
+      }
+      unit.inTransport = ifv.id;
+      unit.hidden = true;
+      unit.selectable = false;
+      unit.wantsBoard = null;
+      return true;
+    }
+
+    function tryBoardIFV(ifv){
+      if (!ifv || !ifv.alive || ifv.kind!=="ifv" || ifv.team!==TEAM.PLAYER) return false;
+      if (ifv.passengerId) { toast("이미 탑승중"); return true; }
+
+      let cand=null;
+      for (const id of state.selection){
+        const u=getEntityById(id);
+        if (!u || !u.alive || u.team!==TEAM.PLAYER) continue;
+        if (u.kind!=="infantry" && u.kind!=="engineer" && u.kind!=="sniper") continue;
+        const d2 = dist2(u.x,u.y,ifv.x,ifv.y);
+        if (d2<=65*65){ cand=u; break; }
+      }
+      if (!cand){ toast("탑승할 보병이 근처에 없음"); return true; }
+
+      ifv.passengerId = cand.id;
+      ifv.passKind = cand.kind;
+      if (cand.kind==="sniper"){
+        const sr = (UNIT.sniper && UNIT.sniper.range) || 1200;
+        ifv.dmg = 125; ifv.range = sr; ifv.rof = 2.20/2.0; ifv.hitscan = true;
+      } else if (cand.kind==="infantry"){
+        ifv.dmg = (UNIT.infantry && UNIT.infantry.dmg) || 12; ifv.range = 620; ifv.rof = 0.55/2.0; ifv.hitscan = true;
+      } else if (cand.kind==="engineer"){
+        ifv.dmg = 0; ifv.range = 0; ifv.hitscan = true;
+      }
+      cand.inTransport = ifv.id;
+      cand.hidden = true;
+      cand.selectable = false;
+      state.selection.delete(cand.id);
+      if (updateSelectionUI) updateSelectionUI();
+      toast("탑승");
+      return true;
+    }
+
+    function tryUnloadIFV(ifv){
+      if (!ifv || !ifv.alive || ifv.kind!=="ifv" || ifv.team!==TEAM.PLAYER) return false;
+      if (!ifv.passengerId) return false;
+      const u=getEntityById(ifv.passengerId);
+
+      const sp = findNearestFreePoint(ifv.x+TILE*0.8, ifv.y+TILE*0.2, ifv, 6);
+      const maxUnloadDist2 = (4 * TILE) * (4 * TILE);
+      const spValid = sp && (sp.found || (sp.x!=null && sp.y!=null)) && dist2(ifv.x, ifv.y, sp.x, sp.y) <= maxUnloadDist2;
+      const x = spValid ? sp.x : (ifv.x + TILE*0.8);
+      const y = spValid ? sp.y : (ifv.y + TILE*0.2);
+
+      if (!spValid){
+        toast("하차할 공간이 없습니다");
+        return false;
+      }
+      if (u){
+        u.inTransport = null;
+        u.hidden = false;
+        u.selectable = true;
+        u.x=x; u.y=y;
+        u.order = {type:"move", x:x, y:y, tx:null, ty:null};
+        setPathTo(u, x, y);
+      }
+      ifv.passengerId = null;
+      ifv.passKind = null;
+      toast("하차");
+      return true;
+    }
 
     function issueMoveAll(x,y){
       const ids=[...state.selection];
@@ -507,7 +596,10 @@
       issueEngineerRepair,
       issueHarvest,
       issueIFVRepair,
-      issueForceMoveAll
+      issueForceMoveAll,
+      boardUnitIntoIFV,
+      tryBoardIFV,
+      tryUnloadIFV
     };
   };
 })(window);

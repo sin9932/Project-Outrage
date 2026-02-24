@@ -60,6 +60,59 @@
     const isBlockedFootprint = ctx.isBlockedFootprint || (()=>true);
     const addBuilding = ctx.addBuilding || noop;
 
+    // Harvester spawn (refinery)
+    const terrain = ctx.terrain || [];
+    const buildOcc = ctx.buildOcc || [];
+    const ore = ctx.ore || [];
+    const occAll = ctx.occAll || [];
+    const inMap = ctx.inMap || (()=>false);
+    const idx = ctx.idx || ((tx,ty)=>ty*MAP_W+tx);
+    const tileToWorldCenter = ctx.tileToWorldCenter || ((tx,ty)=>({x:(tx+0.5)*TILE,y:(ty+0.5)*TILE}));
+
+    function findHarvesterSpawnNearBuilding(b){
+      if (!b) return { x: 0, y: 0 };
+      const cx = b.tx + (b.tw>>1);
+      const cy = b.ty + (b.th>>1);
+      const maxR = 12;
+      for (let r=1; r<=maxR; r++){
+        for (let dy=-r; dy<=r; dy++){
+          for (let dx=-r; dx<=r; dx++){
+            if (Math.abs(dx)!==r && Math.abs(dy)!==r) continue;
+            const tx = cx + dx;
+            const ty = cy + dy;
+            if (!inMap(tx,ty)) continue;
+            const i=idx(tx,ty);
+            if (terrain[i]!==0) continue;
+            if (buildOcc[i]===1) continue;
+            if (ore[i]>0) continue;
+            if ((occAll[i]||0)>0) continue;
+            const p = tileToWorldCenter(tx,ty);
+            return { x:p.x, y:p.y };
+          }
+        }
+      }
+      return { x: b.x + TILE, y: b.y + TILE };
+    }
+
+    function spawnFreeHarvester(team, nearBuilding){
+      if (!addUnit) return null;
+      const p = findHarvesterSpawnNearBuilding(nearBuilding);
+      const u = addUnit(team, "harvester", p.x, p.y);
+      if (!u) return null;
+      u.order = {type:"idle", x:u.x, y:u.y, tx:null, ty:null};
+      u.manualOre = null;
+      u.returning = false;
+      u.target = null;
+      u.holdPos = false;
+      u.path = null; u.pathI=0;
+      u.repathCd = 0.10;
+      return u;
+    }
+
+    function onBuildingPlaced(b){
+      if (b && b.kind==="refinery") spawnFreeHarvester(b.team, b);
+    }
+
     function tryPlaceBuild() {
       const build = state.build || {};
       const kind = build.kind;
@@ -672,7 +725,12 @@
       getBuildProgress,
       getUnitProgress,
       getLaneStatus,
-      getProducerStatus
+      getProducerStatus,
+
+      // harvester spawn (refinery)
+      findHarvesterSpawnNearBuilding,
+      spawnFreeHarvester,
+      onBuildingPlaced
     };
   }
 
