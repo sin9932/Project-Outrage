@@ -6,6 +6,11 @@
   "use strict";
 
   const OUInput = global.OUInput || (global.OUInput = {});
+
+  // Input state delegated from game.js state.drag / state.pan
+  OUInput.drag = { on: false, moved: false, x0: 0, y0: 0, x1: 0, y1: 0 };
+  OUInput.pan = { on: false, x0: 0, y0: 0, camIsoX: 0, camIsoY: 0 };
+
   let installedKeyboard = false;
 
   /**

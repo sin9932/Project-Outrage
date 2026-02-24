@@ -65,9 +65,7 @@
     const tileToWorldCenter = r.tileToWorldCenter;
     const inMap = r.inMap;
     const idx = r.idx;
-    const followPath = r.followPath;
-    
-    
+
     let _aliveCache = [];
     const spawnTrailPuff = r.spawnTrailPuff;
     const spawnDmgSmokePuff = r.spawnDmgSmokePuff;
@@ -76,7 +74,24 @@
     const buildOcc = r.buildOcc;
     const tileToWorldSubslot = r.tileToWorldSubslot;
     const snapWorldToTileCenter = r.snapWorldToTileCenter;
-    const isBlockedWorldPoint = r.isBlockedWorldPoint;
+    const findBypassStep = r.findBypassStep || (() => null);
+    const getMoveSpeed = r.getMoveSpeed || (u => u.speed || 80);
+    const _tankUpdateHull = r._tankUpdateHull || (() => {});
+
+    function isBlockedWorldPoint(u, x, y) {
+      const tx = tileOfX(x), ty = tileOfY(y);
+      if (inMap(tx, ty) && buildOcc[idx(tx, ty)] === 1) return true;
+      const ur = (UNIT[u.kind] && UNIT[u.kind].r) ? UNIT[u.kind].r : ((UNIT[u.kind] && UNIT[u.kind].cls === "veh") ? 12 : 8);
+      const pad = 3;
+      for (let i = 0; i < buildings.length; i++) {
+        const b = buildings[i];
+        if (!b || b.hp <= 0) continue;
+        const hw = (b.w || 0) / 2 + ur + pad;
+        const hh = (b.h || 0) / 2 + ur + pad;
+        if (x >= b.x - hw && x <= b.x + hw && y >= b.y - hh && y <= b.y + hh) return true;
+      }
+      return false;
+    }
     const _advanceTurnState = r._advanceTurnState;
     const _turnStepTowardTurret = r._turnStepTowardTurret;
     const _turretTurnFrameNum = r._turretTurnFrameNum;
@@ -1323,6 +1338,393 @@
         return occInf[i] < INF_SLOT_MAX;
       }
       return occAll[i] < 2;
+    }
+
+    function followPath(u, dt){
+      if (u && u.order && (u.order.type==="idle" || u.order.type==="guard") && u.target==null){
+        if (u.path){ u.path = null; u.pathI = 0; }
+        u.stuckT = 0; u.yieldCd = 0;
+        return false;
+      }
+      if (!u.path || u.pathI >= u.path.length){
+        const ot = (u.order && u.order.type) ? u.order.type : null;
+        if (ot==="move" || ot==="guard_return" || ot==="attackmove"){
+          const gx = (u.order && u.order.x!=null) ? u.order.x : u.x;
+          const gy = (u.order && u.order.y!=null) ? u.order.y : u.y;
+          const d2 = dist2(u.x,u.y,gx,gy);
+          if (d2 < 16*16){
+            u.x = gx; u.y = gy;
+            u.vx = 0; u.vy = 0;
+            u.path = null; u.pathI = 0;
+            clearReservation(u);
+            if (ot==="attackmove"){
+              u.guard = {x0:u.x, y0:u.y};
+              u.order = {type:"guard", x:u.x, y:u.y, tx:null, ty:null};
+            } else {
+              u.order = {type:"idle", x:u.x, y:u.y, tx:null, ty:null};
+            }
+            return false;
+          }
+        }
+        return false;
+      }
+      if (u.yieldCd && u.yieldCd>0){ u.yieldCd -= dt; if (u.yieldCd>0) return false; u.yieldCd=0; }
+
+      const p = u.path[u.pathI];
+      let wx = (p.tx+0.5)*TILE, wy=(p.ty+0.5)*TILE;
+
+      if (u.cls==="inf"){
+        const ni = idx(p.tx,p.ty);
+        let mask = (u.team===0) ? infSlotMask0[ni] : infSlotMask1[ni];
+        if (u.navSlotLockT && u.navSlotLockT>0){
+          u.navSlotLockT -= dt;
+          if (u.navSlotLockT<=0){ u.navSlotLockT=0; }
+        }
+        let slot = -1;
+        if (u.navSlot!=null && u.navSlotTx===p.tx && u.navSlotTy===p.ty && u.navSlotLockT>0){
+          slot = (u.navSlot & 3);
+        } else {
+          for (let s=0; s<4; s++){
+            if (((mask>>s)&1)===0){ slot = s; break; }
+          }
+          if (slot>=0){
+            u.navSlot = slot; u.navSlotTx = p.tx; u.navSlotTy = p.ty;
+            u.navSlotLockT = 0.25;
+          }
+        }
+        if (slot<0){
+          u.vx = 0; u.vy = 0;
+          u.queueWaitT = (u.queueWaitT||0) + dt;
+          if (u.queueWaitT < 0.35) return false;
+        } else {
+          u.queueWaitT = 0;
+          const sp = tileToWorldSubslot(p.tx, p.ty, slot);
+          wx = sp.x; wy = sp.y;
+        }
+      }
+
+      if (u.cls==="inf" && u.holdPos && tileOfX(u.x)===p.tx && tileOfY(u.y)===p.ty) return false;
+
+      const curTx = tileOfX(u.x), curTy = tileOfY(u.y);
+      if (!(p.tx===curTx && p.ty===curTy)){
+        const _tGoal = (u && u.target!=null) ? getEntityById(u.target) : null;
+        const _combatOrder = (u && u.order && (u.order.type==="attack" || u.order.type==="attackmove"));
+        const _canEnter = (_combatOrder && _tGoal && BUILD[_tGoal.kind]) ? canEnterTileGoal(u, p.tx, p.ty, _tGoal) : canEnterTile(u, p.tx, p.ty);
+        if (!_canEnter || !reserveTile(u, p.tx, p.ty)) {
+          if (u.pathI >= (u.path.length-1)) {
+            u.finalBlockT = (u.finalBlockT||0) + dt;
+            if (u.finalBlockT > 0.22 && (u.lastRetargetT==null || (state.t - u.lastRetargetT) > 0.85)) {
+              const goalWx = (p.tx+0.5)*TILE, goalWy = (p.ty+0.5)*TILE;
+              const spot = findNearestFreePoint(goalWx, goalWy, u, 2);
+              const nTx = tileOfX(spot.x), nTy = tileOfY(spot.y);
+              if ((nTx!==p.tx || nTy!==p.ty) && canEnterTile(u, nTx, nTy) && reserveTile(u, nTx, nTy)) {
+                const wp2 = tileToWorldCenter(nTx, nTy);
+                u.order = {type:(u.order && u.order.type) ? u.order.type : "move", x:wp2.x, y:wp2.y, tx:nTx, ty:nTy};
+                setPathTo(u, wp2.x, wp2.y);
+                u.lastRetargetT = state.t;
+                u.finalBlockT = 0;
+                return true;
+              }
+            }
+          }
+          const step = findBypassStep(u, curTx, curTy, p.tx, p.ty);
+          if (step && reserveTile(u, step.tx, step.ty)){
+            u.path = [{tx:step.tx, ty:step.ty}, ...u.path.slice(u.pathI)];
+            u.pathI = 0;
+            return true;
+          }
+          u.blockT = (u.blockT||0) + dt;
+          if (u.blockT > 0.85){
+            const cwx=(curTx+0.5)*TILE, cwy=(curTy+0.5)*TILE;
+            u.x=cwx; u.y=cwy;
+            const _combatLocked = (u.target!=null && u.order && (u.order.type==="attack" || u.order.type==="attackmove"));
+            if (_combatLocked){
+              u.path=null; u.pathI=0;
+              clearReservation(u);
+              u.yieldCd=0;
+              u.blockT=0;
+              u.repathCd = 0;
+              u.combatGoalT = 0;
+              return false;
+            }
+            u.order = {type:"idle", x:u.x, y:u.y, tx:null, ty:null};
+            u.path=null; u.pathI=0;
+            clearReservation(u);
+            u.yieldCd=0;
+            u.blockT=0;
+            return false;
+          }
+          u.yieldCd = 0.10;
+          return false;
+        }
+      }
+
+      const dx=wx-u.x, dy=wy-u.y;
+      const d=Math.hypot(dx,dy);
+
+      if (u.stuckT==null){ u.stuckT=0; u.lastX=u.x; u.lastY=u.y; }
+
+      if (d < 2 || (u.pathI >= (u.path.length-1) && d < 12)){
+        if (u.pathI >= (u.path.length-1)){
+          if (u.cls==="inf"){
+            let slot = (u.order && u.order.tx===p.tx && u.order.ty===p.ty && u.order.subSlot!=null) ? (u.order.subSlot|0) : (u.subSlot|0);
+            const sp = tileToWorldSubslot(p.tx, p.ty, slot);
+            u.x = sp.x; u.y = sp.y;
+            u.vx = 0; u.vy = 0;
+            u.holdPos = true;
+          } else {
+            const sx = (p.tx+0.5)*TILE, sy = (p.ty+0.5)*TILE;
+            u.x = sx; u.y = sy;
+          }
+        }
+        if (!(u.cls==="inf" && u.pathI >= (u.path.length-1))) u.holdPos = false;
+        u.pathI++;
+        clearReservation(u);
+        if (u.pathI >= u.path.length){
+          const ot2 = (u.order && u.order.type) ? u.order.type : null;
+          u.vx = 0; u.vy = 0;
+          u.path = null; u.pathI = 0;
+          clearReservation(u);
+          if (ot2==="attackmove"){
+            u.guard = {x0:u.x, y0:u.y};
+            u.order = {type:"guard", x:u.x, y:u.y, tx:null, ty:null};
+          } else if (ot2==="move" || ot2==="guard_return"){
+            u.order = {type:"idle", x:u.x, y:u.y, tx:null, ty:null};
+          }
+        }
+        u.blockT = 0;
+        u.stuckT = 0;
+        return true;
+      }
+
+      const curTileTx=tileOfX(u.x), curTileTy=tileOfY(u.y);
+      if (u.pathI>0){
+        const nextTile = u.path[u.pathI];
+        if (!(nextTile.tx===curTileTx && nextTile.ty===curTileTy)){
+          if (!reserveTile(u, nextTile.tx, nextTile.ty) || isReservedByOther(u, nextTile.tx, nextTile.ty)){
+            const bp = findBypassStep(u, curTileTx, curTileTy, nextTile.tx, nextTile.ty);
+            if (bp){
+              u.path.splice(u.pathI, 0, {tx:bp.tx, ty:bp.ty});
+              return true;
+            }
+          }
+          if (!canEnterTile(u, nextTile.tx, nextTile.ty)){
+            if (u.order && (u.order.type==="move" || u.order.type==="attackmove") && u.pathI >= (u.path.length-1)){
+              const dd = dist2(u.x,u.y,u.order.x,u.order.y);
+              if (dd < 58*58){
+                u.order = {type:"idle", x:u.x, y:u.y, tx:null, ty:null};
+                u.path = null; u.pathI = 0;
+                clearReservation(u);
+                u.stuckTime = 0;
+                return false;
+              }
+            }
+            if ((u.avoidCd||0) <= 0){
+              const bypass = findBypassStep(u, curTileTx, curTileTy, nextTile.tx, nextTile.ty);
+              if (bypass){
+                u.path.splice(u.pathI, 0, bypass);
+                u.avoidCd = 0.45;
+              } else {
+                u.avoidCd = 0.25;
+              }
+            }
+            return true;
+          }
+        }
+      }
+
+      const step=Math.min(getMoveSpeed(u)*dt, d);
+      let ax=dx/(d||1), ay=dy/(d||1);
+      let avoidX=0, avoidY=0;
+      const avoidR = (u.r||10) + 16;
+      for (let j=0;j<units.length;j++){
+        const o=units[j];
+        if (!o.alive || o.id===u.id) continue;
+        const same = (o.team===u.team);
+        const rr = (u.r+o.r) + (same?14:4);
+        const dx2=u.x-o.x, dy2=u.y-o.y;
+        const dd=dx2*dx2+dy2*dy2;
+        if (dd<=0.0001 || dd>rr*rr) continue;
+        const inv = 1/Math.sqrt(dd);
+        const push = (rr - Math.sqrt(dd)) * (same?1.15:0.35);
+        avoidX += dx2*inv*push;
+        avoidY += dy2*inv*push;
+      }
+      const alen = Math.hypot(avoidX,avoidY);
+      if (alen>0.0001){
+        const mix = 0.55;
+        const nx = avoidX/alen, ny = avoidY/alen;
+        ax = ax*(1-mix) + nx*mix;
+        ay = ay*(1-mix) + ny*mix;
+        const nlen = Math.hypot(ax,ay)||1;
+        ax/=nlen; ay/=nlen;
+      }
+
+      const movingDir = (Math.abs(ax) + Math.abs(ay)) > 1e-4;
+      if ((u.fireHoldT||0) > 0 && u.fireDir!=null){
+        u.faceDir = u.fireDir;
+        if (u.kind !== "tank" && u.kind !== "harvester"){
+          u.dir = u.fireDir;
+        } else {
+          if (u.bodyDir==null) u.bodyDir = (u.dir!=null ? u.dir : 6);
+          u.dir = u.bodyDir;
+        }
+      } else if (movingDir){
+        const fd = worldVecToDir8(ax, ay);
+        if (u.kind === "tank" || u.kind === "harvester"){
+          if (u.bodyDir == null) u.bodyDir = (u.dir!=null ? u.dir : 6);
+          if (fd !== u.bodyDir){
+            _tankUpdateHull(u, fd, dt);
+            u.dir = u.bodyDir;
+            u.faceDir = (u.fireDir!=null ? u.fireDir : (u.turretDir!=null ? u.turretDir : u.bodyDir));
+            return true;
+          }
+          u.bodyTurn = null;
+          u.bodyDir = fd;
+          u.dir = fd;
+          u.faceDir = (u.fireDir!=null ? u.fireDir : fd);
+        } else {
+          u.faceDir = fd;
+          u.dir = fd;
+        }
+      } else {
+        if (u.faceDir==null) u.faceDir = 6;
+        if (u.dir==null) u.dir = u.faceDir;
+      }
+
+      const nx=u.x+ax*step, ny=u.y+ay*step;
+      const ntx=tileOfX(nx), nty=tileOfY(ny);
+      if (!isWalkableTile(ntx,nty)){ return false; }
+      if (!(ntx===curTx && nty===curTy)){
+        const blockedNext = (!canEnterTile(u, ntx, nty) || isReservedByOther(u, ntx, nty));
+        if (blockedNext){
+          u.blockT = (u.blockT||0) + dt;
+          if ((u.avoidCd||0) <= 0){
+            const bypass = findBypassStep(u, curTx, curTy, ntx, nty);
+            if (bypass){
+              u.path.splice(u.pathI, 0, bypass);
+              u.avoidCd = 0.45;
+            } else {
+              const g = (u.path && u.path.length) ? u.path[u.path.length-1] : {tx:ntx,ty:nty};
+              const gp = findNearestFreePoint((g.tx+0.5)*TILE,(g.ty+0.5)*TILE,u,5);
+              setPathTo(u, gp.x, gp.y);
+              u.avoidCd = 0.35;
+            }
+          }
+          u.yieldCd = Math.max(u.yieldCd||0, 0.10);
+          return false;
+        }
+      }
+      if (isBlockedWorldPoint(u, nx, ny)){
+        const px = -ay, py = ax;
+        for (const sgn of [1,-1]){
+          const sx = u.x + px*step*sgn;
+          const sy = u.y + py*step*sgn;
+          const stx = tileOfX(sx), sty = tileOfY(sy);
+          if (isWalkableTile(stx, sty) && canEnterTile(u, stx, sty) && !isBlockedWorldPoint(u, sx, sy)){
+            u.x = clamp(sx,0,WORLD_W);
+            u.y = clamp(sy,0,WORLD_H);
+            u.blockT = 0;
+            return true;
+          }
+        }
+        const sx1 = u.x + ax*step;
+        const sy1 = u.y;
+        const stx1 = tileOfX(sx1), sty1 = tileOfY(sy1);
+        if (isWalkableTile(stx1, sty1) && canEnterTile(u, stx1, sty1) && !isBlockedWorldPoint(u, sx1, sy1)){
+          u.x = clamp(sx1,0,WORLD_W);
+          u.y = clamp(sy1,0,WORLD_H);
+          u.blockT = 0;
+          return true;
+        }
+        const sx2 = u.x;
+        const sy2 = u.y + ay*step;
+        const stx2 = tileOfX(sx2), sty2 = tileOfY(sy2);
+        if (isWalkableTile(stx2, sty2) && canEnterTile(u, stx2, sty2) && !isBlockedWorldPoint(u, sx2, sy2)){
+          u.x = clamp(sx2,0,WORLD_W);
+          u.y = clamp(sy2,0,WORLD_H);
+          u.blockT = 0;
+          return true;
+        }
+        u.blockT = (u.blockT||0) + dt;
+        if (u.path && u.path.length && u.pathI < u.path.length){
+          const goal = u.path[u.path.length-1];
+          const curTx2 = tileOfX(u.x), curTy2 = tileOfY(u.y);
+          let best=null, bestScore=1e18;
+          for (let dy=-1; dy<=1; dy++){
+            for (let dx=-1; dx<=1; dx++){
+              if (dx===0 && dy===0) continue;
+              const tx = curTx2+dx, ty = curTy2+dy;
+              if (!inMap(tx,ty)) continue;
+              if (!isWalkableTile(tx,ty)) continue;
+              if (!canEnterTile(u, tx, ty)) continue;
+              const c = tileToWorldCenter(tx,ty);
+              if (isBlockedWorldPoint(u, c.x, c.y)) continue;
+              const h = (tx-goal.tx)*(tx-goal.tx) + (ty-goal.ty)*(ty-goal.ty);
+              const turn = (dx*dx+dy*dy===2) ? 0.15 : 0.0;
+              const score = h + turn;
+              if (score < bestScore){ bestScore=score; best={tx,ty}; }
+            }
+          }
+          if (best){
+            u.path[u.pathI] = {tx:best.tx, ty:best.ty};
+            reserveTile(u, best.tx, best.ty);
+            u.blockT = 0;
+            u.yieldCd = Math.max(u.yieldCd||0, 0.12);
+            return false;
+          }
+        }
+        if ((u.avoidCd||0) <= 0){
+          const gx0 = (u.order && u.order.tx!=null) ? (u.order.tx+0.5)*TILE : wx;
+          const gy0 = (u.order && u.order.ty!=null) ? (u.order.ty+0.5)*TILE : wy;
+          const spot = findNearestFreePoint(gx0, gy0, u, 5);
+          const gx = spot && spot.found ? spot.x : gx0;
+          const gy = spot && spot.found ? spot.y : gy0;
+          setPathTo(u, gx, gy);
+          u.avoidCd = 0.45;
+        }
+        if (u.blockT > 0.95){
+          const cwx=(tileOfX(u.x)+0.5)*TILE, cwy=(tileOfY(u.y)+0.5)*TILE;
+          u.x=cwx; u.y=cwy;
+          u.order = {type:"idle", x:u.x, y:u.y, tx:null, ty:null};
+          u.path=null; u.pathI=0;
+          clearReservation(u);
+          u.blockT=0;
+          return false;
+        }
+        u.yieldCd = Math.max(u.yieldCd||0, 0.12);
+        return false;
+      }
+      u.x=clamp(nx,0,WORLD_W);
+      u.y=clamp(ny,0,WORLD_H);
+
+      const moved = Math.hypot(u.x-(u.lastX||u.x), u.y-(u.lastY||u.y));
+      u.lastX=u.x; u.lastY=u.y;
+      if (moved < 0.25 && d > 6) u.stuckT += dt; else u.stuckT = Math.max(0, u.stuckT - dt*0.5);
+
+      if (u.stuckT > 0.75){
+        const goal = (u.path && u.path.length) ? u.path[u.path.length-1] : null;
+        u.stuckT = 0;
+        clearReservation(u);
+        if (goal && (u.kind==="tank" || u.kind==="harvester" || (u.cls==="veh"))){
+          setPathTo(u, (goal.tx+0.5)*TILE, (goal.ty+0.5)*TILE);
+          u.yieldCd = Math.max(u.yieldCd||0, 0.15);
+          return true;
+        } else if (goal){
+          const b = findBypassStep(u, curTx, curTy, goal.tx, goal.ty);
+          if (b){ u.path.splice(u.pathI, 0, b); }
+          else { setPathTo(u, (goal.tx+0.5)*TILE, (goal.ty+0.5)*TILE); }
+          u.yieldCd = Math.max(u.yieldCd||0, 0.12);
+          return true;
+        } else {
+          const cwx=(curTx+0.5)*TILE, cwy=(curTy+0.5)*TILE;
+          u.x=cwx; u.y=cwy;
+          u.order={type:"idle", x:u.x, y:u.y, tx:null, ty:null};
+          u.path=null; u.pathI=0;
+          return false;
+        }
+      }
+      return true;
     }
 
     function heuristic(ax,ay,bx,by){
