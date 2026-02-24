@@ -363,7 +363,7 @@
   let REPAIR_WRENCH_IMG, repairWrenches;
   let exp1Fxs;
   let smokeWaves, smokePuffs, dustPuffs, dmgSmokePuffs, bloodStains, bloodPuffs;
-  let explosions, debris, debrisTrail;
+  let explosions;
   let drawBuildingSprite;
   let getTeamCroppedSprite;
   let INF_DIE_IMG, SNIP_DIE_IMG;
@@ -924,8 +924,6 @@
     dustPuffs = env.dustPuffs || []; dmgSmokePuffs = env.dmgSmokePuffs || [];
     bloodStains = env.bloodStains || []; bloodPuffs = env.bloodPuffs || [];
     explosions = env.explosions || [];
-    debris = env.debris || [];
-    debrisTrail = env.debrisTrail || [];
     infDeathFxs = env.infDeathFxs || [];
     snipDeathFxs = env.snipDeathFxs || [];
     // Local SPRITE_TUNE is authoritative (loaded from storage/preset)
@@ -3497,9 +3495,90 @@
     return (EXP1_FRAMES && EXP1_FRAMES.length) ? EXP1_FRAMES[0] : null;
   }
 
+  // === Debris FX (RA2-style flying chunks, owned by render) ===
+  const debris = [];
+  const debrisTrail = [];
+  function addDebris(cx, cy, opts={}){
+    const T = opts.tile ?? 110;
+    const maxDist = T * 1.8;
+    const minN = opts.minN ?? 4;
+    const maxN = opts.maxN ?? 12;
+    const baseSize = opts.size ?? 1;
+    const n = minN + Math.floor(Math.random() * (maxN - minN + 1));
+    for (let i=0;i<n;i++){
+      const ang = (-Math.PI/2) + (Math.random()*Math.PI*0.85);
+      const spd = (50 + Math.random()*120) * baseSize;
+      const w = (T*0.12 + Math.random()*T*0.18) * baseSize;
+      const h = (T*0.08 + Math.random()*T*0.12) * baseSize;
+      debris.push({
+        x: cx + (Math.random()*2-1)*T*0.2,
+        y: cy + (Math.random()*2-1)*T*0.2,
+        cx, cy,
+        vx: Math.cos(ang)*spd,
+        vy: Math.sin(ang)*spd - 40,
+        w, h,
+        rot: Math.random()*Math.PI*2,
+        rotV: (Math.random()*2-1)*8,
+        t: 0,
+        ttl: 3.5 + Math.random()*1.5,
+        grounded: false,
+        bounceCount: 0,
+        maxDist
+      });
+    }
+  }
+  function updateDebris(dt){
+    const G = 720;
+    for (let i=debrisTrail.length-1;i>=0;i--){
+      const t = debrisTrail[i];
+      t.life -= dt;
+      if (t.life <= 0){ debrisTrail.splice(i,1); continue; }
+      t.x += (t.vx||0)*dt;
+      t.y += (t.vy||0)*dt;
+    }
+    for (let i=debris.length-1;i>=0;i--){
+      const d = debris[i];
+      d.t += dt;
+      if (d.t >= d.ttl){ debris.splice(i,1); continue; }
+      if (!d.grounded){
+        const speed = Math.hypot(d.vx, d.vy);
+        if (speed > 60){
+          debrisTrail.push({
+            x: d.x, y: d.y,
+            vx: -d.vx*0.08, vy: -d.vy*0.08,
+            life: 0.20 + Math.random()*0.15,
+            ttl: 0.20 + Math.random()*0.15,
+            r: 10 + Math.random()*14
+          });
+        }
+        d.x += d.vx*dt;
+        d.y += d.vy*dt;
+        d.vy += G*dt;
+        d.rot += (d.rotV||0)*dt;
+        d.vx *= 0.92;
+        d.vy *= 0.998;
+        const dx = d.x - d.cx, dy = d.y - d.cy;
+        const dist = Math.hypot(dx, dy);
+        const md = d.maxDist ?? (110*1.8);
+        if (dist > md && dist > 1){
+          const pull = 0.15 * (dist - md) / dist;
+          d.vx -= dx * pull * dt * 120;
+          d.vy -= dy * pull * dt * 120;
+        }
+      }
+    }
+  }
+  function clearDebris(){
+    debris.length = 0;
+    debrisTrail.length = 0;
+  }
+
   window.OURender = window.OURender || {};
   window.OURender.drawMini = drawMini;
   window.OURender.draw = drawMain;
+  window.OURender.addDebris = addDebris;
+  window.OURender.updateDebris = updateDebris;
+  window.OURender.clearDebris = clearDebris;
   window.OURender.setTeamAccent = setTeamAccent;
   window.OURender.clearTeamSpriteCache = clearTeamSpriteCache;
   window.OURender.clearInfTeamSheetCache = clearInfTeamSheetCache;
