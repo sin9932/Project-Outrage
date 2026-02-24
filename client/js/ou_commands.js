@@ -194,7 +194,7 @@
         } else {
           wp = tileToWorldCenter(chosen.tx, chosen.ty);
         }
-        e.order={type:"move", x:wp.x, y:wp.y, tx:chosen.tx, ty:chosen.ty, subSlot:subSlot};
+        e.order={type:"move", x:wp.x, y:wp.y, tx:chosen.tx, ty:chosen.ty, subSlot:subSlot, manual:true, allowAuto:false};
 
         e.holdPos = false;
 

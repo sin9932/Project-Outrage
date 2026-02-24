@@ -2320,7 +2320,9 @@
 
       for (const u of units){
         if (!u.alive) continue;
-        revealCircle(u.team,u.x,u.y, UNIT[u.kind].vision||200);
+        // 저격IFV: 사정거리(1200)만큼 시야 확보 (저격병과 동일). vision < range인 경우 range로 reveal.
+        const visR = Math.max(UNIT[u.kind]?.vision || 200, u.range || 0);
+        revealCircle(u.team,u.x,u.y, visR);
       }
     }
 
@@ -2566,6 +2568,9 @@
           // hitscan may change (e.g., IFV passenger), keep it truthy if either dynamic or static says so.
           u.hitscan = !!(u.hitscan || UNIT[u.kind]?.hitscan);
     
+          // 차량(탱크/굴착기): 정지 상태에서도 겹친 적 보병 즉사 (이동 없이 밟기)
+          if (canCrushInf(u)) crushInfantry(u);
+    
           if (!u.order || u.order.type!=="attack") u.holdAttack = false;
     
           // HARD IDLE LOCK: if a unit should be stationary, freeze it completely (no path, no nudges, no steering drift).
@@ -2578,7 +2583,7 @@
               u._nextAcquire = state.t + 0.18 + (u.id % 7) * 0.02;
               const sniperMode = (u.kind==="sniper" || (u.kind==="ifv" && u.passKind==="sniper"));
       const manualLock = !!(u.order && u.order.manual && u.order.allowAuto!==true);
-              const vis = (UNIT[u.kind]?.vision || 300);
+              const vis = Math.max(UNIT[u.kind]?.vision || 300, u.range || 0); // 저격IFV: u.range(1200) 사용
               const cand = findNearestEnemyFor(u.team, u.x, u.y, vis, sniperMode, true); // unitOnly
               if (cand){
                 if (!sniperMode || isEnemyInf(cand)){
@@ -2789,13 +2794,15 @@
       const enemyTeam = (u.team===TEAM.PLAYER) ? TEAM.ENEMY : TEAM.PLAYER;
       const sniperMode = (u.kind==="sniper" || (u.kind==="ifv" && u.passKind==="sniper"));
       const manualLock = !!(u.order && u.order.manual && u.order.allowAuto!==true);
+      // 교전중 이동명령 시: forceMoveUntil 동안 보복/자동탐색으로 덮어쓰지 않음 (경전차 등)
+      const forceMoveActive = !!(u.order && u.order.type==="move" && u.forceMoveUntil && state.t < u.forceMoveUntil);
     
-      // (1) Retaliation (ONLY when no player manual-locked order)
-      if (!manualLock && u.aggroCd<=0 && u.lastAttacker!=null){
+      // (1) Retaliation (ONLY when no player manual-locked order, and not during force-move window)
+      if (!manualLock && !forceMoveActive && u.aggroCd<=0 && u.lastAttacker!=null){
         const a = getEntityById(u.lastAttacker);
         if (a && a.alive && a.team===enemyTeam){
           if (!sniperMode || isEnemyInf(a)){
-            const vis = UNIT[u.kind].vision || 280;
+            const vis = Math.max(UNIT[u.kind]?.vision || 280, u.range || 0); // 저격IFV: u.range 사용
             if (dist2(u.x,u.y,a.x,a.y) <= vis*vis){
               u.target = a.id;
               u.order = {type:"attack", x:u.x,y:u.y, tx:null,ty:null};
@@ -2832,7 +2839,7 @@
     
       if (u.aggroCd<=0 && okAuto && state.t >= (u._nextAcquire||0)){
         u._nextAcquire = state.t + 0.18 + (u.id % 7) * 0.02;
-        const vis = UNIT[u.kind].vision || 280;
+        const vis = Math.max(UNIT[u.kind]?.vision || 280, u.range || 0); // 저격IFV: u.range 사용
         const cand = findNearestEnemyFor(u.team, u.x, u.y, vis, sniperMode, true); // unitOnly
         if (cand){
           if (!sniperMode || isEnemyInf(cand)){
