@@ -65,7 +65,9 @@
       // Reused arrays to avoid .filter() allocations every tick
       _eUnits: [], _eUnitsAll: [], _playerInf: [], _enemyInf: [],
       _combat: [], _engs: [], _snipers: [], _idleIFVs: [],
-      _infFromEUnitsAll: [], _eIFVsWithEng: [], _eIFVsAll: [], _eEngSnip: []
+      _infFromEUnitsAll: [], _eIFVsWithEng: [], _eIFVsAll: [], _eEngSnip: [],
+      _enemyCenters: [], _playerUnits: [], _tankCount: 0,
+      _playerTurrets: [], _playerCombat: []
     };
 
     // ===== ENEMY AGGRESSION / ANTI-CLUSTER HELPERS =====
@@ -126,9 +128,10 @@
 
     // AI helper: pick an engineer docking point that tries to avoid player turret range.
     function aiEngineerDockAvoidTurrets(target, eng) {
+      const turrets = ai._playerTurrets;
+      if (!turrets.length) return getClosestPointOnBuilding(target, eng);
       const spec = BUILD[target.kind] || { tw: 1, th: 1 };
-      const turrets = buildings.filter(b => b.alive && !b.civ && b.team === TEAM.PLAYER && b.kind === "turret");
-      const pCombat = units.filter(u => u.alive && u.team === TEAM.PLAYER && u.kind !== "harvester" && u.kind !== "engineer");
+      const pCombat = ai._playerCombat;
       const range = (DEFENSE.turret && DEFENSE.turret.range) ? DEFENSE.turret.range : 520;
 
       // Sample a thicker perimeter so the engineer has a chance to choose a genuinely safer side.
@@ -218,12 +221,12 @@
       return n;
     }
     function aiEnemyCenters() {
-      return buildings.filter(b => b.alive && !b.civ && b.team === TEAM.ENEMY && b.provideR > 0);
+      return ai._enemyCenters;
     }
     function aiDefendPoint() {
       const ehq = buildings.find(b => b.alive && !b.civ && b.team === TEAM.ENEMY && b.kind === "hq");
       if (ehq) return { x: ehq.x, y: ehq.y };
-      const center = aiEnemyCenters()[0];
+      const center = ai._enemyCenters[0];
       return center ? { x: center.x, y: center.y } : { x: WORLD_W * 0.5, y: WORLD_H * 0.5 };
     }
 
@@ -249,8 +252,8 @@
 
     function aiUnstickEngineers(){
       const dp = aiDefendPoint();
-      const eEng = units.filter(u => u.alive && u.team === TEAM.ENEMY && u.kind === "engineer" && !u.inTransport);
-      for (const eng of eEng){
+      for (const eng of ai._engs){
+        if (eng.inTransport) continue;
         const ot = eng.order && eng.order.type;
         if (ot && ot !== "idle" && ot !== "guard") continue;
         // If hanging near own base (HQ/refinery), push to rally to avoid "rubbing"
@@ -263,8 +266,7 @@
       }
     }
     function playerDefenseHeavy() {
-      const tur = buildings.filter(b => b.alive && !b.civ && b.team === TEAM.PLAYER && b.kind === "turret").length;
-      return tur >= 4;
+      return ai._playerTurrets.length >= 4;
     }
 
     function aiTryStartBuild(kind) {
@@ -310,8 +312,8 @@
       // Choose a center: prefer HQ, else first center
       let center = centers.find(b => b.kind === "hq") || centers[0];
 
-      // Placement: 건설 반경 내에서만 시도. 나무/불가 구역·다른 건물 겹침은 시도하지 않음.
-      const tries = (kind === "turret") ? 260 : 320;
+      // Placement: 건설 반경 내에서만 시도. tries 축소로 연산 부하 감소.
+      const tries = (kind === "turret") ? 180 : 200;
       const turCount = aiEnemyCount("turret");
       const ehq = buildings.find(b => b.alive && !b.civ && b.team === TEAM.ENEMY && b.kind === "hq");
       const phq = buildings.find(b => b.alive && !b.civ && b.team === TEAM.PLAYER && b.kind === "hq");
@@ -408,7 +410,7 @@
         const ox = (col - 2) * spacing;
         const oy = row * spacing - spacing;
         let gx = ai.rally.x + ox, gy = ai.rally.y + oy;
-        const spot = findNearestFreePoint(gx, gy, u, 5);
+        const spot = findNearestFreePoint(gx, gy, u, 4);
         if (spot && spot.found) { gx = spot.x; gy = spot.y; }
         u.order = { type: "attackmove", x: gx, y: gy, tx: null, ty: null, manual:true, allowAuto:true, lockTarget:false };
         u.restX = null; u.restY = null;
@@ -457,33 +459,38 @@
       return inf[0];
     }
     function aiPickNearestPlayerInfantryTo(unit) {
-      const inf = units.filter(u => u.alive && u.team === TEAM.PLAYER && (UNIT[u.kind] && UNIT[u.kind].cls === "inf") && !u.inTransport && !u.hidden);
+      const inf = ai._playerInf;
       if (!inf.length) return null;
-      inf.sort((a, b) => dist2(unit.x, unit.y, a.x, a.y) - dist2(unit.x, unit.y, b.x, b.y));
-      return inf[0];
+      let best = null, bestD = Infinity;
+      for (let i = 0; i < inf.length; i++) {
+        const u = inf[i];
+        const d = dist2(unit.x, unit.y, u.x, u.y);
+        if (d < bestD) { bestD = d; best = u; }
+      }
+      return best;
     }
 
     function aiThreatNearBase() {
-      const centers = aiEnemyCenters();
+      const centers = ai._enemyCenters;
       if (!centers.length) return 0;
       const anchor = centers.find(b => b.kind === "hq") || centers[0];
+      const r2 = 520 * 520;
       let n = 0;
-      for (const u of units) {
-        if (!u.alive || u.team !== TEAM.PLAYER) continue;
-        if (dist2(u.x, u.y, anchor.x, anchor.y) <= (520 * 520)) n++;
+      for (let i = 0; i < ai._playerUnits.length; i++) {
+        const u = ai._playerUnits[i];
+        if (dist2(u.x, u.y, anchor.x, anchor.y) <= r2) n++;
       }
       return n;
     }
 
     function aiPlayerInfNearEnemyBase(){
-      const centers = aiEnemyCenters();
+      const centers = ai._enemyCenters;
       if (!centers.length) return 0;
       const anchor = centers.find(b => b.kind === "hq") || centers[0];
       const r2 = (TILE*12) * (TILE*12);
       let n = 0;
-      for (const u of units){
-        if (!u.alive || u.team !== TEAM.PLAYER) continue;
-        if (!UNIT[u.kind] || UNIT[u.kind].cls !== "inf") continue;
+      for (let i = 0; i < ai._playerInf.length; i++) {
+        const u = ai._playerInf[i];
         if (dist2(u.x, u.y, anchor.x, anchor.y) <= r2) n++;
       }
       return n;
@@ -542,19 +549,15 @@
       const bar = buildings.find(b => b.alive && !b.civ && b.team === TEAM.ENEMY && b.kind === "barracks");
       const fac = buildings.find(b => b.alive && !b.civ && b.team === TEAM.ENEMY && b.kind === "factory");
 
-      // Don't queue endlessly: keep a rolling queue size.
-      // IMPORTANT: do NOT subtract money here. Production drains money gradually in tickBuildingQueues().
       const poor = e.money < 200;
       const rich = e.money > 800;
 
-      const playerInf = units.filter(u => u.alive && u.team === TEAM.PLAYER && (UNIT[u.kind] && UNIT[u.kind].cls === "inf") && !u.inTransport && !u.hidden);
-      const playerHasInf = playerInf.length > 0;
-      const enemyInf = units.filter(u => u.alive && u.team === TEAM.ENEMY && u.kind === "infantry");
+      const playerHasInf = ai._playerInf.length > 0;
       const earlyRush = state.t < 120;
 
-      const eEng = units.filter(u => u.alive && u.team === TEAM.ENEMY && u.kind === "engineer");
-      const eSnp = units.filter(u => u.alive && u.team === TEAM.ENEMY && u.kind === "sniper");
-      const eIFV = units.filter(u => u.alive && u.team === TEAM.ENEMY && u.kind === "ifv");
+      const eEng = ai._engs;
+      const eSnp = ai._snipers;
+      const eIFV = ai._eIFVsAll;
 
       const countQueued = (q, kind) => q.reduce((n, it) => n + (it && it.kind === kind ? 1 : 0), 0);
 
@@ -588,7 +591,7 @@
         } else {
           wantInf = poor ? 4 : 8;
         }
-        const eInfCount = units.filter(u => u.alive && u.team === TEAM.ENEMY && u.kind === "infantry").length;
+        const eInfCount = ai._enemyInf.length;
         while (bar.buildQ.length < 8 && (eInfCount + queuedInf) < wantInf) {
           bar.buildQ.push({ kind: "infantry", t: 0, tNeed: getBaseBuildTime("infantry") / pf, cost: COST.infantry, paid: 0 });
           if (poor) break; // conserve
@@ -613,7 +616,7 @@
       }
 
       if (fac) {
-        const haveHarv = units.some(u => u.alive && u.team === TEAM.ENEMY && u.kind === "harvester");
+        const haveHarv = ai._eUnits.some(u => u.kind === "harvester");
         if (!haveHarv) {
           // Emergency eco: always try to rebuild a harvester first.
           if (fac.buildQ.length < 1) fac.buildQ.push({ kind: "harvester", t: 0, tNeed: getBaseBuildTime("harvester") / pf, cost: COST.harvester, paid: 0 });
@@ -624,7 +627,7 @@
         // Mix IFV + tanks. Tanks are mainline; IFV is support (passenger carriers / utility).
         while (fac.buildQ.length < wantVeh) {
           const countIFV = eIFV.length;
-          const countTank = units.filter(u => u.alive && u.team === TEAM.ENEMY && u.kind === "tank").length;
+          const countTank = ai._tankCount;
           const desiredIFV = infRushThreat ? Math.max(5, Math.floor((eEng.length + eSnp.length) / 2)) : Math.max(3, Math.floor((eEng.length + eSnp.length) / 3));
           const needIFV = (countIFV < desiredIFV);
 
@@ -771,21 +774,27 @@
     }
 
     function aiTick() {
-      // Throttle: run less often to reduce CPU spikes (was 0.22–0.38s, now ~0.45–0.70s between thinks).
+      // Throttle: run less often to reduce CPU spikes (~0.6–0.9s between thinks).
       if (state.t < ai.nextThink) return;
-      ai.nextThink = state.t + rnd(0.45, 0.70) / (ai.apmMul || 1);
+      ai.nextThink = state.t + rnd(0.60, 0.90) / (ai.apmMul || 1);
 
       const e = state.enemy;
 
-      // Single pass over buildings: cache hasHQ, hasFac, hasBar, phq (player HQ).
+      // Single pass over buildings: cache hasHQ, hasFac, hasBar, phq, enemyCenters, playerTurrets.
       let hasHQ = false, hasFac = false, hasBar = false, phq = null;
+      ai._enemyCenters.length = 0;
+      ai._playerTurrets.length = 0;
       for (const b of buildings) {
         if (!b.alive || b.civ) continue;
         if (b.team === TEAM.ENEMY) {
           if (b.kind === "hq") hasHQ = true;
           if (b.kind === "factory") hasFac = true;
           if (b.kind === "barracks") hasBar = true;
-        } else if (b.team === TEAM.PLAYER && b.kind === "hq") phq = b;
+          if (b.provideR > 0) ai._enemyCenters.push(b);
+        } else if (b.team === TEAM.PLAYER) {
+          if (b.kind === "hq") phq = b;
+          if (b.kind === "turret") ai._playerTurrets.push(b);
+        }
       }
       ai._phq = phq;
 
@@ -809,6 +818,7 @@
       // Single pass: fill reused arrays and counts (avoids many .filter() allocations).
       ai._eUnits.length = 0; ai._eUnitsAll.length = 0; ai._playerInf.length = 0; ai._enemyInf.length = 0;
       ai._combat.length = 0; ai._engs.length = 0; ai._snipers.length = 0; ai._idleIFVs.length = 0; ai._infFromEUnitsAll.length = 0; ai._eIFVsWithEng.length = 0; ai._eIFVsAll.length = 0; ai._eEngSnip.length = 0;
+      ai._playerUnits.length = 0; ai._playerCombat.length = 0;
       let playerInfCount = 0, enemyInfCount = 0, tankCount = 0, playerSniperCount = 0, playerSniperIFVCount = 0;
       for (const u of units) {
         if (!u.alive) continue;
@@ -822,15 +832,15 @@
           if ((u.kind === "engineer" || u.kind === "sniper") && !u.inTransport && !u.hidden) ai._eEngSnip.push(u);
           if (u.kind === "tank") tankCount++;
           if (u.kind === "infantry") { ai._enemyInf.push(u); enemyInfCount++; }
-        } else if (u.team === TEAM.PLAYER) {
-          if (u.kind === "sniper" && !u.inTransport && !u.hidden) playerSniperCount++;
+        } else if (u.team === TEAM.PLAYER && !u.inTransport && !u.hidden) {
+          ai._playerUnits.push(u);
+          if (u.kind !== "harvester" && u.kind !== "engineer") ai._playerCombat.push(u);
+          if (u.kind === "sniper") playerSniperCount++;
           if (u.kind === "ifv" && u.passengerId && u.passKind === "sniper") playerSniperIFVCount++;
-          if (UNIT[u.kind] && UNIT[u.kind].cls === "inf" && !u.inTransport && !u.hidden) {
-            ai._playerInf.push(u);
-            playerInfCount++;
-          }
+          if (UNIT[u.kind] && UNIT[u.kind].cls === "inf") { ai._playerInf.push(u); playerInfCount++; }
         }
       }
+      ai._tankCount = tankCount;
       const playerHasSniperThreat = (playerSniperCount > 0 || playerSniperIFVCount > 0);
       const ENEMY_INF_RUSH_MIN = 5; // 적 보병이 이 수 이상일 때만 저격 대응 러시
       const eUnits = ai._eUnits, playerInf = ai._playerInf, enemyInf = ai._enemyInf;
@@ -1001,7 +1011,7 @@
           };
           for (const eng of engs) {
             // Don't suicide into nearby player combat blobs; pull back and wait for escort.
-            const pNear = units.filter(u => u.alive && u.team === TEAM.PLAYER && u.kind !== "harvester").some(pu => dist2(eng.x, eng.y, pu.x, pu.y) < 220 * 220);
+            const pNear = ai._playerCombat.some(pu => dist2(eng.x, eng.y, pu.x, pu.y) < 220 * 220);
             if (pNear) {
               eng.order = { type: "move", x: ai.rally.x, y: ai.rally.y, tx: null, ty: null };
               setPathTo(eng, ai.rally.x, ai.rally.y);
