@@ -2602,7 +2602,8 @@
             const otPre = u.order && u.order.type;
             const wantsAuto = (!u.target && (otPre==="idle" || otPre==="guard" || otPre==="guard_return" || otPre==="attackmove"));
             if (wantsAuto && u.aggroCd<=0 && state.t >= (u._nextAcquire||0)){
-              u._nextAcquire = state.t + 0.18 + (u.id % 7) * 0.02;
+              const infThrottle = (u.team===TEAM.ENEMY && (u.kind==="infantry" || u.kind==="sniper")) ? 0.42 + (u.id % 11)*0.03 : 0.18 + (u.id % 7)*0.02;
+              u._nextAcquire = state.t + infThrottle;
               const sniperMode = (u.kind==="sniper" || (u.kind==="ifv" && u.passKind==="sniper"));
       const manualLock = !!(u.order && u.order.manual && u.order.allowAuto!==true);
               const vis = Math.max(UNIT[u.kind]?.vision || 300, u.range || 0); // 저격IFV: u.range(1200) 사용
@@ -2843,7 +2844,8 @@
       if (!sniperMode && u.aggroCd<=0 && state.t >= (u._nextAcquire||0) && u.order && u.order.type==="attack" && !(u.order.manual && u.order.lockTarget)){
         const cur = getEntityById(u.target);
         if (cur && BUILD[cur.kind]){
-          u._nextAcquire = state.t + 0.18 + (u.id % 7) * 0.02;
+          const retargetThrottle = (u.team===TEAM.ENEMY && (u.kind==="infantry" || u.kind==="sniper")) ? 0.42 + (u.id % 11)*0.03 : 0.18 + (u.id % 7)*0.02;
+          u._nextAcquire = state.t + retargetThrottle;
           const vis = UNIT[u.kind].vision || 280;
           const cand = findNearestEnemyFor(u.team, u.x, u.y, vis, false, true); // unitOnly
           if (cand){
@@ -2862,7 +2864,8 @@
          (u.order.type==="move" && !(u.forceMoveUntil && state.t < u.forceMoveUntil)));
     
       if (u.aggroCd<=0 && okAuto && state.t >= (u._nextAcquire||0)){
-        u._nextAcquire = state.t + 0.18 + (u.id % 7) * 0.02;
+        const okAutoThrottle = (u.team===TEAM.ENEMY && (u.kind==="infantry" || u.kind==="sniper")) ? 0.42 + (u.id % 11)*0.03 : 0.18 + (u.id % 7)*0.02;
+        u._nextAcquire = state.t + okAutoThrottle;
         const vis = Math.max(UNIT[u.kind]?.vision || 280, u.range || 0); // 저격IFV: u.range 사용
         const cand = findNearestEnemyFor(u.team, u.x, u.y, vis, sniperMode, true); // unitOnly
         if (cand){
@@ -2940,7 +2943,8 @@
     
               // scan for enemy in vision, then engage. Throttle to reduce cost in mass combat.
               if (state.t < (u._nextAcquire||0)) { settleInfantryToSubslot(u, dt); continue; }
-              u._nextAcquire = state.t + 0.18 + (u.id % 7) * 0.02;
+              const guardThrottle = (u.team===TEAM.ENEMY && (u.kind==="infantry" || u.kind==="sniper")) ? 0.42 + (u.id % 11)*0.03 : 0.18 + (u.id % 7)*0.02;
+              u._nextAcquire = state.t + guardThrottle;
               const scanR = Math.max(u.vision||0, (u.range||0));
               const atkKind = (u.kind==="ifv" && u.passKind==="sniper") ? "sniper" : u.kind;
               const enemy = findNearestAttackMoveTargetFor(u.team, u.x, u.y, scanR, atkKind);
@@ -2962,7 +2966,8 @@
     
             if (u.order.type==="attackmove"){
               if (state.t >= (u._nextAcquire||0)) {
-                u._nextAcquire = state.t + 0.18 + (u.id % 7) * 0.02;
+                const atkMoveThrottle = (u.team===TEAM.ENEMY && (u.kind==="infantry" || u.kind==="sniper")) ? 0.42 + (u.id % 11)*0.03 : 0.18 + (u.id % 7)*0.02;
+                u._nextAcquire = state.t + atkMoveThrottle;
                 const atkKind = (u.kind==="ifv" && u.passKind==="sniper") ? "sniper" : u.kind;
                 const scanR = Math.max(520, UNIT[u.kind]?.vision || 400, u.range || 0); // 터렛(520)보다 넓게 선제 탐색
                 const enemy = findNearestAttackMoveTargetFor(u.team, u.x, u.y, scanR, atkKind);
@@ -2988,7 +2993,8 @@
     
             // Guard/idle auto-acquire: if standing idle and an enemy enters range, engage. Throttle in mass combat.
             if (u.order.type==="idle" && (u.range||0)>0 && u.kind!=="engineer" && state.t >= (u._nextAcquire||0)){
-              u._nextAcquire = state.t + 0.18 + (u.id % 7) * 0.02;
+              const idleThrottle = (u.team===TEAM.ENEMY && (u.kind==="infantry" || u.kind==="sniper")) ? 0.42 + (u.id % 11)*0.03 : 0.18 + (u.id % 7)*0.02;
+              u._nextAcquire = state.t + idleThrottle;
               const sniperMode = (u.kind==="sniper" || (u.kind==="ifv" && u.passKind==="sniper"));
       const manualLock = !!(u.order && u.order.manual && u.order.allowAuto!==true);
               const enemy = findNearestEnemyFor(u.team, u.x, u.y, u.range||0, sniperMode, true);
@@ -3461,18 +3467,20 @@
             followPath(u,dt);
             crushInfantry(u);
     
-            // ARRIVAL LOCK (HARD): if a move order has no remaining path, immediately convert to idle and hard-anchor.
-    // This prevents post-arrival "one-step" drift caused by collision/avoidance micro-adjustments.
             const hasPath = (u.path && u.pathI < u.path.length);
             if (!hasPath && u.order && u.order.type==="move"){
-              // Convert to idle at current spot (even if slightly short of the clicked point).
-              u.order = {type:"idle", x:u.x, y:u.y, tx:null, ty:null};
-              u.target = null;
-              u.path = null; u.pathI = 0;
-              u.vx = 0; u.vy = 0;
-              u.stuckT = 0; u.stuckTime = 0; u.yieldCd = 0; u.avoidCd = 0;
-              // Anchor for hard idle lock (rest snap)
-              u.restX = u.x; u.restY = u.y;
+              const d2 = dist2(u.x, u.y, u.order.x, u.order.y);
+              if (d2 < 16*16){
+                u.order = {type:"idle", x:u.x, y:u.y, tx:null, ty:null};
+                u.target = null;
+                u.path = null; u.pathI = 0;
+                u.vx = 0; u.vy = 0;
+                u.stuckT = 0; u.stuckTime = 0; u.yieldCd = 0; u.avoidCd = 0;
+                u.restX = u.x; u.restY = u.y;
+              } else if (u.repathCd <= 0){
+                setPathTo(u, u.order.x, u.order.y);
+                u.repathCd = 0.22;
+              }
             }
     
           } else if (u.order.type==="forcefire"){
@@ -3819,7 +3827,7 @@
       }
 
     let _pathFindBudget = 0;
-    const MAX_PATHFINDS_PER_FRAME = 8;
+    const MAX_PATHFINDS_PER_FRAME = 24;
 
     function tickSim(dt) {
       _pathFindBudget = MAX_PATHFINDS_PER_FRAME;
