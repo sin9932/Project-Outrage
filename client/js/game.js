@@ -151,7 +151,7 @@
     drag: { on:false, moved:false, x0:0, y0:0, x1:0, y1:0 },
     pan:  { on:false, x0:0, y0:0, camIsoX:0, camIsoY:0 },
     colors: { player:"#0000ff", enemy:"#ff0000" },
-    fx: { paths: [], clicks: [], orders: [] },
+    fx: { paths: [] },  // clicks, orders -> FX module
     lastSingleId: null,
     lastSingleKind: null,
     lastHit: { t: -1e9, x: 0, y: 0 },
@@ -4082,7 +4082,7 @@ function updatePowerBar() {
 }
 
 function pushClickWave(wx, wy, color){
-  state.fx.clicks.push({ x:wx, y:wy, color, t0: state.t, life: 0.4 });
+  if (window.FX && typeof window.FX.pushClickWave === "function") window.FX.pushClickWave(wx, wy, color);
 }
 
 function showUnitPathFx(u){ /* disabled */ }
@@ -4727,18 +4727,7 @@ function sanityCheck(){
 // Expose a few helpers to window for debugging / sanityCheck
 
 function pushOrderFx(unitId, kind, x, y, targetId=null, color=null){
-  if (!state.fx.orders) state.fx.orders = [];
-  const isAtk = (kind==="attack" || kind==="attackmove" || kind==="harvest");
-  const ttl = 0.22;
-  state.fx.orders.push({
-    unitId, kind, x, y, targetId,
-    color:  color  || (isAtk ? "rgba(255,70,70,0.95)" : "rgba(90,255,90,0.95)"),
-    color2: isAtk ? "rgba(255,60,60,0.95)" : "rgba(90,255,90,0.95)",
-    ttl,
-    until: state.t + ttl,
-    w: isAtk ? 3.8 : 3.2,
-    r: isAtk ? 5.8 : 5.2
-  });
+  if (window.FX && typeof window.FX.pushOrderFx === "function") window.FX.pushOrderFx(unitId, kind, x, y, targetId, color);
 }
 
 // window.setPathTo (removed dead statement)

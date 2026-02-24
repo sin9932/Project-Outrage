@@ -2193,10 +2193,11 @@
   }
 
   function drawClickWaves(){
-    const now=state.t;
-    state.fx.clicks = state.fx.clicks.filter(w=> (now - w.t0) <= w.life);
+    const now = state.t;
+    if (window.FX && typeof window.FX.purgeExpiredClickWaves === "function") window.FX.purgeExpiredClickWaves(now);
+    const clicks = (window.FX && window.FX.clickWaves) ? window.FX.clickWaves : [];
 
-    for (const w of state.fx.clicks){
+    for (const w of clicks){
       const a = clamp((now - w.t0) / w.life, 0, 1);
       const sp = worldToScreen(w.x, w.y);
       const r1 = 6 + a*34;
@@ -2266,10 +2267,10 @@
 
   function drawOrderFx(){
     const now = state.t;
-    if (!state.fx.orders) state.fx.orders = [];
-    state.fx.orders = state.fx.orders.filter(o=> now <= o.until);
+    if (window.FX && typeof window.FX.purgeExpiredOrderFxs === "function") window.FX.purgeExpiredOrderFxs(now);
+    const orders = (window.FX && window.FX.orderFxs) ? window.FX.orderFxs : [];
 
-    for (const o of state.fx.orders){
+    for (const o of orders){
       const u = getEntityById(o.unitId);
       if (!u || !u.alive || u.inTransport) continue;
 

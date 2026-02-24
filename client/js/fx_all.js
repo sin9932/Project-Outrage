@@ -35,6 +35,36 @@
   let _getTime = () => 0;
   function setGetTime(fn){ _getTime = fn || (() => 0); }
 
+  // Click waves + order FX (moved from state.fx)
+  const clickWaves = [];
+  const orderFxs = [];
+  function pushClickWave(wx, wy, color){
+    clickWaves.push({ x: wx, y: wy, color, t0: _getTime(), life: 0.4 });
+  }
+  function pushOrderFx(unitId, kind, x, y, targetId, color){
+    const isAtk = (kind === "attack" || kind === "attackmove" || kind === "harvest");
+    const ttl = 0.22;
+    orderFxs.push({
+      unitId, kind, x, y, targetId: targetId ?? null,
+      color: color || (isAtk ? "rgba(255,70,70,0.95)" : "rgba(90,255,90,0.95)"),
+      color2: isAtk ? "rgba(255,60,60,0.95)" : "rgba(90,255,90,0.95)",
+      ttl,
+      until: _getTime() + ttl,
+      w: isAtk ? 3.8 : 3.2,
+      r: isAtk ? 5.8 : 5.2
+    });
+  }
+  function purgeExpiredClickWaves(now){
+    const keep = clickWaves.filter(w => (now - w.t0) <= w.life);
+    clickWaves.length = 0;
+    clickWaves.push(...keep);
+  }
+  function purgeExpiredOrderFxs(now){
+    const keep = orderFxs.filter(o => now <= o.until);
+    orderFxs.length = 0;
+    orderFxs.push(...keep);
+  }
+
 // ===== Smoke ring + smoke particles (building destruction) =====
 // 목표:
 // - 파동 연기: "원형으로 퍼지되", 아이소메트리라서 위아래 납작 + 라인 없이 흐릿한 연무 타입
@@ -1197,6 +1227,12 @@ ctx.fill();
   window.FX = {
     setTile,
     setGetTime,
+    clickWaves,
+    orderFxs,
+    pushClickWave,
+    pushOrderFx,
+    purgeExpiredClickWaves,
+    purgeExpiredOrderFxs,
     traces, impacts, fires, explosions, healMarks, flashes, casings, repairWrenches,
     smokeWaves, smokePuffs, smokeEmitters, dustPuffs, dmgSmokePuffs,
     bloodStains, bloodPuffs,
