@@ -3289,10 +3289,12 @@
       PO.buildings.drawGhosts(ctx, cam, helpers, state);
     }}catch(_e){}
 
-    if ((debrisTrail && debrisTrail.length > 0) || (debris && debris.length > 0)){
+    const _debris = (window.OURender && window.OURender._debris) || [];
+    const _debrisTrail = (window.OURender && window.OURender._debrisTrail) || [];
+    if ((_debrisTrail.length > 0) || (_debris.length > 0)){
       const z = (typeof cam !== "undefined" && cam && typeof cam.zoom==="number") ? cam.zoom : 1;
-      if (debrisTrail && debrisTrail.length > 0){
-        for (const t of debrisTrail){
+      if (_debrisTrail.length > 0){
+        for (const t of _debrisTrail){
           const pp = worldToScreen(t.x, t.y);
           const a = Math.max(0, t.life / Math.max(0.001, t.ttl));
           const rr = (t.r || 12) * z * a;
@@ -3311,8 +3313,8 @@
           ctx.restore();
         }
       }
-      if (debris && debris.length > 0){
-        for (const d of debris){
+      if (_debris.length > 0){
+        for (const d of _debris){
           const a = Math.max(0, 1 - d.t / Math.max(0.001, d.ttl));
           const shdP = worldToScreen(d.x, d.landY ?? d.cy);
           const height = (d.landY ?? d.cy) - d.y;
@@ -3589,6 +3591,8 @@
   window.OURender = window.OURender || {};
   window.OURender.drawMini = drawMini;
   window.OURender.draw = drawMain;
+  window.OURender._debris = debris;
+  window.OURender._debrisTrail = debrisTrail;
   window.OURender.addDebris = addDebris;
   window.OURender.updateDebris = updateDebris;
   window.OURender.clearDebris = clearDebris;
