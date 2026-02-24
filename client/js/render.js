@@ -3291,9 +3291,22 @@
       PO.buildings.drawGhosts(ctx, cam, helpers, state);
     }}catch(_e){}
 
-    if ((debrisTrail && debrisTrail.length > 0) || (debris && debris.length > 0)){
-      if (debris && debris.length > 0) console.log("[debris] drawing", debris.length, "chunks");
+    if (typeof drawExplosions === "function") drawExplosions(ctx);
+    if (typeof drawSmokeWaves === "function") drawSmokeWaves(ctx);
+    if (typeof drawDustPuffs === "function") drawDustPuffs(ctx);
+    if (typeof drawExp1Fxs === "function") drawExp1Fxs(ctx);
+    if (typeof drawSmokePuffs === "function") drawSmokePuffs(ctx);
+    if (typeof drawDmgSmokePuffs === "function") drawDmgSmokePuffs(ctx);
+
+    const DEBUG_DEBRIS = /(?:\?|&)debris=1(?:&|$)/.test(typeof location!=="undefined" ? location.search : "");
+    if (DEBUG_DEBRIS || (debrisTrail && debrisTrail.length > 0) || (debris && debris.length > 0)){
       const z = (typeof cam !== "undefined" && cam && typeof cam.zoom==="number") ? cam.zoom : 1;
+      if (DEBUG_DEBRIS && (!debris || debris.length === 0)){
+        ctx.save();
+        ctx.fillStyle = "rgba(255,80,80,0.9)";
+        ctx.fillRect(W/2 - 20, H/2 - 15, 40, 30);
+        ctx.restore();
+      }
       if (debrisTrail && debrisTrail.length > 0){
         for (const t of debrisTrail){
           const pp = worldToScreen(t.x, t.y);
@@ -3333,21 +3346,15 @@
           ctx.save();
           ctx.translate(p.x, p.y);
           ctx.rotate(d.rot || 0);
-          ctx.globalAlpha = 0.85 * a;
-          ctx.fillStyle = "rgba(100,85,70,0.9)";
-          const w = (d.w || 12) * z;
-          const h = (d.h || 8) * z;
+          ctx.globalAlpha = 0.95 * a;
+          ctx.fillStyle = "rgba(180,140,100,0.95)";
+          const w = Math.max(16, (d.w || 12) * z * 1.5);
+          const h = Math.max(12, (d.h || 8) * z * 1.5);
           ctx.fillRect(-w/2, -h/2, w, h);
           ctx.restore();
         }
       }
     }
-    if (typeof drawExplosions === "function") drawExplosions(ctx);
-    if (typeof drawSmokeWaves === "function") drawSmokeWaves(ctx);
-    if (typeof drawDustPuffs === "function") drawDustPuffs(ctx);
-    if (typeof drawExp1Fxs === "function") drawExp1Fxs(ctx);
-    if (typeof drawSmokePuffs === "function") drawSmokePuffs(ctx);
-    if (typeof drawDmgSmokePuffs === "function") drawDmgSmokePuffs(ctx);
 
     for (const f of fires){
       const p = worldToScreen(f.x, f.y);
