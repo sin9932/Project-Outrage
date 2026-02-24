@@ -2480,34 +2480,34 @@ function updateBlood(dt){
 
   function addDebris(cx, cy, opts={}){
     const T = opts.tile ?? TILE;
-    const landY = cy + T * 0.25;
     const minN = opts.minN ?? 4;
     const maxN = opts.maxN ?? 12;
     const baseSize = opts.size ?? 1;
     const n = minN + Math.floor(Math.random() * (maxN - minN + 1));
     for (let i=0;i<n;i++){
-      const ang = (-Math.PI/2) + (Math.random()*Math.PI*0.85);
-      const spd = (50 + Math.random()*120) * baseSize;
+      const ang = Math.random() * Math.PI * 2;
+      const spd = (80 + Math.random()*140) * baseSize;
+      const vz0 = (100 + Math.random()*180) * baseSize;
       const w = (T*0.12 + Math.random()*T*0.18) * baseSize;
       const h = (T*0.08 + Math.random()*T*0.12) * baseSize;
       debris.push({
-        x: cx + (Math.random()*2-1)*T*0.2,
-        y: cy - T*(0.15 + Math.random()*0.25),
-        cx, cy,
+        x: cx + (Math.random()*2-1)*T*0.15,
+        y: cy + (Math.random()*2-1)*T*0.15,
+        z: 0,
         vx: Math.cos(ang)*spd,
-        vy: Math.sin(ang)*spd - 40,
+        vy: Math.sin(ang)*spd,
+        vz: vz0,
         w, h,
         rot: Math.random()*Math.PI*2,
-        rotV: (Math.random()*2-1)*8,
+        rotV: (Math.random()*2-1)*12,
         t: 0,
-        ttl: 4,
-        landY,
-        maxDist: T * 1.8
+        ttl: 5,
+        cx, cy
       });
     }
   }
   function updateDebris(dt){
-    const G = 720;
+    const G = 980;
     for (let i=debrisTrail.length-1;i>=0;i--){
       const t = debrisTrail[i];
       t.life -= dt;
@@ -2519,31 +2519,24 @@ function updateBlood(dt){
       const d = debris[i];
       d.t += dt;
       if (d.t >= d.ttl){ debris.splice(i,1); continue; }
-      const speed = Math.hypot(d.vx, d.vy);
-      if (speed > 60){
+      const speedH = Math.hypot(d.vx, d.vy);
+      if (speedH > 50 && (d.z||0) > 5){
         debrisTrail.push({
           x: d.x, y: d.y,
-          vx: -d.vx*0.08, vy: -d.vy*0.08,
-          life: 0.20 + Math.random()*0.15,
-          ttl: 0.20 + Math.random()*0.15,
-          r: 10 + Math.random()*14
+          vx: -d.vx*0.06, vy: -d.vy*0.06,
+          life: 0.18 + Math.random()*0.12,
+          ttl: 0.18 + Math.random()*0.12,
+          r: 8 + Math.random()*12
         });
       }
       d.x += d.vx*dt;
       d.y += d.vy*dt;
-      d.vy += G*dt;
+      d.z = (d.z||0) + (d.vz||0)*dt;
+      d.vz = (d.vz||0) - G*dt;
       d.rot += (d.rotV||0)*dt;
-      d.vx *= 0.92;
-      d.vy *= 0.998;
-      const dx = d.x - d.cx, dy = d.y - d.cy;
-      const dist = Math.hypot(dx, dy);
-      const md = d.maxDist ?? (TILE*1.8);
-      if (dist > md && dist > 1){
-        const pull = 0.15 * (dist - md) / dist;
-        d.vx -= dx * pull * dt * 120;
-        d.vy -= dy * pull * dt * 120;
-      }
-      if (d.y >= d.landY){ debris.splice(i,1); }
+      d.vx *= 0.985;
+      d.vy *= 0.985;
+      if (d.z <= 0){ debris.splice(i,1); }
     }
   }
 

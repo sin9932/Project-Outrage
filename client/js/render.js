@@ -3328,28 +3328,30 @@
         }
       }
       if (debris && debris.length > 0){
+        const Z_SCALE = 0.25;
         for (const d of debris){
           const a = Math.max(0, 1 - d.t / Math.max(0.001, d.ttl));
-          const shdP = worldToScreen(d.x, d.landY ?? d.cy);
-          const height = (d.landY ?? d.cy) - d.y;
-          const shdScale = 0.6 + Math.min(1, height / 80) * 0.5;
+          const zh = (d.z || 0);
+          const shdP = worldToScreen(d.x, d.y);
+          const shdScale = 0.5 + Math.min(1, zh / 100) * 0.6;
           ctx.save();
-          ctx.globalAlpha = 0.35 * a * shdScale;
-          ctx.fillStyle = "rgba(0,0,0,0.6)";
+          ctx.globalAlpha = 0.4 * a * shdScale;
+          ctx.fillStyle = "rgba(0,0,0,0.55)";
           const sw = (d.w || 12) * z * shdScale;
-          const sh = (d.h || 8) * z * shdScale * 0.6;
+          const sh = (d.h || 8) * z * shdScale * 0.5;
           ctx.beginPath();
-          ctx.ellipse(shdP.x, shdP.y, sw*0.6, sh*0.6, 0, 0, Math.PI*2);
+          ctx.ellipse(shdP.x, shdP.y, sw*0.55, sh*0.55, 0, 0, Math.PI*2);
           ctx.fill();
           ctx.restore();
           const p = worldToScreen(d.x, d.y);
+          const screenY = p.y - zh * Z_SCALE * z;
           ctx.save();
-          ctx.translate(p.x, p.y);
+          ctx.translate(p.x, screenY);
           ctx.rotate(d.rot || 0);
           ctx.globalAlpha = 0.95 * a;
           ctx.fillStyle = "rgba(180,140,100,0.95)";
-          const w = Math.max(16, (d.w || 12) * z * 1.5);
-          const h = Math.max(12, (d.h || 8) * z * 1.5);
+          const w = Math.max(14, (d.w || 12) * z);
+          const h = Math.max(10, (d.h || 8) * z);
           ctx.fillRect(-w/2, -h/2, w, h);
           ctx.restore();
         }
