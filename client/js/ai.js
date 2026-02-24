@@ -78,12 +78,12 @@
       // ===== ENGINEER BEHAVIOR FIX (v10) =====
       function pushEngineerOut(u) {
         if (!u || !u.alive || u.kind !== "engineer" || u.team !== TEAM.ENEMY) return;
-        // If hanging near own barracks/HQ, force it to rally so it doesn't block exits.
+        // If hanging near own barracks/HQ, force to rally so it doesn't block exits.
         const nearProd = buildings.some(
           (b) => b.alive && !b.civ && b.team === TEAM.ENEMY && (b.kind === "barracks" || b.kind === "hq") && dist2(u.x, u.y, b.x, b.y) < (420 * 420)
         );
-        const noProd = (u._noProdUntil && state.t < u._noProdUntil);
-        if (nearProd || noProd) {
+        const inCooldown = (u._noProdUntil && state.t < u._noProdUntil);
+        if (nearProd && !inCooldown) {
           const rx = ai.rally.x + rnd(-TILE * 2.4, TILE * 2.4);
           const ry = ai.rally.y + rnd(-TILE * 2.4, TILE * 2.4);
           u.order = { type: "move", x: rx, y: ry, tx: null, ty: null };
@@ -585,6 +585,8 @@
           } else {
             wantInf = poor ? 2 : 3;
           }
+        } else {
+          wantInf = poor ? 4 : 8;
         }
         const eInfCount = units.filter(u => u.alive && u.team === TEAM.ENEMY && u.kind === "infantry").length;
         while (bar.buildQ.length < 8 && (eInfCount + queuedInf) < wantInf) {
@@ -592,8 +594,9 @@
           if (poor) break; // conserve
         }
 
-        // Engineers: early small count, later ramp for IFV rush.
-        const desiredEng = (earlyRush || rushDefense || infRushThreat) ? 0 : (hasFac ? Math.max(6, Math.min(14, 4 + eIFV.length * 2)) : 2);
+        // Engineers: IFV 탑승용. IFV 없으면 과다 생산 방지 (막사 앞 꼬라박 방지)
+        const rawDesired = (earlyRush || rushDefense || infRushThreat) ? 0 : (hasFac ? Math.max(6, Math.min(14, 4 + eIFV.length * 2)) : 2);
+        const desiredEng = (eIFV.length < 2) ? Math.min(rawDesired, 2) : rawDesired;
         if (bar.buildQ.length < 8 && (eEng.length + queuedEng) < desiredEng) {
           bar.buildQ.push({ kind: "engineer", t: 0, tNeed: getBaseBuildTime("engineer") / pf, cost: COST.engineer, paid: 0 });
         }
