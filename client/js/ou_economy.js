@@ -113,6 +113,56 @@
       if (b && b.kind==="refinery") spawnFreeHarvester(b.team, b);
     }
 
+    // -------------------------
+    // Repairs (돈 쓰는 로직 → economy 단일 지갑 관리)
+    // -------------------------
+    const repairWrenches = ctx.repairWrenches || [];
+
+    function tickRepairs(dt){
+      const rate = 35;
+      const costPerHp = 1.0;
+
+      for (const b of buildings){
+        if (!b.alive || b.civ) continue;
+
+        if (b.team===TEAM.ENEMY){
+          const recentlyHit = (state.t - (b.lastDamaged||-9999)) < 2.5;
+          if (recentlyHit && b.hp < b.hpMax) b.repairOn = true;
+        }
+
+        if (!b.repairOn) continue;
+
+        if (b.hp >= b.hpMax){ b.repairOn = false; continue; }
+
+        const wallet = (b.team===TEAM.PLAYER) ? state.player : state.enemy;
+
+        const heal = Math.min(rate*dt, b.hpMax - b.hp);
+        const cost = heal * costPerHp;
+
+        if (wallet.money >= cost){
+          wallet.money -= cost;
+          b.hp += heal;
+
+          b.repairFxCd = (b.repairFxCd||0) - dt;
+          if (b.repairFxCd<=0){
+            let fx = null;
+            for (const w of repairWrenches){ if (w.bid===b.id){ fx=w; break; } }
+            if (!fx){
+              fx = { bid:b.id, x:b.x, y:b.y, t0:state.t, last:state.t, ttl:0.70 };
+              repairWrenches.push(fx);
+            } else {
+              fx.x = b.x; fx.y = b.y;
+              fx.last = state.t;
+              fx.ttl = 0.70;
+            }
+            b.repairFxCd = 0.12;
+          }
+        } else {
+          b.repairOn = false;
+        }
+      }
+    }
+
     function tryPlaceBuild() {
       const build = state.build || {};
       const kind = build.kind;
@@ -714,6 +764,7 @@
       normalizeProducerQueues,
       feedProducers,
       tickProduction,
+      tickRepairs,
 
       // power + tech
       getPowerFactor,

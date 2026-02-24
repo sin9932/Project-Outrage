@@ -630,6 +630,8 @@ const buildingWorldFromTileOrigin = __tileHelpers ? __tileHelpers.buildingWorldF
     if (!state._placeStartPhase && !spec.civ && __ou_sim && __ou_sim.recordConstruction) __ou_sim.recordConstruction(team, kind);
     if (__ou_econ && __ou_econ.onBuildingPlaced) __ou_econ.onBuildingPlaced(b);
     try{ if (window.PO && PO.buildings && PO.buildings.onPlaced) PO.buildings.onPlaced(b, state); }catch(_e){}
+    // 건물 배치 직후 시야 즉시 갱신 (안개 새까맣게 방지)
+    updateVision();
     return b;
   }
 
@@ -1152,7 +1154,8 @@ const __ou_econ = (window.OUEconomy && typeof window.OUEconomy.create==="functio
       MAP_H,
       BUILD,
       // harvester spawn (refinery)
-      terrain, buildOcc, ore, occAll, inMap, idx, tileToWorldCenter
+      terrain, buildOcc, ore, occAll, inMap, idx, tileToWorldCenter,
+      repairWrenches
     })
   : null;
 
@@ -1567,50 +1570,7 @@ function findSpawnPointNear(b, unitKind, opts){
   }
 
   function tickRepairs(dt){
-    const rate = 35;
-    const costPerHp = 1.0;
-
-    for (const b of buildings){
-      if (!b.alive || b.civ) continue;
-
-      // Enemy AI auto-repair: if recently damaged, enable repair automatically (player is manual).
-      if (b.team===TEAM.ENEMY){
-        const recentlyHit = (state.t - (b.lastDamaged||-9999)) < 2.5;
-        if (recentlyHit && b.hp < b.hpMax) b.repairOn = true;
-      }
-
-      if (!b.repairOn) continue;
-
-      if (b.hp >= b.hpMax){ b.repairOn = false; continue; }
-
-      const wallet = (b.team===TEAM.PLAYER) ? state.player : state.enemy;
-
-      const heal = Math.min(rate*dt, b.hpMax - b.hp);
-      const cost = heal * costPerHp;
-
-      if (wallet.money >= cost){
-        wallet.money -= cost;
-        b.hp += heal;
-
-        // Wrench FX while repairing: keep ONE per building, refresh it instead of stacking.
-        b.repairFxCd = (b.repairFxCd||0) - dt;
-        if (b.repairFxCd<=0){
-          let fx = null;
-          for (const w of repairWrenches){ if (w.bid===b.id){ fx=w; break; } }
-          if (!fx){
-            fx = { bid:b.id, x:b.x, y:b.y, t0:state.t, last:state.t, ttl:0.70 };
-            repairWrenches.push(fx);
-            } else {
-            fx.x = b.x; fx.y = b.y;
-            fx.last = state.t; // refresh lifetime (do not reset animation)
-            fx.ttl = 0.70;
-          }
-          b.repairFxCd = 0.12;
-        }
-      } else {
-        b.repairOn = false;
-      }
-    }
+    if (__ou_econ && __ou_econ.tickRepairs) __ou_econ.tickRepairs(dt);
   }
 
   
@@ -2583,7 +2543,7 @@ if (state.selection.size>0 && inMap(tx,ty) && ore[idx(tx,ty)]>0){
         if (e.kind==="turret"){
           e.forceFire=null;
           e.target=null;
-          e.shootCd = Math.max(e.shootCd||0, 0); // keep cooldown sane
+          e.shootCd = 0; // 정지 시 쿨 초기화 → 바로 다음 타겟 잡을 수 있게
         }
       }
     }
@@ -3134,14 +3094,19 @@ function validateWorld(){
 }
 
 function sanityCheck(){
-    // followPath, isBlockedWorldPoint -> sim.js; setPathTo delegates to __ou_sim
-    const must = [
-      "setPathTo","findPath","issueIFVRepair","boardUnitIntoIFV","unboardIFV","resolveUnitOverlaps"
+    // 모듈 참조로 검증 (window 전역 오염 방지)
+    const checks = [
+      ["setPathTo", ()=>__ou_sim && typeof __ou_sim.setPathTo==="function"],
+      ["findPath", ()=>typeof findPath==="function"],
+      ["issueIFVRepair", ()=>__ou_commands && typeof __ou_commands.issueIFVRepair==="function"],
+      ["boardUnitIntoIFV", ()=>__ou_commands && typeof __ou_commands.boardUnitIntoIFV==="function"],
+      ["unboardIFV", ()=>typeof tryUnloadIFV==="function"],
+      ["resolveUnitOverlaps", ()=>__ou_sim && typeof __ou_sim.resolveUnitOverlaps==="function"]
     ];
-    const missing = must.filter(n=> typeof window[n] !== "function");
+    const missing = checks.filter(([,fn])=> !fn()).map(([n])=>n);
     if (missing.length){
-      console.error("SanityCheck: missing functions:", missing);
-      toast("???? ??: " + missing.join(", "));
+      console.error("SanityCheck: missing module refs:", missing);
+      toast("모듈 검증 실패: " + missing.join(", "));
     }
   }
 
@@ -3338,20 +3303,9 @@ function sanityCheck(){
   setButtonText();
   requestAnimationFrame(tick);
 
-// Expose a few helpers to window for debugging / sanityCheck
-
 function pushOrderFx(unitId, kind, x, y, targetId=null, color=null){
   if (window.FX && typeof window.FX.pushOrderFx === "function") window.FX.pushOrderFx(unitId, kind, x, y, targetId, color);
 }
-
-// window.setPathTo (removed dead statement)
-
-window.setPathTo = setPathTo;
-window.findPath = findPath;
-window.issueIFVRepair = issueIFVRepair;
-window.boardUnitIntoIFV = boardUnitIntoIFV;
-window.unboardIFV = tryUnloadIFV;
-window.resolveUnitOverlaps = resolveUnitOverlaps;
 
 })();
 
