@@ -446,6 +446,8 @@ function fitMini() {
   const impacts=[]; // MG bullet impact sparks
   const fires=[]; // building fire particles (low HP)
   const explosions=[]; // building destruction explosions
+  const debris=[]; // RA2-style flying debris
+  const debrisTrail=[];
   const exp1Fxs = []; // large explosion sprite fx (rendered in render.js)
 
   const healMarks=[]; // red-cross marks for repairs
@@ -2021,7 +2023,7 @@ function tryUnloadIFV(ifv){
     }catch(_e){}
 
     if (ent.kind === "harvester"){
-      try{ if (window.OURender && typeof OURender.addDebris === "function") OURender.addDebris(ent.x, ent.y, { tile: TILE, minN:2, maxN:6, size:1.2 }); }catch(_e){}
+      try{ addDebris(ent.x, ent.y, { minN:2, maxN:6, size:1.2 }); }catch(_e){}
     }
 
     ent.alive = false;
@@ -2044,7 +2046,7 @@ function tryUnloadIFV(ifv){
     const bw = (b.w || (b.tw*TILE) || (TILE*4));
     const bh = (b.h || (b.th*TILE) || (TILE*4));
     const bSize = Math.sqrt(bw*bw + bh*bh) / (TILE*2);
-    if (window.OURender && typeof OURender.addDebris === "function") OURender.addDebris(b.x, b.y, { tile: TILE, minN:4, maxN:12, size: clamp(bSize, 0.8, 2.5) });
+    addDebris(b.x, b.y, { minN:4, maxN:12, size: clamp(bSize, 0.8, 2.5) });
     // 2.2) Smoke ring + smoke plume at destruction point
     let _smkS = 1;
     try{
@@ -2476,6 +2478,75 @@ function updateBlood(dt){
     explosions.push(ex);
   }
 
+  function addDebris(cx, cy, opts={}){
+    const T = opts.tile ?? TILE;
+    const landY = cy + T * 0.25;
+    const minN = opts.minN ?? 4;
+    const maxN = opts.maxN ?? 12;
+    const baseSize = opts.size ?? 1;
+    const n = minN + Math.floor(Math.random() * (maxN - minN + 1));
+    for (let i=0;i<n;i++){
+      const ang = (-Math.PI/2) + (Math.random()*Math.PI*0.85);
+      const spd = (50 + Math.random()*120) * baseSize;
+      const w = (T*0.12 + Math.random()*T*0.18) * baseSize;
+      const h = (T*0.08 + Math.random()*T*0.12) * baseSize;
+      debris.push({
+        x: cx + (Math.random()*2-1)*T*0.2,
+        y: cy - T*(0.15 + Math.random()*0.25),
+        cx, cy,
+        vx: Math.cos(ang)*spd,
+        vy: Math.sin(ang)*spd - 40,
+        w, h,
+        rot: Math.random()*Math.PI*2,
+        rotV: (Math.random()*2-1)*8,
+        t: 0,
+        ttl: 4,
+        landY,
+        maxDist: T * 1.8
+      });
+    }
+  }
+  function updateDebris(dt){
+    const G = 720;
+    for (let i=debrisTrail.length-1;i>=0;i--){
+      const t = debrisTrail[i];
+      t.life -= dt;
+      if (t.life <= 0){ debrisTrail.splice(i,1); continue; }
+      t.x += (t.vx||0)*dt;
+      t.y += (t.vy||0)*dt;
+    }
+    for (let i=debris.length-1;i>=0;i--){
+      const d = debris[i];
+      d.t += dt;
+      if (d.t >= d.ttl){ debris.splice(i,1); continue; }
+      const speed = Math.hypot(d.vx, d.vy);
+      if (speed > 60){
+        debrisTrail.push({
+          x: d.x, y: d.y,
+          vx: -d.vx*0.08, vy: -d.vy*0.08,
+          life: 0.20 + Math.random()*0.15,
+          ttl: 0.20 + Math.random()*0.15,
+          r: 10 + Math.random()*14
+        });
+      }
+      d.x += d.vx*dt;
+      d.y += d.vy*dt;
+      d.vy += G*dt;
+      d.rot += (d.rotV||0)*dt;
+      d.vx *= 0.92;
+      d.vy *= 0.998;
+      const dx = d.x - d.cx, dy = d.y - d.cy;
+      const dist = Math.hypot(dx, dy);
+      const md = d.maxDist ?? (TILE*1.8);
+      if (dist > md && dist > 1){
+        const pull = 0.15 * (dist - md) / dist;
+        d.vx -= dx * pull * dt * 120;
+        d.vy -= dy * pull * dt * 120;
+      }
+      if (d.y >= d.landY){ debris.splice(i,1); }
+    }
+  }
+
   function updateExplosions(dt){
     for (let i=explosions.length-1;i>=0;i--){
       const e = explosions[i];
@@ -2634,7 +2705,7 @@ const __ou_sim = (window.OUSim && typeof window.OUSim.create==="function")
       boardUnitIntoIFV,
       // turret/bullet deps
       updateExplosions,
-      updateDebris: (dt)=>{ if (window.OURender && typeof OURender.updateDebris === "function") OURender.updateDebris(dt); }
+      updateDebris
     })
   : null;
 if (!__ou_sim) console.warn("[ou_sim] missing: include js/sim.js before game.js");
@@ -4907,9 +4978,7 @@ function draw(){
         EXP1_PNG, EXP1_JSON,
         CON_YARD_PNG,
         smokeWaves, smokePuffs, dustPuffs, dmgSmokePuffs, bloodStains, bloodPuffs,
-        explosions,
-        debris: (window.OURender && window.OURender._debris) || [],
-        debrisTrail: (window.OURender && window.OURender._debrisTrail) || [],
+        explosions, debris, debrisTrail,
         INF_DIE_PNG,
         SNIP_DIE_PNG,
         INF_SPRITE_SCALE,
@@ -4954,8 +5023,7 @@ function draw(){
 
   function clearWorld(){
     units.length=0; buildings.length=0; bullets.length=0; traces.length=0;
-    explosions.length=0;
-    if (window.OURender && typeof OURender.clearDebris === "function") OURender.clearDebris();
+    explosions.length=0; debris.length=0; debrisTrail.length=0;
     buildOcc.fill(0);
     explored[TEAM.PLAYER].fill(0);
     visible[TEAM.PLAYER].fill(0);
