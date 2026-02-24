@@ -25,6 +25,14 @@
     const BUILD_PROD_MULT = r.BUILD_PROD_MULT || 1;
 
     const clamp = r.clamp;
+
+    function getBuilding(team, kind) {
+      if (Array.isArray(kind)) {
+        return buildings.find(b => b.alive && !b.civ && b.team === team && kind.includes(b.kind));
+      }
+      if (!kind) return buildings.find(b => b.alive && !b.civ && b.team === team);
+      return buildings.find(b => b.alive && !b.civ && b.team === team && b.kind === kind);
+    }
     const rnd = r.rnd;
     const dist2 = r.dist2;
     const getPowerFactor = r.getPowerFactor;
@@ -76,30 +84,10 @@
       for (const b of buildings) {
         if (b.alive && !b.civ && b.team === TEAM.PLAYER && b.kind === "hq") return { x: b.x, y: b.y };
       }
-
-      // ===== ENGINEER BEHAVIOR FIX (v10) =====
-      function pushEngineerOut(u) {
-        if (!u || !u.alive || u.kind !== "engineer" || u.team !== TEAM.ENEMY) return;
-        // If hanging near own barracks/HQ, force to rally so it doesn't block exits.
-        const nearProd = buildings.some(
-          (b) => b.alive && !b.civ && b.team === TEAM.ENEMY && (b.kind === "barracks" || b.kind === "hq") && dist2(u.x, u.y, b.x, b.y) < (420 * 420)
-        );
-        const inCooldown = (u._noProdUntil && state.t < u._noProdUntil);
-        if (nearProd && !inCooldown) {
-          const rx = ai.rally.x + rnd(-TILE * 1.2, TILE * 1.2);
-          const ry = ai.rally.y + rnd(-TILE * 1.2, TILE * 1.2);
-          u.order = { type: "move", x: rx, y: ry, tx: null, ty: null };
-          setPathTo(u, rx, ry);
-          u.repathCd = 0.5;
-          u._noProdUntil = state.t + 7.0;
-        }
-      }
-
       for (const b of buildings) {
         if (b.alive && !b.civ && b.team === TEAM.PLAYER) return { x: b.x, y: b.y };
       }
       for (const u of units) {
-        if (u.alive && u.team === TEAM.ENEMY && u.kind === "engineer") pushEngineerOut(u);
         if (u.alive && u.team === TEAM.PLAYER) return { x: u.x, y: u.y };
       }
       return { x: WORLD_W * 0.5, y: WORLD_H * 0.5 };
@@ -121,7 +109,7 @@
       // If stuck for >1.6s, reissue attackmove with a fresh offset
       if (u._stuckT > 1.6) {
         const p = enemyRallyPoint();
-        u.order = { type: "attackmove", x: p.x, y: p.y, tx: null, ty: null };
+        issueAttackMove(u, p);
         u.path = null; u.pathI = 0;
       }
     }
@@ -190,18 +178,68 @@
       return best || getClosestPointOnBuilding(target, eng);
     }
 
+    // 엔지니어IFV: 터렛·공격유닛 없는 빈공간으로 침투. 목표까지 경로상의 갭(waypoint) 반환.
+    function aiFindEngineerIFVGapWaypoint(ifv, targetB) {
+      const turrets = ai._playerTurrets;
+      const pCombat = ai._playerCombat;
+      const range = (DEFENSE.turret && DEFENSE.turret.range) ? DEFENSE.turret.range : 520;
+      const turretR2 = (range + 80) * (range + 80);
+      const unitR2 = 320 * 320;
+
+      const spec = BUILD[targetB.kind] || { tw: 1, th: 1 };
+      const tw = targetB.tw ?? spec.tw ?? 1;
+      const th = targetB.th ?? spec.th ?? 1;
+      const tx = (targetB.tx + tw * 0.5) * TILE;
+      const ty = (targetB.ty + th * 0.5) * TILE;
+      const dx = tx - ifv.x, dy = ty - ifv.y;
+      const len = Math.hypot(dx, dy) || 1;
+      const ux = dx / len, uy = dy / len;
+      const perpX = -uy, perpY = ux;
+
+      const candidates = [];
+      for (let t = 0.25; t <= 0.85; t += 0.15) {
+        const px = ifv.x + dx * t, py = ifv.y + dy * t;
+        for (const off of [0, 1, -1]) {
+          const wx = px + perpX * (TILE * 4 * off);
+          const wy = py + perpY * (TILE * 4 * off);
+          const gtx = (wx / TILE) | 0, gty = (wy / TILE) | 0;
+          if (!inMap(gtx, gty)) continue;
+          if (isBlockedFootprint(gtx, gty, 1, 1)) continue;
+          candidates.push({ x: (gtx + 0.5) * TILE, y: (gty + 0.5) * TILE });
+        }
+      }
+      if (!candidates.length) return null;
+
+      let best = null, bestScore = Infinity;
+      for (const c of candidates) {
+        let threat = 0;
+        for (const t of turrets) {
+          const d2 = dist2(c.x, c.y, t.x, t.y);
+          if (d2 < turretR2) threat += 1e6 * (1 - d2 / turretR2);
+        }
+        for (const pu of pCombat) {
+          const ud2 = dist2(c.x, c.y, pu.x, pu.y);
+          if (ud2 < unitR2) threat += 500 * (1 - ud2 / unitR2);
+        }
+        const distToTarget = Math.sqrt(dist2(c.x, c.y, tx, ty));
+        const score = threat + distToTarget * 0.3;
+        if (score < bestScore) { bestScore = score; best = c; }
+      }
+      return best;
+    }
+
     function aiPickRally() {
       // Rally를 안정화: 매 틱 rnd()로 흔들리면 유닛들이 계속 재경로 → 이동질 발생
       const RALLY_UPDATE_INTERVAL = 5.5;
       if (state.t < (ai.rallyUpdateAt || 0)) return;
       ai.rallyUpdateAt = state.t + RALLY_UPDATE_INTERVAL;
 
-      const ehq = buildings.find(b => b.alive && !b.civ && b.team === TEAM.ENEMY && b.kind === "hq");
-      const phq = buildings.find(b => b.alive && !b.civ && b.team === TEAM.PLAYER && b.kind === "hq");
+      const ehq = getBuilding(TEAM.ENEMY, "hq");
+      const phq = getBuilding(TEAM.PLAYER, "hq");
       let tx = phq ? phq.x : WORLD_W * 0.5;
       let ty = phq ? phq.y : WORLD_H * 0.5;
       if (!phq) {
-        const pb = buildings.find(b => b.alive && !b.civ && b.team === TEAM.PLAYER);
+        const pb = getBuilding(TEAM.PLAYER);
         if (pb) { tx = pb.x; ty = pb.y; }
       }
       if (ehq) {
@@ -227,7 +265,7 @@
       return ai._enemyCenters;
     }
     function aiDefendPoint() {
-      const ehq = buildings.find(b => b.alive && !b.civ && b.team === TEAM.ENEMY && b.kind === "hq");
+      const ehq = getBuilding(TEAM.ENEMY, "hq");
       if (ehq) return { x: ehq.x, y: ehq.y };
       const center = ai._enemyCenters[0];
       return center ? { x: center.x, y: center.y } : { x: WORLD_W * 0.5, y: WORLD_H * 0.5 };
@@ -245,8 +283,7 @@
         return dist2(u.x, u.y, dp.x, dp.y) <= defendR*defendR;
       });
       for (const u of unitsNearBase){
-        u.order = { type: "attackmove", x: alert.x, y: alert.y, tx: null, ty: null };
-        u.target = null;
+        issueAttackMove(u, { x: alert.x, y: alert.y });
         u.repathCd = 0.25;
       }
       ai.mode = "defend";
@@ -259,14 +296,22 @@
         if (eng.inTransport) continue;
         const ot = eng.order && eng.order.type;
         if (ot && ot !== "idle" && ot !== "guard") continue;
-        // If hanging near own base (HQ/refinery), push to rally to avoid "rubbing"
         const nearRally = dist2(eng.x, eng.y, ai.rally.x, ai.rally.y) < (TILE * 3) * (TILE * 3);
-        if (!nearRally && dist2(eng.x, eng.y, dp.x, dp.y) < (TILE*6)*(TILE*6)){
-          const rx = ai.rally.x + rnd(-TILE * 1.0, TILE * 1.0);
-          const ry = ai.rally.y + rnd(-TILE * 1.0, TILE * 1.0);
+        // (1) Near prod (barracks/HQ): push to rally with cooldown (v10 engineer block fix)
+        const nearProd = buildings.some(
+          (b) => b.alive && !b.civ && b.team === TEAM.ENEMY && (b.kind === "barracks" || b.kind === "hq") && dist2(eng.x, eng.y, b.x, b.y) < (420 * 420)
+        );
+        const inCooldown = (eng._noProdUntil && state.t < eng._noProdUntil);
+        const pushFromProd = nearProd && !inCooldown;
+        // (2) Near base but not near rally: push to avoid rubbing
+        const pushFromBase = !nearRally && dist2(eng.x, eng.y, dp.x, dp.y) < (TILE*6)*(TILE*6);
+        if (pushFromProd || pushFromBase){
+          const rx = ai.rally.x + rnd(-TILE * (pushFromProd ? 1.2 : 1.0), TILE * (pushFromProd ? 1.2 : 1.0));
+          const ry = ai.rally.y + rnd(-TILE * (pushFromProd ? 1.2 : 1.0), TILE * (pushFromProd ? 1.2 : 1.0));
           eng.order = { type: "move", x: rx, y: ry, tx: null, ty: null };
           setPathTo(eng, rx, ry);
           eng.repathCd = 0.5;
+          if (pushFromProd) eng._noProdUntil = state.t + 7.0;
         }
       }
     }
@@ -320,8 +365,8 @@
       // Placement: 건설 반경 내에서만 시도. tries 축소로 연산 부하 감소.
       const tries = (kind === "turret") ? 180 : 200;
       const turCount = aiEnemyCount("turret");
-      const ehq = buildings.find(b => b.alive && !b.civ && b.team === TEAM.ENEMY && b.kind === "hq");
-      const phq = buildings.find(b => b.alive && !b.civ && b.team === TEAM.PLAYER && b.kind === "hq");
+      const ehq = getBuilding(TEAM.ENEMY, "hq");
+      const phq = getBuilding(TEAM.PLAYER, "hq");
       let frontAnchor = null;
       if (kind === "turret" && ehq && phq){
         const fx = ehq.x + (phq.x - ehq.x) * 0.45;
@@ -339,7 +384,7 @@
         let tx, ty;
 
         if (kind === "turret") {
-          const baseAnchor = buildings.find(b => b.alive && !b.civ && b.team === TEAM.ENEMY && (b.kind === "refinery" || b.kind === "hq")) || center;
+          const baseAnchor = getBuilding(TEAM.ENEMY, ["refinery", "hq"]) || center;
           const useFront = (turCount < 4 && frontAnchor && inBuildRadius(TEAM.ENEMY, frontAnchor.x, frontAnchor.y));
           const anchor = useFront ? frontAnchor : baseAnchor;
           const r0 = Math.min(5 + ((Math.random() * 7) | 0), searchRad);
@@ -420,12 +465,17 @@
         let gx = ai.rally.x + ox, gy = ai.rally.y + oy;
         const spot = findNearestFreePoint(gx, gy, u, 4);
         if (spot && spot.found) { gx = spot.x; gy = spot.y; }
-        u.order = { type: "attackmove", x: gx, y: gy, tx: null, ty: null, manual:true, allowAuto:true, lockTarget:false };
+        issueAttackMove(u, { x: gx, y: gy });
         u.restX = null; u.restY = null;
         setPathTo(u, gx, gy);
         u.repathCd = 0.7;
         k++;
       }
+    }
+
+    function issueAttackMove(u, dest) {
+      u.order = { type: "attackmove", x: dest.x, y: dest.y, tx: null, ty: null, manual: true, allowAuto: true, lockTarget: false };
+      u.target = null;
     }
 
     function aiCommandAttackWave(list, target) {
@@ -448,10 +498,10 @@
       const pHarv = units.find(u => u.alive && u.team === TEAM.PLAYER && u.kind === "harvester");
       if (pHarv) return pHarv;
 
-      const pRef = buildings.find(b => b.alive && !b.civ && b.team === TEAM.PLAYER && b.kind === "refinery");
+      const pRef = getBuilding(TEAM.PLAYER, "refinery");
       if (pRef) return pRef;
 
-      const pHQ = buildings.find(b => b.alive && !b.civ && b.team === TEAM.PLAYER && b.kind === "hq");
+      const pHQ = getBuilding(TEAM.PLAYER, "hq");
       if (pHQ) return pHQ;
 
       const candidates = buildings.filter(b => b.alive && !b.civ && b.team === TEAM.PLAYER);
@@ -460,12 +510,6 @@
       return candidates[0];
     }
 
-    function aiPickPlayerInfantry() {
-      const inf = units.filter(u => u.alive && u.team === TEAM.PLAYER && (UNIT[u.kind] && UNIT[u.kind].cls === "inf") && !u.inTransport && !u.hidden);
-      if (!inf.length) return null;
-      inf.sort((a, b) => dist2(ai.rally.x, ai.rally.y, a.x, a.y) - dist2(ai.rally.x, ai.rally.y, b.x, b.y));
-      return inf[0];
-    }
     function aiPickNearestPlayerInfantryTo(unit) {
       const inf = ai._playerInf;
       if (!inf.length) return null;
@@ -478,30 +522,29 @@
       return best;
     }
 
+    function countUnitsNearAnchor(units, anchor, radius) {
+      if (!anchor) return 0;
+      const r2 = radius * radius;
+      let n = 0;
+      for (let i = 0; i < units.length; i++) {
+        const u = units[i];
+        if (dist2(u.x, u.y, anchor.x, anchor.y) <= r2) n++;
+      }
+      return n;
+    }
+
     function aiThreatNearBase() {
       const centers = ai._enemyCenters;
       if (!centers.length) return 0;
       const anchor = centers.find(b => b.kind === "hq") || centers[0];
-      const r2 = 520 * 520;
-      let n = 0;
-      for (let i = 0; i < ai._playerUnits.length; i++) {
-        const u = ai._playerUnits[i];
-        if (dist2(u.x, u.y, anchor.x, anchor.y) <= r2) n++;
-      }
-      return n;
+      return countUnitsNearAnchor(ai._playerUnits, anchor, 520);
     }
 
     function aiPlayerInfNearEnemyBase(){
       const centers = ai._enemyCenters;
       if (!centers.length) return 0;
       const anchor = centers.find(b => b.kind === "hq") || centers[0];
-      const r2 = (TILE*12) * (TILE*12);
-      let n = 0;
-      for (let i = 0; i < ai._playerInf.length; i++) {
-        const u = ai._playerInf[i];
-        if (dist2(u.x, u.y, anchor.x, anchor.y) <= r2) n++;
-      }
-      return n;
+      return countUnitsNearAnchor(ai._playerInf, anchor, TILE * 12);
     }
 
     function aiEnsureTechAndEco(e, underPower) {
@@ -691,7 +734,7 @@
       }
 
       // Harassment plans
-      const pHQ = buildings.find(b => b.alive && b.team === TEAM.PLAYER && b.kind === "hq");
+      const pHQ = getBuilding(TEAM.PLAYER, "hq");
       const high = buildings.filter(b => b.alive && b.team === TEAM.PLAYER && ["hq", "factory", "refinery", "power", "barracks"].includes(b.kind));
       const targetB = (pHQ || high[0] || null);
 
@@ -699,29 +742,41 @@
         if (!ifv.alive) continue;
         if (!ifv.passengerId) continue;
 
-        // Engineer-IFV: rush high value building and unload to capture
+        // Engineer-IFV: 터렛·공격유닛 없는 빈공간으로 침투 → 고가치 건물 점령
         if (ifv.passKind === "engineer" && targetB) {
-          // If player defenses are heavy, avoid engineer rush until defenses are reduced.
           if (playerDefenseHeavy()) {
             ifv.order = { type: "move", x: ai.rally.x, y: ai.rally.y };
             ifv.target = null;
             continue;
           }
-          const dock = getClosestPointOnBuilding(targetB, ifv);
-          const edgeD2 = dist2PointToRect(ifv.x, ifv.y, targetB.x, targetB.y, targetB.w, targetB.h);
-          const dDock = Math.sqrt(dist2(ifv.x, ifv.y, dock.x, dock.y));
-          // Drive to a realistic docking point (not the building center), then unload.
-          if (dDock > 280 && edgeD2 > 240 * 240) {
-            ifv.order = { type: "move", x: dock.x, y: dock.y };
-          } else {
+          const tbTw = targetB.tw || 1, tbTh = targetB.th || 1;
+          const bCx = (targetB.tx + tbTw * 0.5) * TILE;
+          const bCy = (targetB.ty + tbTh * 0.5) * TILE;
+          const edgeD2 = dist2PointToRect(ifv.x, ifv.y, bCx, bCy, tbTw * TILE, tbTh * TILE);
+          const distToBuilding = Math.sqrt(edgeD2);
+
+          // 도착 근처: 하차 후 점령 (건물 가장자리 터렛 회피 지점 사용)
+          if (distToBuilding < 280 && edgeD2 < 240 * 240) {
             const eng = getEntityById(ifv.passengerId);
+            const dock = aiEngineerDockAvoidTurrets(targetB, eng || ifv);
             unboardIFV(ifv);
             if (eng && eng.alive) {
               eng.target = targetB.id;
               eng.order = { type: "capture", x: eng.x, y: eng.y, tx: null, ty: null };
-              // Immediately path toward the building edge to avoid "stand still after unload".
               setPathTo(eng, dock.x, dock.y);
               eng.repathCd = 0.15;
+            }
+          } else {
+            // 침투 중: 터렛·공격유닛 없는 빈공간(갭)으로 경유 → 최종적으로 건물 가장자리 터렛회피 지점
+            const gap = aiFindEngineerIFVGapWaypoint(ifv, targetB);
+            const safeDock = aiEngineerDockAvoidTurrets(targetB, ifv);
+            const dest = (distToBuilding > 400 && gap) ? gap : safeDock;
+            const destChanged = !ifv.order || ifv.order.type !== "move" || ifv.order.x !== dest.x || ifv.order.y !== dest.y;
+            ifv.order = { type: "move", x: dest.x, y: dest.y, tx: null, ty: null };
+            ifv.target = null;
+            if (destChanged || (ifv.repathCd || 0) <= 0) {
+              setPathTo(ifv, dest.x, dest.y);
+              ifv.repathCd = 0.25;
             }
           }
         }
@@ -730,33 +785,13 @@
         if (ifv.passKind === "sniper") {
           const prey = aiPickNearestPlayerInfantryTo(ifv);
           if (prey) {
-            ifv.order = { type: "attackmove", x: prey.x, y: prey.y, tx: null, ty: null };
-            ifv.target = null;
+            issueAttackMove(ifv, prey);
           } else {
             const dp = aiDefendPoint();
             ifv.order = { type: "move", x: dp.x, y: dp.y, tx: null, ty: null };
             ifv.target = null;
           }
         }
-      }
-    }
-
-    function aiEngineerRush(){
-      const now = state.t;
-      if (now < (ai.engRushNext||0)) return;
-      ai.engRushNext = now + rnd(18, 26);
-
-      const phq = ai._phq;
-      if (!phq) return;
-
-      const eIFVs = ai._eIFVsWithEng;
-      if (!eIFVs.length) return;
-
-      const rush = eIFVs.length <= 3 ? eIFVs : eIFVs.slice(0, 3);
-      for (const ifv of rush){
-        ifv.order = { type: "attackmove", x: phq.x, y: phq.y, tx: null, ty: null };
-        ifv.target = null;
-        ifv.repathCd = 0.35;
       }
     }
 
@@ -877,7 +912,8 @@
       aiUseIFVPassengers();
       aiParkEmptyIFVs();
       aiUnstickEngineers();
-      aiEngineerRush();
+      // aiEngineerRush 제거: 엔지니어IFV는 aiUseIFVPassengers에서 고가치 건물로 이동→하차→점령 처리.
+      // attackmove로 덮어쓰면 적과 교전하는 공격유닛처럼 행동함 (의도: 기동성으로 침투→점령).
 
       // Emergency defense: if base took a hit, pull nearby units to defend.
       aiEmergencyDefend(eUnits);
@@ -953,8 +989,7 @@
           if (inf.length >= 7 && canEarlyPush) {
             const pack = inf.slice(0, Math.min(12, inf.length));
             for (const u of pack) {
-        u.order = { type: "attackmove", x: dest.x, y: dest.y, tx:null, ty:null, manual:true, allowAuto:true, lockTarget:false };
-        u.target = null;
+        issueAttackMove(u, dest);
             }
           }
         } else {
@@ -969,12 +1004,10 @@
             for (let i = 0; i < Math.min(3, ifvs.length); i++) pack.push(ifvs[i]);
             for (const u of pack) {
               if (u.kind === "tank") {
-          u.order = { type: "attackmove", x: dest.x, y: dest.y, tx:null, ty:null, manual:true, allowAuto:true, lockTarget:false };
-          u.target = null;
+          issueAttackMove(u, dest);
               } else if (u.kind === "ifv") {
                 if (!u.passengerId) {
-            u.order = { type: "attackmove", x: dest.x, y: dest.y, tx:null, ty:null, manual:true, allowAuto:true, lockTarget:false };
-            u.target = null;
+            issueAttackMove(u, dest);
                 }
               }
             }
@@ -987,8 +1020,7 @@
         const dest = phq ? { x: phq.x, y: phq.y } : { x: WORLD_W * 0.5, y: WORLD_H * 0.5 };
         for (const u of enemyInf) {
           if (u.inTransport) continue;
-          u.order = { type: "attackmove", x: dest.x, y: dest.y, tx: null, ty: null, manual: true, allowAuto: true, lockTarget: false };
-          u.target = null;
+          issueAttackMove(u, dest);
         }
       }
 
