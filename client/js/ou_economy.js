@@ -369,20 +369,20 @@
           }
 
 
-    // Manual/auto pause support (대기).
-    // autoPaused(자금 부족)인 경우, 돈이 다시 생기면 자동으로 재개한다. (수동 클릭 안 해도 됨)
+    // Manual/auto pause support (대기). paused면 절대 비용/진행 없음 (이중 지출 방지).
+    // autoPaused(자금 부족)인 경우, 돈이 다시 생기면 자동으로 재개한다.
     if (q.paused && !debugFastProd){
       const teamWalletTmp = (b.team===TEAM.PLAYER) ? state.player : state.enemy;
       const costTotalTmp = q.cost ?? (COST[q.kind]||0);
       const tNeedTmp = q.tNeed || 0.001;
-      const payRateTmp = costTotalTmp / tNeedTmp;
+      const payRateTmp = (costTotalTmp<=0 || tNeedTmp<=0) ? 0 : (costTotalTmp / tNeedTmp);
       const wantTmp = dt * speed;
-      const canByMoneyTmp = (payRateTmp<=0) ? wantTmp : (teamWalletTmp.money / payRateTmp);
+      const canByMoneyTmp = (payRateTmp<=0) ? wantTmp : ((teamWalletTmp.money||0) / payRateTmp);
       if (q.autoPaused && canByMoneyTmp > 0){
         q.paused = false;
         q.autoPaused = false;
       } else {
-        continue;
+        continue; // paused: no spend, no progress
       }
     }
 
@@ -611,9 +611,40 @@
       }
     }
 
+    function enqueueEcon(action) {
+      if (!action) return;
+      state.econActions = state.econActions || [];
+      state.econActions.push(action);
+    }
+
+    function processEconActions(handlers) {
+      const q = state.econActions;
+      if (!q || !q.length) return;
+      const h = handlers || {};
+      while (q.length) {
+        const a = q.shift();
+        if (!a || !a.type) continue;
+        switch (a.type) {
+          case "setBuild": if (h.setBuild) h.setBuild(a.kind); break;
+          case "laneRClick": if (h.laneRClick) h.laneRClick(a.laneKey, a.kind); break;
+          case "unitRClick": if (h.unitRClick) h.unitRClick(a.kind); break;
+          case "queueUnit": if (h.queueUnit) h.queueUnit(a.kind); break;
+          case "cancelBuild": if (h.cancelBuild) h.cancelBuild(); break;
+          case "toggleRepair": if (h.toggleRepair) h.toggleRepair(); break;
+          case "toggleRepairById": if (h.toggleRepairById) h.toggleRepairById(a.id); break;
+          case "sellSelected": if (h.sellSelected) h.sellSelected(); break;
+          case "sellById": if (h.sellById) h.sellById(a.id); break;
+          case "sellByIdAny": if (h.sellByIdAny) h.sellByIdAny(a.id); break;
+        }
+      }
+    }
+
     return {
       // shared data (by reference)
       prodFIFO, prodTotal, QCAP,
+
+      enqueueEcon,
+      processEconActions,
 
       // build placement
       tryPlaceBuild,

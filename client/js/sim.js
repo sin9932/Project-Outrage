@@ -1396,6 +1396,17 @@
           u.vx = 0; u.vy = 0;
           u.queueWaitT = (u.queueWaitT||0) + dt;
           if (u.queueWaitT < 0.35) return false;
+          // 교통체증: 오래 대기 시 인접 빈 타일로 비켜나기
+          if (u.queueWaitT > 1.0){
+            const curTileTx = tileOfX(u.x), curTileTy = tileOfY(u.y);
+            const stepAside = findBypassStep(u, curTileTx, curTileTy, curTileTx, curTileTy);
+            if (stepAside && reserveTile(u, stepAside.tx, stepAside.ty)){
+              u.path = [{tx:stepAside.tx, ty:stepAside.ty}, ...u.path.slice(u.pathI)];
+              u.pathI = 0;
+              u.queueWaitT = 0;
+              return true;
+            }
+          }
         } else {
           u.queueWaitT = 0;
           const sp = tileToWorldSubslot(p.tx, p.ty, slot);

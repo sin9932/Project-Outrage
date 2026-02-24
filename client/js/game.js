@@ -291,11 +291,12 @@
   let nextId=1;
   const units=[];
   const buildings=[];
-  // Economy action queue: UI events enqueue, tick() applies.
+  // Economy action queue: UI events enqueue, tick() applies. Delegated to ou_economy.
   state.econActions = state.econActions || [];
   function enqueueEcon(action){
     if (!action) return;
-    state.econActions.push(action);
+    if (__ou_econ && __ou_econ.enqueueEcon) __ou_econ.enqueueEcon(action);
+    else state.econActions.push(action);
   }
   // Progress accessors are provided by ou_economy (single source of truth).
 
@@ -1113,10 +1114,17 @@ function tryUnloadIFV(ifv){
   if (!ifv.passengerId) return false;
   const u=getEntityById(ifv.passengerId);
 
-  const sp = findNearestFreePoint(ifv.x+TILE*0.8, ifv.y+TILE*0.2, ifv, 10);
-  const x = sp && sp.found ? sp.x : (ifv.x + TILE*0.8);
-  const y = sp && sp.found ? sp.y : (ifv.y + TILE*0.2);
+  const sp = findNearestFreePoint(ifv.x+TILE*0.8, ifv.y+TILE*0.2, ifv, 6);
+  // IFV 주변 4타일 이내만 허용 (벽 너머 순간이동 방지)
+  const maxUnloadDist2 = (4 * TILE) * (4 * TILE);
+  const spValid = sp && (sp.found || (sp.x!=null && sp.y!=null)) && dist2(ifv.x, ifv.y, sp.x, sp.y) <= maxUnloadDist2;
+  const x = spValid ? sp.x : (ifv.x + TILE*0.8);
+  const y = spValid ? sp.y : (ifv.y + TILE*0.2);
 
+  if (!spValid){
+    toast("하차할 공간이 없습니다");
+    return false;
+  }
   if (u){
     u.inTransport = null;
     u.hidden = false;
@@ -1345,6 +1353,14 @@ const __ou_econ = (window.OUEconomy && typeof window.OUEconomy.create==="functio
   : null;
 
 if (!__ou_econ) console.warn("[ou_economy] missing: include js/ou_economy.js before game.js");
+
+// Selection module hookup (ou_selection.js)
+const __ou_selection = (window.OUSelection && typeof window.OUSelection.create === "function")
+  ? window.OUSelection.create({
+      state, units, controlGroups, BUILD, TEAM,
+      getEntityById, worldToScreen, cam, toast, updateSelectionUI
+    })
+  : null;
 
 // Simulation module hookup (sim.js)
 // Prep: pass unit-tick dependencies so we can move tickUnits in the next step.
@@ -1709,7 +1725,7 @@ function findSpawnPointNear(b, unitKind, opts){
 
     // Search expanding rings around building footprint in tile space.
     const x0=b.tx, y0=b.ty, x1=b.tx+b.tw-1, y1=b.ty+b.th-1;
-    const maxR = 14;
+    const maxR = (opts && opts.evacRange) ? 22 : 14;
     for (let r=1; r<=maxR; r++){
       const left = x0 - r, right = x1 + r, top = y0 - r, bottom = y1 + r;
       // perimeter of expanded rect
@@ -1726,7 +1742,8 @@ function findSpawnPointNear(b, unitKind, opts){
     // Fallback: spiral search near building center
     const ctx = b.tx + (b.tw>>1);
     const cty = b.ty + (b.th>>1);
-    for (let r=1; r<=18; r++){
+    const spiralMax = (opts && opts.evacRange) ? 26 : 18;
+    for (let r=1; r<=spiralMax; r++){
       for (let dy=-r; dy<=r; dy++){
         for (let dx=-r; dx<=r; dx++){
           if (Math.abs(dx)!==r && Math.abs(dy)!==r) continue;
@@ -1738,68 +1755,10 @@ function findSpawnPointNear(b, unitKind, opts){
     return null;
   }
 
-function _ou_collectPlayerProdHeads(){
-    const heads = [];
-    // Build (construction) heads: lanes
-    try{
-      if (state && state.buildLane){
-        for (const laneKey of ["main","def"]){
-          const lane = state.buildLane[laneKey];
-          const q = lane && lane.queue;
-          if (q && q.kind) heads.push({ q, type:"build", laneKey });
-        }
-      }
-    }catch(_e){}
-    // Unit production heads: per building (buildQ[0])
-    try{
-      for (const b of buildings){
-        if (!b || !b.alive) continue;
-        if (b.team !== TEAM.PLAYER) continue;
-        const q = b.buildQ && b.buildQ[0];
-        if (q && q.kind) heads.push({ q, type:"unit", b });
-      }
-    }catch(_e){}
-    return heads;
-  }
-
   function tickProduction(dt){
     if (!(__ou_econ && __ou_econ.tickProduction)) return undefined;
-
-    // Hotfix: paused queue MUST NOT spend money nor advance progress.
-    // Some economy ticks ignore q.paused; we enforce it here by snapshot+restore.
-    const heads = _ou_collectPlayerProdHeads();
-    const paused = [];
-    for (const h of heads){
-      const q = h.q;
-      if (q && q.paused) paused.push({ q, paid: (q.paid||0), t: (q.t||0) });
-    }
-
-    const out = __ou_econ.tickProduction(dt);
-
-    if (paused.length){
-      let refund = 0;
-      for (const s of paused){
-        const q = s.q;
-        if (!q) continue;
-        const paid1 = (q.paid||0);
-        const t1 = (q.t||0);
-
-        if (paid1 > s.paid){
-          refund += (paid1 - s.paid);
-          q.paid = s.paid;
-        }
-        if (t1 > s.t){
-          q.t = s.t;
-        }
-      }
-
-      if (refund > 0 && state && state.player){
-        // refund only the amount that was incorrectly spent while paused
-        state.player.money = (state.player.money||0) + refund;
-      }
-    }
-
-    return out;
+    // ou_economy handles paused internally: no spend, no progress. No snapshot/refund needed.
+    return __ou_econ.tickProduction(dt);
   }
 
   function tickRepairs(dt){
@@ -1858,10 +1817,11 @@ function _ou_collectPlayerProdHeads(){
     const hpFrac = destroyed ? 0.5 : 1.0;
     const spawnOne = (kind)=>{
       // Try strict spawn first (truly free tile). If the building just died and the area is crowded,
-      // relax unit-occupancy checks as a last resort to avoid hard-crashing.
-      let sp = findSpawnPointNear(b, kind, {ignoreUnits:false});
+      // relax unit-occupancy checks and expand search range to avoid units stuck in debris.
+      const evacOpts = { evacRange: true };
+      let sp = findSpawnPointNear(b, kind, evacOpts);
       if (!sp && destroyed){
-        sp = findSpawnPointNear(b, kind, {ignoreUnits:true});
+        sp = findSpawnPointNear(b, kind, { ...evacOpts, ignoreUnits: true });
       }
       if (!sp) return null; // no valid spawn point found
       const u = addUnit(team, kind, sp.x, sp.y, { skipMvp: true });
@@ -2015,32 +1975,8 @@ function pickEntityAtWorld(wx,wy){
   function issueMoveCombatOnly(x,y){ if (__ou_commands) return __ou_commands.issueMoveCombatOnly(x,y); }
   function issueAttackMove(x,y){ if (__ou_commands) return __ou_commands.issueAttackMove(x,y); }
   function issueGuard(){ if (__ou_commands) return __ou_commands.issueGuard(); }
-  function assignControlGroup(n){
-    if (n<1 || n>9) return;
-    const prev = controlGroups[n] || [];
-    // clear old badges for this group
-    for (const id of prev){
-      const e=getEntityById(id);
-      if (e && e.grp===n) e.grp=0;
-    }
-    const ids=[...state.selection];
-    controlGroups[n]=ids;
-    for (const id of ids){
-      const e=getEntityById(id);
-      if (e) e.grp=n;
-    }
-  }
-
-  function recallControlGroup(n){
-    if (n<1 || n>9) return;
-    const ids=controlGroups[n] || [];
-    state.selection.clear();
-    for (const id of ids){
-      const e=getEntityById(id);
-      if (e && e.alive) state.selection.add(id);
-    }
-    updateSelectionUI();
-  }
+  function assignControlGroup(n){ if (__ou_selection) __ou_selection.assignControlGroup(n); }
+  function recallControlGroup(n){ if (__ou_selection) __ou_selection.recallControlGroup(n); }
 
 
   
@@ -2567,112 +2503,10 @@ if (state.selection.size>0 && inMap(tx,ty) && ore[idx(tx,ty)]>0){
     return { x0: Math.min(d.x0,d.x1), y0: Math.min(d.y0,d.y1), x1: Math.max(d.x0,d.x1), y1: Math.max(d.y0,d.y1) };
   }
 
-  function selectInRect(r, additive){
-    const beforeSize = state.selection.size;
-    const pickedIds = [];
-
-    const circleHitsRect = (cx,cy,cr, rx,ry,rw,rh)=>{
-      const nx = Math.max(rx, Math.min(cx, rx+rw));
-      const ny = Math.max(ry, Math.min(cy, ry+rh));
-      const dx = cx-nx, dy = cy-ny;
-      return (dx*dx+dy*dy) <= cr*cr;
-    };
-
-    for (const u of units){
-      if (!u.alive || u.team!==TEAM.PLAYER) continue;
-      const p = worldToScreen(u.x,u.y);
-      const rr = (u.r || 10) * cam.zoom;
-      if (circleHitsRect(p.x,p.y, rr, r.x0, r.y0, (r.x1-r.x0), (r.y1-r.y0))) pickedIds.push(u.id);
-    }
-
-    if (pickedIds.length===0) return false;
-    if (!additive) state.selection.clear();
-    for (const id of pickedIds) state.selection.add(id);
-
-    const first = getEntityById(pickedIds[0]);
-    if (first && !BUILD[first.kind]){
-      state.lastSingleId = first.id;
-      state.lastSingleKind = first.kind;
-    }
-    return state.selection.size !== beforeSize;
-  }
-
-  function getAllPlayerUnitsOfKind(kind){
-    // IMPORTANT: exclude units inside transports (inTransport != null)
-    return units.filter(u=>u.alive && u.team===TEAM.PLAYER && u.kind===kind && u.inTransport==null).map(u=>u.id);
-  }
-  function isSelectionExactly(ids){
-    if (state.selection.size!==ids.length) return false;
-    for (const id of ids) if (!state.selection.has(id)) return false;
-    return true;
-  }
-
-  function selectSameType(){
-    // A key: select all player units of the same kind as the currently selected unit.
-    // If nothing is selected, show a message.
-    if (!state.selection || state.selection.size===0){
-      toast("선택한 유닛이 없음");
-      return;
-    }
-
-    // v139: If any selected entity is an IFV (transport), prioritize selecting IFVs (not passengers).
-    for (const id of state.selection){
-      const e=getEntityById(id);
-      if (e && e.alive && e.team===TEAM.PLAYER && e.kind==="ifv"){ 
-        const ids = getAllPlayerUnitsOfKind("ifv");
-        if (ids && ids.length){
-          state.selection.clear();
-          for (const id2 of ids) state.selection.add(id2);
-          state.lastSingleKind = "ifv";
-          state.lastSingleId = ids[0];
-          updateSelectionUI();
-        }
-        return;
-      }
-    }
-
-    // Choose the reference kind:
-    // - Prefer the lastSingleKind if it is still part of the selection.
-    // - Otherwise use the first selected unit's kind.
-    let refKind = null;
-    if (state.lastSingleKind){
-      for (const id of state.selection){
-        const e=getEntityById(id);
-        if (e && e.alive && e.inTransport==null && !BUILD[e.kind] && e.team===TEAM.PLAYER && e.kind===state.lastSingleKind){
-          refKind = state.lastSingleKind;
-          break;
-        }
-      }
-    }
-    if (!refKind){
-      for (const id of state.selection){
-        const e=getEntityById(id);
-        if (e && e.alive && e.inTransport==null && !BUILD[e.kind] && e.team===TEAM.PLAYER){
-          refKind = e.kind;
-          break;
-        }
-      }
-    }
-    if (!refKind){
-      toast("선택한 유닛이 없음");
-      return;
-    }
-
-    const ids = getAllPlayerUnitsOfKind(refKind);
-    if (!ids || ids.length===0){
-      toast("대상 없음");
-      return;
-    }
-
-    state.selection.clear();
-    for (const id of ids) state.selection.add(id);
-
-    // Keep lastSingleKind aligned with the type selection.
-    state.lastSingleKind = refKind;
-    state.lastSingleId = ids[0];
-
-    updateSelectionUI();
-  }
+  function selectInRect(r, additive){ return __ou_selection ? __ou_selection.selectInRect(r, additive) : false; }
+  function getAllPlayerUnitsOfKind(kind){ return __ou_selection ? __ou_selection.getAllPlayerUnitsOfKind(kind) : []; }
+  function isSelectionExactly(ids){ return __ou_selection ? __ou_selection.isSelectionExactly(ids) : false; }
+  function selectSameType(){ if (__ou_selection) __ou_selection.selectSameType(); }
 
   
   function _applySetBuild(kind){
@@ -2937,62 +2771,35 @@ if (state.selection.size>0 && inMap(tx,ty) && ore[idx(tx,ty)]>0){
     updateSelectionUI();
   }
 
-  function processEconActions(){
-    const q = state.econActions;
-    if (!q || !q.length) return;
-    while (q.length){
-      const a = q.shift();
-      if (!a || !a.type) continue;
-      switch (a.type){
-        case "setBuild":
-          _applySetBuild(a.kind);
-          break;
-        case "laneRClick":
-          _applyLaneRClick(a.laneKey, a.kind);
-          break;
-        case "unitRClick":
-          _applyUnitRClick(a.kind);
-          break;
-        case "queueUnit":
-          queueUnit(a.kind);
-          break;
-        case "cancelBuild":
-          cancelBuildPlacement();
-          break;
-        case "toggleRepair":
-          toggleRepair();
-          break;
-        case "toggleRepairById": {
-          const b = getEntityById(a.id);
-          if (b && b.alive && b.team===TEAM.PLAYER && BUILD[b.kind] && !b.civ){
-            b.repairOn = !b.repairOn;
-            toast(b.repairOn ? "수리 시작" : "수리 취소");
-            updateSelectionUI();
-          }
-          break;
-        }
-        case "sellSelected":
-          sellSelectedBuildings();
-          break;
-        case "sellById": {
-          const b = getEntityById(a.id);
-          if (b && b.alive && b.team===TEAM.PLAYER && BUILD[b.kind] && !b.civ){
-            sellBuilding(b);
-            toast("매각");
-            updateSelectionUI();
-          }
-          break;
-        }
-        case "sellByIdAny": {
-          const b = getEntityById(a.id);
-          if (b && b.alive && BUILD[b.kind] && !b.civ){
-            sellBuilding(b);
-          }
-          break;
-        }
+  const _econHandlers = {
+    setBuild: _applySetBuild,
+    laneRClick: _applyLaneRClick,
+    unitRClick: _applyUnitRClick,
+    queueUnit,
+    cancelBuild: cancelBuildPlacement,
+    toggleRepair,
+    toggleRepairById: (id)=>{
+      const b = getEntityById(id);
+      if (b && b.alive && b.team===TEAM.PLAYER && BUILD[b.kind] && !b.civ){
+        b.repairOn = !b.repairOn;
+        toast(b.repairOn ? "수리 시작" : "수리 취소");
+        updateSelectionUI();
       }
+    },
+    sellSelected: sellSelectedBuildings,
+    sellById: (id)=>{
+      const b = getEntityById(id);
+      if (b && b.alive && b.team===TEAM.PLAYER && BUILD[b.kind] && !b.civ){
+        sellBuilding(b);
+        toast("매각");
+        updateSelectionUI();
+      }
+    },
+    sellByIdAny: (id)=>{
+      const b = getEntityById(id);
+      if (b && b.alive && BUILD[b.kind] && !b.civ) sellBuilding(b);
     }
-  }
+  };
 
   function stopUnits(){
     for (const id of state.selection){
@@ -3091,7 +2898,7 @@ function tickSidebarBuild(dt){
 
 function tickEconomyPre(dt){
     // Economy actions that must run at the start of a tick (requests + queues + build lanes).
-    processEconActions();
+    if (__ou_econ && __ou_econ.processEconActions) __ou_econ.processEconActions(_econHandlers);
     feedProducers();
     tickSidebarBuild(dt);
     if (__ou_ai && typeof __ou_ai.tickEnemySidebarBuild === "function") {
