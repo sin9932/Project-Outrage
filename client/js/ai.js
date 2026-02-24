@@ -318,6 +318,10 @@
     function playerDefenseHeavy() {
       return ai._playerTurrets.length >= 4;
     }
+    // 엔지니어IFV: 터렛 6개 이상일 때만 침투 포기 (4개는 갭 경로로 우회 시도)
+    function playerDefenseTooHeavyForEngineerIFV() {
+      return ai._playerTurrets.length >= 6;
+    }
 
     function aiTryStartBuild(kind) {
       // Only one building build at a time (simple sidebar)
@@ -457,6 +461,7 @@
       let k = 0;
       for (const u of list) {
         if (u.kind === "ifv" && !u.passengerId) continue;
+        if (u.kind === "ifv" && u.passengerId && u.passKind === "engineer") continue; // 침투 임무 유지
         const d2 = dist2(u.x, u.y, ai.rally.x, ai.rally.y);
         if (d2 < RALLY_ARRIVED_D2 && u.order && u.order.type === "attackmove") continue; // 이미 집결 근처면 스킵
         const col = k % 5, row = (k / 5) | 0;
@@ -467,8 +472,8 @@
         if (spot && spot.found) { gx = spot.x; gy = spot.y; }
         issueAttackMove(u, { x: gx, y: gy });
         u.restX = null; u.restY = null;
-        setPathTo(u, gx, gy);
-        u.repathCd = 0.7;
+        // 경로탐색은 sim 틱에서 예산 내 처리 (동시 다수 유닛 시 렉 방지)
+        if (setPathTo(u, gx, gy)) u.repathCd = 0.7;
         k++;
       }
     }
@@ -744,9 +749,12 @@
 
         // Engineer-IFV: 터렛·공격유닛 없는 빈공간으로 침투 → 고가치 건물 점령
         if (ifv.passKind === "engineer" && targetB) {
-          if (playerDefenseHeavy()) {
-            ifv.order = { type: "move", x: ai.rally.x, y: ai.rally.y };
+          if (playerDefenseTooHeavyForEngineerIFV()) {
+            // 터렛 6개 이상: 침투 포기 → 집결지로 복귀. 수비·수리 대기. 터렛 감소 시 다음 틱에 자동 재침투.
+            ifv.order = { type: "move", x: ai.rally.x, y: ai.rally.y, tx: null, ty: null };
             ifv.target = null;
+            setPathTo(ifv, ai.rally.x, ai.rally.y);
+            ifv.repathCd = 0.5;
             continue;
           }
           const tbTw = targetB.tw || 1, tbTh = targetB.th || 1;
@@ -1028,8 +1036,10 @@
       // playerHasInf already defined above (sniper block)
 
       // Engineer harassment (value-aware) - keep trying to capture high-value and sell.
-      if (engs.length && state.t > 140 && combat.length >= 4) {
-        if (playerDefenseHeavy() || idleIFVs.length > 0) {
+      if (engs.length && state.t > 120 && combat.length >= 2) {
+        if (idleIFVs.length > 0) {
+          // 빈 IFV 있으면 엔지니어는 aiUseIFVPassengers에서 탑승 대기 (명령 덮어쓰지 않음)
+        } else if (playerDefenseHeavy()) {
           const dp = aiDefendPoint();
           for (const eng of engs) {
             if (eng.inTransport) continue;

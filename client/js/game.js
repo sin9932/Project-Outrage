@@ -379,7 +379,6 @@
     harvester:2450, hq:0
   };
 
-
   // Price tooltip is handled in ou_ui.js
 
 
@@ -755,6 +754,10 @@ function addUnit(team, kind, x, y, opts){
       u.bodyDir = 6;
       u.turretDir = null;
     }
+    if (kind === "infantry" || kind === "sniper") {
+      u.veteran = 0;
+      u.veteranExp = 0;
+    }
     units.push(u);
     if (!(opts && opts.skipMvp) && __ou_sim && __ou_sim.recordProduction) __ou_sim.recordProduction(team, kind);
     return u;
@@ -765,6 +768,13 @@ function addUnit(team, kind, x, y, opts){
     for (const b of buildings) if (b.alive && b.id===id) return b;
     return null;
   }
+
+  const __ou_veterancy = (window.OUVeterancy && typeof window.OUVeterancy.create === "function")
+    ? window.OUVeterancy.create({ getEntityById, COST })
+    : null;
+  const getVeteranArmor = __ou_veterancy ? __ou_veterancy.getVeteranArmor : (() => 1);
+  const getVeteranSpeed = __ou_veterancy ? __ou_veterancy.getVeteranSpeed : (() => 1);
+  const grantVeteranExp = __ou_veterancy ? __ou_veterancy.grantVeteranExp : (() => {});
 
   function isBlockedFootprint(tx,ty,tw,th){ return __ou_footprint && __ou_footprint.isBlockedFootprint ? __ou_footprint.isBlockedFootprint(tx,ty,tw,th) : true; }
   function isTooCloseToOtherBuildings(tx,ty,tw,th, gapTiles=1){ return __ou_footprint && __ou_footprint.isTooCloseToOtherBuildings ? __ou_footprint.isTooCloseToOtherBuildings(tx,ty,tw,th, gapTiles) : false; }
@@ -919,6 +929,7 @@ function tileToWorldSubslot(tx, ty, slot){
 
   function getMoveSpeed(u){
     let s = u.speed;
+    if (u.kind==="infantry" || u.kind==="sniper") s *= getVeteranSpeed(u);
     if (u.kind==="tank"){
       const hpPct = u.hpMax>0 ? (u.hp/u.hpMax) : 1;
       if (u.crippled){
@@ -995,7 +1006,11 @@ function tryUnloadIFV(ifv){ return __ou_commands && __ou_commands.tryUnloadIFV ?
       }
     }
 
-    target.hp -= dmg;
+    let finalDmg = dmg;
+    if (target && (target.kind === "infantry" || target.kind === "sniper")) {
+      finalDmg = dmg / getVeteranArmor(target);
+    }
+    target.hp -= finalDmg;
 
     if (target.hp > 0) return;
 
@@ -1020,6 +1035,7 @@ function tryUnloadIFV(ifv){ return __ou_commands && __ou_commands.tryUnloadIFV ?
     const targetCls = UNIT[ent.kind]?.cls;
     if (__ou_sim && __ou_sim.recordKill) __ou_sim.recordKill(srcTeam, { targetKind: ent.kind, targetCls, sniperKill });
     if (__ou_sim && __ou_sim.recordLoss) __ou_sim.recordLoss(ent.team);
+    grantVeteranExp(killer, COST[ent.kind] || 0, state.t, ent.team);
 
     // Unit death
     // Infantry death animation FX (7 frames, 1200x1200 each, magenta palette swapped to team color)
@@ -1046,6 +1062,8 @@ function tryUnloadIFV(ifv){ return __ou_commands && __ou_commands.tryUnloadIFV ?
   function destroyBuilding(b, cause={}){
     if (!b || !b.alive) return;
 
+    const killer = cause.srcId ? getEntityById(cause.srcId) : null;
+    grantVeteranExp(killer, COST[b.kind] || 0, state.t, b.team);
     if (__ou_sim && __ou_sim.recordKill) __ou_sim.recordKill(cause.srcTeam, { targetKind: b.kind, targetCls: null, sniperKill: false });
     if (__ou_sim && __ou_sim.recordLoss) __ou_sim.recordLoss(b.team);
 

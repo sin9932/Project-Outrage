@@ -97,6 +97,10 @@
     const _turretTurnFrameNum = r._turretTurnFrameNum;
     const boardUnitIntoIFV = r.boardUnitIntoIFV;
     const applyDamage = r.applyDamage;
+    const _v = (typeof window !== "undefined" && window.__ou_veterancy) || null;
+    const getVeteranCombat = r.getVeteranCombat || (_v && _v.getVeteranCombat) || (() => 1);
+    const getVeteranROF = r.getVeteranROF || (_v && _v.getVeteranROF) || (() => 1);
+    const applyEliteHeal = r.applyEliteHeal || (_v && _v.applyEliteHeal) || (() => {});
     const isWalkableTile = r.isWalkableTile;
     const updateExplosions = r.updateExplosions;
     const updateDebris = r.updateDebris;
@@ -1930,6 +1934,11 @@
 
   // Path setter (moved from game.js)
   function setPathTo(u, goalX, goalY){
+    if (_pathFindBudget <= 0) {
+      u.path = null; u.pathI = 0; // order와 path 불일치 방지 (다음 틱에 재시도)
+      return false;
+    }
+    _pathFindBudget--;
     // Temporary separation offset to reduce clump jitter
     if (u.sepCd && u.sepCd>0){ goalX += (u.sepOx||0); goalY += (u.sepOy||0); }
     const sTx=tileOfX(u.x), sTy=tileOfY(u.y);
@@ -2480,6 +2489,7 @@
       if (shooter.kind==="sniper" || (shooter.kind==="ifv" && shooter.passKind==="sniper")){
         dmg = isInfTarget ? 125 : 1;
       }
+      dmg *= getVeteranCombat(shooter);
       applyDamage(target, dmg, shooter.id, shooter.team);
     }
 
@@ -2521,6 +2531,18 @@
         clearOcc(dt);
         for (const u of units){
           if (!u.alive) continue;
+          applyEliteHeal(u, dt);
+          const eliteFx = (u.kind==="infantry" || u.kind==="sniper") ? u :
+            (u.kind==="ifv" && u.passengerId && (u.passKind==="infantry" || u.passKind==="sniper") ? getEntityById(u.passengerId) : null);
+          if (eliteFx && eliteFx.eliteFlashUntil && state.t < eliteFx.eliteFlashUntil){
+            if ((eliteFx._eliteSparkNext || 0) <= state.t){
+              eliteFx._eliteSparkNext = state.t + 0.12;
+              const fx = (u.kind==="ifv") ? u : eliteFx;
+              for (let k=0;k<6;k++){
+                impacts.push({x:fx.x+(Math.random()*12-6), y:fx.y+(Math.random()*12-6), vx:(Math.random()*160-80), vy:(Math.random()*160-80), life:0.22});
+              }
+            }
+          }
           if (u.shootCd>0) u.shootCd -= dt;
           if (u.flash && u.flash>0) u.flash -= dt;
           if (u.repathCd>0) u.repathCd -= dt;
@@ -2798,7 +2820,9 @@
       const forceMoveActive = !!(u.order && u.order.type==="move" && u.forceMoveUntil && state.t < u.forceMoveUntil);
     
       // (1) Retaliation (ONLY when no player manual-locked order, and not during force-move window)
-      if (!manualLock && !forceMoveActive && u.aggroCd<=0 && u.lastAttacker!=null){
+      // 적군 attackmove/guard 시: 보복보다 선제공격 우선 (침투·기지수호 시 적극 공격)
+      const enemyCombatOrder = (u.team===TEAM.ENEMY && u.order && (u.order.type==="attackmove" || u.order.type==="guard"));
+      if (!enemyCombatOrder && !manualLock && !forceMoveActive && u.aggroCd<=0 && u.lastAttacker!=null){
         const a = getEntityById(u.lastAttacker);
         if (a && a.alive && a.team===enemyTeam){
           if (!sniperMode || isEnemyInf(a)){
@@ -2940,7 +2964,8 @@
               if (state.t >= (u._nextAcquire||0)) {
                 u._nextAcquire = state.t + 0.18 + (u.id % 7) * 0.02;
                 const atkKind = (u.kind==="ifv" && u.passKind==="sniper") ? "sniper" : u.kind;
-                const enemy = findNearestAttackMoveTargetFor(u.team, u.x, u.y, u.range||0, atkKind);
+                const scanR = Math.max(520, UNIT[u.kind]?.vision || 400, u.range || 0); // 터렛(520)보다 넓게 선제 탐색
+                const enemy = findNearestAttackMoveTargetFor(u.team, u.x, u.y, scanR, atkKind);
                 if (enemy){
                   const lock = (u.team===TEAM.ENEMY);
                   u.order={type:"attack", x:u.x, y:u.y, tx:null,ty:null, manual:lock, allowAuto:!lock, lockTarget:lock};
@@ -3476,7 +3501,7 @@
             } else {
               u.path=null;
               if (u.shootCd<=0 && (u.kind!=="tank" || (_ffAimDir!=null && u.turretDir===_ffAimDir && !u.turretTurn))){
-                u.shootCd=u.rof;
+                u.shootCd=u.rof*getVeteranROF(u);
                 u.holdPosT = 0.10;
                 u.fireHoldT = Math.max(u.fireHoldT||0, 0.28);
                 if (u.kind==="sniper"){ u.cloakBreak = Math.max(u.cloakBreak, 1.15); }
@@ -3675,7 +3700,7 @@
     
             // Fire whenever in range (even if we are still sliding into position).
             if (dEff <= u.range && u.shootCd<=0 && (u.kind!=="tank" || (u.turretDir===_tankAimDir && !u.turretTurn))){
-              u.shootCd=u.rof;
+              u.shootCd=u.rof*getVeteranROF(u);
               u.holdPosT = 0.12;
               u.fireHoldT = Math.max(u.fireHoldT||0, 0.28);
               if (u.kind==="sniper"){ u.cloakBreak = Math.max(u.cloakBreak, 1.15); u._justShot = true; }
@@ -3793,7 +3818,11 @@
         resolveUnitOverlaps();
       }
 
+    let _pathFindBudget = 0;
+    const MAX_PATHFINDS_PER_FRAME = 8;
+
     function tickSim(dt) {
+      _pathFindBudget = MAX_PATHFINDS_PER_FRAME;
       tickUnits(dt);
       tickTurrets(dt);
       tickBullets(dt);

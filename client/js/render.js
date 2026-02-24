@@ -2096,6 +2096,37 @@
     ctx.restore();
   }
 
+  function drawVeteranBadge(ent, p){
+    let rank = 0;
+    if (ent.kind==="infantry" || ent.kind==="sniper") rank = ent.veteran || 0;
+    else if (ent.kind==="ifv" && ent.passengerId && (ent.passKind==="infantry" || ent.passKind==="sniper")){
+      const pass = getEntityById ? getEntityById(ent.passengerId) : null;
+      if (pass && pass.alive) rank = pass.veteran || 0;
+    }
+    if (rank < 1) return;
+    const z = (typeof cam !== "undefined" && cam && typeof cam.zoom==="number") ? cam.zoom : 1;
+    const x = p.x + (ent.r||12)*0.8;
+    const y = p.y + (ent.r||12)*0.8;
+    const n = rank >= 2 ? 3 : 1;
+    ctx.save();
+    ctx.fillStyle = "rgba(255,220,80,0.95)";
+    ctx.strokeStyle = "rgba(0,0,0,0.6)";
+    ctx.lineWidth = 1;
+    const cw = 4*z, ch = 3*z, gap = 2*z;
+    const totalW = n*cw + (n-1)*gap;
+    for (let i=0;i<n;i++){
+      const cx = x - totalW/2 + cw/2 + i*(cw+gap);
+      ctx.beginPath();
+      ctx.moveTo(cx, y - ch);
+      ctx.lineTo(cx - cw/2, y);
+      ctx.lineTo(cx + cw/2, y);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
   function drawGroupBadge(x,y,n){
     if (!n) return;
     ctx.save();
@@ -3011,10 +3042,13 @@
 
         ctx.save();
         if (ent.kind==="sniper" && ent.team===TEAM.PLAYER && ent.cloaked) ctx.globalAlpha = 0.45;
-        if (ent.flash && ent.flash>0){
+        const eliteFlashEnt = (ent.kind==="ifv" && ent.passengerId && (ent.passKind==="infantry" || ent.passKind==="sniper"))
+          ? (getEntityById ? getEntityById(ent.passengerId) : null) : ent;
+        const showEliteFlash = eliteFlashEnt && eliteFlashEnt.eliteFlashUntil && state.t < eliteFlashEnt.eliteFlashUntil;
+        if ((ent.flash && ent.flash>0) || showEliteFlash){
           if (((state.t*28)|0)%2===0) ctx.globalAlpha *= 0.55;
-          ctx.shadowColor = "rgba(255,255,255,0.9)";
-          ctx.shadowBlur = 12;
+          ctx.shadowColor = showEliteFlash ? "rgba(255,220,80,0.95)" : "rgba(255,255,255,0.9)";
+          ctx.shadowBlur = showEliteFlash ? 18 : 12;
         }
         if (!isInf){
           let drewSprite = false;
@@ -3088,6 +3122,7 @@
         if (showHp) drawUnitHpBlocks(ent, p);
 
         if (ent.grp) drawGroupBadge(p.x + ent.r*0.85, p.y - ent.r*0.85, ent.grp);
+        drawVeteranBadge(ent, p);
 
         if (ent.kind==="harvester"){
           const cr=clamp(ent.carry/(ent.carryMax||1),0,1);
