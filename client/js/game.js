@@ -2360,7 +2360,6 @@ if (state.selection.size>0 && inMap(tx,ty) && ore[idx(tx,ty)]>0){
     // 1) If this kind is currently being built at the front of some producer queue:
     //    - first right click: pause
     //    - second right click (while paused): cancel + refund paid
-    //    Prefer PRIMARY producer (player's designated barracks/factory) for consistent behavior.
     let pb=null; let q=null;
     const primary = (need==="barracks" || need==="factory") && ensurePrimaryProducer ? ensurePrimaryProducer(need) : null;
     const toCheck = primary ? [primary, ...buildings.filter(b=>b.alive && !b.civ && b.team===TEAM.PLAYER && b.kind===need && b.id!==primary.id)] : buildings.filter(b=>b.alive && !b.civ && b.team===TEAM.PLAYER && b.kind===need);
@@ -2386,12 +2385,11 @@ if (state.selection.size>0 && inMap(tx,ty) && ore[idx(tx,ty)]>0){
       return;
     }
 
-    // 2) If it's queued in a producer buildQ but NOT at the front (i.e., reserved for later),
-    // cancel the last one of this kind.
+    // 2) If it's queued in a producer buildQ but NOT at the front, cancel the last one of this kind.
     for (const b of buildings){
       if (!b.alive || b.civ || b.team!==TEAM.PLAYER || b.kind!==need) continue;
       const ql = b.buildQ || [];
-      for (let i=ql.length-1; i>=1; i--){ // skip index 0 (handled above)
+      for (let i=ql.length-1; i>=1; i--){
         if (ql[i] && ql[i].kind===kind){
           const paid = ql[i].paid || 0;
           if (paid>0) state.player.money += paid;
@@ -2404,7 +2402,7 @@ if (state.selection.size>0 && inMap(tx,ty) && ore[idx(tx,ty)]>0){
       }
     }
 
-    // 3) Otherwise: cancel ONE queued reservation of this kind from the global FIFO (not yet started, so no refund needed).
+    // 3) Otherwise: cancel ONE queued reservation from the global FIFO.
     const fifo = prodFIFO[need];
     if (!fifo || !fifo.length) return;
     for (let i=fifo.length-1; i>=0; i--){
@@ -2620,9 +2618,9 @@ function tickSidebarBuild(dt){
   }
 
 function tickEconomyPre(dt){
-    // Economy actions that must run at the start of a tick (requests + queues + build lanes).
-    if (__ou_econ && __ou_econ.processEconActions) __ou_econ.processEconActions(_econHandlers);
+    // feedProducers 먼저 → processEconActions 나중. 취소 직후 즉시 재충전되던 버그 방지.
     feedProducers();
+    if (__ou_econ && __ou_econ.processEconActions) __ou_econ.processEconActions(_econHandlers);
     tickSidebarBuild(dt);
     if (__ou_ai && typeof __ou_ai.tickEnemySidebarBuild === "function") {
       __ou_ai.tickEnemySidebarBuild(dt);
