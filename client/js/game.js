@@ -4908,6 +4908,8 @@ function draw(){
         CON_YARD_PNG,
         smokeWaves, smokePuffs, dustPuffs, dmgSmokePuffs, bloodStains, bloodPuffs,
         explosions,
+        debris: (window.OURender && window.OURender._debris) || [],
+        debrisTrail: (window.OURender && window.OURender._debrisTrail) || [],
         INF_DIE_PNG,
         SNIP_DIE_PNG,
         INF_SPRITE_SCALE,

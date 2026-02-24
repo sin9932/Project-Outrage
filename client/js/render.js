@@ -364,6 +364,8 @@
   let exp1Fxs;
   let smokeWaves, smokePuffs, dustPuffs, dmgSmokePuffs, bloodStains, bloodPuffs;
   let explosions;
+  let _debrisRef = [];
+  let _debrisTrailRef = [];
   let drawBuildingSprite;
   let getTeamCroppedSprite;
   let INF_DIE_IMG, SNIP_DIE_IMG;
@@ -924,6 +926,8 @@
     dustPuffs = env.dustPuffs || []; dmgSmokePuffs = env.dmgSmokePuffs || [];
     bloodStains = env.bloodStains || []; bloodPuffs = env.bloodPuffs || [];
     explosions = env.explosions || [];
+    if (env.debris) { _debrisRef = env.debris; }
+    if (env.debrisTrail) { _debrisTrailRef = env.debrisTrail; }
     infDeathFxs = env.infDeathFxs || [];
     snipDeathFxs = env.snipDeathFxs || [];
     // Local SPRITE_TUNE is authoritative (loaded from storage/preset)
@@ -3289,8 +3293,8 @@
       PO.buildings.drawGhosts(ctx, cam, helpers, state);
     }}catch(_e){}
 
-    const _debris = (window.OURender && window.OURender._debris) || [];
-    const _debrisTrail = (window.OURender && window.OURender._debrisTrail) || [];
+    const _debris = _debrisRef || [];
+    const _debrisTrail = _debrisTrailRef || [];
     if ((_debrisTrail.length > 0) || (_debris.length > 0)){
       const z = (typeof cam !== "undefined" && cam && typeof cam.zoom==="number") ? cam.zoom : 1;
       if (_debrisTrail.length > 0){
