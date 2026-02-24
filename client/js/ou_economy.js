@@ -163,6 +163,31 @@
       }
     }
 
+    function tickEconomyPost(dt){
+      tickProduction(dt);
+      const m2 = (state.player && typeof state.player.money==="number") ? state.player.money : null;
+      // 수리 체크: 2프레임마다 (시야처럼) → 건물 많을 때 루프 부담 완화
+      if (!state._repairFrame) state._repairFrame = 0;
+      state._repairFrame++;
+      if (state._repairFrame % 2 === 0){
+        state._repairAcc = (state._repairAcc || 0) + dt;
+        tickRepairs(state._repairAcc);
+        state._repairAcc = 0;
+      } else {
+        state._repairAcc = (state._repairAcc || 0) + dt;
+      }
+      const m3 = (state.player && typeof state.player.money==="number") ? state.player.money : null;
+      if (state.enemy){
+        if (state._enemyMoneyT == null) state._enemyMoneyT = 0;
+        state._enemyMoneyT -= dt;
+        if (state._enemyMoneyT <= 0){
+          state._enemyMoneyT = 5.0;
+          state.enemy.money = (state.enemy.money || 0) + 1000;
+        }
+      }
+      return { m2, m3 };
+    }
+
     function tryPlaceBuild() {
       const build = state.build || {};
       const kind = build.kind;
@@ -765,6 +790,7 @@
       feedProducers,
       tickProduction,
       tickRepairs,
+      tickEconomyPost,
 
       // power + tech
       getPowerFactor,

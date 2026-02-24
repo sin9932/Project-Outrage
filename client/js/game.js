@@ -1563,16 +1563,6 @@ function findSpawnPointNear(b, unitKind, opts){
     return null;
   }
 
-  function tickProduction(dt){
-    if (!(__ou_econ && __ou_econ.tickProduction)) return undefined;
-    // ou_economy handles paused internally: no spend, no progress. No snapshot/refund needed.
-    return __ou_econ.tickProduction(dt);
-  }
-
-  function tickRepairs(dt){
-    if (__ou_econ && __ou_econ.tickRepairs) __ou_econ.tickRepairs(dt);
-  }
-
   
   function spawnEvacUnitsFromBuilding(b, destroyed){
     if (!b || b.civ) return;
@@ -2632,21 +2622,8 @@ function tickEconomyPre(dt){
   }
 
 function tickEconomyPost(dt){
-    // Economy actions that run after UI/vision updates (production + repairs + passive ore).
-    tickProduction(dt);
-    const m2 = (DEBUG_MONEY && state && state.player) ? (state.player.money || 0) : null;
-    tickRepairs(dt);
-    const m3 = (DEBUG_MONEY && state && state.player) ? (state.player.money || 0) : null;
-    // Enemy cheat money: periodic top-up so AI never stalls.
-    if (state && state.enemy){
-      if (state._enemyMoneyT == null) state._enemyMoneyT = 0;
-      state._enemyMoneyT -= dt;
-      if (state._enemyMoneyT <= 0){
-        state._enemyMoneyT = 5.0;
-        state.enemy.money = (state.enemy.money || 0) + 1000;
-      }
-    }
-    return { m2, m3 };
+    if (__ou_econ && __ou_econ.tickEconomyPost) return __ou_econ.tickEconomyPost(dt);
+    return { m2: null, m3: null };
   }
 
 function updatePowerBar() {
