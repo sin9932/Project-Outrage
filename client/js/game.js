@@ -135,48 +135,98 @@
 
   // NOTE: use `var` to avoid Temporal Dead Zone issues if any code path
   // references `state` before this declaration finishes initializing.
+  // state 세분화: player/enemy(경제), ui(입력/UI), world(게임 시간/통계)
   var state = {
-    t: 0,
-    speedMul: 1,
-    suppressClickUntil: 0,
-    debug: { fastProd: false },
     player: { money: 10000, powerProd: 0, powerUse: 0 },
     enemy:  { money: 10000, powerProd: 0, powerUse: 0 },
-    build: (window.OUUI && window.OUUI.build) ? window.OUUI.build : { active:false, kind:null, lane:null },
-    buildLane:{ main:{queue:null,ready:null,fifo:[]}, def:{queue:null,ready:null,fifo:[]} },
-    primary:{ player:{ barracks:null, factory:null }, enemy:{ barracks:null, factory:null } },
-    lastClick:{ t:0, id:null },
-    selection: (window.OUUI && window.OUUI.selection) ? window.OUUI.selection : new Set(),
-    hover: (window.OUInput && window.OUInput.hover) ? window.OUInput.hover : { px:0, py:0, wx:0, wy:0, entId:null, t0:0 },
-    drag: (window.OUInput && window.OUInput.drag) ? window.OUInput.drag : { on:false, moved:false, x0:0, y0:0, x1:0, y1:0 },
-    pan:  (window.OUInput && window.OUInput.pan) ? window.OUInput.pan : { on:false, x0:0, y0:0, camIsoX:0, camIsoY:0 },
-    colors: { player:"#0000ff", enemy:"#ff0000" },
-    fx: { paths: [] },  // clicks, orders -> FX module
-    lastSingleId: null,
-    lastSingleKind: null,
-    lastHit: { t: -1e9, x: 0, y: 0 },
-    mouseMode: "normal" // normal | repair | sell
+    ui: {
+      build: (window.OUUI && window.OUUI.build) ? window.OUUI.build : { active:false, kind:null, lane:null },
+      lastClick:{ t:0, id:null },
+      selection: (window.OUUI && window.OUUI.selection) ? window.OUUI.selection : new Set(),
+      hover: (window.OUInput && window.OUInput.hover) ? window.OUInput.hover : { px:0, py:0, wx:0, wy:0, entId:null, t0:0 },
+      drag: (window.OUInput && window.OUInput.drag) ? window.OUInput.drag : { on:false, moved:false, x0:0, y0:0, x1:0, y1:0 },
+      pan:  (window.OUInput && window.OUInput.pan) ? window.OUInput.pan : { on:false, x0:0, y0:0, camIsoX:0, camIsoY:0 },
+      colors: { player:"#0000ff", enemy:"#ff0000" },
+      fx: { paths: [] },
+      lastSingleId: null,
+      lastSingleKind: null,
+      lastHit: { t: -1e9, x: 0, y: 0 },
+      mouseMode: "normal",
+      attackAlert: { cooldownUntil:-1e9, windowUntil:-1e9 },
+      attackEvents: [],
+      attackCycle: 0,
+      alertFx: []
+    },
+    world: {
+      t: 0,
+      speedMul: 1,
+      suppressClickUntil: 0,
+      debug: { fastProd: false },
+      buildLane:{ main:{queue:null,ready:null,fifo:[]}, def:{queue:null,ready:null,fifo:[]} },
+      primary:{ player:{ barracks:null, factory:null }, enemy:{ barracks:null, factory:null } },
+      stats: {
+        kills: { 0: 0, 1: 0 }, losses: { 0: 0, 1: 0 }, construction: { 0: 0, 1: 0 }, harvest: { 0: 0, 1: 0 },
+        mvp: {
+          infantryProduced: { 0: 0, 1: 0 },
+          vehicleKills: { 0: 0, 1: 0 },
+          armorProduced: { 0: 0, 1: 0 },
+          sniperInfantryKills: { 0: 0, 1: 0 },
+          turretBuilt: { 0: 0, 1: 0 },
+          engineerCaptures: { 0: 0, 1: 0 }
+        }
+      },
+      gameOverPending: null,
+      gameOverFade: null,
+      gameOverVictory: null,
+      gameOverEndGameTime: null,
+      aiAlert: null,
+      _visionFrame: 0,
+      _placeStartPhase: false,
+      _valAcc: 0,
+      _simMissingWarned: false
+    }
   };
-  // init attack alert containers (safe, after state exists)
-  state.attackAlert = { cooldownUntil:-1e9, windowUntil:-1e9 };
-  state.attackEvents = [];
-  state.attackCycle = 0;
+
+  // backward compat: flat access (state.selection === state.ui.selection)
+  state.build = state.ui.build;
+  state.lastClick = state.ui.lastClick;
+  state.selection = state.ui.selection;
+  state.hover = state.ui.hover;
+  state.drag = state.ui.drag;
+  state.pan = state.ui.pan;
+  state.colors = state.ui.colors;
+  state.fx = state.ui.fx;
+  state.lastSingleId = state.ui.lastSingleId;
+  state.lastSingleKind = state.ui.lastSingleKind;
+  state.lastHit = state.ui.lastHit;
+  state.mouseMode = state.ui.mouseMode;
+  state.attackAlert = state.ui.attackAlert;
+  state.attackEvents = state.ui.attackEvents;
+  state.attackCycle = state.ui.attackCycle;
+  state.alertFx = state.ui.alertFx;
+  state.debug = state.world.debug;
+  state.buildLane = state.world.buildLane;
+  state.primary = state.world.primary;
+  state.stats = state.world.stats;
+  // world와 동기화되는 속성 (쓰기 시 state.world에 반영)
+  Object.defineProperties(state, {
+    t: { get: ()=>state.world.t, set: v=>{ state.world.t=v; }, enumerable: true },
+    speedMul: { get: ()=>state.world.speedMul, set: v=>{ state.world.speedMul=v; }, enumerable: true },
+    suppressClickUntil: { get: ()=>state.world.suppressClickUntil, set: v=>{ state.world.suppressClickUntil=v; }, enumerable: true },
+    gameOverPending: { get: ()=>state.world.gameOverPending, set: v=>{ state.world.gameOverPending=v; }, enumerable: true },
+    gameOverFade: { get: ()=>state.world.gameOverFade, set: v=>{ state.world.gameOverFade=v; }, enumerable: true },
+    gameOverVictory: { get: ()=>state.world.gameOverVictory, set: v=>{ state.world.gameOverVictory=v; }, enumerable: true },
+    gameOverEndGameTime: { get: ()=>state.world.gameOverEndGameTime, set: v=>{ state.world.gameOverEndGameTime=v; }, enumerable: true },
+    aiAlert: { get: ()=>state.world.aiAlert, set: v=>{ state.world.aiAlert=v; }, enumerable: true },
+    _visionFrame: { get: ()=>state.world._visionFrame, set: v=>{ state.world._visionFrame=v; }, enumerable: true },
+    _placeStartPhase: { get: ()=>state.world._placeStartPhase, set: v=>{ state.world._placeStartPhase=v; }, enumerable: true },
+    _valAcc: { get: ()=>state.world._valAcc, set: v=>{ state.world._valAcc=v; }, enumerable: true },
+    _simMissingWarned: { get: ()=>state.world._simMissingWarned, set: v=>{ state.world._simMissingWarned=v; }, enumerable: true }
+  });
 
   const __ou_attack = (window.OUUI && typeof window.OUUI.createAttackAlerts === "function")
     ? window.OUUI.createAttackAlerts({ state, toast, centerCameraOn })
     : null;
-  state.alertFx = [];
-  state.stats = {
-    kills: { 0: 0, 1: 0 }, losses: { 0: 0, 1: 0 }, construction: { 0: 0, 1: 0 }, harvest: { 0: 0, 1: 0 },
-    mvp: {
-      infantryProduced: { 0: 0, 1: 0 },
-      vehicleKills: { 0: 0, 1: 0 },
-      armorProduced: { 0: 0, 1: 0 },
-      sniperInfantryKills: { 0: 0, 1: 0 },
-      turretBuilt: { 0: 0, 1: 0 },
-      engineerCaptures: { 0: 0, 1: 0 }
-    }
-  };
 
 
   const controlGroups = Array.from({length:10}, ()=>[]);
@@ -630,8 +680,6 @@ const buildingWorldFromTileOrigin = __tileHelpers ? __tileHelpers.buildingWorldF
     if (!state._placeStartPhase && !spec.civ && __ou_sim && __ou_sim.recordConstruction) __ou_sim.recordConstruction(team, kind);
     if (__ou_econ && __ou_econ.onBuildingPlaced) __ou_econ.onBuildingPlaced(b);
     try{ if (window.PO && PO.buildings && PO.buildings.onPlaced) PO.buildings.onPlaced(b, state); }catch(_e){}
-    // 건물 배치 직후 시야 즉시 갱신 (안개 새까맣게 방지)
-    updateVision();
     return b;
   }
 
@@ -2784,7 +2832,6 @@ function draw(){
     // Start with HQ only (both sides)
 
     recomputePower();
-    updateVision();
     if (pHQ) centerCameraOn(pHQ.x, pHQ.y);
     updateSelectionUI();
   }
@@ -2895,8 +2942,6 @@ if (__ou_ui && typeof __ou_ui.bindPregameStart === "function"){
     placeStart(spawnChoice);
     state._placeStartPhase = false;
     spawnStartingUnits();
-    // 첫 프레임부터 본진/유닛 시야가 보이도록 시야 한 번 갱신 (안개 전부 검은 현상 방지)
-    updateVision();
     if (__ou_ui && typeof __ou_ui.hidePregame === "function"){
       __ou_ui.hidePregame({});
     }
@@ -3141,7 +3186,8 @@ function sanityCheck(){
 
       if (!state._visionFrame) state._visionFrame = 0;
       state._visionFrame++;
-      if (state._visionFrame % 2 === 0) updateVision();
+      // tick에서만 시야 갱신 (첫 프레임 + 2프레임마다)
+      if (state._visionFrame === 1 || state._visionFrame % 2 === 0) updateVision();
       const _eco = tickEconomyPost(simDt);
       if (DEBUG_MONEY && state && state.player){
         _m2 = (_eco && _eco.m2 != null) ? _eco.m2 : (state.player.money || 0);
