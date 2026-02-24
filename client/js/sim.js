@@ -86,6 +86,38 @@
     const updateExplosions = r.updateExplosions;
     const updateDebris = r.updateDebris;
 
+    function recordKill(team, opts) {
+      if (team != null && state.stats) {
+        state.stats.kills[team] = (state.stats.kills[team] || 0) + 1;
+        const m = state.stats.mvp;
+        if (m && opts) {
+          const isVeh = opts.targetKind && ["tank", "ifv", "harvester"].includes(opts.targetKind);
+          const isInf = opts.targetCls === "inf" || (opts.targetKind && ["infantry", "engineer", "sniper"].includes(opts.targetKind));
+          if (isVeh) m.vehicleKills[team] = (m.vehicleKills[team] || 0) + 1;
+          if (isInf && opts.sniperKill) m.sniperInfantryKills[team] = (m.sniperInfantryKills[team] || 0) + 1;
+        }
+      }
+    }
+    function recordLoss(team) {
+      if (team != null && state.stats) state.stats.losses[team] = (state.stats.losses[team] || 0) + 1;
+    }
+    function recordConstruction(team, kind) {
+      if (team != null && state.stats) {
+        state.stats.construction[team] = (state.stats.construction[team] || 0) + 1;
+        if (kind === "turret" && state.stats.mvp) state.stats.mvp.turretBuilt[team] = (state.stats.mvp.turretBuilt[team] || 0) + 1;
+      }
+    }
+    function recordCapture(team) {
+      if (team != null && state.stats && state.stats.mvp) state.stats.mvp.engineerCaptures[team] = (state.stats.mvp.engineerCaptures[team] || 0) + 1;
+    }
+    function recordProduction(team, kind) {
+      if (team != null && state.stats && state.stats.mvp) {
+        const m = state.stats.mvp;
+        if (["infantry", "engineer", "sniper"].includes(kind)) m.infantryProduced[team] = (m.infantryProduced[team] || 0) + 1;
+        if (["tank", "ifv"].includes(kind)) m.armorProduced[team] = (m.armorProduced[team] || 0) + 1;
+      }
+    }
+
     function segIntersectsCircle(ax,ay,bx,by, cx,cy, r){
       // segment AB to circle C
       const vx = bx-ax, vy = by-ay;
@@ -3386,7 +3418,12 @@
       findNearestRefinery,
       getDockPoint,
       getClosestPointOnBuilding,
-      dist2PointToRect
+      dist2PointToRect,
+      recordKill,
+      recordLoss,
+      recordConstruction,
+      recordCapture,
+      recordProduction
     };
   };
 })(window);

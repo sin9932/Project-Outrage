@@ -41,6 +41,46 @@
   }
   OU.createTileHelpers = createTileHelpers;
 
+  // Point-in-polygon (ray casting)
+  function pointInPoly(x, y, poly) {
+    let inside = false;
+    for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+      const xi = poly[i].x, yi = poly[i].y;
+      const xj = poly[j].x, yj = poly[j].y;
+      const intersect = ((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / ((yj - yi) || 1e-9) + xi);
+      if (intersect) inside = !inside;
+    }
+    return inside;
+  }
+  OU.pointInPoly = pointInPoly;
+
+  // Vector to 8-direction index (E,NE,N,NW,W,SW,S,SE). +y=down, north=dy<0.
+  function vecToDir8(dx, dy) {
+    if (!dx && !dy) return 6;
+    const ang = Math.atan2(dy, dx);
+    const targets = [0, -45, -90, -135, 180, 135, 90, 45];
+    const deg = ang * 180 / Math.PI;
+    let bestI = 0, bestD = 1e9;
+    for (let i = 0; i < 8; i++) {
+      let d = deg - targets[i];
+      d = ((d + 540) % 360) - 180;
+      const ad = Math.abs(d);
+      if (ad < bestD) { bestD = ad; bestI = i; }
+    }
+    return bestI;
+  }
+  OU.vecToDir8 = vecToDir8;
+
+  // World-space vector to 8-dir (needs isometric scale factors)
+  function createWorldVecToDir8(ISO_X, ISO_Y, TILE) {
+    return (dx, dy) => {
+      const sx = (dx - dy) * (ISO_X / TILE);
+      const sy = (dx + dy) * (ISO_Y / TILE);
+      return vecToDir8(sx, sy);
+    };
+  }
+  OU.createWorldVecToDir8 = createWorldVecToDir8;
+
   // Back-compat globals (only if missing)
   if (!global.clamp) global.clamp = clamp;
   if (!global.dist2) global.dist2 = dist2;

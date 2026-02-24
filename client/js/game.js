@@ -114,6 +114,9 @@ function fitMini() {
   const ISO_X = TILE / 2;
   const ISO_Y = TILE / 4;
 
+  const pointInPoly = (window.OU && window.OU.pointInPoly) ? window.OU.pointInPoly : (x,y,poly)=>{ let inside=false; for(let i=0,j=poly.length-1;i<poly.length;j=i++){ const xi=poly[i].x,yi=poly[i].y,xj=poly[j].x,yj=poly[j].y; if(((yi>y)!==(yj>y))&&(x<(xj-xi)*(y-yi)/((yj-yi)||1e-9)+xi)) inside=!inside; } return inside; };
+  const worldVecToDir8 = (window.OU && window.OU.createWorldVecToDir8) ? window.OU.createWorldVecToDir8(ISO_X, ISO_Y, TILE) : (dx,dy)=>6;
+
   const __tileHelpers = (window.OU && typeof window.OU.createTileHelpers === "function")
     ? window.OU.createTileHelpers(TILE, MAP_W, MAP_H)
     : null;
@@ -537,108 +540,13 @@ function getBaseBuildTime(kind){
   const _dirToIdleIdx = { 6:1, 7:2, 0:3, 1:4, 2:5, 3:6, 4:7, 5:8 }; // dir8 -> idle1..8
   const _muzzleDirToIdleIdx = { 2:1, 1:2, 0:3, 7:4, 6:5, 5:6, 4:7, 3:8 }; // dir8 -> tank_muzzle_idle1..8 (N..)
 
-  const _cwSeq = [6,7,0,1,2,3,4,5];
-  const _muzzleCwSeq = [2,1,0,7,6,5,4,3]; // turret cw order (N->NE->E->SE->S->SW->W->NW)
-  const _cwStartFrame = { 6:1, 7:5, 0:9, 1:13, 2:17, 3:21, 4:25, 5:29 }; // mov segment starts (4 frames each)
-  const _muzzleCwStartFrame = { 2:1, 1:5, 0:9, 7:13, 6:17, 5:21, 4:25, 3:29 }; // tank_muzzle_mov segment starts
-
-
-  function _cwNextDir(d){
-    const i = _cwSeq.indexOf(d);
-    return _cwSeq[(i+1) & 7];
-  }
-  function _ccwPrevDir(d){
-    const i = _cwSeq.indexOf(d);
-    return _cwSeq[(i+7) & 7];
-  }
-
-  function _tankTurnFrameNum(fromDir, toDir, fi){ // fi:0..3
-    // We only have clockwise segments in the sprite sheet.
-    // Counterclockwise uses the corresponding clockwise segment played backwards.
-    if (toDir === _cwNextDir(fromDir)){
-      const start = _cwStartFrame[fromDir] || 1;
-      return start + fi;
-    }
-    if (toDir === _ccwPrevDir(fromDir)){
-      const prev = toDir; // prev -> from is clockwise
-      const start = _cwStartFrame[prev] || 1;
-      return start + (3 - fi);
-    }
-    return null;
-  }
-
-  function _turretTurnFrameNum(fromDir, toDir, fi){ // fi:0..3
-    // tank_muzzle_mov is authored in clockwise segments: N->NE->E->SE->S->SW->W->NW->N
-    const a = _muzzleCwSeq.indexOf(fromDir);
-    if (a < 0) return null;
-    const next = _muzzleCwSeq[(a+1) & 7];
-    const prev = _muzzleCwSeq[(a+7) & 7];
-    if (toDir === next){
-      const start = _muzzleCwStartFrame[fromDir] || 1;
-      return start + fi;
-    }
-    if (toDir === prev){
-      const start = _muzzleCwStartFrame[toDir] || 1; // prev -> from is clockwise
-      return start + (3 - fi);
-    }
-    return null;
-  }
-
-  function _turnStepTowardSeq(seq, fromDir, goalDir){
-    // returns {nextDir, stepDir} where stepDir: +1 cw, -1 ccw
-    const a = seq.indexOf(fromDir);
-    const b = seq.indexOf(goalDir);
-    if (a < 0 || b < 0) return { nextDir: goalDir, stepDir: +1 };
-    const cw = (b - a + 8) % 8;
-    const ccw = (a - b + 8) % 8;
-    if (cw <= ccw){
-      return { nextDir: seq[(a+1) & 7], stepDir: +1 };
-    }
-    return { nextDir: seq[(a+7) & 7], stepDir: -1 };
-  }
-
-  function _turnStepToward(fromDir, goalDir){
-    // Hull turning: S->SE->E->NE->N->NW->W->SW sequence.
-    return _turnStepTowardSeq(_cwSeq, fromDir, goalDir);
-  }
-
-  function _turnStepTowardTurret(fromDir, goalDir){
-    // Turret turning: uses N->NE->E->SE->S->SW->W->NW sequence.
-    return _turnStepTowardSeq(_muzzleCwSeq, fromDir, goalDir);
-  }
-
-  function _advanceTurnState(turn, fromDir, toDir, dt, frameDur, frameFn){
-    // Mutates turn and returns {done:boolean, frameNum:int|null}
-    turn.t = (turn.t || 0) + dt;
-    const fi = Math.min(3, Math.floor(turn.t / Math.max(0.001, frameDur)));
-    const frameNum = (frameFn || _tankTurnFrameNum)(fromDir, toDir, fi);
-    const done = turn.t >= frameDur*4;
-    return { done, frameNum };
-  }
-
-  function _tankUpdateHull(u, desiredDir, dt){
-    if (u.bodyDir == null) u.bodyDir = (u.dir!=null ? u.dir : 6);
-
-    if (desiredDir == null || desiredDir === u.bodyDir){
-      u.bodyTurn = null;
-      return;
-    }
-
-    // Continue current step if valid
-    if (!u.bodyTurn || u.bodyTurn.fromDir==null || u.bodyTurn.toDir==null){
-      const step = _turnStepToward(u.bodyDir, desiredDir);
-      u.bodyTurn = { fromDir: u.bodyDir, toDir: step.nextDir, stepDir: step.stepDir, t: 0 };
-    }
-
-    const { done, frameNum } = _advanceTurnState(u.bodyTurn, u.bodyTurn.fromDir, u.bodyTurn.toDir, dt, 0.055);
-    u.bodyTurn.frameNum = frameNum;
-
-    if (done){
-      u.bodyDir = u.bodyTurn.toDir;
-      u.dir = u.bodyDir;
-      u.bodyTurn = null;
-    }
-  }
+  const __turnHelpers = (window.G && window.G.Units && typeof window.G.Units.createTurnHelpers === "function")
+    ? window.G.Units.createTurnHelpers()
+    : null;
+  const _turnStepTowardTurret = __turnHelpers ? __turnHelpers._turnStepTowardTurret : ()=>({ nextDir:0, stepDir:1 });
+  const _advanceTurnState = __turnHelpers ? __turnHelpers._advanceTurnState : ()=>({ done:true, frameNum:null });
+  const _turretTurnFrameNum = __turnHelpers ? __turnHelpers._turretTurnFrameNum : ()=>null;
+  const _tankUpdateHull = __turnHelpers ? __turnHelpers._tankUpdateHull : ()=>{};
 
   if (window.FX && typeof window.FX.setGetTime === "function") window.FX.setGetTime(() => state.t);
 
@@ -702,29 +610,7 @@ function getBaseBuildTime(kind){
   // Scale for in-game rendering (used by render.js)
   const INF_SPRITE_SCALE = 0.12;
 
-  // Convert a movement vector (dx,dy) to our 8-dir index (E,NE,N,NW,W,SW,S,SE).
-  // Note: screen/world coordinates use +y = down. North is dy < 0.
-  function vecToDir8(dx, dy){
-    if (!dx && !dy) return 6; // default South/front
-    const ang = Math.atan2(dy, dx); // -PI..PI
-    const targets = [0, -45, -90, -135, 180, 135, 90, 45];
-    const deg = ang * 180 / Math.PI;
-    let bestI = 0, bestD = 1e9;
-    for (let i=0;i<8;i++){
-      let d = deg - targets[i];
-      d = ((d + 540) % 360) - 180;
-      const ad = Math.abs(d);
-      if (ad < bestD){ bestD = ad; bestI = i; }
-    }
-    return bestI;
-  }
-
-  // Convert a world/tile-space vector to a screen-space direction, then map to our 8-dir index.
-  function worldVecToDir8(dx, dy){
-    const sx = (dx - dy) * (ISO_X / TILE);
-    const sy = (dx + dy) * (ISO_Y / TILE);
-    return vecToDir8(sx, sy);
-  }
+  // [vecToDir8, worldVecToDir8 moved to ou_utils.js]
 
 const buildingWorldFromTileOrigin = __tileHelpers ? __tileHelpers.buildingWorldFromTileOrigin : (tx,ty,tw,th)=>{ const w=tw*TILE, h=th*TILE; return { cx: tx*TILE + w/2, cy: ty*TILE + h/2, w, h }; };
   function setBuildingOcc(b, v){
@@ -769,7 +655,7 @@ const buildingWorldFromTileOrigin = __tileHelpers ? __tileHelpers.buildingWorldF
     }
     setBuildingOcc(b, 1);
     recomputePower();
-    if (!state._placeStartPhase && !spec.civ) recordConstruction(team, kind);
+    if (!state._placeStartPhase && !spec.civ && __ou_sim && __ou_sim.recordConstruction) __ou_sim.recordConstruction(team, kind);
     onBuildingPlaced(b);
     try{ if (window.PO && PO.buildings && PO.buildings.onPlaced) PO.buildings.onPlaced(b, state); }catch(_e){}
     return b;
@@ -896,7 +782,7 @@ function addUnit(team, kind, x, y, opts){
       u.turretDir = null;
     }
     units.push(u);
-    if (!(opts && opts.skipMvp)) recordProduction(team, kind);
+    if (!(opts && opts.skipMvp) && __ou_sim && __ou_sim.recordProduction) __ou_sim.recordProduction(team, kind);
     return u;
   }
 
@@ -1811,33 +1697,7 @@ function tryUnloadIFV(ifv){
     handleEntityDeath(target, srcId, srcTeam);
   }
 
-  function recordKill(team, opts){
-    if (team != null && state.stats){
-      state.stats.kills[team] = (state.stats.kills[team]||0) + 1;
-      const m = state.stats.mvp;
-      if (m && opts){
-        const isVeh = opts.targetKind && ["tank","ifv","harvester"].includes(opts.targetKind);
-        const isInf = opts.targetCls==="inf" || (opts.targetKind && ["infantry","engineer","sniper"].includes(opts.targetKind));
-        if (isVeh) m.vehicleKills[team] = (m.vehicleKills[team]||0) + 1;
-        if (isInf && opts.sniperKill) m.sniperInfantryKills[team] = (m.sniperInfantryKills[team]||0) + 1;
-      }
-    }
-  }
-  function recordLoss(team){ if (team != null && state.stats) state.stats.losses[team] = (state.stats.losses[team]||0) + 1; }
-  function recordConstruction(team, kind){
-    if (team != null && state.stats){
-      state.stats.construction[team] = (state.stats.construction[team]||0) + 1;
-      if (kind==="turret" && state.stats.mvp) state.stats.mvp.turretBuilt[team] = (state.stats.mvp.turretBuilt[team]||0) + 1;
-    }
-  }
-  function recordCapture(team){ if (team != null && state.stats && state.stats.mvp) state.stats.mvp.engineerCaptures[team] = (state.stats.mvp.engineerCaptures[team]||0) + 1; }
-  function recordProduction(team, kind){
-    if (team != null && state.stats && state.stats.mvp){
-      const m = state.stats.mvp;
-      if (["infantry","engineer","sniper"].includes(kind)) m.infantryProduced[team] = (m.infantryProduced[team]||0) + 1;
-      if (["tank","ifv"].includes(kind)) m.armorProduced[team] = (m.armorProduced[team]||0) + 1;
-    }
-  }
+  // [recordKill, recordLoss, recordConstruction, recordCapture, recordProduction moved to sim.js]
 
   function handleEntityDeath(ent, srcId=null, srcTeam=null){
     if (!ent || !ent.alive) return;
@@ -1852,8 +1712,8 @@ function tryUnloadIFV(ifv){
     const killer = srcId ? getEntityById(srcId) : null;
     const sniperKill = killer && (killer.kind==="sniper" || (killer.kind==="ifv" && killer.passKind==="sniper"));
     const targetCls = UNIT[ent.kind]?.cls;
-    recordKill(srcTeam, { targetKind: ent.kind, targetCls, sniperKill });
-    recordLoss(ent.team);
+    if (__ou_sim && __ou_sim.recordKill) __ou_sim.recordKill(srcTeam, { targetKind: ent.kind, targetCls, sniperKill });
+    if (__ou_sim && __ou_sim.recordLoss) __ou_sim.recordLoss(ent.team);
 
     // Unit death
     // Infantry death animation FX (7 frames, 1200x1200 each, magenta palette swapped to team color)
@@ -1880,8 +1740,8 @@ function tryUnloadIFV(ifv){
   function destroyBuilding(b, cause={}){
     if (!b || !b.alive) return;
 
-    recordKill(cause.srcTeam, { targetKind: b.kind, targetCls: null, sniperKill: false });
-    recordLoss(b.team);
+    if (__ou_sim && __ou_sim.recordKill) __ou_sim.recordKill(cause.srcTeam, { targetKind: b.kind, targetCls: null, sniperKill: false });
+    if (__ou_sim && __ou_sim.recordLoss) __ou_sim.recordLoss(b.team);
 
     // 1) Evac infantry FIRST (needs the footprint while it's still logically present)
     //    If no valid spawn tile exists, it will safely skip.
@@ -2612,7 +2472,7 @@ const refund = Math.floor((COST[b.kind]||0) * 0.5);
       enqueueEcon({ type:"sellByIdAny", id: b.id });
     }
 
-    recordCapture(engineer.team);
+    if (__ou_sim && __ou_sim.recordCapture) __ou_sim.recordCapture(engineer.team);
     recomputePower();
     checkElimination();
     engineer.alive=false;
@@ -2621,17 +2481,7 @@ const refund = Math.floor((COST[b.kind]||0) * 0.5);
   }
 
   
-function pointInPoly(x,y,poly){
-  // poly: [{x,y},...], convex or concave
-  let inside=false;
-  for (let i=0,j=poly.length-1;i<poly.length;j=i++){
-    const xi=poly[i].x, yi=poly[i].y;
-    const xj=poly[j].x, yj=poly[j].y;
-    const intersect = ((yi>y)!==(yj>y)) && (x < (xj-xi)*(y-yi)/( (yj-yi)||1e-9 ) + xi);
-    if (intersect) inside=!inside;
-  }
-  return inside;
-}
+// [pointInPoly moved to ou_utils.js]
 function buildingScreenPoly(b){
   // footprint corners in world (tile origin space)
   const x0=b.tx*TILE, y0=b.ty*TILE;

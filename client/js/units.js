@@ -54,6 +54,96 @@
     if (nameKo) Units.NAME_KO[kind] = nameKo;
   };
 
+  // Turn/rotation helpers (tank hull + turret sprite frames)
+  const _cwSeq = [6, 7, 0, 1, 2, 3, 4, 5];
+  const _muzzleCwSeq = [2, 1, 0, 7, 6, 5, 4, 3];
+  const _cwStartFrame = { 6: 1, 7: 5, 0: 9, 1: 13, 2: 17, 3: 21, 4: 25, 5: 29 };
+  const _muzzleCwStartFrame = { 2: 1, 1: 5, 0: 9, 7: 13, 6: 17, 5: 21, 4: 25, 3: 29 };
+
+  function _cwNextDir(d) {
+    const i = _cwSeq.indexOf(d);
+    return _cwSeq[(i + 1) & 7];
+  }
+  function _ccwPrevDir(d) {
+    const i = _cwSeq.indexOf(d);
+    return _cwSeq[(i + 7) & 7];
+  }
+  function _tankTurnFrameNum(fromDir, toDir, fi) {
+    if (toDir === _cwNextDir(fromDir)) {
+      const start = _cwStartFrame[fromDir] || 1;
+      return start + fi;
+    }
+    if (toDir === _ccwPrevDir(fromDir)) {
+      const prev = toDir;
+      const start = _cwStartFrame[prev] || 1;
+      return start + (3 - fi);
+    }
+    return null;
+  }
+  function _turretTurnFrameNum(fromDir, toDir, fi) {
+    const a = _muzzleCwSeq.indexOf(fromDir);
+    if (a < 0) return null;
+    const next = _muzzleCwSeq[(a + 1) & 7];
+    const prev = _muzzleCwSeq[(a + 7) & 7];
+    if (toDir === next) {
+      const start = _muzzleCwStartFrame[fromDir] || 1;
+      return start + fi;
+    }
+    if (toDir === prev) {
+      const start = _muzzleCwStartFrame[toDir] || 1;
+      return start + (3 - fi);
+    }
+    return null;
+  }
+  function _turnStepTowardSeq(seq, fromDir, goalDir) {
+    const a = seq.indexOf(fromDir);
+    const b = seq.indexOf(goalDir);
+    if (a < 0 || b < 0) return { nextDir: goalDir, stepDir: 1 };
+    const cw = (b - a + 8) % 8;
+    const ccw = (a - b + 8) % 8;
+    if (cw <= ccw) return { nextDir: seq[(a + 1) & 7], stepDir: 1 };
+    return { nextDir: seq[(a + 7) & 7], stepDir: -1 };
+  }
+  function _turnStepToward(fromDir, goalDir) {
+    return _turnStepTowardSeq(_cwSeq, fromDir, goalDir);
+  }
+  function _turnStepTowardTurret(fromDir, goalDir) {
+    return _turnStepTowardSeq(_muzzleCwSeq, fromDir, goalDir);
+  }
+  function _advanceTurnState(turn, fromDir, toDir, dt, frameDur, frameFn) {
+    turn.t = (turn.t || 0) + dt;
+    const fi = Math.min(3, Math.floor(turn.t / Math.max(0.001, frameDur)));
+    const frameNum = (frameFn || _tankTurnFrameNum)(fromDir, toDir, fi);
+    const done = turn.t >= frameDur * 4;
+    return { done, frameNum };
+  }
+  function _tankUpdateHull(u, desiredDir, dt) {
+    if (u.bodyDir == null) u.bodyDir = (u.dir != null ? u.dir : 6);
+    if (desiredDir == null || desiredDir === u.bodyDir) {
+      u.bodyTurn = null;
+      return;
+    }
+    if (!u.bodyTurn || u.bodyTurn.fromDir == null || u.bodyTurn.toDir == null) {
+      const step = _turnStepToward(u.bodyDir, desiredDir);
+      u.bodyTurn = { fromDir: u.bodyDir, toDir: step.nextDir, stepDir: step.stepDir, t: 0 };
+    }
+    const { done, frameNum } = _advanceTurnState(u.bodyTurn, u.bodyTurn.fromDir, u.bodyTurn.toDir, dt, 0.055);
+    u.bodyTurn.frameNum = frameNum;
+    if (done) {
+      u.bodyDir = u.bodyTurn.toDir;
+      u.dir = u.bodyDir;
+      u.bodyTurn = null;
+    }
+  }
+
+  Units.createTurnHelpers = function () {
+    return {
+      _cwNextDir, _ccwPrevDir, _tankTurnFrameNum, _turretTurnFrameNum,
+      _turnStepTowardSeq, _turnStepToward, _turnStepTowardTurret,
+      _advanceTurnState, _tankUpdateHull
+    };
+  };
+
   // Optional hooks you can implement later:
   // Units.onSpawn = function(u, api){};
   // Units.preTick = function(state, dt, api){};
