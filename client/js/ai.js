@@ -49,7 +49,7 @@
       rally: { x: 0, y: 0 },
       waveT: 0,
       // build queue for enemy
-      build: { queue: null, ready: null },
+      build: { queue: null, ready: null, readySince: 0 },
       // high-level mode
       mode: "build", // build | rally | attack | defend
       attackUntil: 0,
@@ -285,13 +285,24 @@
       return true;
     }
 
+    const READY_PLACE_TIMEOUT = 12; // 배치 실패 시 이 시간(초) 후 포기·환불
     function aiTryPlaceReady() {
       if (!ai.build.ready) return false;
-      if (!aiEnemyHas("hq")) { ai.build.ready = null; ai.build.queue = null; return false; }
+      if (!aiEnemyHas("hq")) { ai.build.ready = null; ai.build.readySince = 0; ai.build.queue = null; return false; }
 
       const kind = ai.build.ready;
       const spec = BUILD[kind];
-      if (!spec) { ai.build.ready = null; return false; }
+      if (!spec) { ai.build.ready = null; ai.build.readySince = 0; return false; }
+
+      // 배치 실패가 너무 오래 지속되면 포기·환불 (테크 진행 차단 방지)
+      const readyAge = state.t - (ai.build.readySince || 0);
+      if (readyAge > READY_PLACE_TIMEOUT) {
+        const costTotal = COST[kind] || 0;
+        if (costTotal > 0 && state.enemy) state.enemy.money = (state.enemy.money || 0) + costTotal;
+        ai.build.ready = null;
+        ai.build.readySince = 0;
+        return false;
+      }
 
       const centers = aiEnemyCenters();
       if (!centers.length) return false;
@@ -299,10 +310,8 @@
       // Choose a center: prefer HQ, else first center
       let center = centers.find(b => b.kind === "hq") || centers[0];
 
-      // Placement heuristics:
-      // - Turrets: prefer along the predicted path toward player early, then around HQ/refinery
-      // - Others: near centers but not overlapping
-      const tries = (kind === "turret") ? 260 : 200;
+      // Placement: 건설 반경 내에서만 시도. 나무/불가 구역·다른 건물 겹침은 시도하지 않음.
+      const tries = (kind === "turret") ? 260 : 320;
       const turCount = aiEnemyCount("turret");
       const ehq = buildings.find(b => b.alive && !b.civ && b.team === TEAM.ENEMY && b.kind === "hq");
       const phq = buildings.find(b => b.alive && !b.civ && b.team === TEAM.PLAYER && b.kind === "hq");
@@ -312,31 +321,40 @@
         const fy = ehq.y + (phq.y - ehq.y) * 0.45;
         frontAnchor = { x: fx, y: fy, tx: Math.round(fx / TILE), ty: Math.round(fy / TILE) };
       }
+      const isBig = (kind === "refinery" || kind === "factory");
+      const gapTiles = isBig ? 1 : 2;
+      // 건설 반경 내로만 검색 (나무/불가 구역·구역 밖 시도 방지)
+      const maxProvideTiles = centers.length ? Math.max(...centers.map(b => (b.provideR || 0) / TILE)) : 10;
+      const searchRad = Math.min(10, Math.max(6, maxProvideTiles));
+
+
       for (let i = 0; i < tries; i++) {
         let tx, ty;
 
         if (kind === "turret") {
-          // early turrets: along predicted attack path; extra turrets: around base
           const baseAnchor = buildings.find(b => b.alive && !b.civ && b.team === TEAM.ENEMY && (b.kind === "refinery" || b.kind === "hq")) || center;
-          const anchor = (turCount < 4 && frontAnchor) ? frontAnchor : baseAnchor;
-          const r0 = 5 + ((Math.random() * 7) | 0);
+          const useFront = (turCount < 4 && frontAnchor && inBuildRadius(TEAM.ENEMY, frontAnchor.x, frontAnchor.y));
+          const anchor = useFront ? frontAnchor : baseAnchor;
+          const r0 = Math.min(5 + ((Math.random() * 7) | 0), searchRad);
           const ang = Math.random() * Math.PI * 2;
           tx = anchor.tx + Math.round(Math.cos(ang) * r0);
           ty = anchor.ty + Math.round(Math.sin(ang) * r0);
         } else {
-          tx = center.tx + ((Math.random() * 30) | 0) - 15;
-          ty = center.ty + ((Math.random() * 30) | 0) - 15;
+          tx = center.tx + ((Math.random() * (searchRad * 2 + 1)) | 0) - searchRad;
+          ty = center.ty + ((Math.random() * (searchRad * 2 + 1)) | 0) - searchRad;
         }
 
         if (!inMap(tx, ty)) continue;
-        if (isBlockedFootprint(tx, ty, spec.tw, spec.th)) continue;
-        if (isTooCloseToOtherBuildings(tx, ty, spec.tw, spec.th, 2)) continue;
 
         const wpos = buildingWorldFromTileOrigin(tx, ty, spec.tw, spec.th);
         if (!inBuildRadius(TEAM.ENEMY, wpos.cx, wpos.cy)) continue;
 
+        if (isBlockedFootprint(tx, ty, spec.tw, spec.th)) continue;
+        if (isTooCloseToOtherBuildings(tx, ty, spec.tw, spec.th, gapTiles)) continue;
+
         addBuilding(TEAM.ENEMY, kind, tx, ty);
         ai.build.ready = null;
+        ai.build.readySince = 0;
         return true;
       }
       return false;
@@ -344,7 +362,7 @@
 
     function tickEnemySidebarBuild(dt) {
       // Mirrors tickSidebarBuild() but for TEAM.ENEMY (no UI)
-      if (!aiEnemyHas("hq")) { ai.build.queue = null; ai.build.ready = null; return; }
+      if (!aiEnemyHas("hq")) { ai.build.queue = null; ai.build.ready = null; ai.build.readySince = 0; return; }
       if (!ai.build.queue) return;
       const q = ai.build.queue;
       const pf = getPowerFactor(TEAM.ENEMY);
@@ -368,6 +386,7 @@
       if (q.t >= tNeed - 1e-6) {
         q.t = tNeed; q.paid = costTotal;
         ai.build.ready = q.kind;
+        ai.build.readySince = state.t;
         ai.build.queue = null;
       }
     }
@@ -471,8 +490,8 @@
     }
 
     function aiEnsureTechAndEco(e, underPower) {
-      // Tech progression (requested):
-      // power -> barracks -> (turrets around HQ) + refinery -> factory -> radar
+      // Tech progression: power -> barracks -> refinery -> factory (우선) -> turrets -> radar
+      // 제련소/군수공장을 터렛보다 먼저 가져가서 보병만 뽑는 현상 방지
       const hasRef = aiEnemyHas("refinery");
       const hasPow = aiEnemyHas("power");
       const hasBar = aiEnemyHas("barracks");
@@ -485,12 +504,14 @@
 
       if (!hasBar) { aiTryStartBuild("barracks"); return true; }
 
-      // As soon as barracks is up, get early turrets around HQ before moving on.
+      // refinery/factory 먼저 (테크 핵심)
+      if (!hasRef) { aiTryStartBuild("refinery"); return true; }
+      if (!hasFac) { aiTryStartBuild("factory"); return true; }
+
+      // 그 다음 터렛
       const tur = aiEnemyCount("turret");
       if (hasBar && tur < 2 && e.money > 450) { aiTryStartBuild("turret"); return true; }
 
-      if (!hasRef) { aiTryStartBuild("refinery"); return true; }
-      if (!hasFac) { aiTryStartBuild("factory"); return true; }
       if (!hasRad && e.money > COST.radar * 0.25) { aiTryStartBuild("radar"); return true; }
 
       // Late eco scaling
@@ -769,6 +790,7 @@
       if (!hasHQ) {
         ai.build.queue = null;
         ai.build.ready = null;
+        ai.build.readySince = 0;
       }
 
       aiPickRally();
