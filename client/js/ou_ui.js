@@ -1747,6 +1747,102 @@ return {
             isPauseOverlayTarget
     };
   };
+
+  // Attack alerts (toast + minimap + SPACE camera). Requires state, toast, centerCameraOn.
+  OUUI.createAttackAlerts = function createAttackAlerts(refs) {
+    const { state, toast, centerCameraOn } = refs || {};
+    if (!state || typeof toast !== "function" || typeof centerCameraOn !== "function") {
+      return {
+        ensureAttackState: () => {},
+        startNewAttackEvent: () => {},
+        updateLatestAttackEvent: () => {},
+        spawnMiniAlertFx: () => {},
+        notifyPlayerAttacked: () => {},
+        goToLastHit: () => {}
+      };
+    }
+
+    function ensureAttackState() {
+      if (!state.attackAlert) state.attackAlert = { cooldownUntil: -1e9, windowUntil: -1e9, nextEmit: -1e9 };
+      if (!state.attackEvents) state.attackEvents = [];
+      if (state.attackCycle == null) state.attackCycle = 0;
+      if (!state.alertFx) state.alertFx = [];
+    }
+
+    function startNewAttackEvent(x, y, type) {
+      ensureAttackState();
+      state.attackEvents.unshift({ t: state.t, x, y, type, until: state.t + 4.0 });
+      if (state.attackEvents.length > 2) state.attackEvents.length = 2;
+      state.attackCycle = 0;
+    }
+
+    function updateLatestAttackEvent(x, y, type) {
+      ensureAttackState();
+      if (!state.attackEvents.length) { startNewAttackEvent(x, y, type); return; }
+      state.attackEvents[0].t = state.t;
+      state.attackEvents[0].x = x;
+      state.attackEvents[0].y = y;
+      state.attackEvents[0].type = type;
+      state.attackEvents[0].until = state.t + 4.0;
+    }
+
+    function spawnMiniAlertFx(x, y) {
+      ensureAttackState();
+      state.alertFx.push({ x, y, t0: state.t });
+    }
+
+    function notifyPlayerAttacked(target) {
+      ensureAttackState();
+      const now = state.t;
+      const type = (target.kind === "harvester") ? "harvester" : "base";
+      const A = state.attackAlert || (state.attackAlert = { cooldownUntil: -1e9, windowUntil: -1e9, nextEmit: -1e9 });
+
+      if (!state.attackEvents || !state.attackEvents.length) {
+        startNewAttackEvent(target.x, target.y, type);
+      } else {
+        const last = state.attackEvents[0];
+        if (now - (last.t || -1e9) >= 4.0) {
+          startNewAttackEvent(target.x, target.y, type);
+        } else {
+          updateLatestAttackEvent(target.x, target.y, type);
+        }
+      }
+
+      if (state.attackEvents && state.attackEvents.length) {
+        state.attackEvents[0].until = now + 4.0;
+      }
+
+      if (now >= A.nextEmit) {
+        A.nextEmit = now + 4.0;
+        toast(type === "harvester" ? "광물굴착기가 공격 당합니다!" : "아군기지가 공격 당합니다!");
+        spawnMiniAlertFx(target.x, target.y);
+      }
+    }
+
+    function goToLastHit() {
+      ensureAttackState();
+      const evs = state.attackEvents || [];
+      if (!evs.length) {
+        toast("최근 공격 이벤트 없음", 1.0);
+        return;
+      }
+      const n = Math.min(2, evs.length);
+      const i = (state.attackCycle || 0) % n;
+      const ev = evs[i];
+      centerCameraOn(ev.x, ev.y);
+      toast("최근 피격 지점으로 이동", 0.8);
+      state.attackCycle = (i + 1) % n;
+    }
+
+    return {
+      ensureAttackState,
+      startNewAttackEvent,
+      updateLatestAttackEvent,
+      spawnMiniAlertFx,
+      notifyPlayerAttacked,
+      goToLastHit
+    };
+  };
 })(window);
 
 

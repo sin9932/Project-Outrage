@@ -22,6 +22,25 @@
   OU.rnd = OU.rnd || rnd;
   OU.$ = OU.$ || $;
 
+  // Tile/world helpers (require TILE, MAP_W, MAP_H)
+  function createTileHelpers(TILE, MAP_W, MAP_H) {
+    return {
+      tileToWorldCenter: (tx, ty) => ({ x: (tx + 0.5) * TILE, y: (ty + 0.5) * TILE }),
+      tileToWorldOrigin: (tx, ty) => ({ x: tx * TILE, y: ty * TILE }),
+      snapWorldToTileCenter: (wx, wy) => {
+        const tx = clamp(Math.floor(wx / TILE), 0, MAP_W - 1);
+        const ty = clamp(Math.floor(wy / TILE), 0, MAP_H - 1);
+        const p = { x: (tx + 0.5) * TILE, y: (ty + 0.5) * TILE };
+        return { tx, ty, x: p.x, y: p.y };
+      },
+      buildingWorldFromTileOrigin: (tx, ty, tw, th) => {
+        const w = tw * TILE, h = th * TILE;
+        return { cx: tx * TILE + w / 2, cy: ty * TILE + h / 2, w, h };
+      }
+    };
+  }
+  OU.createTileHelpers = createTileHelpers;
+
   // Back-compat globals (only if missing)
   if (!global.clamp) global.clamp = clamp;
   if (!global.dist2) global.dist2 = dist2;

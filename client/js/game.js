@@ -75,83 +75,7 @@
   window.addEventListener("resize", fitCanvas);
   fitCanvas();
 
-  
-  // ===== Player attack alerts (toast + minimap triangle + SPACE camera) =====
-  // NOTE: initialized after `state` is created (see below)
-
-  function ensureAttackState(){
-    if (!state) return;
-    if (!state.attackAlert) state.attackAlert = { cooldownUntil:-1e9, windowUntil:-1e9, nextEmit:-1e9 };
-    if (!state.attackEvents) state.attackEvents = [];
-    if (state.attackCycle==null) state.attackCycle = 0;
-    if (!state.alertFx) state.alertFx = [];
-  }
-
-  function startNewAttackEvent(x,y,type){
-    ensureAttackState();
-    state.attackEvents.unshift({t:state.t, x, y, type, until: state.t + 4.0});
-    if (state.attackEvents.length>2) state.attackEvents.length=2;
-    state.attackCycle = 0;
-  }
-  function updateLatestAttackEvent(x,y,type){
-    ensureAttackState();
-    if (!state.attackEvents.length){ startNewAttackEvent(x,y,type); return; }
-    state.attackEvents[0].t = state.t;
-    state.attackEvents[0].x = x;
-    state.attackEvents[0].y = y;
-    state.attackEvents[0].type = type;
-    state.attackEvents[0].until = state.t + 4.0;
-  }
-  function spawnMiniAlertFx(x,y){
-    ensureAttackState();
-    state.alertFx.push({x,y,t0:state.t});
-  }
-  function notifyPlayerAttacked(target){
-    ensureAttackState();
-    const now = state.t;
-    const type = (target.kind==="harvester") ? "harvester" : "base";
-    const A = state.attackAlert || (state.attackAlert={cooldownUntil:-1e9, windowUntil:-1e9, nextEmit:-1e9});
-
-    // Collect events continuously (max 2). If last event is older than 4s, push a new slot; otherwise refresh the latest.
-    if (!state.attackEvents || !state.attackEvents.length){
-      startNewAttackEvent(target.x, target.y, type);
-    } else {
-      const last = state.attackEvents[0];
-      if (now - (last.t||-1e9) >= 4.0){
-        startNewAttackEvent(target.x, target.y, type);
-      } else {
-        updateLatestAttackEvent(target.x, target.y, type);
-      }
-    }
-
-    // Refresh blink window for the latest event (always 4 seconds from last hit)
-    if (state.attackEvents && state.attackEvents.length){
-      state.attackEvents[0].until = now + 4.0;
-    }
-
-    // Throttle toast + minimap big square FX to once per 4 seconds.
-    // Even while throttled, we still keep collecting/updating events above.
-    if (now >= A.nextEmit){
-      A.nextEmit = now + 4.0;
-      toast(type==="harvester" ? "광물굴착기가 공격 당합니다!" : "아군기지가 공격 당합니다!");
-      spawnMiniAlertFx(target.x, target.y);
-    }
-  }
-
-  function goToLastHit(){
-    ensureAttackState();
-    const evs = state.attackEvents || [];
-    if (!evs.length){
-      toast("최근 공격 이벤트 없음", 1.0);
-      return;
-    }
-    const n = Math.min(2, evs.length);
-    const i = (state.attackCycle||0) % n;
-    const ev = evs[i];
-    centerCameraOn(ev.x, ev.y);
-    toast("최근 피격 지점으로 이동", 0.8);
-    state.attackCycle = (i+1) % n;
-  }
+  // [Attack alerts moved to ou_ui.js createAttackAlerts]
 
 function fitMini() {
     const rect = mmCanvas.getBoundingClientRect();
@@ -174,6 +98,7 @@ function fitMini() {
   }
 
   const TILE = 110;
+  if (window.FX && typeof window.FX.setTile === "function") window.FX.setTile(TILE);
   const GAME_SPEED = 1.30;
   const BUILD_PROD_MULT = 2.60; // 2x building & unit production speed
   // Enemy AI cheats (difficulty)
@@ -189,16 +114,12 @@ function fitMini() {
   const ISO_X = TILE / 2;
   const ISO_Y = TILE / 4;
 
-  // Tile/world helpers (isometric diamond tile center coordinates)
-  function tileToWorldCenter(tx, ty){ return { x:(tx+0.5)*TILE, y:(ty+0.5)*TILE }; }
-  function tileToWorldOrigin(tx, ty){ return { x:tx*TILE, y:ty*TILE }; }
-  function snapWorldToTileCenter(wx, wy){
-    // Snap to the NEAREST tile center (rounding), not the tile corner (floor).
-    const tx = clamp(Math.floor(wx / TILE), 0, MAP_W-1);
-    const ty = clamp(Math.floor(wy / TILE), 0, MAP_H-1);
-    const p = tileToWorldCenter(tx, ty);
-    return { tx, ty, x:p.x, y:p.y };
-  }
+  const __tileHelpers = (window.OU && typeof window.OU.createTileHelpers === "function")
+    ? window.OU.createTileHelpers(TILE, MAP_W, MAP_H)
+    : null;
+  const tileToWorldCenter = __tileHelpers ? __tileHelpers.tileToWorldCenter : (tx,ty)=>({ x:(tx+0.5)*TILE, y:(ty+0.5)*TILE });
+  const tileToWorldOrigin = __tileHelpers ? __tileHelpers.tileToWorldOrigin : (tx,ty)=>({ x:tx*TILE, y:ty*TILE });
+  const snapWorldToTileCenter = __tileHelpers ? __tileHelpers.snapWorldToTileCenter : (wx,wy)=>{ const tx=Math.max(0,Math.min(MAP_W-1,Math.floor(wx/TILE))); const ty=Math.max(0,Math.min(MAP_H-1,Math.floor(wy/TILE))); return { tx, ty, x:(tx+0.5)*TILE, y:(ty+0.5)*TILE }; };
 
   const TEAM = { PLAYER: 0, ENEMY: 1, NEUTRAL: 2 };
 
@@ -211,65 +132,20 @@ function fitMini() {
   const dist2 = (ax,ay,bx,by)=>{ const dx=ax-bx, dy=ay-by; return dx*dx+dy*dy; };
   const rnd = (a,b)=> a + Math.random()*(b-a);
 
+  const __ou_cam = (window.OUCamera && typeof window.OUCamera.create === "function")
+    ? window.OUCamera.create({ TILE, MAP_W, MAP_H, canvas, clamp })
+    : null;
 
-  function worldToIso(wx, wy) { return { x: (wx - wy) * (ISO_X / TILE), y: (wx + wy) * (ISO_Y / TILE) }; }
-  function isoToWorld(ix, iy) {
-    const a = ix * (TILE / ISO_X);
-    const b = iy * (TILE / ISO_Y);
-    return { x: (a + b) / 2, y: (b - a) / 2 };
-  }
-  function getBaseOffset() { return { x: canvas.width * 0.5, y: canvas.height * 0.22 }; }
-
-  const cam = { x: WORLD_W*0.5, y: WORLD_H*0.5, speed: 900, zoom: 1.0 };
-
-  const isoCorners = [
-    worldToIso(0,0), worldToIso(WORLD_W,0), worldToIso(0,WORLD_H), worldToIso(WORLD_W,WORLD_H),
-  ];
-  const isoMinX = Math.min(...isoCorners.map(p=>p.x));
-  const isoMaxX = Math.max(...isoCorners.map(p=>p.x));
-  const isoMinY = Math.min(...isoCorners.map(p=>p.y));
-  const isoMaxY = Math.max(...isoCorners.map(p=>p.y));
-
-  function clampCamera() {
-    const base = getBaseOffset();
-    const camIso = worldToIso(cam.x, cam.y);
-    const margin = 220;
-
-    const minCamIsoX = isoMinX - base.x - margin;
-    const maxCamIsoX = isoMaxX - base.x + margin;
-    const minCamIsoY = isoMinY - base.y - margin;
-    const maxCamIsoY = isoMaxY - base.y + margin;
-
-    camIso.x = clamp(camIso.x, minCamIsoX, maxCamIsoX);
-    camIso.y = clamp(camIso.y, minCamIsoY, maxCamIsoY);
-
-    const w = isoToWorld(camIso.x, camIso.y);
-    cam.x = w.x; cam.y = w.y;
-  }
-
-  function worldToScreen(wx, wy) {
-    const base = getBaseOffset();
-    const iso = worldToIso(wx, wy);
-    const camIso = worldToIso(cam.x, cam.y);
-    return { x: (iso.x - camIso.x)*cam.zoom + base.x + (camShake.active?camShake.ox:0), y: (iso.y - camIso.y)*cam.zoom + base.y + (camShake.active?camShake.oy:0) };
-  }
-  function screenToWorld(px, py) {
-    const base = getBaseOffset();
-    const camIso = worldToIso(cam.x, cam.y);
-    const isoX = (px - base.x)/cam.zoom + camIso.x;
-    const isoY = (py - base.y)/cam.zoom + camIso.y;
-    return isoToWorld(isoX, isoY);
-  }
-  function centerCameraOn(wx, wy) {
-    const base = getBaseOffset();
-    const iso = worldToIso(wx, wy);
-    const cx = canvas.width*0.5, cy = canvas.height*0.5;
-    const camIsoX = iso.x + base.x - cx;
-    const camIsoY = iso.y + base.y - cy;
-    const w = isoToWorld(camIsoX, camIsoY);
-    cam.x = w.x; cam.y = w.y;
-    clampCamera();
-  }
+  const cam = __ou_cam ? __ou_cam.cam : { x: WORLD_W*0.5, y: WORLD_H*0.5, speed: 900, zoom: 1.0 };
+  const camShake = __ou_cam ? __ou_cam.camShake : { t:0, dur:0, mag:0, freq:0, ox:0, oy:0, active:false };
+  const worldToIso = __ou_cam ? __ou_cam.worldToIso : (wx,wy)=>({ x:(wx-wy)*0.5, y:(wx+wy)*0.25 });
+  const isoToWorld = __ou_cam ? __ou_cam.isoToWorld : (ix,iy)=>({ x:ix+iy, y:(iy-ix)/2 });
+  const clampCamera = __ou_cam ? __ou_cam.clampCamera : ()=>{};
+  const worldToScreen = __ou_cam ? __ou_cam.worldToScreen : (wx,wy)=>({ x:wx, y:wy });
+  const screenToWorld = __ou_cam ? __ou_cam.screenToWorld : (px,py)=>({ x:px, y:py });
+  const centerCameraOn = __ou_cam ? __ou_cam.centerCameraOn : ()=>{};
+  const startCamShake = __ou_cam ? __ou_cam.startCamShake : ()=>{};
+  const updateCamShake = __ou_cam ? __ou_cam.updateCamShake : ()=>{};
 
   
 
@@ -304,6 +180,10 @@ function fitMini() {
   state.attackAlert = { cooldownUntil:-1e9, windowUntil:-1e9 };
   state.attackEvents = [];
   state.attackCycle = 0;
+
+  const __ou_attack = (window.OUUI && typeof window.OUUI.createAttackAlerts === "function")
+    ? window.OUUI.createAttackAlerts({ state, toast, centerCameraOn })
+    : null;
   state.alertFx = [];
   state.stats = {
     kills: { 0: 0, 1: 0 }, losses: { 0: 0, 1: 0 }, construction: { 0: 0, 1: 0 }, harvest: { 0: 0, 1: 0 },
@@ -319,6 +199,7 @@ function fitMini() {
 
 
   const controlGroups = Array.from({length:10}, ()=>[]);
+  if (window.FX && typeof window.FX.setGetTime === "function") window.FX.setGetTime(() => state.t);
 
   const terrain = new Uint8Array(MAP_W*MAP_H); // 0 ground, 1 rock, 2 ore, 3 water
   const ore = new Uint16Array(MAP_W*MAP_H);
@@ -445,10 +326,16 @@ function fitMini() {
   const traces=[];
   const impacts=[]; // MG bullet impact sparks
   const fires=[]; // building fire particles (low HP)
-  const explosions=[]; // building destruction explosions
-  const debris=[]; // RA2-style flying debris
-  const debrisTrail=[];
-  const exp1Fxs = []; // large explosion sprite fx (rendered in render.js)
+  const explosions = (window.FX && window.FX.explosions) ? window.FX.explosions : [];
+  const debris = (window.FX && window.FX.debris) ? window.FX.debris : [];
+  const debrisTrail = (window.FX && window.FX.debrisTrail) ? window.FX.debrisTrail : [];
+  const exp1Fxs = (window.FX && window.FX.exp1Fxs) ? window.FX.exp1Fxs : [];
+  const smokeWaves = (window.FX && window.FX.smokeWaves) ? window.FX.smokeWaves : [];
+  const smokePuffs = (window.FX && window.FX.smokePuffs) ? window.FX.smokePuffs : [];
+  const dustPuffs = (window.FX && window.FX.dustPuffs) ? window.FX.dustPuffs : [];
+  const dmgSmokePuffs = (window.FX && window.FX.dmgSmokePuffs) ? window.FX.dmgSmokePuffs : [];
+  const bloodStains = (window.FX && window.FX.bloodStains) ? window.FX.bloodStains : [];
+  const bloodPuffs = (window.FX && window.FX.bloodPuffs) ? window.FX.bloodPuffs : [];
 
   const healMarks=[]; // red-cross marks for repairs
   const flashes=[]; // muzzle flashes
@@ -753,45 +640,9 @@ function getBaseBuildTime(kind){
     }
   }
 
-  function spawnExp1FxAt(wx, wy, scale=1.0, frameDur=0.05){
-    // If not ready yet, just skip (base particle explosion still happens).
-    if (window.OURender && typeof OURender.isExp1Ready === "function"){
-      if (!OURender.isExp1Ready()) return;
-    }
-    exp1Fxs.push({ x: wx, y: wy, t0: state.t, scale, frameDur });
-  }
+  if (window.FX && typeof window.FX.setGetTime === "function") window.FX.setGetTime(() => state.t);
 
-  
-
-  // === Camera shake (world only, UI unaffected) ===
-  const camShake = { t:0, dur:0, mag:0, freq:0, ox:0, oy:0, active:false };
-
-  function startCamShake(dur=0.55, mag=18, freq=34){
-    camShake.t = 0;
-    camShake.dur = Math.max(0.05, dur);
-    camShake.mag = mag;
-    camShake.freq = freq;
-    camShake.active = true;
-    camShake.ox = 0;
-    camShake.oy = 0;
-  }
-
-  function updateCamShake(dt){
-    if (!camShake.active) return;
-    camShake.t += dt;
-    const k = 1 - (camShake.t / Math.max(0.001, camShake.dur));
-    if (k <= 0){
-      camShake.active = false;
-      camShake.ox = 0;
-      camShake.oy = 0;
-      return;
-    }
-    // Screen-space wobble, eased out
-    const a = camShake.t * camShake.freq;
-    const amp = camShake.mag * (k*k);
-    camShake.ox = (Math.sin(a*1.7) + Math.sin(a*2.9)*0.55) * amp;
-    camShake.oy = (Math.cos(a*1.3) + Math.cos(a*2.3)*0.55) * amp;
-  }
+  // [Camera shake moved to camera.js]
 
   // === Sniper movement sprite sheets (8-dir) 12f (600x600 tiles, 6x2) ===
   // NOTE: filenames per user assets (no _e suffix; east uses snip_mov.png)
@@ -875,12 +726,7 @@ function getBaseBuildTime(kind){
     return vecToDir8(sx, sy);
   }
 
-function buildingWorldFromTileOrigin(tx,ty,tw,th){
-    const w=tw*TILE, h=th*TILE;
-    // Buildings occupy an integer tile footprint [tx..tx+tw-1, ty..ty+th-1].
-    // Use the footprint's true world AABB center (aligned to tile grid intersections).
-    return { cx: (tx*TILE + w/2), cy: (ty*TILE + h/2), w, h };
-  }
+const buildingWorldFromTileOrigin = __tileHelpers ? __tileHelpers.buildingWorldFromTileOrigin : (tx,ty,tw,th)=>{ const w=tw*TILE, h=th*TILE; return { cx: tx*TILE + w/2, cy: ty*TILE + h/2, w, h }; };
   function setBuildingOcc(b, v){
     for (let ty=b.ty; ty<b.ty+b.th; ty++){
       for (let tx=b.tx; tx<b.tx+b.tw; tx++){
@@ -1948,7 +1794,7 @@ function tryUnloadIFV(ifv){
 
     // Player under attack: toast + minimap ping + SPACE jump memory (4s window, max 2 saved).
     if (srcTeam===TEAM.ENEMY && target.team===TEAM.PLAYER){
-      if (target.kind==="harvester" || BUILD[target.kind]) notifyPlayerAttacked(target);
+      if (target.kind==="harvester" || BUILD[target.kind]) { if (__ou_attack && __ou_attack.notifyPlayerAttacked) __ou_attack.notifyPlayerAttacked(target); }
     }
     // Enemy base under attack: push AI defense alert
     if (srcTeam===TEAM.PLAYER && target.team===TEAM.ENEMY){
@@ -2015,15 +1861,15 @@ function tryUnloadIFV(ifv){
       const cls = UNIT[ent.kind]?.cls;
       if (ent.kind === "sniper"){
         snipDeathFxs.push({ x: ent.x, y: ent.y, team: ent.team, t0: state.t });
-        try{ addBloodBurst(ent.x, ent.y, 1.05); }catch(_e){}
+        try{ if (window.FX && window.FX.addBloodBurst) window.FX.addBloodBurst(ent.x, ent.y, 1.05); }catch(_e){}
       } else if (cls === "inf"){
         infDeathFxs.push({ x: ent.x, y: ent.y, team: ent.team, t0: state.t });
-        try{ addBloodBurst(ent.x, ent.y, 1.00); }catch(_e){}
+        try{ if (window.FX && window.FX.addBloodBurst) window.FX.addBloodBurst(ent.x, ent.y, 1.00); }catch(_e){}
       }
     }catch(_e){}
 
     if (ent.kind === "harvester"){
-      try{ addDebris(ent.x, ent.y, { minN:2, maxN:6, size:1.2 }); }catch(_e){}
+      try{ if (window.FX && window.FX.addDebris) window.FX.addDebris(ent.x, ent.y, { minN:2, maxN:6, size:1.2 }); }catch(_e){}
     }
 
     ent.alive = false;
@@ -2042,11 +1888,11 @@ function tryUnloadIFV(ifv){
     spawnEvacUnitsFromBuilding(b, true);
 
     // 2) Big destruction FX
-    addBuildingExplosion(b);
+    if (window.FX && window.FX.addBuildingExplosion) window.FX.addBuildingExplosion(b);
     const bw = (b.w || (b.tw*TILE) || (TILE*4));
     const bh = (b.h || (b.th*TILE) || (TILE*4));
     const bSize = Math.sqrt(bw*bw + bh*bh) / (TILE*2);
-    addDebris(b.x, b.y, { minN:4, maxN:12, size: clamp(bSize, 0.8, 2.5) });
+    if (window.FX && window.FX.addDebris) window.FX.addDebris(b.x, b.y, { minN:4, maxN:12, size: clamp(bSize, 0.8, 2.5) });
     // 2.2) Smoke ring + smoke plume at destruction point
     let _smkS = 1;
     try{
@@ -2055,7 +1901,7 @@ function tryUnloadIFV(ifv){
       let s = Math.sqrt(bw*bw + bh*bh) / (TILE*2.0);
       _smkS = clamp(s, 0.8, 2.2);
     }catch(_e){}
-    try{ addSmokeEmitter(b.x, b.y, _smkS); }catch(_e){}
+    try{ if (window.FX && window.FX.addSmokeEmitter) window.FX.addSmokeEmitter(b.x, b.y, _smkS); }catch(_e){}
 // 2.3) Restore the old "noisy gradient smoke particle" feel:
 //      - a burst of dusty smoke blobs + lingering smoke puffs.
 //      (kept deterministic-ish and cheap)
@@ -2063,11 +1909,11 @@ try{
   // Fewer puffs per frame to avoid freeze on destroy (spread cost).
   const puffN = Math.min(12, Math.floor(18 * _smkS));
   for (let i=0;i<puffN;i++){
-    spawnSmokePuff(b.x, b.y, 1.35 * _smkS);
+    if (window.FX && window.FX.spawnSmokePuff) window.FX.spawnSmokePuff(b.x, b.y, 1.35 * _smkS);
   }
   const hazeN = Math.min(4, Math.floor(4 * _smkS));
   for (let i=0;i<hazeN;i++){
-    spawnSmokeHaze(b.x, b.y, 1.10 * _smkS);
+    if (window.FX && window.FX.spawnSmokeHaze) window.FX.spawnSmokeHaze(b.x, b.y, 1.10 * _smkS);
   }
 }catch(_e){}
     // 2.5) HQ special: play large exp1 sprite explosion + world camera shake (UI not affected)
@@ -2089,7 +1935,7 @@ try{
           sc = clamp(Math.max(sx, sy) * 0.35, 0.55, 1.35);
         }
       }catch(_e){}
-      spawnExp1FxAt(b.x, b.y, sc, 0.05);
+      if (window.FX && window.FX.spawnExp1FxAt) window.FX.spawnExp1FxAt(b.x, b.y, sc, 0.05);
       startCamShake(0.65, 22, 36);
     }
 
@@ -2101,471 +1947,6 @@ try{
     setBuildingOcc(b, 0);
     recomputePower();
     checkElimination();
-  }
-
-
-
-
-  
-// ===== Smoke ring + smoke particles (building destruction) =====
-// 목표:
-// - 파동 연기: "원형으로 퍼지되", 아이소메트리라서 위아래 납작 + 라인 없이 흐릿한 연무 타입
-// - 파티클/폭발을 가리지 않도록 렌더 순서는 최하위(지형 위, 폭발/파편 아래)
-const smokeWaves = [];
-const smokePuffs = [];
-const smokeEmitters = [];
-
-// Extra ground FX for vehicles
-const dustPuffs = [];
-const dmgSmokePuffs = [];
-
-// Dust puff for moving vehicles (sandy haze). World-positioned (does NOT follow units).
-function spawnDustPuff(wx, wy, vx, vy, strength=1){
-  const size = clamp(strength, 0.6, 2.2);
-  const spread = TILE * 0.30 * size;
-  const ang = Math.random() * Math.PI * 2;
-  const rad = Math.sqrt(Math.random()) * spread;
-  const x = wx + Math.cos(ang) * rad;
-  const y = wy + Math.sin(ang) * rad;
-
-  // drift roughly opposite of movement (normalize vx/vy)
-  const mag = Math.max(0.0001, Math.hypot(vx||0, vy||0));
-  const backx = -(vx||0) / mag;
-  const backy = -(vy||0) / mag;
-
-  dustPuffs.push({
-    x, y,
-    vx: backx*(TILE*0.18*size) + (Math.random()*2-1)*(TILE*0.05*size),
-    vy: backy*(TILE*0.18*size) + (Math.random()*2-1)*(TILE*0.05*size),
-    t: 0,
-    ttl: 1.35 + Math.random()*0.75,
-    r0: (22 + Math.random()*14) * size,
-    grow: (92 + Math.random()*60) * size,
-    a0: 0.48 + Math.random()*0.18
-  });
-}
-
-// Damage smoke from a crippled unit (from turret area). World-positioned.
-function spawnDmgSmokePuff(wx, wy, strength=1){
-  const size = clamp(strength, 0.6, 2.4);
-  const spread = TILE * 0.22 * size;
-  const ang = Math.random() * Math.PI * 2;
-  const rad = Math.sqrt(Math.random()) * spread;
-  const x = wx + Math.cos(ang) * rad;
-  const y = wy + Math.sin(ang) * rad;
-
-  dmgSmokePuffs.push({
-    x, y,
-    vx: (Math.random()*2-1)*(TILE*0.03*size),
-    vy: (Math.random()*2-1)*(TILE*0.03*size) - (TILE*0.02*size),
-    t: 0,
-    ttl: 1.55 + Math.random()*0.75,
-    r0: (10 + Math.random()*10) * size,
-    grow: (48 + Math.random()*40) * size,
-    a0: 0.10 + Math.random()*0.06
-  });
-}
-
-function addSmokeWave(wx, wy, size=1){
-  const sz = clamp(size, 0.6, 2.1);
-  smokeWaves.push({
-    x: wx, y: wy,
-    t: 0,
-    ttl: 1.55,
-    size: sz,
-    seed: (Math.random()*1e9)|0,
-    squash: 0.62 // y flatten
-  });
-}
-
-function addSmokeEmitter(wx, wy, size=1){
-  const sz = clamp(size, 0.6, 2.3);
-  smokeEmitters.push({ x:wx, y:wy, t:0, ttl:3.4, size: sz, acc:0 });
-
-  // 잔류 연무(넓게 퍼지는 옅은 연기) 몇 덩이 깔기
-  for (let i=0;i<7;i++) spawnSmokeHaze(wx, wy, sz * (0.95 + Math.random()*0.28));
-}
-
-function spawnSmokePuff(wx, wy, size=1){
-  const spread = TILE * 0.85 * size;
-  const ang = Math.random() * Math.PI * 2;
-  const rad = Math.sqrt(Math.random()) * spread;
-
-  const x = wx + Math.cos(ang) * rad;
-  const y = wy + Math.sin(ang) * rad;
-
-  smokePuffs.push({
-    x, y,
-    vx: (Math.random()*2-1) * (TILE * 0.22 * size) + Math.cos(ang)*(TILE*0.08*size),
-    vy: (Math.random()*2-1) * (TILE * 0.22 * size) + Math.sin(ang)*(TILE*0.08*size),
-    t: 0,
-    ttl: 2.8 + Math.random()*2.2,
-    r0: (18 + Math.random()*26) * size,
-    grow: (30 + Math.random()*44) * size,
-    a0: 0.12 + Math.random()*0.12
-  });
-}
-
-function spawnTrailPuff(wx, wy, vx, vy, strength=1){
-  // Subtle, "noise-like gradient" trail puff for vehicles.
-  const size = clamp(strength, 0.35, 1.20);
-
-  // Drift opposite of movement (normalize)
-  const mag = Math.max(0.0001, Math.hypot(vx||0, vy||0));
-  const backx = -(vx||0) / mag;
-  const backy = -(vy||0) / mag;
-
-  // Slight jitter to avoid looking like a clean wave.
-  const j = TILE * 0.10 * size;
-  const x = wx + (Math.random()*2-1)*j;
-  const y = wy + (Math.random()*2-1)*j;
-
-  // Push directly into smokePuffs so it uses the same soft radial gradient renderer.
-  smokePuffs.push({
-    x, y,
-    vx: backx*(TILE*0.12*size) + (Math.random()*2-1)*(TILE*0.04*size),
-    vy: backy*(TILE*0.12*size) + (Math.random()*2-1)*(TILE*0.04*size) - (TILE*0.02*size),
-    t: 0,
-    ttl: 0.95 + Math.random()*0.55,
-    r0: (10 + Math.random()*8) * size,
-    grow: (18 + Math.random()*16) * size,
-    a0: 0.07 + Math.random()*0.06
-  });
-
-  // Extra micro-puffs to fake "noisy" edges without being loud.
-  const microN = 2 + ((Math.random()*2)|0);
-  for (let i=0;i<microN;i++){
-    smokePuffs.push({
-      x: x + (Math.random()*2-1)*(TILE*0.16*size),
-      y: y + (Math.random()*2-1)*(TILE*0.12*size),
-      vx: backx*(TILE*0.09*size) + (Math.random()*2-1)*(TILE*0.05*size),
-      vy: backy*(TILE*0.09*size) + (Math.random()*2-1)*(TILE*0.05*size) - (TILE*0.02*size),
-      t: 0,
-      ttl: 0.75 + Math.random()*0.45,
-      r0: (7 + Math.random()*6) * size,
-      grow: (14 + Math.random()*14) * size,
-      a0: 0.05 + Math.random()*0.05
-    });
-  }
-}
-
-function spawnSmokeHaze(wx, wy, size=1){
-  const spread = TILE * 1.15 * size;
-  const ang = Math.random() * Math.PI * 2;
-  const rad = Math.sqrt(Math.random()) * spread;
-
-  const x = wx + Math.cos(ang) * rad;
-  const y = wy + Math.sin(ang) * rad;
-
-  smokePuffs.push({
-    x, y,
-    vx: (Math.random()*2-1) * (TILE * 0.10 * size) + Math.cos(ang)*(TILE*0.06*size),
-    vy: (Math.random()*2-1) * (TILE * 0.10 * size) + Math.sin(ang)*(TILE*0.06*size),
-    t: 0,
-    ttl: 4.2 + Math.random()*2.2,
-    r0: (34 + Math.random()*24) * size,
-    grow: (70 + Math.random()*70) * size,
-    a0: 0.06 + Math.random()*0.05
-  });
-}
-
-function updateSmoke(dt){
-  // Waves
-  for (let i=smokeWaves.length-1;i>=0;i--){
-    const w = smokeWaves[i];
-    w.t += dt;
-    if (w.t >= w.ttl) smokeWaves.splice(i,1);
-  }
-
-  // Emitters
-  for (let i=smokeEmitters.length-1;i>=0;i--){
-    const e = smokeEmitters[i];
-    e.t += dt;
-    e.acc += dt;
-
-    const rate = 18 * e.size;
-    const step = 1 / Math.max(6, rate);
-
-    while (e.acc >= step){
-      e.acc -= step;
-      spawnSmokePuff(e.x, e.y, e.size);
-    }
-    if (e.t >= e.ttl) smokeEmitters.splice(i,1);
-  }
-
-  // Puffs
-  for (let i=smokePuffs.length-1;i>=0;i--){
-    const p = smokePuffs[i];
-    p.t += dt;
-    if (p.t >= p.ttl){ smokePuffs.splice(i,1); continue; }
-
-    p.x += p.vx * dt;
-    p.y += p.vy * dt;
-
-    const damp = Math.pow(0.992, dt*60);
-    p.vx *= damp;
-    p.vy *= damp;
-  }
-
-  // Dust puffs
-  for (let i=dustPuffs.length-1;i>=0;i--){
-    const p = dustPuffs[i];
-    p.t += dt;
-    if (p.t >= p.ttl){ dustPuffs.splice(i,1); continue; }
-    p.x += p.vx * dt;
-    p.y += p.vy * dt;
-    const damp = Math.pow(0.975, dt*60);
-    p.vx *= damp;
-    p.vy *= damp;
-  }
-
-  // Damage smoke puffs
-  for (let i=dmgSmokePuffs.length-1;i>=0;i--){
-    const p = dmgSmokePuffs[i];
-    p.t += dt;
-    if (p.t >= p.ttl){ dmgSmokePuffs.splice(i,1); continue; }
-    p.x += p.vx * dt;
-    p.y += p.vy * dt;
-    const damp = Math.pow(0.988, dt*60);
-    p.vx *= damp;
-    p.vy *= damp;
-  }
-}
-
-// ===== Blood particles (infantry death) =====
-// - Uses the same "soft radial particle" style as smoke puffs, but tinted red/brown.
-// - Two layers:
-//   1) bloodStains: ground decal (flattened ellipse) lingering longer
-//   2) bloodPuffs : short-lived mist/droplets that spread out and fade
-const bloodStains = [];
-const bloodPuffs  = [];
-
-function addBloodBurst(wx, wy, size=1){
-  const sz = clamp(size, 0.6, 1.8);
-  // Spawn puffs a bit above ground so it feels like it comes from the body, not the floor.
-  const BLOOD_PUFF_LIFT = (TILE * 0.32) * sz; // tweak if needed
-
-  // Ground stain (isometric flattened)
-  bloodStains.push({
-    x: wx, y: wy,
-    t: 0,
-    ttl: 14 + Math.random()*10,
-    size: sz,
-    r0: (TILE * (0.12 + Math.random()*0.06)) * sz,
-    grow: (TILE * (0.10 + Math.random()*0.06)) * sz,
-    a0: 0.26 + Math.random()*0.12,
-    squash: 0.56 + Math.random()*0.06
-  });
-
-  // Mist/droplet particles
-  const N = Math.round(10 + Math.random()*6);
-  for (let i=0;i<N;i++){
-    const ang = Math.random()*Math.PI*2;
-    const spd = (TILE * (0.45 + Math.random()*0.55)) * sz;
-
-    bloodPuffs.push({
-      x: wx + (Math.random()*2-1) * TILE*0.06*sz,
-      y: (wy - BLOOD_PUFF_LIFT) + (Math.random()*2-1) * TILE*0.06*sz,
-      vx: Math.cos(ang)*spd + (Math.random()*2-1)*TILE*0.10*sz,
-      vy: Math.sin(ang)*spd + (Math.random()*2-1)*TILE*0.10*sz,
-      t: 0,
-      ttl: 0.9 + Math.random()*0.8,
-      r0: (6 + Math.random()*8) * sz,
-      grow: (10 + Math.random()*16) * sz,
-      a0: 0.22 + Math.random()*0.18,
-      rise: 0,
-      vrise: (22 + Math.random()*38) * sz, // screen-space rise (px/s), for a little "splash"
-      kind: (Math.random() < 0.45) ? "droplet" : "mist"
-    });
-  }
-}
-
-function updateBlood(dt){
-  // Stains
-  for (let i=bloodStains.length-1;i>=0;i--){
-    const s = bloodStains[i];
-    s.t += dt;
-    if (s.t >= s.ttl) bloodStains.splice(i,1);
-  }
-
-  // Puffs
-  for (let i=bloodPuffs.length-1;i>=0;i--){
-    const p = bloodPuffs[i];
-    p.t += dt;
-    if (p.t >= p.ttl){ bloodPuffs.splice(i,1); continue; }
-
-    p.x += p.vx * dt;
-    p.y += p.vy * dt;
-
-    // dampen movement
-    const damp = Math.pow(0.985, dt*60);
-    p.vx *= damp;
-    p.vy *= damp;
-
-    // rise is screen-space (used only in draw)
-    p.rise += p.vrise * dt;
-    p.vrise *= Math.pow(0.94, dt*60);
-  }
-}
-
-  // ===== Building Destruction Explosion FX =====
-  // Creates a big flash + ground glow + streak sparks + flame plumes (roughly like the screenshot).
-  function addBuildingExplosion(b){
-    if (!b) return;
-    const w = (b.w||0), h = (b.h||0);
-    let size = Math.sqrt((w*w+h*h)) / (TILE*1.25);
-    size = clamp(size, 2.4, 7.5); // HUGE explosion scale
-    const ex = {
-      x: b.x, y: b.y,
-      t: 0,
-      ttl: 1.15,
-      size,
-      parts: []
-    };
-
-    // Streak sparks (fast, thin) - reduced count to avoid freeze on destroy
-    const sparkN = 28;
-    for (let i=0;i<sparkN;i++){
-      const ang = (-Math.PI/2) + (Math.random()*Math.PI) + (Math.random()*0.35 - 0.175);
-      const spd = 420 + Math.random()*520;
-      ex.parts.push({
-        kind:"streak",
-        x: ex.x + (Math.random()*2-1)*TILE*0.10,
-        y: ex.y + (Math.random()*2-1)*TILE*0.10,
-        vx: Math.cos(ang)*spd,
-        vy: Math.sin(ang)*spd,
-        life: 0.28 + Math.random()*0.18,
-        ttl: 0.28 + Math.random()*0.18,
-        w: 1.2 + Math.random()*1.8
-      });
-    }
-
-    // Flame plumes (slow, rising)
-    const flameN = 18;
-    for (let i=0;i<flameN;i++){
-      const ang = Math.random()*Math.PI*2;
-      const spd = 70 + Math.random()*120;
-      ex.parts.push({
-        kind:"flame",
-        x: ex.x + (Math.random()*2-1)*TILE*0.18,
-        y: ex.y + (Math.random()*2-1)*TILE*0.18,
-        vx: Math.cos(ang)*spd,
-        vy: Math.sin(ang)*spd,
-        rise: 160 + Math.random()*190,
-        life: 0.65 + Math.random()*0.35,
-        ttl: 0.65 + Math.random()*0.35,
-        r: 40 + Math.random()*70
-      });
-    }
-
-    // A few embers (mid speed)
-    const emberN = 14;
-    for (let i=0;i<emberN;i++){
-      const ang = (-Math.PI/2) + (Math.random()*Math.PI);
-      const spd = 170 + Math.random()*220;
-      ex.parts.push({
-        kind:"ember",
-        x: ex.x + (Math.random()*2-1)*TILE*0.14,
-        y: ex.y + (Math.random()*2-1)*TILE*0.14,
-        vx: Math.cos(ang)*spd,
-        vy: Math.sin(ang)*spd,
-        life: 0.55 + Math.random()*0.25,
-        ttl: 0.55 + Math.random()*0.25,
-        r: 6 + Math.random()*8
-      });
-    }
-
-    explosions.push(ex);
-  }
-
-  function addDebris(cx, cy, opts={}){
-    const T = opts.tile ?? TILE;
-    const minN = opts.minN ?? 4;
-    const maxN = opts.maxN ?? 12;
-    const baseSize = opts.size ?? 1;
-    const n = minN + Math.floor(Math.random() * (maxN - minN + 1));
-    for (let i=0;i<n;i++){
-      const ang = Math.random() * Math.PI * 2;
-      const spd = (180 + Math.random()*220) * baseSize;
-      const vz0 = (280 + Math.random()*320) * baseSize;
-      const w = (T*0.12 + Math.random()*T*0.18) * baseSize;
-      const h = (T*0.08 + Math.random()*T*0.12) * baseSize;
-      debris.push({
-        x: cx + (Math.random()*2-1)*T*0.2,
-        y: cy + (Math.random()*2-1)*T*0.2,
-        z: 0,
-        vx: Math.cos(ang)*spd,
-        vy: Math.sin(ang)*spd,
-        vz: vz0,
-        w, h,
-        rot: Math.random()*Math.PI*2,
-        rotV: (Math.random()*2-1)*14,
-        t: 0,
-        ttl: 6,
-        cx, cy
-      });
-    }
-  }
-  function updateDebris(dt){
-    const G = 980;
-    for (let i=debrisTrail.length-1;i>=0;i--){
-      const t = debrisTrail[i];
-      t.life -= dt;
-      if (t.life <= 0){ debrisTrail.splice(i,1); continue; }
-      t.x += (t.vx||0)*dt;
-      t.y += (t.vy||0)*dt;
-    }
-    for (let i=debris.length-1;i>=0;i--){
-      const d = debris[i];
-      d.t += dt;
-      if (d.t >= d.ttl){ debris.splice(i,1); continue; }
-      const speedH = Math.hypot(d.vx, d.vy);
-      if (speedH > 50 && (d.z||0) > 5){
-        debrisTrail.push({
-          x: d.x, y: d.y,
-          vx: -d.vx*0.06, vy: -d.vy*0.06,
-          life: 0.18 + Math.random()*0.12,
-          ttl: 0.18 + Math.random()*0.12,
-          r: 8 + Math.random()*12
-        });
-      }
-      d.x += d.vx*dt;
-      d.y += d.vy*dt;
-      d.z = (d.z||0) + (d.vz||0)*dt;
-      d.vz = (d.vz||0) - G*dt;
-      d.rot += (d.rotV||0)*dt;
-      d.vx *= 0.992;
-      d.vy *= 0.992;
-      if (d.z <= 0){ debris.splice(i,1); }
-    }
-  }
-
-  function updateExplosions(dt){
-    for (let i=explosions.length-1;i>=0;i--){
-      const e = explosions[i];
-      e.t += dt;
-      for (let j=e.parts.length-1;j>=0;j--){
-        const p = e.parts[j];
-        p.life -= dt;
-        if (p.life<=0){ e.parts.splice(j,1); continue; }
-        p.x += p.vx*dt;
-        p.y += p.vy*dt;
-        // Gravity-ish pull down a bit for sparks/embers
-        if (p.kind==="streak" || p.kind==="ember"){
-          p.vy += 820*dt;
-          p.vx *= (1 - Math.min(1, dt*1.8));
-          p.vy *= (1 - Math.min(1, dt*1.2));
-        } else if (p.kind==="flame"){
-          // Flames drift + rise
-          p.vx *= (1 - Math.min(1, dt*1.2));
-          p.vy *= (1 - Math.min(1, dt*1.2));
-          p.rise *= (1 - Math.min(1, dt*2.6));
-        }
-      }
-      if (e.t >= e.ttl && e.parts.length===0){
-        explosions.splice(i,1);
-      }
-    }
   }
 
   function hasControllableAssets(team){
@@ -2690,15 +2071,15 @@ const __ou_sim = (window.OUSim && typeof window.OUSim.create==="function")
       _advanceTurnState,
       _turretTurnFrameNum,
       // spawnBullet/spawnTrace/mg/sniper now live in sim
-      spawnTrailPuff,
-      spawnDmgSmokePuff,
+      spawnTrailPuff: (window.FX && window.FX.spawnTrailPuff) || (()=>{}),
+      spawnDmgSmokePuff: (window.FX && window.FX.spawnDmgSmokePuff) || (()=>{}),
       applyDamage,
       crushInfantry,
       captureBuilding,
       boardUnitIntoIFV,
-      // turret/bullet deps
-      updateExplosions,
-      updateDebris
+      // turret/bullet deps (FX module)
+      updateExplosions: (window.FX && window.FX.updateExplosions) || (()=>{}),
+      updateDebris: (window.FX && window.FX.updateDebris) || (()=>{})
     })
   : null;
 if (!__ou_sim) console.warn("[ou_sim] missing: include js/sim.js before game.js");
@@ -3987,7 +3368,7 @@ const keys=new Set();
       e.preventDefault();
       return;
     }
-    if (e.key===" ") { if (e.repeat) { e.preventDefault(); return; } goToLastHit(); e.preventDefault(); }
+    if (e.key===" ") { if (e.repeat) { e.preventDefault(); return; } if (__ou_attack && __ou_attack.goToLastHit) __ou_attack.goToLastHit(); e.preventDefault(); }
 
     if (k==="q") { setProdCat("main"); e.preventDefault(); return; }
     if (k==="w") { setProdCat("def");  e.preventDefault(); return; }
@@ -5016,7 +4397,16 @@ function draw(){
 
   function clearWorld(){
     units.length=0; buildings.length=0; bullets.length=0; traces.length=0;
-    explosions.length=0; debris.length=0; debrisTrail.length=0;
+    explosions.length=0; debris.length=0; debrisTrail.length=0; exp1Fxs.length=0;
+    if (window.FX){
+      if (window.FX.smokeWaves) window.FX.smokeWaves.length=0;
+      if (window.FX.smokePuffs) window.FX.smokePuffs.length=0;
+      if (window.FX.smokeEmitters) window.FX.smokeEmitters.length=0;
+      if (window.FX.dustPuffs) window.FX.dustPuffs.length=0;
+      if (window.FX.dmgSmokePuffs) window.FX.dmgSmokePuffs.length=0;
+      if (window.FX.bloodStains) window.FX.bloodStains.length=0;
+      if (window.FX.bloodPuffs) window.FX.bloodPuffs.length=0;
+    }
     buildOcc.fill(0);
     explored[TEAM.PLAYER].fill(0);
     visible[TEAM.PLAYER].fill(0);
@@ -5437,9 +4827,8 @@ function sanityCheck(){
       if (_needElim)  checkElimination();
 
       updateCamShake(simDt);
-      
-      updateSmoke(simDt);
-      updateBlood(simDt);
+      if (window.FX && window.FX.updateSmoke) window.FX.updateSmoke(simDt);
+      if (window.FX && window.FX.updateBlood) window.FX.updateBlood(simDt);
 
 
       const sp = cam.speed*dt;

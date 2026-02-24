@@ -29,6 +29,12 @@
   const bloodStains = [];
   const bloodPuffs = [];
 
+  const debris = [];
+  const debrisTrail = [];
+  const exp1Fxs = [];
+  let _getTime = () => 0;
+  function setGetTime(fn){ _getTime = fn || (() => 0); }
+
 // ===== Smoke ring + smoke particles (building destruction) =====
 // 목표:
 // - 파동 연기: "원형으로 퍼지되", 아이소메트리라서 위아래 납작 + 라인 없이 흐릿한 연무 타입
@@ -143,6 +149,45 @@ function spawnSmokeHaze(wx, wy, size=1){
     grow: (70 + Math.random()*70) * size,
     a0: 0.06 + Math.random()*0.05
   });
+}
+
+// Trail puff for moving vehicles (subtle, noise-like gradient).
+function spawnTrailPuff(wx, wy, vx, vy, strength=1){
+  const size = clamp(strength, 0.35, 1.20);
+
+  const mag = Math.max(0.0001, Math.hypot(vx||0, vy||0));
+  const backx = -(vx||0) / mag;
+  const backy = -(vy||0) / mag;
+
+  const j = TILE * 0.10 * size;
+  const x = wx + (Math.random()*2-1)*j;
+  const y = wy + (Math.random()*2-1)*j;
+
+  smokePuffs.push({
+    x, y,
+    vx: backx*(TILE*0.12*size) + (Math.random()*2-1)*(TILE*0.04*size),
+    vy: backy*(TILE*0.12*size) + (Math.random()*2-1)*(TILE*0.04*size) - (TILE*0.02*size),
+    t: 0,
+    ttl: 0.95 + Math.random()*0.55,
+    r0: (10 + Math.random()*8) * size,
+    grow: (18 + Math.random()*16) * size,
+    a0: 0.07 + Math.random()*0.06
+  });
+
+  const microN = 2 + ((Math.random()*2)|0);
+  for (let i=0;i<microN;i++){
+    smokePuffs.push({
+      x: x + (Math.random()*2-1)*(TILE*0.16*size),
+      y: y + (Math.random()*2-1)*(TILE*0.12*size),
+      vx: backx*(TILE*0.09*size) + (Math.random()*2-1)*(TILE*0.05*size),
+      vy: backy*(TILE*0.09*size) + (Math.random()*2-1)*(TILE*0.05*size) - (TILE*0.02*size),
+      t: 0,
+      ttl: 0.75 + Math.random()*0.45,
+      r0: (7 + Math.random()*6) * size,
+      grow: (14 + Math.random()*14) * size,
+      a0: 0.05 + Math.random()*0.05
+    });
+  }
 }
 
 function updateSmoke(dt){
@@ -634,6 +679,76 @@ function drawBlood(ctx, w2s, cam){
     explosions.push(ex);
   }
 
+  function addDebris(cx, cy, opts={}){
+    const T = opts.tile ?? TILE;
+    const minN = opts.minN ?? 4;
+    const maxN = opts.maxN ?? 12;
+    const baseSize = opts.size ?? 1;
+    const n = minN + Math.floor(Math.random() * (maxN - minN + 1));
+    for (let i=0;i<n;i++){
+      const ang = Math.random() * Math.PI * 2;
+      const spd = (180 + Math.random()*220) * baseSize;
+      const vz0 = (450 + Math.random()*400) * baseSize;
+      const w = (T*0.12 + Math.random()*T*0.18) * baseSize;
+      const h = (T*0.08 + Math.random()*T*0.12) * baseSize;
+      debris.push({
+        x: cx + (Math.random()*2-1)*T*0.2,
+        y: cy + (Math.random()*2-1)*T*0.2,
+        z: 0,
+        vx: Math.cos(ang)*spd,
+        vy: Math.sin(ang)*spd,
+        vz: vz0,
+        w, h,
+        rot: Math.random()*Math.PI*2,
+        rotV: (Math.random()*2-1)*14,
+        t: 0,
+        ttl: 6,
+        cx, cy
+      });
+    }
+  }
+
+  function updateDebris(dt){
+    const G = 980;
+    for (let i=debrisTrail.length-1;i>=0;i--){
+      const t = debrisTrail[i];
+      t.life -= dt;
+      if (t.life <= 0){ debrisTrail.splice(i,1); continue; }
+      t.x += (t.vx||0)*dt;
+      t.y += (t.vy||0)*dt;
+    }
+    for (let i=debris.length-1;i>=0;i--){
+      const d = debris[i];
+      d.t += dt;
+      if (d.t >= d.ttl){ debris.splice(i,1); continue; }
+      const speedH = Math.hypot(d.vx, d.vy);
+      if (speedH > 50 && (d.z||0) > 5){
+        debrisTrail.push({
+          x: d.x, y: d.y,
+          vx: -d.vx*0.06, vy: -d.vy*0.06,
+          life: 0.18 + Math.random()*0.12,
+          ttl: 0.18 + Math.random()*0.12,
+          r: 8 + Math.random()*12
+        });
+      }
+      d.x += d.vx*dt;
+      d.y += d.vy*dt;
+      d.z = (d.z||0) + (d.vz||0)*dt;
+      d.vz = (d.vz||0) - G*dt;
+      d.rot += (d.rotV||0)*dt;
+      d.vx *= 0.992;
+      d.vy *= 0.992;
+      if (d.z <= 0){ debris.splice(i,1); }
+    }
+  }
+
+  function spawnExp1FxAt(wx, wy, scale=1.0, frameDur=0.05){
+    if (window.OURender && typeof window.OURender.isExp1Ready === "function"){
+      if (!window.OURender.isExp1Ready()) return;
+    }
+    exp1Fxs.push({ x: wx, y: wy, t0: _getTime(), scale, frameDur });
+  }
+
   function updateExplosions(dt){
     for (let i=explosions.length-1;i>=0;i--){
       const e = explosions[i];
@@ -1081,16 +1196,19 @@ ctx.fill();
 
   window.FX = {
     setTile,
+    setGetTime,
     traces, impacts, fires, explosions, healMarks, flashes, casings, repairWrenches,
     smokeWaves, smokePuffs, smokeEmitters, dustPuffs, dmgSmokePuffs,
     bloodStains, bloodPuffs,
+    debris, debrisTrail, exp1Fxs,
 
-    addSmokeWave, spawnSmokePuff, spawnSmokeHaze, addSmokeEmitter, spawnDustPuff, spawnDmgSmokePuff,
+    addSmokeWave, spawnSmokePuff, spawnSmokeHaze, addSmokeEmitter, spawnDustPuff, spawnDmgSmokePuff, spawnTrailPuff,
     updateSmoke, drawSmokeWaves, drawSmokePuffs, drawDustPuffs, drawDmgSmokePuffs,
 
     addBloodBurst, updateBlood, drawBlood,
 
     addBuildingExplosion, updateExplosions, drawExplosions,
+    addDebris, updateDebris, spawnExp1FxAt,
 
     tickCombatFx,
     drawTraces, drawFlashes, drawCasings, drawFires, drawImpacts, drawHealMarks,

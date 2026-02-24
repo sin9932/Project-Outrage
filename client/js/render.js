@@ -3328,7 +3328,7 @@
         }
       }
       if (debris && debris.length > 0){
-        const Z_SCALE = 0.25;
+        const Z_SCALE = 0.4;
         for (const d of debris){
           const a = Math.max(0, 1 - d.t / Math.max(0.001, d.ttl));
           const zh = (d.z || 0);
