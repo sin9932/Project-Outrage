@@ -1132,12 +1132,7 @@
       return {x:u.x, y:u.y};
     }
 
-    function dist2PointToRect(px,py, rx,ry,rw,rh){
-      const hx=rw*0.5, hy=rh*0.5;
-      const dx=Math.max(Math.abs(px-rx)-hx, 0);
-      const dy=Math.max(Math.abs(py-ry)-hy, 0);
-      return dx*dx + dy*dy;
-    }
+    const dist2PointToRect = (r.dist2PointToRect || (global.OU && global.OU.dist2PointToRect)) || function(px,py,rx,ry,rw,rh){ const hx=rw*0.5, hy=rh*0.5; const dx=Math.max(Math.abs(px-rx)-hx,0); const dy=Math.max(Math.abs(py-ry)-hy,0); return dx*dx+dy*dy; };
 
     function getClosestPointOnBuilding(b, u){
       const x0 = b.tx*TILE, y0 = b.ty*TILE;
@@ -1666,13 +1661,6 @@
 
       u.vx = 0; u.vy = 0;
       u.holdPos = true;
-    }
-
-    function dist2PointToRect(px,py, rx,ry,rw,rh){
-      const hx=rw*0.5, hy=rh*0.5;
-      const dx=Math.max(Math.abs(px-rx)-hx, 0);
-      const dy=Math.max(Math.abs(py-ry)-hy, 0);
-      return dx*dx + dy*dy;
     }
 
     function getClosestPointOnBuilding(b, u){

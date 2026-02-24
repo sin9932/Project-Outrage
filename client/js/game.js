@@ -61,40 +61,17 @@
   // shared start money used by reset/start
   let START_MONEY = 10000;
 
-  let DPR = 1;
-  function fitCanvas() {
-    const rect = canvas.getBoundingClientRect();
-    DPR = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
-    const w = Math.max(1, Math.floor(rect.width * DPR));
-    const h = Math.max(1, Math.floor(rect.height * DPR));
-    if (canvas.width !== w || canvas.height !== h) {
-      canvas.width = w;
-      canvas.height = h;
-    }
-  }
-  window.addEventListener("resize", fitCanvas);
-  fitCanvas();
-
-  // [Attack alerts moved to ou_ui.js createAttackAlerts]
-
-function fitMini() {
-    const rect = mmCanvas.getBoundingClientRect();
-    const w = Math.max(1, Math.floor(rect.width * DPR));
-    const h = Math.max(1, Math.floor(rect.height * DPR));
-    if (mmCanvas.width !== w || mmCanvas.height !== h) {
-      mmCanvas.width = w;
-      mmCanvas.height = h;
-    }
-  }
-  window.addEventListener("resize", fitMini);
-  fitMini();
-
-  function getPointerCanvasPx(e) {
-    const rect = canvas.getBoundingClientRect();
-    // Use actual canvas-to-CSS scale to avoid selection/drag offset on different DPR/zoom.
-    const sx = canvas.width / Math.max(1, rect.width);
-    const sy = canvas.height / Math.max(1, rect.height);
-    return { x: (e.clientX - rect.left) * sx, y: (e.clientY - rect.top) * sy };
+  const __canvasHelpers = (window.OUUI && typeof window.OUUI.createCanvasHelpers === "function")
+    ? window.OUUI.createCanvasHelpers(canvas, mmCanvas)
+    : null;
+  const fitCanvas = __canvasHelpers ? __canvasHelpers.fitCanvas : () => {};
+  const fitMini = __canvasHelpers ? __canvasHelpers.fitMini : () => {};
+  const getPointerCanvasPx = __canvasHelpers ? __canvasHelpers.getPointerCanvasPx : (e) => ({ x: 0, y: 0 });
+  if (__canvasHelpers) {
+    window.addEventListener("resize", fitCanvas);
+    fitCanvas();
+    window.addEventListener("resize", fitMini);
+    fitMini();
   }
 
   const TILE = 110;
@@ -134,6 +111,7 @@ function fitMini() {
   const clamp = (v,a,b)=>Math.max(a,Math.min(b,v));
   const dist2 = (ax,ay,bx,by)=>{ const dx=ax-bx, dy=ay-by; return dx*dx+dy*dy; };
   const rnd = (a,b)=> a + Math.random()*(b-a);
+  const dist2PointToRect = (window.OU && window.OU.dist2PointToRect) || function(px,py,rx,ry,rw,rh){ const hx=rw*0.5, hy=rh*0.5; const dx=Math.max(Math.abs(px-rx)-hx,0); const dy=Math.max(Math.abs(py-ry)-hy,0); return dx*dx+dy*dy; };
 
   const __ou_cam = (window.OUCamera && typeof window.OUCamera.create === "function")
     ? window.OUCamera.create({ TILE, MAP_W, MAP_H, canvas, clamp })
@@ -2070,13 +2048,6 @@ function getClosestPointOnBuilding(b, u){
   if (__ou_sim && typeof __ou_sim.getClosestPointOnBuilding === "function") return __ou_sim.getClosestPointOnBuilding(b, u);
   return {x: b.x, y: b.y};
 }
-function dist2PointToRect(px,py, rx,ry,rw,rh){
-  if (__ou_sim && typeof __ou_sim.dist2PointToRect === "function") return __ou_sim.dist2PointToRect(px,py,rx,ry,rw,rh);
-  const hx=rw*0.5, hy=rh*0.5;
-  const dx=Math.max(Math.abs(px-rx)-hx, 0);
-  const dy=Math.max(Math.abs(py-ry)-hy, 0);
-  return dx*dx + dy*dy;
-}
 function isReservedByOther(u, tx, ty){
   if (__ou_sim && typeof __ou_sim.isReservedByOther === "function") return __ou_sim.isReservedByOther(u, tx, ty);
   return false;
@@ -2476,18 +2447,9 @@ const refund = Math.floor((COST[b.kind]||0) * 0.5);
     checkElimination();
   }
 
-  
-// [pointInPoly moved to ou_utils.js]
-function buildingScreenPoly(b){
-  // footprint corners in world (tile origin space)
-  const x0=b.tx*TILE, y0=b.ty*TILE;
-  const x1=(b.tx+b.tw)*TILE, y1=(b.ty+b.th)*TILE;
-  const p0=worldToScreen(x0,y0);
-  const p1=worldToScreen(x1,y0);
-  const p2=worldToScreen(x1,y1);
-  const p3=worldToScreen(x0,y1);
-  return [p0,p1,p2,p3];
-}
+  const buildingScreenPoly = (window.OU && typeof window.OU.createBuildingScreenPoly === "function")
+    ? window.OU.createBuildingScreenPoly(TILE, worldToScreen)
+    : (b)=>{ const p=worldToScreen(b.x,b.y); return [p,p,p,p]; };
 function pickEntityAtWorld(wx,wy){
     const m=worldToScreen(wx,wy);
 

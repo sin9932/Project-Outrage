@@ -120,6 +120,30 @@
   }
   OU.createOreAmountFromGid = createOreAmountFromGid;
 
+  // Point to axis-aligned rect distance² (rx,ry = center, rw,rh = width,height)
+  function dist2PointToRect(px, py, rx, ry, rw, rh) {
+    const hx = rw * 0.5, hy = rh * 0.5;
+    const dx = Math.max(Math.abs(px - rx) - hx, 0);
+    const dy = Math.max(Math.abs(py - ry) - hy, 0);
+    return dx * dx + dy * dy;
+  }
+  OU.dist2PointToRect = dist2PointToRect;
+
+  // Building footprint → screen polygon (needs TILE, worldToScreen)
+  function createBuildingScreenPoly(TILE, worldToScreen) {
+    return function buildingScreenPoly(b) {
+      const tw = b.tw ?? 1, th = b.th ?? 1;
+      const x0 = b.tx * TILE, y0 = b.ty * TILE;
+      const x1 = (b.tx + tw) * TILE, y1 = (b.ty + th) * TILE;
+      const p0 = worldToScreen(x0, y0);
+      const p1 = worldToScreen(x1, y0);
+      const p2 = worldToScreen(x1, y1);
+      const p3 = worldToScreen(x0, y1);
+      return [p0, p1, p2, p3];
+    };
+  }
+  OU.createBuildingScreenPoly = createBuildingScreenPoly;
+
   // Back-compat globals (only if missing)
   if (!global.clamp) global.clamp = clamp;
   if (!global.dist2) global.dist2 = dist2;

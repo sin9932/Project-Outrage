@@ -8,6 +8,37 @@
   const OUUI = global.OUUI || (global.OUUI = {});
   const isFn = (v) => typeof v === "function";
 
+  // Canvas resize + pointer helpers (DPR shared internally)
+  OUUI.createCanvasHelpers = function createCanvasHelpers(canvas, mmCanvas) {
+    const dprRef = { value: 1 };
+    function fitCanvas() {
+      const rect = canvas.getBoundingClientRect();
+      dprRef.value = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
+      const w = Math.max(1, Math.floor(rect.width * dprRef.value));
+      const h = Math.max(1, Math.floor(rect.height * dprRef.value));
+      if (canvas.width !== w || canvas.height !== h) {
+        canvas.width = w;
+        canvas.height = h;
+      }
+    }
+    function fitMini() {
+      const rect = mmCanvas.getBoundingClientRect();
+      const w = Math.max(1, Math.floor(rect.width * dprRef.value));
+      const h = Math.max(1, Math.floor(rect.height * dprRef.value));
+      if (mmCanvas.width !== w || mmCanvas.height !== h) {
+        mmCanvas.width = w;
+        mmCanvas.height = h;
+      }
+    }
+    function getPointerCanvasPx(e) {
+      const rect = canvas.getBoundingClientRect();
+      const sx = canvas.width / Math.max(1, rect.width);
+      const sy = canvas.height / Math.max(1, rect.height);
+      return { x: (e.clientX - rect.left) * sx, y: (e.clientY - rect.top) * sy };
+    }
+    return { fitCanvas, fitMini, getPointerCanvasPx, dprRef };
+  };
+
   OUUI.create = function create(refs) {
     const r = refs || {};
 // Auto-resolve missing DOM refs (safe fallback if game.js didn't pass them)
