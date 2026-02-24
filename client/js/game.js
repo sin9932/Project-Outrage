@@ -217,13 +217,9 @@ function fitMini() {
   const GEM_STEP = 400;
   const GEM_VALUE = 2400;
   const GEM_MAX = 2400;
-  function oreAmountFromGid(gid, isGem) {
-    const raw = (gid && (gid & 0x1FFFFFFF)) || 0;
-    if (raw < ORE_FIRSTGID) return isGem ? GEM_VALUE : ORE_VALUE;
-    const localId = Math.min(9, raw - ORE_FIRSTGID);
-    if (isGem) return Math.min(GEM_MAX, GEM_BASE + Math.min(3, localId) * GEM_STEP);
-    return Math.min(ORE_MAX, ORE_BASE + localId * ORE_STEP);
-  }
+  const oreAmountFromGid = (window.OU && window.OU.createOreAmountFromGid)
+    ? window.OU.createOreAmountFromGid({ ORE_FIRSTGID, ORE_BASE, ORE_STEP, ORE_MAX, ORE_VALUE, GEM_BASE, GEM_STEP, GEM_VALUE, GEM_MAX })
+    : (gid, isGem) => (isGem ? GEM_VALUE : ORE_VALUE);
   const buildOcc = new Uint8Array(MAP_W*MAP_H); // 1=blocked
   const TREE_HP_MAX = 5; // 나무: 폭발형 무기로 약 5회 피격 시 제거 (RA2 스타일)
   const treeHp = new Uint8Array(MAP_W*MAP_H);  // 0=없음, 1~TREE_HP_MAX=나무 HP
@@ -1321,7 +1317,7 @@ if (u.cls==="inf"){
     for (let j=0;j<units.length;j++){
       const o=units[j];
       if (!o.alive || o.id===u.id) continue;
-      // only avoid same team strongly; mild avoid enemies so crush can still happen
+      // avoid same team strongly; mild avoid enemies
       const same = (o.team===u.team);
       const rr = (u.r+o.r) + (same?14:4);
       const dx2=u.x-o.x, dy2=u.y-o.y;
@@ -2536,53 +2532,10 @@ function pickEntityAtWorld(wx,wy){
   }
 
 
-// Prevent "tap-dance" jitter when the player spam-clicks the same command rapidly.
-function shouldIgnoreCmd(e, type, x, y, targetId=null){
-  const now = state.t || 0;
-  const lastT = e.lastCmdT || -999;
-  if ((now - lastT) > 0.22) return false;
-
-  const lastType = e.lastCmdType || "";
-  if (lastType !== type) return false;
-
-  // Same target attack spam
-  if (targetId!=null){
-    if ((e.lastCmdTarget ?? null) !== targetId) return false;
-    return true;
-  }
-
-  // Same-position move spam
-  const lx = e.lastCmdX ?? 1e9;
-  const ly = e.lastCmdY ?? 1e9;
-  const dx = (x - lx), dy = (y - ly);
-  if (dx*dx + dy*dy <= 22*22) return true;
-  return false;
-}
-function stampCmd(e, type, x, y, targetId=null){
-  e.lastCmdT = state.t || 0;
-  e.lastCmdType = type;
-  e.lastCmdX = x;
-  e.lastCmdY = y;
-  e.lastCmdTarget = targetId;
-}
-
-  function buildFormationOffsets(maxN){
-    // Spiral in manhattan rings: 0, then 4, then 8...
-    const out=[{dx:0,dy:0}];
-    let r=1;
-    while (out.length<maxN){
-      // diamond ring: (r,0)->(0,r)->(-r,0)->(0,-r)
-      for (let dx=-r; dx<=r; dx++){
-        const dy = r - Math.abs(dx);
-        out.push({dx,dy});
-        if (dy!==0) out.push({dx,dy:-dy});
-        if (out.length>=maxN) return out;
-      }
-      r++;
-      if (r>64) break;
-    }
-    return out;
-  }
+  const __cmdThrottle = (window.OUInput && window.OUInput.createCmdThrottle) ? window.OUInput.createCmdThrottle({ state }) : null;
+  const shouldIgnoreCmd = __cmdThrottle ? __cmdThrottle.shouldIgnoreCmd : () => false;
+  const stampCmd = __cmdThrottle ? __cmdThrottle.stampCmd : () => {};
+  const buildFormationOffsets = (window.OU && window.OU.buildFormationOffsets) ? window.OU.buildFormationOffsets : (maxN) => Array.from({ length: Math.min(maxN, 1) }, (_, i) => ({ dx: 0, dy: 0 }));
 
   function issueMoveAll(x,y){
     const ids=[...state.selection];
@@ -3037,7 +2990,7 @@ function issueIFVRepair(targetId){
 }
 
 function crushInfantry(mover){
-  // 차량(탱크/굴착기)이 적 보병과 겹치면 즉사(경장갑 룰)
+  // 차량(탱크/굴착기)이 적 보병과 겹치면 즉사. IFV는 제외.
   if (mover.kind!=="tank" && mover.kind!=="harvester") return;
   const enemyTeam = mover.team===TEAM.PLAYER ? TEAM.ENEMY : TEAM.PLAYER;
   const mtx = tileOfX(mover.x), mty = tileOfY(mover.y);

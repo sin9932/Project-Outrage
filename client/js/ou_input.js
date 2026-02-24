@@ -95,4 +95,35 @@
     OUInput._wheel = null;
   };
 
+  // Command throttle: prevent tap-dance jitter when spam-clicking same command
+  OUInput.createCmdThrottle = function createCmdThrottle(opts) {
+    const state = (opts && opts.state) || {};
+    const getTime = () => (state.t || 0);
+    return {
+      shouldIgnoreCmd(e, type, x, y, targetId = null) {
+        const now = getTime();
+        const lastT = (e && e.lastCmdT) ?? -999;
+        if ((now - lastT) > 0.22) return false;
+        const lastType = (e && e.lastCmdType) || "";
+        if (lastType !== type) return false;
+        if (targetId != null) {
+          if ((e.lastCmdTarget ?? null) !== targetId) return false;
+          return true;
+        }
+        const lx = (e && e.lastCmdX) ?? 1e9;
+        const ly = (e && e.lastCmdY) ?? 1e9;
+        const dx = x - lx, dy = y - ly;
+        return dx * dx + dy * dy <= 22 * 22;
+      },
+      stampCmd(e, type, x, y, targetId = null) {
+        if (!e) return;
+        e.lastCmdT = getTime();
+        e.lastCmdType = type;
+        e.lastCmdX = x;
+        e.lastCmdY = y;
+        e.lastCmdTarget = targetId;
+      }
+    };
+  };
+
 })(window);

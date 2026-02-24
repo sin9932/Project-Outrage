@@ -81,6 +81,45 @@
   }
   OU.createWorldVecToDir8 = createWorldVecToDir8;
 
+  // Formation offsets: spiral in manhattan/diamond rings for unit placement
+  function buildFormationOffsets(maxN) {
+    const out = [{ dx: 0, dy: 0 }];
+    let r = 1;
+    while (out.length < maxN) {
+      for (let dx = -r; dx <= r; dx++) {
+        const dy = r - Math.abs(dx);
+        out.push({ dx, dy });
+        if (dy !== 0) out.push({ dx, dy: -dy });
+        if (out.length >= maxN) return out;
+      }
+      r++;
+      if (r > 64) break;
+    }
+    return out;
+  }
+  OU.buildFormationOffsets = buildFormationOffsets;
+
+  // Ore/gem value from TMJ GID (tileset firstgid 225, localId 0~9)
+  function createOreAmountFromGid(opts) {
+    const ORE_FIRSTGID = (opts && opts.ORE_FIRSTGID) ?? 225;
+    const ORE_BASE = (opts && opts.ORE_BASE) ?? 600;
+    const ORE_STEP = (opts && opts.ORE_STEP) ?? 200;
+    const ORE_MAX = (opts && opts.ORE_MAX) ?? 2400;
+    const ORE_VALUE = (opts && opts.ORE_VALUE) ?? 1200;
+    const GEM_BASE = (opts && opts.GEM_BASE) ?? 1200;
+    const GEM_STEP = (opts && opts.GEM_STEP) ?? 400;
+    const GEM_VALUE = (opts && opts.GEM_VALUE) ?? 2400;
+    const GEM_MAX = (opts && opts.GEM_MAX) ?? 2400;
+    return function oreAmountFromGid(gid, isGem) {
+      const raw = (gid && (gid & 0x1FFFFFFF)) || 0;
+      if (raw < ORE_FIRSTGID) return isGem ? GEM_VALUE : ORE_VALUE;
+      const localId = Math.min(9, raw - ORE_FIRSTGID);
+      if (isGem) return Math.min(GEM_MAX, GEM_BASE + Math.min(3, localId) * GEM_STEP);
+      return Math.min(ORE_MAX, ORE_BASE + localId * ORE_STEP);
+    };
+  }
+  OU.createOreAmountFromGid = createOreAmountFromGid;
+
   // Back-compat globals (only if missing)
   if (!global.clamp) global.clamp = clamp;
   if (!global.dist2) global.dist2 = dist2;

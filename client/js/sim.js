@@ -1263,7 +1263,6 @@
           return true;
         }
         if (ucls==="veh" && canCrushInf(u)){
-          // Allow crushing ONLY enemy infantry; never pass through friendly infantry.
           if (occInf[i] > 0 && occTeam[i] === u.team) return false;
           const other = (occAll[i]||0) - (occInf[i]||0);
           return (occVeh[i] <= 0) && (other < 1);
@@ -1279,10 +1278,7 @@
           const ocls = (UNIT[other.kind] && UNIT[other.kind].cls) ? UNIT[other.kind].cls : "";
           const ucls = (UNIT[u.kind] && UNIT[u.kind].cls) ? UNIT[u.kind].cls : "";
           if (ucls==="veh" && ocls!=="veh"){
-            // vehicles can push through infantry only if that infantry yields
-            if (canCrushInf(u) && ocls==="inf"){
-              return true;
-            }
+            if (canCrushInf(u) && ocls==="inf") return true;
           } else if (ucls!=="veh" && ocls==="veh"){
             if (!other.yieldCd || other.yieldCd<=0){
               other.yieldCd = 0.18;
@@ -1309,7 +1305,6 @@
         const i = idx(tx,ty);
         if (isReservedByOther(u, tx, ty)) return false;
         if (canCrushInf(u)){
-          // Allow crushing ONLY enemy infantry; never pass through friendly infantry.
           if (occInf[i] > 0 && occTeam[i] === u.team) return false;
           const other = (occAll[i]||0) - (occInf[i]||0);
           return (occVeh[i] <= 0) && (other < 1);
@@ -1321,7 +1316,6 @@
       const cls = (UNIT[u.kind] && UNIT[u.kind].cls) ? UNIT[u.kind].cls : "";
       if (cls==="veh"){
         if (canCrushInf(u)){
-          // Allow crushing ONLY enemy infantry; never pass through friendly infantry.
           if (occInf[i] > 0 && occTeam[i] === u.team) return false;
           const other = (occAll[i]||0) - (occInf[i]||0);
           return (occVeh[i] <= 0) && (other < 1);
@@ -2585,7 +2579,6 @@
           }
     
     if (u.kind==="harvester"){
-            // If harvester is in crush mode, override harvest logic and chase infantry.
             if (u.crushUntil && state.t < u.crushUntil){
               const tgt = (u.crushTargetId!=null) ? getEntityById(u.crushTargetId) : null;
               if (tgt && isInfantryUnit(tgt) && dist2(u.x,u.y,tgt.x,tgt.y) < 820*820){
@@ -2935,6 +2928,7 @@
           if (u.kind==="engineer"){
             if (u.order.type==="move"){
               followPath(u,dt);
+              crushInfantry(u);
             } else if (u.order.type==="repairenter"){
               const t=getEntityById(u.target);
               if (!t || !BUILD[t.kind] || t.civ || t.team!==u.team){ u.order.type="idle"; u.target=null; continue; }
@@ -3070,6 +3064,7 @@
             }
             if (dEff > (u.range||0)){
               followPath(u,dt);
+              crushInfantry(u);
             } else {
               u.path=null;
               if (u.shootCd<=0 && (u.kind!=="tank" || (_ffAimDir!=null && u.turretDir===_ffAimDir && !u.turretTurn))){
