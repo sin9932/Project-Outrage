@@ -3313,8 +3313,20 @@
       }
       if (debris && debris.length > 0){
         for (const d of debris){
-          const p = worldToScreen(d.x, d.y);
           const a = Math.max(0, 1 - d.t / Math.max(0.001, d.ttl));
+          const shdP = worldToScreen(d.x, d.landY ?? d.cy);
+          const height = (d.landY ?? d.cy) - d.y;
+          const shdScale = 0.6 + Math.min(1, height / 80) * 0.5;
+          ctx.save();
+          ctx.globalAlpha = 0.35 * a * shdScale;
+          ctx.fillStyle = "rgba(0,0,0,0.6)";
+          const sw = (d.w || 12) * z * shdScale;
+          const sh = (d.h || 8) * z * shdScale * 0.6;
+          ctx.beginPath();
+          ctx.ellipse(shdP.x, shdP.y, sw*0.6, sh*0.6, 0, 0, Math.PI*2);
+          ctx.fill();
+          ctx.restore();
+          const p = worldToScreen(d.x, d.y);
           ctx.save();
           ctx.translate(p.x, p.y);
           ctx.rotate(d.rot || 0);
@@ -3501,6 +3513,7 @@
   function addDebris(cx, cy, opts={}){
     const T = opts.tile ?? 110;
     const maxDist = T * 1.8;
+    const landY = cy + T * 0.25;
     const minN = opts.minN ?? 4;
     const maxN = opts.maxN ?? 12;
     const baseSize = opts.size ?? 1;
@@ -3512,7 +3525,7 @@
       const h = (T*0.08 + Math.random()*T*0.12) * baseSize;
       debris.push({
         x: cx + (Math.random()*2-1)*T*0.2,
-        y: cy + (Math.random()*2-1)*T*0.2,
+        y: cy - T*(0.15 + Math.random()*0.25),
         cx, cy,
         vx: Math.cos(ang)*spd,
         vy: Math.sin(ang)*spd - 40,
@@ -3520,9 +3533,8 @@
         rot: Math.random()*Math.PI*2,
         rotV: (Math.random()*2-1)*8,
         t: 0,
-        ttl: 3.5 + Math.random()*1.5,
-        grounded: false,
-        bounceCount: 0,
+        ttl: 4,
+        landY,
         maxDist
       });
     }
@@ -3540,31 +3552,32 @@
       const d = debris[i];
       d.t += dt;
       if (d.t >= d.ttl){ debris.splice(i,1); continue; }
-      if (!d.grounded){
-        const speed = Math.hypot(d.vx, d.vy);
-        if (speed > 60){
-          debrisTrail.push({
-            x: d.x, y: d.y,
-            vx: -d.vx*0.08, vy: -d.vy*0.08,
-            life: 0.20 + Math.random()*0.15,
-            ttl: 0.20 + Math.random()*0.15,
-            r: 10 + Math.random()*14
-          });
-        }
-        d.x += d.vx*dt;
-        d.y += d.vy*dt;
-        d.vy += G*dt;
-        d.rot += (d.rotV||0)*dt;
-        d.vx *= 0.92;
-        d.vy *= 0.998;
-        const dx = d.x - d.cx, dy = d.y - d.cy;
-        const dist = Math.hypot(dx, dy);
-        const md = d.maxDist ?? (110*1.8);
-        if (dist > md && dist > 1){
-          const pull = 0.15 * (dist - md) / dist;
-          d.vx -= dx * pull * dt * 120;
-          d.vy -= dy * pull * dt * 120;
-        }
+      const speed = Math.hypot(d.vx, d.vy);
+      if (speed > 60){
+        debrisTrail.push({
+          x: d.x, y: d.y,
+          vx: -d.vx*0.08, vy: -d.vy*0.08,
+          life: 0.20 + Math.random()*0.15,
+          ttl: 0.20 + Math.random()*0.15,
+          r: 10 + Math.random()*14
+        });
+      }
+      d.x += d.vx*dt;
+      d.y += d.vy*dt;
+      d.vy += G*dt;
+      d.rot += (d.rotV||0)*dt;
+      d.vx *= 0.92;
+      d.vy *= 0.998;
+      const dx = d.x - d.cx, dy = d.y - d.cy;
+      const dist = Math.hypot(dx, dy);
+      const md = d.maxDist ?? (110*1.8);
+      if (dist > md && dist > 1){
+        const pull = 0.15 * (dist - md) / dist;
+        d.vx -= dx * pull * dt * 120;
+        d.vy -= dy * pull * dt * 120;
+      }
+      if (d.y >= d.landY){
+        debris.splice(i,1);
       }
     }
   }
