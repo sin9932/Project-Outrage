@@ -2486,22 +2486,22 @@ function updateBlood(dt){
     const n = minN + Math.floor(Math.random() * (maxN - minN + 1));
     for (let i=0;i<n;i++){
       const ang = Math.random() * Math.PI * 2;
-      const spd = (80 + Math.random()*140) * baseSize;
-      const vz0 = (100 + Math.random()*180) * baseSize;
+      const spd = (180 + Math.random()*220) * baseSize;
+      const vz0 = (280 + Math.random()*320) * baseSize;
       const w = (T*0.12 + Math.random()*T*0.18) * baseSize;
       const h = (T*0.08 + Math.random()*T*0.12) * baseSize;
       debris.push({
-        x: cx + (Math.random()*2-1)*T*0.15,
-        y: cy + (Math.random()*2-1)*T*0.15,
+        x: cx + (Math.random()*2-1)*T*0.2,
+        y: cy + (Math.random()*2-1)*T*0.2,
         z: 0,
         vx: Math.cos(ang)*spd,
         vy: Math.sin(ang)*spd,
         vz: vz0,
         w, h,
         rot: Math.random()*Math.PI*2,
-        rotV: (Math.random()*2-1)*12,
+        rotV: (Math.random()*2-1)*14,
         t: 0,
-        ttl: 5,
+        ttl: 6,
         cx, cy
       });
     }
@@ -2534,8 +2534,8 @@ function updateBlood(dt){
       d.z = (d.z||0) + (d.vz||0)*dt;
       d.vz = (d.vz||0) - G*dt;
       d.rot += (d.rotV||0)*dt;
-      d.vx *= 0.985;
-      d.vy *= 0.985;
+      d.vx *= 0.992;
+      d.vy *= 0.992;
       if (d.z <= 0){ debris.splice(i,1); }
     }
   }
