@@ -495,6 +495,7 @@ function getBaseBuildTime(kind){
       peace: ["asset/music/peace1.mp3","asset/music/peace2.mp3","asset/music/peace3.mp3","asset/music/peace4.mp3"],
     battle:["asset/music/battle1.mp3","asset/music/battle2.mp3","asset/music/battle3.mp3","asset/music/battle4.mp3","asset/music/battle5.mp3","asset/music/Bring it on!.mp3","asset/music/Bring of the new age.mp3"],
       victory: ["asset/music/Brave Force.mp3", "asset/music/Brave Force2.mp3"],
+      pregame: ["asset/music/Dive into the battlefield.mp3"],
       all:   [] // filled below
     },
     sprite: {
@@ -2837,7 +2838,21 @@ function draw(){
   }
 
   // ✅ 시작 버튼 이벤트 복구 (이게 빠지면 "아무 버튼도 안눌림"처럼 보임)
-  
+
+  // 스커미시 창 전용 BGM (첫 클릭 시 재생, autoplay 정책 대응)
+  const pregameBGM = (ASSET.music.pregame && ASSET.music.pregame[0]) ? (() => {
+    const a = new Audio();
+    a.src = ASSET.music.pregame[0];
+    a.loop = true;
+    a.volume = 0.5;
+    const pregameEl = document.getElementById("pregame");
+    if (pregameEl) {
+      const start = () => { a.play().catch(() => {}); };
+      pregameEl.addEventListener("click", start, { once: true, capture: true });
+      pregameEl.addEventListener("touchstart", start, { once: true, capture: true, passive: true });
+    }
+    return { stop: () => { try { a.pause(); a.currentTime = 0; } catch (_e) {} } };
+  })() : null;
 
 function spawnStartingUnits(){
   // No bonus units at start.
@@ -2945,6 +2960,7 @@ if (__ou_ui && typeof __ou_ui.bindPregameStart === "function"){
     if (__ou_ui && typeof __ou_ui.hidePregame === "function"){
       __ou_ui.hidePregame({});
     }
+    if (pregameBGM && pregameBGM.stop) pregameBGM.stop();
     // Start BGM on user gesture (autoplay-safe)
     BGM.userStart();
     running = true;
