@@ -2477,23 +2477,25 @@ function updateBlood(dt){
     explosions.push(ex);
   }
 
-  // RA2-style debris: chunks that fly out, fall with gravity. Neutral color, fire trail when flying.
+  // RA2-style debris: chunks that fly out, fall with gravity. Stays near spawn tile.
   const debrisTrail = []; // fire trail particles behind flying debris
+  const DEBRIS_MAX_DIST = TILE * 1.8; // max distance from spawn center
   function addDebris(cx, cy, opts={}){
     const minN = opts.minN ?? 4;
     const maxN = opts.maxN ?? 12;
     const baseSize = opts.size ?? 1;
     const n = minN + Math.floor(Math.random() * (maxN - minN + 1));
     for (let i=0;i<n;i++){
-      const ang = Math.random() * Math.PI * 2;
-      const spd = (180 + Math.random()*320) * baseSize;
+      const ang = (-Math.PI/2) + (Math.random()*Math.PI*0.85);
+      const spd = (50 + Math.random()*120) * baseSize;
       const w = (TILE*0.12 + Math.random()*TILE*0.18) * baseSize;
       const h = (TILE*0.08 + Math.random()*TILE*0.12) * baseSize;
       debris.push({
-        x: cx + (Math.random()*2-1)*TILE*0.15,
-        y: cy + (Math.random()*2-1)*TILE*0.15,
+        x: cx + (Math.random()*2-1)*TILE*0.2,
+        y: cy + (Math.random()*2-1)*TILE*0.2,
+        cx, cy,
         vx: Math.cos(ang)*spd,
-        vy: Math.sin(ang)*spd - 80,
+        vy: Math.sin(ang)*spd - 40,
         w, h,
         rot: Math.random()*Math.PI*2,
         rotV: (Math.random()*2-1)*8,
@@ -2533,8 +2535,15 @@ function updateBlood(dt){
         d.y += d.vy*dt;
         d.vy += G*dt;
         d.rot += (d.rotV||0)*dt;
-        d.vx *= 0.995;
+        d.vx *= 0.92;
         d.vy *= 0.998;
+        const dx = d.x - d.cx, dy = d.y - d.cy;
+        const dist = Math.hypot(dx, dy);
+        if (dist > DEBRIS_MAX_DIST && dist > 1){
+          const pull = 0.15 * (dist - DEBRIS_MAX_DIST) / dist;
+          d.vx -= dx * pull * dt * 120;
+          d.vy -= dy * pull * dt * 120;
+        }
       }
     }
   }
