@@ -260,78 +260,16 @@
   // forest_ground.tmj: start 레이어의 start_beacon( firstgid 235 ) 타일 위치 → 기지 스타트 지점
   let startBeaconTiles = []; // [{tx,ty}, ...] 최대 2개, left=0번 right=1번
 
-  async function loadForestGround(){
-    terrain.fill(0);
-    ore.fill(0);
-    isGem.fill(0);
-    treeHp.fill(0);
-    startBeaconTiles = [];
-    try{
-      const resp = await fetch("asset/sprite/map/editmap/forest_ground.tmj", { cache:"force-cache" });
-      const data = await resp.json();
-      const w = data.width|0, h = data.height|0;
-      const layers = Array.isArray(data.layers) ? data.layers : [];
-      const baseLayer = layers.find(l => l.type==="tilelayer" && l.name==="base");
-      const oreLayer  = layers.find(l => l.type==="tilelayer" && l.name==="ore");
-      const startLayer = layers.find(l => l.type==="tilelayer" && l.name==="start");
-      if (baseLayer && Array.isArray(baseLayer.data)){
-        for (let ty=0; ty<MAP_H; ty++){
-          for (let tx=0; tx<MAP_W; tx++){
-            const gi = (ty < h && tx < w) ? baseLayer.data[ty*w + tx] : 0;
-            terrain[idx(tx,ty)] = gi>0 ? 0 : 0;
-          }
-        }
+  // [refactor] loadForestGround -> OUMap.loadFromTMJ (map.js)
+  const loadForestGround = (window.OUMap && typeof window.OUMap.loadFromTMJ === "function")
+    ? async () => {
+        const url = `asset/sprite/map/editmap/${mapChoice || "forest_ground"}.tmj`;
+        await window.OUMap.loadFromTMJ(url, {
+          terrain, ore, isGem, treeHp, startBeaconTiles, MAP_W, MAP_H, idx, oreAmountFromGid, TREE_HP_MAX
+        });
       }
-      if (oreLayer && Array.isArray(oreLayer.data)){
-        for (let ty=0; ty<MAP_H; ty++){
-          for (let tx=0; tx<MAP_W; tx++){
-            const gi = (ty < h && tx < w) ? oreLayer.data[ty*w + tx] : 0;
-            if (gi>0){
-              terrain[idx(tx,ty)] = 2;
-              ore[idx(tx,ty)] = oreAmountFromGid(gi, false);
-            }
-          }
-        }
-        const gemLayer = layers.find(l => l.type==="tilelayer" && (l.name||"").toLowerCase()==="gem");
-        if (gemLayer && Array.isArray(gemLayer.data)){
-          const gw = gemLayer.width || w, gh = gemLayer.height || h;
-          for (let ty=0; ty<Math.min(MAP_H, gh); ty++){
-            for (let tx=0; tx<Math.min(MAP_W, gw); tx++){
-              const gid = gemLayer.data[ty*gw+tx] & 0x1FFFFFFF;
-              if (gid > 0){
-                terrain[idx(tx,ty)] = 2;
-                ore[idx(tx,ty)] = oreAmountFromGid(gid, true);
-                isGem[idx(tx,ty)] = 1;
-              }
-            }
-          }
-        }
-      }
-      if (startLayer && Array.isArray(startLayer.data)){
-        const START_BEACON_FIRSTGID = 235;
-        for (let ty=0; ty<h; ty++){
-          for (let tx=0; tx<w; tx++){
-            const gid = startLayer.data[ty*w+tx] & 0x1FFFFFFF;
-            if (gid >= START_BEACON_FIRSTGID) startBeaconTiles.push({ tx, ty });
-          }
-        }
-        startBeaconTiles.sort((a,b)=> (a.ty*MAP_W+a.tx) - (b.ty*MAP_W+b.tx));
-        if (startBeaconTiles.length > 2) startBeaconTiles.length = 2;
-      }
-      const treeLayer = layers.find(l => l.type==="tilelayer" && (l.name||"").toLowerCase()==="tree");
-      if (treeLayer && Array.isArray(treeLayer.data)){
-        const tw = treeLayer.width || w, th = treeLayer.height || h;
-        for (let ty=0; ty<Math.min(MAP_H, th); ty++){
-          for (let tx=0; tx<Math.min(MAP_W, tw); tx++){
-            const gid = treeLayer.data[ty*tw+tx] & 0x1FFFFFFF;
-            if (gid > 0) treeHp[idx(tx,ty)] = TREE_HP_MAX;
-          }
-        }
-      }
-    }catch(e){
-      console.error("forest_ground.tmj load failed", e);
-    }
-  }
+    : async () => { console.warn("[OUMap.loadFromTMJ] missing"); };
+
   loadForestGround();
 
   const explored = [new Uint8Array(MAP_W*MAP_H), new Uint8Array(MAP_W*MAP_H)];
@@ -2720,94 +2658,41 @@ function draw(){
     state.lastSingleId=null; state.lastSingleKind=null;
   }
 
-  function findFootprintSpotNear(kind, nearTx, nearTy, tries=260){
-    const spec=BUILD[kind];
-    for (let i=0;i<tries;i++){
-      const tx=nearTx + ((Math.random()*18)|0) - 9;
-      const ty=nearTy + ((Math.random()*18)|0) - 9;
-      if (!isBlockedFootprint(tx,ty,spec.tw,spec.th)) return {tx,ty};
+  // [refactor] findFootprintSpotNear, placeStart -> ou_game_setup.js
+  const __ou_setup = (window.OUGameSetup && typeof window.OUGameSetup.create === "function")
+    ? window.OUGameSetup.create({
+        clearWorld,
+        addBuilding,
+        isBlockedFootprint,
+        buildings,
+        BUILD,
+        TEAM,
+        clamp,
+        MAP_W,
+        MAP_H,
+        inMap,
+        idx,
+        explored,
+        visible,
+        recomputePower,
+        centerCameraOn,
+        updateSelectionUI,
+        getStartBeaconTiles: () => startBeaconTiles
+      })
+    : null;
+  const findFootprintSpotNear = __ou_setup ? __ou_setup.findFootprintSpotNear : (kind, nearTx, nearTy, tries) => {
+    const spec = BUILD[kind];
+    for (let i = 0; i < (tries || 260); i++) {
+      const tx = nearTx + ((Math.random() * 18) | 0) - 9;
+      const ty = nearTy + ((Math.random() * 18) | 0) - 9;
+      if (!isBlockedFootprint(tx, ty, spec.tw, spec.th)) return { tx, ty };
     }
-    return {tx: clamp(nearTx,0,MAP_W-spec.tw), ty: clamp(nearTy,0,MAP_H-spec.th)};
-  }
-
-  function placeStart(spawn){
+    return { tx: clamp(nearTx, 0, MAP_W - spec.tw), ty: clamp(nearTy, 0, MAP_H - spec.th) };
+  };
+  const placeStart = __ou_setup ? __ou_setup.placeStart : (spawn) => {
     clearWorld();
-
-    let a, b;
-    if (startBeaconTiles.length >= 2){
-      if (spawn==="left"){
-        a = { tx: startBeaconTiles[0].tx, ty: startBeaconTiles[0].ty };
-        b = { tx: startBeaconTiles[1].tx, ty: startBeaconTiles[1].ty };
-      } else {
-        a = { tx: startBeaconTiles[1].tx, ty: startBeaconTiles[1].ty };
-        b = { tx: startBeaconTiles[0].tx, ty: startBeaconTiles[0].ty };
-      }
-    } else {
-      if (spawn==="left"){
-        a = {tx: Math.floor(MAP_W*0.22), ty: Math.floor(MAP_H*0.62)};
-        b = {tx: Math.floor(MAP_W*0.78), ty: Math.floor(MAP_H*0.38)};
-      } else {
-        a = {tx: Math.floor(MAP_W*0.86), ty: Math.floor(MAP_H*0.72)};
-        b = {tx: Math.floor(MAP_W*0.14), ty: Math.floor(MAP_H*0.28)};
-      }
-    }
-
-
-    function safePlace(team, kind, nearTx, nearTy){
-      const spot = findFootprintSpotNear(kind, nearTx, nearTy, 420);
-      if (!spot) return null;
-      const b = addBuilding(team, kind, spot.tx, spot.ty);
-      // Start-of-game buildings are already built: skip barracks build animation.
-      if (b && kind==="barracks"){
-        b._barrackNoBuildAnim = true;
-        b._barrackBuildT0 = null;
-        b._barrackBuildDone = true;
-      }
-      return b;
-    }
-
-    const hqSpec = BUILD.hq;
-    const hqCenterOffTx = (hqSpec.tw / 2) | 0;
-    const hqCenterOffTy = (hqSpec.th / 2) | 0;
-    const useBeacon = startBeaconTiles.length >= 2;
-    let pHQ = null;
-    let eHQ = null;
-    if (useBeacon) {
-      const playerHQtx = a.tx - hqCenterOffTx;
-      const playerHQty = a.ty - hqCenterOffTy;
-      if (!isBlockedFootprint(playerHQtx, playerHQty, hqSpec.tw, hqSpec.th)) {
-        pHQ = addBuilding(TEAM.PLAYER, "hq", playerHQtx, playerHQty);
-      } else {
-        pHQ = safePlace(TEAM.PLAYER, "hq", playerHQtx, playerHQty);
-      }
-      const enemyHQtx = b.tx - hqCenterOffTx;
-      const enemyHQty = b.ty - hqCenterOffTy;
-      if (!isBlockedFootprint(enemyHQtx, enemyHQty, hqSpec.tw, hqSpec.th)) {
-        eHQ = addBuilding(TEAM.ENEMY, "hq", enemyHQtx, enemyHQty);
-      } else {
-        eHQ = safePlace(TEAM.ENEMY, "hq", enemyHQtx, enemyHQty);
-      }
-    } else {
-      pHQ = safePlace(TEAM.PLAYER, "hq", a.tx - hqCenterOffTx, a.ty - hqCenterOffTy);
-      eHQ = safePlace(TEAM.ENEMY, "hq", b.tx - hqCenterOffTx, b.ty - hqCenterOffTy);
-    }
-
-    // 본진/적 본진 발자국 즉시 밝히기 (첫 프레임부터 검게 나오지 않도록)
-    for (const b of buildings){
-      if (!b || !b.alive || (b.team !== TEAM.PLAYER && b.team !== TEAM.ENEMY)) continue;
-      const tw = b.tw ?? (BUILD[b.kind] && BUILD[b.kind].tw) ?? 1;
-      const th = b.th ?? (BUILD[b.kind] && BUILD[b.kind].th) ?? 1;
-      for (let ty = b.ty; ty < b.ty + th; ty++)
-        for (let tx = b.tx; tx < b.tx + tw; tx++)
-          if (inMap(tx, ty)){ const i = idx(tx, ty); explored[b.team][i] = 1; visible[b.team][i] = 1; }
-    }
-
-    // Start with HQ only (both sides)
-
-    recomputePower();
-    if (pHQ) centerCameraOn(pHQ.x, pHQ.y);
-    updateSelectionUI();
-  }
+    if (window.OUGameSetup) console.warn("[OUGameSetup] create failed - check refs");
+  };
 
   // ✅ 시작 버튼 이벤트 복구 (이게 빠지면 "아무 버튼도 안눌림"처럼 보임)
 
@@ -2833,29 +2718,12 @@ function spawnStartingUnits(){
 
 if (isCallable(__ou_ui, "bindPregameStart")){
   __ou_ui.bindPregameStart({ onStart: async (payload) => {
-    if (payload && payload.playerColor) state.colors.player = payload.playerColor;
-    if (payload && payload.enemyColor) state.colors.enemy  = payload.enemyColor;
-
-    // Apply chosen colors to team palette (for magenta->team recolor) and clear caches.
-    try{
-      const prgb = (typeof OURender !== "undefined" && OURender.hexToRgb)
-        ? (OURender.hexToRgb(state.colors.player) || [80,180,255])
-        : [80,180,255];
-      const ergb = (typeof OURender !== "undefined" && OURender.hexToRgb)
-        ? (OURender.hexToRgb(state.colors.enemy) || [255,60,60])
-        : [255,60,60];
-      if (window.OURender && typeof OURender.setTeamAccent === "function"){
-        OURender.setTeamAccent({ player: prgb, enemy: ergb, neutral: [170,170,170] });
-      }
-      if (window.OURender && typeof OURender.clearTeamSpriteCache === "function"){
-        OURender.clearTeamSpriteCache();
-      }
-
-      if (window.OURender && typeof OURender.clearInfTeamSheetCache === "function"){
-        OURender.clearInfTeamSheetCache();
-      }
-    }catch(_e){}
-
+    if (window.OUPregame && typeof window.OUPregame.applyTeamColorsFromPayload === "function") {
+      window.OUPregame.applyTeamColorsFromPayload(payload, state);
+    } else {
+      if (payload && payload.playerColor) state.colors.player = payload.playerColor;
+      if (payload && payload.enemyColor) state.colors.enemy = payload.enemyColor;
+    }
 
     fogEnabled = !(payload && payload.fogOff);
 
@@ -2868,20 +2736,15 @@ if (isCallable(__ou_ui, "bindPregameStart")){
     state.enemy.money  = START_MONEY;
 
 
-    const preloadImages = async (urls)=>{
-      const list = Array.from(new Set((urls || []).filter(Boolean)));
-      await Promise.all(list.map((u)=>{
-        return new Promise((res)=>{
-          try{
-            const img = new Image();
-            img.decoding = "async";
-            img.onload = ()=>res();
-            img.onerror = ()=>res();
-            img.src = u;
-          }catch(_e){ res(); }
-        });
-      }));
-    };
+    const preloadImages = (window.OUPregame && typeof window.OUPregame.preloadImages === "function")
+      ? window.OUPregame.preloadImages
+      : async (urls) => {
+          const list = Array.from(new Set((urls || []).filter(Boolean)));
+          await Promise.all(list.map((u) => new Promise((res) => {
+            try { const img = new Image(); img.decoding = "async"; img.onload = img.onerror = () => res(); img.src = u; }
+            catch (_e) { res(); }
+          })));
+        };
 
     // Preload assets before starting (avoid first-hit flicker)
     try {
