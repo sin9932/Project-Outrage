@@ -1388,7 +1388,7 @@
           const gx = (u.order && u.order.x!=null) ? u.order.x : u.x;
           const gy = (u.order && u.order.y!=null) ? u.order.y : u.y;
           const d2 = dist2(u.x,u.y,gx,gy);
-          if (d2 < 16*16){
+          if (d2 < 12*12){
             u.x = gx; u.y = gy;
             u.vx = 0; u.vy = 0;
             u.path = null; u.pathI = 0;
@@ -1409,6 +1409,7 @@
       const p = u.path[u.pathI];
       const curTx = tileOfX(u.x), curTy = tileOfY(u.y);
 
+      const isLastTile = (u.pathI >= u.path.length - 1);
       let wx = (p.tx+0.5)*TILE, wy = (p.ty+0.5)*TILE;
       const ni = idx(p.tx,p.ty);
       let mask = (u.team===0) ? infSlotMask0[ni] : infSlotMask1[ni];
@@ -1418,7 +1419,7 @@
         for (let s=0; s<4; s++){ if (((mask>>s)&1)===0){ slot=s; break; } }
         if (slot>=0){ u.navSlot=slot; u.navSlotTx=p.tx; u.navSlotTy=p.ty; }
       }
-      if (slot>=0){ const sp=tileToWorldSubslot(p.tx,p.ty,slot); wx=sp.x; wy=sp.y; }
+      if (slot>=0 && isLastTile){ const sp=tileToWorldSubslot(p.tx,p.ty,slot); wx=sp.x; wy=sp.y; }
 
       if (u.holdPos && curTx===p.tx && curTy===p.ty) return false;
 
@@ -1458,8 +1459,7 @@
           u.vx=0; u.vy=0;
           u.blockT = (u.blockT||0) + dt;
           if (u.blockT > 4.0 && u.pathI >= (u.path.length-1)){
-            const cwx=(curTx+0.5)*TILE, cwy=(curTy+0.5)*TILE;
-            u.x=cwx; u.y=cwy; u.order={type:"idle",x:u.x,y:u.y,tx:null,ty:null};
+            u.order={type:"idle",x:u.x,y:u.y,tx:null,ty:null};
             u.path=null; u.pathI=0; clearReservation(u); u.blockT=0;
             return false;
           }
@@ -1468,9 +1468,10 @@
       }
 
       const dx=wx-u.x, dy=wy-u.y, d=Math.hypot(dx,dy);
-      if (d < 2 || (u.pathI >= (u.path.length-1) && d < 12)){
+      const ARRIVE_EPS = 4;
+      if (d < ARRIVE_EPS){
         if (u.pathI >= (u.path.length-1)){
-          const slot2 = (u.order && u.order.tx===p.tx && u.order.ty===p.ty && u.order.subSlot!=null) ? (u.order.subSlot|0) : (u.subSlot|0);
+          const slot2 = (u.navSlot!=null && u.navSlotTx===p.tx && u.navSlotTy===p.ty) ? (u.navSlot&3) : ((u.order && u.order.tx===p.tx && u.order.ty===p.ty && u.order.subSlot!=null) ? (u.order.subSlot|0) : (u.subSlot|0));
           const sp = tileToWorldSubslot(p.tx, p.ty, slot2);
           u.x = sp.x; u.y = sp.y; u.vx = 0; u.vy = 0; u.holdPos = true;
         }
@@ -1485,13 +1486,17 @@
         return true;
       }
 
-      const nextTile = u.pathI>0 ? u.path[u.pathI] : null;
-      if (nextTile && (nextTile.tx!==curTx || nextTile.ty!==curTy)){
-        if (!reserveTile(u, nextTile.tx, nextTile.ty) || isReservedByOther(u, nextTile.tx, nextTile.ty)) return false;
-        if (!canEnterTile(u, nextTile.tx, nextTile.ty)) return false;
+      const targetTile = u.path[u.pathI];
+      if (targetTile && (targetTile.tx!==curTx || targetTile.ty!==curTy)){
+        if (!reserveTile(u, targetTile.tx, targetTile.ty) || isReservedByOther(u, targetTile.tx, targetTile.ty)) return false;
+        if (!canEnterTile(u, targetTile.tx, targetTile.ty)) return false;
       }
 
-      const step = Math.min(getMoveSpeed(u)*dt, d);
+      u.queueWaitT = 0;
+      const speed = getMoveSpeed(u)||80;
+      const baseStep = speed * dt;
+      const easeIn = (d < 18) ? Math.max(0.4, d/18) : 1;
+      const step = Math.min(baseStep * easeIn, d);
       const ax = dx/(d||1), ay = dy/(d||1);
       const nx = u.x + ax*step, ny = u.y + ay*step;
       const ntx = tileOfX(nx), nty = tileOfY(ny);
@@ -1503,8 +1508,9 @@
 
       u.x = clamp(nx, 0, WORLD_W);
       u.y = clamp(ny, 0, WORLD_H);
-      u.vx = ax * (getMoveSpeed(u)||80);
-      u.vy = ay * (getMoveSpeed(u)||80);
+      const velMag = (dt > 0) ? (step / dt) : (speed || 80);
+      u.vx = ax * velMag;
+      u.vy = ay * velMag;
       u.faceDir = worldVecToDir8(ax, ay);
       u.dir = u.faceDir;
       u.blockT = 0;
@@ -2194,7 +2200,7 @@
       const ss = (u.subSlot==null) ? 0 : (u.subSlot & 3);
       const sp = tileToWorldSubslot(tx, ty, ss);
       const toSlot2 = (u.x - sp.x)**2 + (u.y - sp.y)**2;
-      if (toSlot2 < 81){ u.x = sp.x; u.y = sp.y; u.vx = 0; u.vy = 0; u.holdPos = true; return; }
+      if (toSlot2 < 25){ u.x = sp.x; u.y = sp.y; u.vx = 0; u.vy = 0; u.holdPos = true; return; }
 
       const center = tileToWorldCenter(tx, ty);
       const toCenter2 = (u.x - center.x)**2 + (u.y - center.y)**2;
@@ -2210,7 +2216,7 @@
 
       const dx = sp.x - u.x, dy = sp.y - u.y;
       const d2 = dx*dx + dy*dy;
-      if (d2 < 81){
+      if (d2 < 25){
         u.x = sp.x; u.y = sp.y;
         u.vx = 0; u.vy = 0;
         u.holdPos = true;
@@ -2218,13 +2224,16 @@
       }
 
       const d = Math.sqrt(d2);
-      const maxStep = Math.min(80 * dt, d * 0.5);
+      const easeIn = (d < 15) ? Math.max(0.35, d/15) : 1;
+      const maxStep = Math.min(80 * dt * easeIn, Math.max(d * 0.25, 1.5));
       const step = Math.min(maxStep, d);
       const nx = dx / (d||1), ny = dy / (d||1);
       u.x += nx * step;
       u.y += ny * step;
 
-      u.vx = 0; u.vy = 0;
+      const velMag = (dt > 0 && step > 0) ? (step / dt) : 0;
+      u.vx = nx * velMag;
+      u.vy = ny * velMag;
       u.holdPos = true;
     }
 
@@ -2319,7 +2328,7 @@
       const ss = (u.subSlot==null) ? 0 : (u.subSlot & 3);
       const sp = tileToWorldSubslot(tx, ty, ss);
       const toSlot2 = (u.x - sp.x)**2 + (u.y - sp.y)**2;
-      if (toSlot2 < 81){ u.x = sp.x; u.y = sp.y; u.vx = 0; u.vy = 0; u.holdPos = true; return; }
+      if (toSlot2 < 25){ u.x = sp.x; u.y = sp.y; u.vx = 0; u.vy = 0; u.holdPos = true; return; }
 
       const center = tileToWorldCenter(tx, ty);
       const toCenter2 = (u.x - center.x)**2 + (u.y - center.y)**2;
@@ -2335,7 +2344,7 @@
 
       const dx = sp.x - u.x, dy = sp.y - u.y;
       const d2 = dx*dx + dy*dy;
-      if (d2 < 81){
+      if (d2 < 25){
         u.x = sp.x; u.y = sp.y;
         u.vx = 0; u.vy = 0;
         u.holdPos = true;
@@ -2343,13 +2352,16 @@
       }
 
       const d = Math.sqrt(d2);
-      const maxStep = Math.min(80 * dt, d * 0.5);
+      const easeIn = (d < 15) ? Math.max(0.35, d/15) : 1;
+      const maxStep = Math.min(80 * dt * easeIn, Math.max(d * 0.25, 1.5));
       const step = Math.min(maxStep, d);
       const nx = dx / (d||1), ny = dy / (d||1);
       u.x += nx * step;
       u.y += ny * step;
 
-      u.vx = 0; u.vy = 0;
+      const velMag = (dt > 0 && step > 0) ? (step / dt) : 0;
+      u.vx = nx * velMag;
+      u.vy = ny * velMag;
       u.holdPos = true;
     }
 
