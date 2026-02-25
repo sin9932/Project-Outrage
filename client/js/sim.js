@@ -1486,11 +1486,7 @@
         return true;
       }
 
-      const targetTile = u.path[u.pathI];
-      if (targetTile && (targetTile.tx!==curTx || targetTile.ty!==curTy)){
-        if (!reserveTile(u, targetTile.tx, targetTile.ty) || isReservedByOther(u, targetTile.tx, targetTile.ty)) return false;
-        if (!canEnterTile(u, targetTile.tx, targetTile.ty)) return false;
-      }
+      // targetTile === p, already verified above; skip redundant check
 
       u.queueWaitT = 0;
       const speed = getMoveSpeed(u)||80;
@@ -3037,8 +3033,20 @@
         (u.order.type==="idle" || u.order.type==="guard" || u.order.type==="guard_return" ||
          (u.order.type==="move" && !(u.forceMoveUntil && state.t < u.forceMoveUntil)));
     
-      if (u.aggroCd<=0 && okAuto && state.t >= (u._nextAcquire||0)){
-        const okAutoThrottle = (u.team===TEAM.ENEMY && (u.kind==="infantry" || u.kind==="sniper")) ? 0.42 + (u.id % 11)*0.03 : 0.18 + (u.id % 7)*0.02;
+      if (u.aggroCd<=0 && okAuto){
+        const atkR = (u.range||0) * 1.08;
+        if (atkR > 0){
+          const inRange = findNearestEnemyFor(u.team, u.x, u.y, atkR, sniperMode, true);
+          if (inRange && (!sniperMode || isEnemyInf(inRange))){
+            u.order = {type:"attack", x:u.x,y:u.y, tx:null,ty:null};
+            u.target = inRange.id;
+            setPathTo(u, inRange.x, inRange.y);
+            u.repathCd = 0.35;
+            u.aggroCd = aggroDelay(u, 0.35);
+          }
+        }
+        if (!u.target && state.t >= (u._nextAcquire||0)){
+        const okAutoThrottle = (u.team===TEAM.ENEMY && (u.kind==="infantry" || u.kind==="sniper")) ? 0.12 + (u.id % 7)*0.01 : 0.18 + (u.id % 7)*0.02;
         u._nextAcquire = state.t + okAutoThrottle;
         const vis = Math.max(UNIT[u.kind]?.vision || 280, u.range || 0); // 저격IFV: u.range 사용
         const cand = findNearestEnemyFor(u.team, u.x, u.y, vis, sniperMode, true); // unitOnly
@@ -3050,6 +3058,8 @@
             u.repathCd = 0.35;
             u.aggroCd = aggroDelay(u, 0.35);
           }
+          }
+        }
         }
       }
     }
@@ -3116,8 +3126,20 @@
               }
     
               // scan for enemy in vision, then engage. Throttle to reduce cost in mass combat.
-              if (state.t < (u._nextAcquire||0)) { settleInfantryToSubslot(u, dt); continue; }
-              const guardThrottle = (u.team===TEAM.ENEMY && (u.kind==="infantry" || u.kind==="sniper")) ? 0.42 + (u.id % 11)*0.03 : 0.18 + (u.id % 7)*0.02;
+              const atkR = (u.range||0) * 1.08;
+              const atkKindG = (u.kind==="ifv" && u.passKind==="sniper") ? "sniper" : u.kind;
+              const inRangeG = (atkR > 0) ? findNearestAttackMoveTargetFor(u.team, u.x, u.y, atkR, atkKindG) : null;
+              if (inRangeG){
+                const lock = (u.team===TEAM.ENEMY);
+                u.order={type:"attack", x:u.x, y:u.y, tx:null,ty:null, manual:lock, allowAuto:!lock, lockTarget:lock};
+                u.target=inRangeG.id;
+                u.guardFrom=true;
+                setPathTo(u, inRangeG.x, inRangeG.y);
+                u.repathCd=0.25;
+                continue;
+              } else if (state.t < (u._nextAcquire||0)) { settleInfantryToSubslot(u, dt); continue; }
+              else {
+              const guardThrottle = (u.team===TEAM.ENEMY && (u.kind==="infantry" || u.kind==="sniper")) ? 0.12 + (u.id % 7)*0.01 : 0.18 + (u.id % 7)*0.02;
               u._nextAcquire = state.t + guardThrottle;
               const scanR = Math.max(u.vision||0, (u.range||0));
               const atkKind = (u.kind==="ifv" && u.passKind==="sniper") ? "sniper" : u.kind;
@@ -3133,16 +3155,25 @@
               }
               // otherwise, just stay put
               settleInfantryToSubslot(u, dt);
+              }
               continue;
             }
     
             // Attack-move: march toward destination, but engage enemies on the way.
     
             if (u.order.type==="attackmove"){
-              if (state.t >= (u._nextAcquire||0)) {
-                const atkMoveThrottle = (u.team===TEAM.ENEMY && (u.kind==="infantry" || u.kind==="sniper")) ? 0.42 + (u.id % 11)*0.03 : 0.18 + (u.id % 7)*0.02;
+              const atkR = (u.range||0) * 1.08;
+              const atkKind = (u.kind==="ifv" && u.passKind==="sniper") ? "sniper" : u.kind;
+              const inRange = (atkR > 0) ? findNearestAttackMoveTargetFor(u.team, u.x, u.y, atkR, atkKind) : null;
+              if (inRange){
+                const lock = (u.team===TEAM.ENEMY);
+                u.order={type:"attack", x:u.x, y:u.y, tx:null,ty:null, manual:lock, allowAuto:!lock, lockTarget:lock};
+                u.target=inRange.id;
+                setPathTo(u, inRange.x, inRange.y);
+                u.repathCd=0.25;
+              } else if (state.t >= (u._nextAcquire||0)) {
+                const atkMoveThrottle = (u.team===TEAM.ENEMY && (u.kind==="infantry" || u.kind==="sniper")) ? 0.12 + (u.id % 7)*0.01 : 0.18 + (u.id % 7)*0.02;
                 u._nextAcquire = state.t + atkMoveThrottle;
-                const atkKind = (u.kind==="ifv" && u.passKind==="sniper") ? "sniper" : u.kind;
                 const scanR = Math.max(520, UNIT[u.kind]?.vision || 400, u.range || 0); // 터렛(520)보다 넓게 선제 탐색
                 const enemy = findNearestAttackMoveTargetFor(u.team, u.x, u.y, scanR, atkKind);
                 if (enemy){

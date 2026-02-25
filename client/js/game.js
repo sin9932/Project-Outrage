@@ -763,9 +763,17 @@ function addUnit(team, kind, x, y, opts){
     return u;
   }
 
+  const _entityByIdMap = new Map();
+  function rebuildEntityByIdCache(){
+    _entityByIdMap.clear();
+    for (const u of units) if (u.alive) _entityByIdMap.set(u.id, u);
+    for (const b of buildings) if (b.alive) _entityByIdMap.set(b.id, b);
+  }
   function getEntityById(id){
-    for (const u of units) if (u.alive && u.id===id) return u;
-    for (const b of buildings) if (b.alive && b.id===id) return b;
+    const e = _entityByIdMap.get(id);
+    if (e != null) return e.alive ? e : null;
+    for (const u of units) if (u.alive && u.id===id) { _entityByIdMap.set(id,u); return u; }
+    for (const b of buildings) if (b.alive && b.id===id) { _entityByIdMap.set(id,b); return b; }
     return null;
   }
 
@@ -3235,6 +3243,7 @@ function sanityCheck(){
           console.log(`[money] build:${dBuild.toFixed(2)} prod:${dProd.toFixed(2)} repair:${dRep.toFixed(2)} t=${state.t.toFixed(2)} money=${(state.player.money||0).toFixed(2)}`);
         }
       }
+      rebuildEntityByIdCache();
       if (__ou_sim && typeof __ou_sim.tickSim === "function"){
         __ou_sim.tickSim(simDt);
       } else {
