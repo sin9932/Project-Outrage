@@ -1403,7 +1403,22 @@
           // 교통체증: 오래 대기 시 인접 빈 타일로 비켜나기
           if (u.queueWaitT > 1.0){
             const curTileTx = tileOfX(u.x), curTileTy = tileOfY(u.y);
-            const stepAside = findBypassStep(u, curTileTx, curTileTy, curTileTx, curTileTy);
+            let stepAside = findBypassStep(u, curTileTx, curTileTy, curTileTx, curTileTy);
+            if (!stepAside && u.queueWaitT > 1.8){
+              for (let r=2; r<=5 && !stepAside; r++){
+                for (let dy=-r; dy<=r && !stepAside; dy++){
+                  for (let dx=-r; dx<=r && !stepAside; dx++){
+                    if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
+                    const tx = curTileTx + dx, ty = curTileTy + dy;
+                    if (tx===curTileTx && ty===curTileTy) continue;
+                    if (tx===p.tx && ty===p.ty) continue;
+                    if (!inMap(tx,ty) || !isWalkableTile(tx,ty)) continue;
+                    if (!canEnterTile(u, tx, ty)) continue;
+                    stepAside = {tx, ty};
+                  }
+                }
+              }
+            }
             if (stepAside && reserveTile(u, stepAside.tx, stepAside.ty)){
               u.path = [{tx:stepAside.tx, ty:stepAside.ty}, ...u.path.slice(u.pathI)];
               u.pathI = 0;
@@ -1428,7 +1443,7 @@
         if (!_canEnter || !reserveTile(u, p.tx, p.ty)) {
           if (u.pathI >= (u.path.length-1)) {
             u.finalBlockT = (u.finalBlockT||0) + dt;
-            if (u.finalBlockT > 0.22 && (u.lastRetargetT==null || (state.t - u.lastRetargetT) > 0.85)) {
+            if (u.finalBlockT > 0.18 && (u.lastRetargetT==null || (state.t - u.lastRetargetT) > 0.50)) {
               const goalWx = (p.tx+0.5)*TILE, goalWy = (p.ty+0.5)*TILE;
               const spot = findNearestFreePoint(goalWx, goalWy, u, 2);
               const nTx = tileOfX(spot.x), nTy = tileOfY(spot.y);
@@ -1449,7 +1464,7 @@
             return true;
           }
           u.blockT = (u.blockT||0) + dt;
-          if (u.blockT > 0.85){
+          if (u.blockT > 0.48){
             const cwx=(curTx+0.5)*TILE, cwy=(curTy+0.5)*TILE;
             u.x=cwx; u.y=cwy;
             const _combatLocked = (u.target!=null && u.order && (u.order.type==="attack" || u.order.type==="attackmove"));

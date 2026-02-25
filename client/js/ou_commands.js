@@ -176,7 +176,27 @@
             used.add(chosen.tx+","+chosen.ty);
           }
         }
-        if (!chosen) chosen={tx:baseTx, ty:baseTy};
+        if (!chosen){
+          const spot=findNearestFreePoint(baseCenter.x, baseCenter.y, e, 5);
+          if (spot && spot.found){
+            const nTx=tileOfX(spot.x), nTy=tileOfY(spot.y);
+            if (inMap(nTx,nTy) && canEnterTile(e, nTx, nTy)){
+              const key=nTx+","+nTy;
+              const eCls=(UNIT[e.kind] && UNIT[e.kind].cls) ? UNIT[e.kind].cls : "";
+              if (eCls==="inf"){
+                const c=infCount.get(key)||0;
+                if (c<INF_SLOT_MAX && reserveTile(e, nTx, nTy)){
+                  infCount.set(key, c+1);
+                  chosen={tx:nTx, ty:nTy};
+                }
+              } else if (reserveTile(e, nTx, nTy)){
+                chosen={tx:nTx, ty:nTy};
+                used.add(key);
+              }
+            }
+          }
+          if (!chosen) chosen={tx:baseTx, ty:baseTy};
+        }
         const cls = (UNIT[e.kind] && UNIT[e.kind].cls) ? UNIT[e.kind].cls : "";
         let wp;
         let subSlot = null;
@@ -555,7 +575,27 @@
             used.add(chosen.tx+","+chosen.ty);
           }
         }
-        if (!chosen) chosen={tx:baseTx, ty:baseTy};
+        if (!chosen){
+          const spot=findNearestFreePoint(baseCenter.x, baseCenter.y, e, 5);
+          if (spot && spot.found){
+            const nTx=tileOfX(spot.x), nTy=tileOfY(spot.y);
+            if (inMap(nTx,nTy) && canEnterTile(e, nTx, nTy)){
+              const key=nTx+","+nTy;
+              const eCls=(UNIT[e.kind] && UNIT[e.kind].cls) ? UNIT[e.kind].cls : "";
+              if (eCls==="inf"){
+                const c=infCount.get(key)||0;
+                if (c<INF_SLOT_MAX && reserveTile(e, nTx, nTy)){
+                  infCount.set(key, c+1);
+                  chosen={tx:nTx, ty:nTy};
+                }
+              } else if (reserveTile(e, nTx, nTy)){
+                chosen={tx:nTx, ty:nTy};
+                used.add(key);
+              }
+            }
+          }
+          if (!chosen) chosen={tx:baseTx, ty:baseTy};
+        }
         const cls = (UNIT[e.kind] && UNIT[e.kind].cls) ? UNIT[e.kind].cls : "";
         let wp;
         let subSlot = null;
