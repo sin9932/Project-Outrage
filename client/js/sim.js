@@ -857,6 +857,7 @@
         grid.clear();
         for (const uu of alive){
           uu._sepAx = 0; uu._sepAy = 0;
+          if (clsOf(uu)==="inf") continue;
           const cx2 = (uu.x/cell)|0, cy2=(uu.y/cell)|0;
           const k2 = key(cx2,cy2);
           let arr2 = grid.get(k2);
@@ -865,6 +866,7 @@
         }
 
         for (const u of alive){
+          if (clsOf(u)==="inf") continue;
           const cx = (u.x/cell)|0, cy=(u.y/cell)|0;
           for (let oy=-1; oy<=1; oy++){
             for (let ox=-1; ox<=1; ox++){
@@ -1374,7 +1376,145 @@
       return occAll[i] < 2;
     }
 
+    function followPathInfantry(u, dt){
+      if (u && u.order && (u.order.type==="idle" || u.order.type==="guard") && u.target==null){
+        if (u.path){ u.path = null; u.pathI = 0; }
+        u.stuckT = 0; u.yieldCd = 0;
+        return false;
+      }
+      if (!u.path || u.pathI >= u.path.length){
+        const ot = (u.order && u.order.type) ? u.order.type : null;
+        if (ot==="move" || ot==="guard_return" || ot==="attackmove"){
+          const gx = (u.order && u.order.x!=null) ? u.order.x : u.x;
+          const gy = (u.order && u.order.y!=null) ? u.order.y : u.y;
+          const d2 = dist2(u.x,u.y,gx,gy);
+          if (d2 < 16*16){
+            u.x = gx; u.y = gy;
+            u.vx = 0; u.vy = 0;
+            u.path = null; u.pathI = 0;
+            clearReservation(u);
+            if (ot==="attackmove"){
+              u.guard = {x0:u.x, y0:u.y};
+              u.order = {type:"guard", x:u.x, y:u.y, tx:null, ty:null};
+            } else {
+              u.order = {type:"idle", x:u.x, y:u.y, tx:null, ty:null};
+            }
+            return false;
+          }
+        }
+        return false;
+      }
+      if (u.yieldCd && u.yieldCd>0){ u.yieldCd -= dt; if (u.yieldCd>0) return false; u.yieldCd=0; }
+
+      const p = u.path[u.pathI];
+      const curTx = tileOfX(u.x), curTy = tileOfY(u.y);
+
+      let wx = (p.tx+0.5)*TILE, wy = (p.ty+0.5)*TILE;
+      const ni = idx(p.tx,p.ty);
+      let mask = (u.team===0) ? infSlotMask0[ni] : infSlotMask1[ni];
+      let slot = -1;
+      if (u.navSlot!=null && u.navSlotTx===p.tx && u.navSlotTy===p.ty){ slot = (u.navSlot & 3); }
+      else {
+        for (let s=0; s<4; s++){ if (((mask>>s)&1)===0){ slot=s; break; } }
+        if (slot>=0){ u.navSlot=slot; u.navSlotTx=p.tx; u.navSlotTy=p.ty; }
+      }
+      if (slot>=0){ const sp=tileToWorldSubslot(p.tx,p.ty,slot); wx=sp.x; wy=sp.y; }
+
+      if (u.holdPos && curTx===p.tx && curTy===p.ty) return false;
+
+      if (!(p.tx===curTx && p.ty===curTy)){
+        const _tGoal = (u.target!=null) ? getEntityById(u.target) : null;
+        const _combatOrder = (u.order && (u.order.type==="attack" || u.order.type==="attackmove"));
+        const _canEnter = (_combatOrder && _tGoal && BUILD[_tGoal.kind]) ? canEnterTileGoal(u, p.tx, p.ty, _tGoal) : canEnterTile(u, p.tx, p.ty);
+        if (!_canEnter || !reserveTile(u, p.tx, p.ty)){
+          if (slot<0){
+            u.vx=0; u.vy=0;
+            u.queueWaitT = (u.queueWaitT||0) + dt;
+            if (u.queueWaitT > 2.5 && u.order && (u.order.x!=null || u.order.tx!=null)){
+              const gx = (u.order.tx!=null) ? (u.order.tx+0.5)*TILE : (u.order.x!=null ? u.order.x : u.x);
+              const gy = (u.order.ty!=null) ? (u.order.ty+0.5)*TILE : (u.order.y!=null ? u.order.y : u.y);
+              if ((u._queueRetryT==null || (state.t - u._queueRetryT) > 1.2)){
+                u._queueRetryT = state.t; u.queueWaitT = 0;
+                setPathTo(u, gx, gy);
+                return true;
+              }
+            }
+            return false;
+          }
+          const pi = idx(p.tx, p.ty);
+          const blockedByEnemy = (occTeam && occTeam[pi]!==0 && occTeam[pi]!==u.team);
+          const blockerId = blockedByEnemy ? (occAnyId && occAnyId[pi]|0) : 0;
+          const blocker = blockerId ? getEntityById(blockerId) : null;
+          const canEngageBlocker = blocker && blocker.alive && blocker.attackable!==false &&
+            (u.dmg||0)>0 && (u.range||0)>0 && u.kind!=="engineer" && u.kind!=="harvester" &&
+            dist2(u.x, u.y, blocker.x, blocker.y) <= ((u.range||0)*(u.range||0));
+          if (blockedByEnemy && canEngageBlocker){
+            u.target = blocker.id;
+            u.order = {type:"attack", x:u.x, y:u.y, tx:null, ty:null, manual:!!(u.team===TEAM.ENEMY), allowAuto:!(u.team===TEAM.ENEMY), lockTarget:!!(u.team===TEAM.ENEMY)};
+            setPathTo(u, blocker.x, blocker.y);
+            u.pathI = 0; clearReservation(u);
+            return true;
+          }
+          u.vx=0; u.vy=0;
+          u.blockT = (u.blockT||0) + dt;
+          if (u.blockT > 4.0 && u.pathI >= (u.path.length-1)){
+            const cwx=(curTx+0.5)*TILE, cwy=(curTy+0.5)*TILE;
+            u.x=cwx; u.y=cwy; u.order={type:"idle",x:u.x,y:u.y,tx:null,ty:null};
+            u.path=null; u.pathI=0; clearReservation(u); u.blockT=0;
+            return false;
+          }
+          return false;
+        }
+      }
+
+      const dx=wx-u.x, dy=wy-u.y, d=Math.hypot(dx,dy);
+      if (d < 2 || (u.pathI >= (u.path.length-1) && d < 12)){
+        if (u.pathI >= (u.path.length-1)){
+          const slot2 = (u.order && u.order.tx===p.tx && u.order.ty===p.ty && u.order.subSlot!=null) ? (u.order.subSlot|0) : (u.subSlot|0);
+          const sp = tileToWorldSubslot(p.tx, p.ty, slot2);
+          u.x = sp.x; u.y = sp.y; u.vx = 0; u.vy = 0; u.holdPos = true;
+        }
+        u.pathI++; clearReservation(u);
+        if (u.pathI >= u.path.length){
+          u.vx = 0; u.vy = 0; u.path = null; u.pathI = 0; clearReservation(u);
+          const ot2 = (u.order && u.order.type) ? u.order.type : null;
+          if (ot2==="attackmove"){ u.guard={x0:u.x,y0:u.y}; u.order={type:"guard",x:u.x,y:u.y,tx:null,ty:null}; }
+          else if (ot2==="move"||ot2==="guard_return"){ u.order={type:"idle",x:u.x,y:u.y,tx:null,ty:null}; }
+        }
+        u.blockT = 0; u.stuckT = 0;
+        return true;
+      }
+
+      const nextTile = u.pathI>0 ? u.path[u.pathI] : null;
+      if (nextTile && (nextTile.tx!==curTx || nextTile.ty!==curTy)){
+        if (!reserveTile(u, nextTile.tx, nextTile.ty) || isReservedByOther(u, nextTile.tx, nextTile.ty)) return false;
+        if (!canEnterTile(u, nextTile.tx, nextTile.ty)) return false;
+      }
+
+      const step = Math.min(getMoveSpeed(u)*dt, d);
+      const ax = dx/(d||1), ay = dy/(d||1);
+      const nx = u.x + ax*step, ny = u.y + ay*step;
+      const ntx = tileOfX(nx), nty = tileOfY(ny);
+      if (!isWalkableTile(ntx,nty)) return false;
+      if (ntx!==curTx || nty!==curTy){
+        if (!canEnterTile(u, ntx, nty) || isReservedByOther(u, ntx, nty)) return false;
+      }
+      if (isBlockedWorldPoint(u, nx, ny)) return false;
+
+      u.x = clamp(nx, 0, WORLD_W);
+      u.y = clamp(ny, 0, WORLD_H);
+      u.vx = ax * (getMoveSpeed(u)||80);
+      u.vy = ay * (getMoveSpeed(u)||80);
+      u.faceDir = worldVecToDir8(ax, ay);
+      u.dir = u.faceDir;
+      u.blockT = 0;
+      u.stuckT = Math.max(0, (u.stuckT||0) - dt*0.5);
+      return true;
+    }
+
     function followPath(u, dt){
+      const ucls = (UNIT[u.kind] && UNIT[u.kind].cls) ? UNIT[u.kind].cls : "";
+      if (ucls==="inf") return followPathInfantry(u, dt);
       if (u && u.order && (u.order.type==="idle" || u.order.type==="guard") && u.target==null){
         if (u.path){ u.path = null; u.pathI = 0; }
         u.stuckT = 0; u.yieldCd = 0;
@@ -1406,49 +1546,6 @@
 
       const p = u.path[u.pathI];
       let wx = (p.tx+0.5)*TILE, wy=(p.ty+0.5)*TILE;
-
-      if (u.cls==="inf"){
-        const ni = idx(p.tx,p.ty);
-        let mask = (u.team===0) ? infSlotMask0[ni] : infSlotMask1[ni];
-        if (u.navSlotLockT && u.navSlotLockT>0){
-          u.navSlotLockT -= dt;
-          if (u.navSlotLockT<=0){ u.navSlotLockT=0; }
-        }
-        let slot = -1;
-        if (u.navSlot!=null && u.navSlotTx===p.tx && u.navSlotTy===p.ty && u.navSlotLockT>0){
-          slot = (u.navSlot & 3);
-        } else {
-          for (let s=0; s<4; s++){
-            if (((mask>>s)&1)===0){ slot = s; break; }
-          }
-          if (slot>=0){
-            u.navSlot = slot; u.navSlotTx = p.tx; u.navSlotTy = p.ty;
-            u.navSlotLockT = 0.25;
-          }
-        }
-        if (slot<0){
-          u.vx = 0; u.vy = 0;
-          u.queueWaitT = (u.queueWaitT||0) + dt;
-          if (u.queueWaitT < 0.35) return false;
-          // RA2: 보병은 stepAside 없이 대기 (위글 방지)
-          if (u.queueWaitT > 2.5 && u.order && (u.order.x!=null || u.order.tx!=null)){
-              const gx = (u.order.tx!=null) ? (u.order.tx+0.5)*TILE : (u.order.x!=null ? u.order.x : u.x);
-              const gy = (u.order.ty!=null) ? (u.order.ty+0.5)*TILE : (u.order.y!=null ? u.order.y : u.y);
-              if ((u._queueRetryT==null || (state.t - u._queueRetryT) > 1.2)){
-                u._queueRetryT = state.t;
-                u.queueWaitT = 0;
-                setPathTo(u, gx, gy);
-                return true;
-              }
-            }
-        } else {
-          u.queueWaitT = 0;
-          const sp = tileToWorldSubslot(p.tx, p.ty, slot);
-          wx = sp.x; wy = sp.y;
-        }
-      }
-
-      if (u.cls==="inf" && u.holdPos && tileOfX(u.x)===p.tx && tileOfY(u.y)===p.ty) return false;
 
       const curTx = tileOfX(u.x), curTy = tileOfY(u.y);
       if (!(p.tx===curTx && p.ty===curTy)){
@@ -1529,18 +1626,10 @@
 
       if (d < 2 || (u.pathI >= (u.path.length-1) && d < 12)){
         if (u.pathI >= (u.path.length-1)){
-          if (u.cls==="inf"){
-            let slot = (u.order && u.order.tx===p.tx && u.order.ty===p.ty && u.order.subSlot!=null) ? (u.order.subSlot|0) : (u.subSlot|0);
-            const sp = tileToWorldSubslot(p.tx, p.ty, slot);
-            u.x = sp.x; u.y = sp.y;
-            u.vx = 0; u.vy = 0;
-            u.holdPos = true;
-          } else {
-            const sx = (p.tx+0.5)*TILE, sy = (p.ty+0.5)*TILE;
-            u.x = sx; u.y = sy;
-          }
+          const sx = (p.tx+0.5)*TILE, sy = (p.ty+0.5)*TILE;
+          u.x = sx; u.y = sy;
         }
-        if (!(u.cls==="inf" && u.pathI >= (u.path.length-1))) u.holdPos = false;
+        u.holdPos = false;
         u.pathI++;
         clearReservation(u);
         if (u.pathI >= u.path.length){
@@ -2105,7 +2194,7 @@
       const ss = (u.subSlot==null) ? 0 : (u.subSlot & 3);
       const sp = tileToWorldSubslot(tx, ty, ss);
       const toSlot2 = (u.x - sp.x)**2 + (u.y - sp.y)**2;
-      if (toSlot2 < 36){ u.x = sp.x; u.y = sp.y; u.vx = 0; u.vy = 0; u.holdPos = true; return; }
+      if (toSlot2 < 81){ u.x = sp.x; u.y = sp.y; u.vx = 0; u.vy = 0; u.holdPos = true; return; }
 
       const center = tileToWorldCenter(tx, ty);
       const toCenter2 = (u.x - center.x)**2 + (u.y - center.y)**2;
@@ -2121,7 +2210,7 @@
 
       const dx = sp.x - u.x, dy = sp.y - u.y;
       const d2 = dx*dx + dy*dy;
-      if (d2 < 36){
+      if (d2 < 81){
         u.x = sp.x; u.y = sp.y;
         u.vx = 0; u.vy = 0;
         u.holdPos = true;
@@ -2129,7 +2218,7 @@
       }
 
       const d = Math.sqrt(d2);
-      const maxStep = 80 * dt;
+      const maxStep = Math.min(80 * dt, d * 0.5);
       const step = Math.min(maxStep, d);
       const nx = dx / (d||1), ny = dy / (d||1);
       u.x += nx * step;
@@ -2230,7 +2319,7 @@
       const ss = (u.subSlot==null) ? 0 : (u.subSlot & 3);
       const sp = tileToWorldSubslot(tx, ty, ss);
       const toSlot2 = (u.x - sp.x)**2 + (u.y - sp.y)**2;
-      if (toSlot2 < 36){ u.x = sp.x; u.y = sp.y; u.vx = 0; u.vy = 0; u.holdPos = true; return; }
+      if (toSlot2 < 81){ u.x = sp.x; u.y = sp.y; u.vx = 0; u.vy = 0; u.holdPos = true; return; }
 
       const center = tileToWorldCenter(tx, ty);
       const toCenter2 = (u.x - center.x)**2 + (u.y - center.y)**2;
@@ -2246,7 +2335,7 @@
 
       const dx = sp.x - u.x, dy = sp.y - u.y;
       const d2 = dx*dx + dy*dy;
-      if (d2 < 36){
+      if (d2 < 81){
         u.x = sp.x; u.y = sp.y;
         u.vx = 0; u.vy = 0;
         u.holdPos = true;
@@ -2254,7 +2343,7 @@
       }
 
       const d = Math.sqrt(d2);
-      const maxStep = 80 * dt;
+      const maxStep = Math.min(80 * dt, d * 0.5);
       const step = Math.min(maxStep, d);
       const nx = dx / (d||1), ny = dy / (d||1);
       u.x += nx * step;
