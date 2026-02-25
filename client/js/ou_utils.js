@@ -6,6 +6,8 @@
   'use strict';
 
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  /** Credits(money) 정수화: 부동소수점 오차 방지. 경제 시스템은 항상 정수 단위. */
+  const creditsInt = (v) => Math.floor(Number(v) || 0);
   const dist2 = (ax, ay, bx, by) => {
     const dx = ax - bx, dy = ay - by;
     return dx * dx + dy * dy;
@@ -18,6 +20,7 @@
   // Expose as a namespace too (for cleanliness)
   const OU = global.OU || (global.OU = {});
   OU.clamp = OU.clamp || clamp;
+  OU.creditsInt = OU.creditsInt || creditsInt;
   OU.dist2 = OU.dist2 || dist2;
   OU.rnd = OU.rnd || rnd;
   OU.$ = OU.$ || $;

@@ -190,6 +190,13 @@
   state.build = state.ui.build;
   state.lastClick = state.ui.lastClick;
   state.selection = state.ui.selection;
+  // 직렬화 준비: selection(Set) → JSON 가능한 배열
+  state.serializeSelection = () => Array.from(state.selection || []);
+  state.restoreSelection = (ids) => {
+    if (!state.selection) return;
+    state.selection.clear();
+    (ids || []).forEach(id => state.selection.add(id));
+  };
   state.hover = state.ui.hover;
   state.drag = state.ui.drag;
   state.pan = state.ui.pan;
@@ -1113,6 +1120,7 @@ const __ou_econ = (window.OUEconomy && typeof window.OUEconomy.create==="functio
       state, buildings, TEAM, COST, POWER,
       prodFIFO, prodTotal, QCAP,
       clamp,
+      creditsInt: (window.OU && typeof window.OU.creditsInt==="function") ? window.OU.creditsInt : (v=>Math.floor(Number(v)||0)),
       BUILD_SPEED_MIN_PER_1000,
       GAME_SPEED,
       BUILD_PROD_MULT,
@@ -1579,16 +1587,15 @@ function sellBuilding(b){
         }
       }
       if (qRefund>0){
-        state.player.money += qRefund;
-        state.player.money = Math.round(state.player.money||0);
+        state.player.money = Math.floor((state.player.money||0) + qRefund);
       }
       b.buildQ.length = 0;
       updateProdBadges();
     }
 
 const refund = Math.floor((COST[b.kind]||0) * 0.5);
-    if (b.team===TEAM.PLAYER) state.player.money += refund;
-    else state.enemy.money += refund;
+    if (b.team===TEAM.PLAYER) state.player.money = Math.floor((state.player.money||0) + refund);
+    else state.enemy.money = Math.floor((state.enemy.money||0) + refund);
 
     // Selling evacuates units at full HP.
     spawnEvacUnitsFromBuilding(b, false);
@@ -2269,9 +2276,7 @@ if (state.selection.size>0 && inMap(tx,ty) && ore[idx(tx,ty)]>0){
     // If build is READY (waiting for placement), allow cancel + refund.
     if (lane.ready === kind){
       const refund = COST[kind] || 0;
-      if (refund > 0) state.player.money += refund;
-      // snap to integer to avoid sub-1 drift
-      state.player.money = Math.round(state.player.money||0);
+      if (refund > 0) state.player.money = Math.floor((state.player.money||0) + refund);
       lane.ready = null;
       // If player was in placement mode for this item, exit it.
       if (state.build && state.build.active && state.build.kind === kind && state.build.lane === laneKey){
@@ -2301,10 +2306,8 @@ if (state.selection.size>0 && inMap(tx,ty) && ore[idx(tx,ty)]>0){
       toast("대기");
     } else {
       // cancel + refund paid so far
-      const paid = lane.queue.paid || 0;
-      state.player.money += paid;
-      // snap to integer to avoid sub-1 drift
-      state.player.money = Math.round(state.player.money||0);
+      const paid = Math.floor(lane.queue.paid || 0);
+      state.player.money = Math.floor((state.player.money||0) + paid);
       lane.queue = null;
       // Also drop any pending reservations of the same kind to avoid "ghost" rebuild.
       if (lane.fifo && lane.fifo.length){
@@ -2338,8 +2341,8 @@ if (state.selection.size>0 && inMap(tx,ty) && ore[idx(tx,ty)]>0){
         toast("대기");
         return;
       }
-      const paid = q.paid || 0;
-      state.player.money += paid;
+      const paid = Math.floor(q.paid || 0);
+      state.player.money = Math.floor((state.player.money||0) + paid);
       pb.buildQ.shift();
       prodTotal[kind] = Math.max(0, (prodTotal[kind]||0)-1);
       updateProdBadges();
@@ -2353,8 +2356,8 @@ if (state.selection.size>0 && inMap(tx,ty) && ore[idx(tx,ty)]>0){
       const ql = b.buildQ || [];
       for (let i=ql.length-1; i>=1; i--){
         if (ql[i] && ql[i].kind===kind){
-          const paid = ql[i].paid || 0;
-          if (paid>0) state.player.money += paid;
+          const paid = Math.floor(ql[i].paid || 0);
+          if (paid>0) state.player.money = Math.floor((state.player.money||0) + paid);
           ql.splice(i,1);
           prodTotal[kind] = Math.max(0, (prodTotal[kind]||0)-1);
           updateProdBadges();
@@ -2703,7 +2706,7 @@ function draw(){
     state.gameOverFade = null;
     prodFIFO.barracks.length=0; prodFIFO.factory.length=0;
     prodTotal.infantry=0; prodTotal.engineer=0; prodTotal.tank=0; prodTotal.harvester=0;
-    state.player.money=START_MONEY; state.enemy.money=START_MONEY;
+    state.player.money = Math.floor(START_MONEY); state.enemy.money = Math.floor(START_MONEY);
     gameOver=false;
     state.lastSingleId=null; state.lastSingleKind=null;
   }
@@ -2781,7 +2784,7 @@ if (isCallable(__ou_ui, "bindPregameStart")){
     state.debug = state.debug || {};
     state.debug.fastProd = !!(payload && payload.fastProd);
 
-    START_MONEY = startMoney;
+    START_MONEY = Math.floor(Number(startMoney) || 10000);
     state.player.money = START_MONEY;
     state.enemy.money  = START_MONEY;
 
@@ -3111,8 +3114,17 @@ function sanityCheck(){
         }
       }
 
-      for (let i=units.length-1;i>=0;i--) if (!units[i].alive) units.splice(i,1);
-      for (let i=buildings.length-1;i>=0;i--) if (!buildings[i].alive) buildings.splice(i,1);
+      // Swap-and-pop: O(1) per removal instead of splice O(n) - 유닛 수백 마리 시 GC 부담 완화
+      let w = 0;
+      for (let i = 0; i < units.length; i++) {
+        if (units[i].alive) { if (w !== i) units[w] = units[i]; w++; }
+      }
+      units.length = w;
+      w = 0;
+      for (let i = 0; i < buildings.length; i++) {
+        if (buildings[i].alive) { if (w !== i) buildings[w] = buildings[i]; w++; }
+      }
+      buildings.length = w;
 
       if (DEV_VALIDATE){
         state._valAcc = (state._valAcc || 0) + dt;

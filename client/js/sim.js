@@ -131,6 +131,7 @@
     const applyEliteHeal = r.applyEliteHeal || (_v && _v.applyEliteHeal) || (() => {});
     const isWalkableTile = r.isWalkableTile;
     const updateExplosions = r.updateExplosions;
+    const OUFlowField = (typeof window !== "undefined" && window.OUFlowField) || null;
     const updateDebris = r.updateDebris;
 
     function recordKill(team, opts) {
@@ -877,8 +878,9 @@
       const key = (cx,cy)=> (cx<<16) ^ cy;
 
       const iters = n > 50 ? 3 : 5;
-      const basePushK = 0.85;
-      const baseMaxPush = 18.0;
+      // 부드러운 스티어링: pushK/ maxPush 낮추면 떨림·벽 뚫림 완화
+      const basePushK = 0.52;
+      const baseMaxPush = 11.0;
       const eps = 1.0;
 
       for (let it=0; it<iters; it++){
@@ -947,26 +949,26 @@
           }
         }
 
-        // Apply accumulated separation with damping to prevent "진동"
+        // Apply accumulated separation with damping + steering blend (떨림·벽 뚫림 방지)
         // 보병은 bothInf 스킵으로 다른 보병에게서는 _sepAx 없음. 차량에 밀릴 때만 적용.
         for (const uu of alive){
           let ax = uu._sepAx || 0;
           let ay = uu._sepAy || 0;
           if (ax===0 && ay===0){ uu._sepAx = 0; uu._sepAy = 0; continue; }
 
-          const damp = 0.55;
+          const damp = 0.62;
           ax *= damp; ay *= damp;
 
           const lx = uu._lastSepAx || 0;
           const ly = uu._lastSepAy || 0;
           if ((lx!==0 || ly!==0) && (ax*lx + ay*ly) < 0){
-            const blend = 0.25;
+            const blend = 0.35;
             ax = ax*blend + lx*(1-blend);
             ay = ay*blend + ly*(1-blend);
           }
 
           const mag = Math.hypot(ax, ay);
-          const maxStep = (clsOf(uu)==="inf") ? 4.0 : 6.0;
+          const maxStep = (clsOf(uu)==="inf") ? 3.2 : 4.8;
           if (mag > maxStep){
             const k = maxStep / (mag || 1);
             ax *= k; ay *= k;
@@ -1545,8 +1547,10 @@
     function followPath(u, dt){
       const ucls = (UNIT[u.kind] && UNIT[u.kind].cls) ? UNIT[u.kind].cls : "";
       if (ucls==="inf") return followPathInfantry(u, dt);
+      if (u.flowGoal && ucls==="veh") return followFlowPath(u, dt);
       if (u && u.order && (u.order.type==="idle" || u.order.type==="guard") && u.target==null){
         if (u.path){ u.path = null; u.pathI = 0; }
+        u.flowGoal = null;
         u.stuckT = 0; u.yieldCd = 0;
         return false;
       }
@@ -2101,6 +2105,97 @@
     return out;
   }
 
+  // Flow Field: 군집 이동용. 같은 목표 5+ 유닛이면 1회 BFS로 대체.
+  const FLOW_GROUP_THRESHOLD = 5;
+  const FLOW_FIELD_MAX_AGE = 2.0;
+  let _flowFieldCache = new Map();
+
+  function assignFlowFieldToGroups() {
+    if (!OUFlowField || !OUFlowField.computeFlowField || MAP_W <= 0 || MAP_H <= 0) return;
+    const now = state.t || 0;
+    const groups = new Map();
+    for (const u of units) {
+      if (!u.alive || u.inTransport) continue;
+      const ot = (u.order && u.order.type) ? u.order.type : null;
+      if (ot !== "move" && ot !== "attackmove") continue;
+      if (u.flowGoal) continue;
+      let gTx = (u.order && u.order.tx != null) ? u.order.tx : null;
+      let gTy = (u.order && u.order.ty != null) ? u.order.ty : null;
+      if (gTx == null || gTy == null) {
+        const gx = (u.order && u.order.x != null) ? u.order.x : null;
+        const gy = (u.order && u.order.y != null) ? u.order.y : null;
+        if (gx == null || gy == null) continue;
+        gTx = tileOfX(gx); gTy = tileOfY(gy);
+      }
+      const cls = (UNIT[u.kind] && UNIT[u.kind].cls) ? UNIT[u.kind].cls : "";
+      if (cls !== "veh") continue;
+      const key = gTx + "," + gTy;
+      let arr = groups.get(key);
+      if (!arr) { arr = []; groups.set(key, arr); }
+      arr.push(u);
+    }
+    for (const [key, arr] of groups) {
+      if (arr.length < FLOW_GROUP_THRESHOLD) continue;
+      const u0 = arr[0];
+      const gTx = (u0.order.tx != null) ? u0.order.tx : tileOfX(u0.order.x);
+      const gTy = (u0.order.ty != null) ? u0.order.ty : tileOfY(u0.order.y);
+      let entry = _flowFieldCache.get(key);
+      if (!entry || (now - entry.t) > FLOW_FIELD_MAX_AGE) {
+        const field = OUFlowField.computeFlowField(gTx, gTy, MAP_W, MAP_H, isWalkableTile, inMap);
+        if (!field) continue;
+        entry = { field, t: now };
+        _flowFieldCache.set(key, entry);
+      }
+      for (const u of arr) {
+        u.flowGoal = { gTx, gTy, key };
+        u.order.tx = gTx; u.order.ty = gTy;
+        u.order.x = (gTx + 0.5) * TILE; u.order.y = (gTy + 0.5) * TILE;
+        u.path = null;
+        u.pathI = 0;
+        clearReservation(u);
+      }
+    }
+  }
+
+  function followFlowPath(u, dt) {
+    const fg = u.flowGoal;
+    if (!fg || !OUFlowField || !OUFlowField.getFlowAt) return false;
+    let entry = _flowFieldCache.get(fg.key);
+    if (!entry) { u.flowGoal = null; return false; }
+    const field = entry.field;
+    const gx = (fg.gTx + 0.5) * TILE, gy = (fg.gTy + 0.5) * TILE;
+    const d2 = dist2(u.x, u.y, gx, gy);
+    if (d2 < 14 * 14) {
+      u.x = gx; u.y = gy;
+      u.vx = 0; u.vy = 0;
+      u.flowGoal = null;
+      const ot = (u.order && u.order.type) ? u.order.type : null;
+      if (ot === "attackmove") {
+        u.guard = { x0: u.x, y0: u.y };
+        u.order = { type: "guard", x: u.x, y: u.y, tx: null, ty: null };
+      } else {
+        u.order = { type: "idle", x: u.x, y: u.y, tx: null, ty: null };
+      }
+      return false;
+    }
+    const flow = OUFlowField.getFlowAt(field, u.x, u.y, TILE, tileOfX, tileOfY);
+    if (!flow || (flow.dx === 0 && flow.dy === 0)) return false;
+    const speed = getMoveSpeed(u) || 80;
+    const step = speed * dt;
+    const nx = u.x + flow.dx * step;
+    const ny = u.y + flow.dy * step;
+    const ntx = tileOfX(nx), nty = tileOfY(ny);
+    if (!inMap(ntx, nty) || !isWalkableTile(ntx, nty)) return false;
+    if (isBlockedWorldPoint(u, nx, ny)) return false;
+    u.x = clamp(nx, 0, WORLD_W);
+    u.y = clamp(ny, 0, WORLD_H);
+    u.vx = flow.dx * speed;
+    u.vy = flow.dy * speed;
+    u.faceDir = worldVecToDir8(flow.dx, flow.dy);
+    u.dir = u.faceDir;
+    return true;
+  }
+
   // Path setter (moved from game.js)
   function setPathTo(u, goalX, goalY){
     if (_pathFindBudget <= 0) {
@@ -2154,6 +2249,7 @@
     u.order.tx = gTx; u.order.ty = gTy;
     u.order.x = (gTx+0.5)*TILE; u.order.y = (gTy+0.5)*TILE;
     const path=aStarPathOcc(u, sTx, sTy, gTx, gTy);
+    u.flowGoal = null;
     u.path=path;
     u.pathI=0;
     // Avoid the classic 'backstep' when a new order is issued.
@@ -2749,6 +2845,7 @@
     function tickUnits(dt){
         buildUnitSpatialGrid();
         clearOcc(dt);
+        assignFlowFieldToGroups();
         for (let i=0; i<units.length; i++){
           const u = units[i];
           if (i>0){
@@ -2857,6 +2954,7 @@
           if (shouldRest){
             u.restX = u.x; u.restY = u.y;
             u.path = null; u.pathI = 0;
+            u.flowGoal = null;
             u.vx = 0; u.vy = 0;
             u.stuckT = 0; u.stuckTime = 0; u.yieldCd = 0; u.avoidCd = 0;
             u.x = u.restX; u.y = u.restY;
@@ -3412,8 +3510,8 @@
               if (nearDock || nearRef){
                 if (u.carry>0){
                   const add = Math.floor(u.carry);
-                  if (u.team===TEAM.PLAYER) state.player.money += add;
-                  else state.enemy.money += add;
+                  if (u.team===TEAM.PLAYER) state.player.money = Math.floor((state.player.money||0) + add);
+                  else state.enemy.money = Math.floor((state.enemy.money||0) + add);
                   if (state.stats) state.stats.harvest[u.team] = (state.stats.harvest[u.team]||0) + add;
                   u.carry = 0;
                   u._needsRef = false;

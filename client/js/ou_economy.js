@@ -24,6 +24,7 @@
 
     // Tunables / helpers
     const clamp = ctx.clamp || function(v,a,b){ return Math.max(a, Math.min(b, v)); };
+    const creditsInt = (typeof ctx.creditsInt==="function") ? ctx.creditsInt : ((v)=>Math.floor(Number(v)||0));
     const BUILD_SPEED_MIN_PER_1000 = (typeof ctx.BUILD_SPEED_MIN_PER_1000==="number") ? ctx.BUILD_SPEED_MIN_PER_1000 : 8;
     const GAME_SPEED = (typeof ctx.GAME_SPEED==="number") ? ctx.GAME_SPEED : 1;
     const BUILD_PROD_MULT = (typeof ctx.BUILD_PROD_MULT==="number") ? ctx.BUILD_PROD_MULT : 1;
@@ -137,10 +138,10 @@
         const wallet = (b.team===TEAM.PLAYER) ? state.player : state.enemy;
 
         const heal = Math.min(rate*dt, b.hpMax - b.hp);
-        const cost = heal * costPerHp;
+        const cost = creditsInt(heal * costPerHp);
 
         if (wallet.money >= cost){
-          wallet.money -= cost;
+          wallet.money = creditsInt((wallet.money || 0) - cost);
           b.hp += heal;
 
           b.repairFxCd = (b.repairFxCd||0) - dt;
@@ -182,7 +183,7 @@
         state._enemyMoneyT -= dt;
         if (state._enemyMoneyT <= 0){
           state._enemyMoneyT = 5.0;
-          state.enemy.money = (state.enemy.money || 0) + 1000;
+          state.enemy.money = creditsInt((state.enemy.money || 0) + 1000);
         }
       }
       return { m2, m3 };
@@ -312,21 +313,20 @@
           return;
         }
 
-        let pay = payRate * delta;
         if (debugFast){
-          pay = 0;
           q.paid = costTotal;
         } else {
-          state.player.money -= pay;
-          q.paid = (q.paid||0) + pay;
+          const payInt = creditsInt(payRate * delta);
+          state.player.money = creditsInt((state.player.money || 0) - payInt);
+          q.paid = (q.paid||0) + payInt;
         }
         q.t += delta;
 
           if (q.t >= tNeed - 1e-6){
           const overPaid = (q.paid||0) - costTotal;
-          if (overPaid > 0) state.player.money += overPaid;
+          if (overPaid > 0) state.player.money = creditsInt((state.player.money || 0) + overPaid);
           // snap wallet to integer credits to avoid sub-1 drift
-          state.player.money = Math.round(state.player.money||0);
+          state.player.money = creditsInt(state.player.money || 0);
           q.t = tNeed; q.paid = costTotal;
           lane.ready = q.kind;
           lane.queue = null;
@@ -542,13 +542,12 @@
             continue;
           }
 
-          let pay = payRate * delta;
+          const payInt = debugFastProd ? 0 : creditsInt(payRate * delta);
           if (debugFastProd){
-            pay = 0;
             q.paid = costTotal;
           } else {
-            teamWallet.money -= pay;
-            q.paid = (q.paid||0) + pay;
+            teamWallet.money = creditsInt((teamWallet.money || 0) - payInt);
+            q.paid = (q.paid||0) + payInt;
           }
 
           q.t += delta;
@@ -556,9 +555,9 @@
           if (q.t >= tNeed - 1e-6){
             // snap to complete (refund any float overpay)
             const overPaid = (q.paid||0) - costTotal;
-            if (overPaid > 0) teamWallet.money += overPaid;
+            if (overPaid > 0) teamWallet.money = creditsInt((teamWallet.money || 0) + overPaid);
             // snap wallet to integer credits to avoid sub-1 drift
-            teamWallet.money = Math.round(teamWallet.money||0);
+            teamWallet.money = creditsInt(teamWallet.money || 0);
             q.t = tNeed;
             q.paid = costTotal;
 
