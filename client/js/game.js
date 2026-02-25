@@ -10,6 +10,7 @@
     console.error("[ASSERT]", msg);
     if (DEV_VALIDATE_THROW) throw new Error(msg);
   }
+  const isCallable = (obj, name) => obj && typeof obj[name] === "function";
 
 
   const canvas = document.getElementById("c");
@@ -34,13 +35,11 @@
 
   // Global error overlay (UI owns DOM manipulation)
   window.addEventListener("error", (e) => {
-    if (__ou_ui && typeof __ou_ui.showFatalError === "function"){
-      __ou_ui.showFatalError(e);
-    }
+    if (isCallable(__ou_ui, "showFatalError")) __ou_ui.showFatalError(e);
   });
 
   function toast(text, dur=1.0){
-    if (__ou_ui && typeof __ou_ui.toast === "function"){
+    if (isCallable(__ou_ui, "toast")){
       __ou_ui.toast(text, dur);
     }
   }
@@ -50,7 +49,7 @@
   let spawnChoice = "left";
   let mapChoice = "forest_ground";
   let startMoney = 10000;
-  if (__ou_ui && typeof __ou_ui.initPregameUI === "function"){
+  if (isCallable(__ou_ui, "initPregameUI")){
     __ou_ui.initPregameUI({
       onSpawnChange: (v)=>{ spawnChoice = v || "left"; },
       onMoneyChange: (v)=>{ startMoney = (typeof v==="number" && !Number.isNaN(v)) ? v : 10000; },
@@ -1339,14 +1338,11 @@ const __ou_ai = (window.OUAi && typeof window.OUAi.create==="function")
 if (!__ou_ai) console.warn("[ou_ai] missing: include js/ai.js before game.js");
 
 // Delegated helpers (sim.js owns implementations)
-function clearOcc(dt){
-  if (__ou_sim && typeof __ou_sim.clearOcc === "function") return __ou_sim.clearOcc(dt);
-}
-function resolveUnitOverlaps(){
-  if (__ou_sim && typeof __ou_sim.resolveUnitOverlaps === "function") return __ou_sim.resolveUnitOverlaps();
-}
+const _sim = (fn, def) => (...args) => (isCallable(__ou_sim, fn) ? __ou_sim[fn](...args) : def);
+function clearOcc(dt){ _sim("clearOcc")(dt); }
+function resolveUnitOverlaps(){ _sim("resolveUnitOverlaps")(); }
   function updateVision(){
-  if (__ou_sim && typeof __ou_sim.updateVision === "function") __ou_sim.updateVision();
+  if (isCallable(__ou_sim, "updateVision")) __ou_sim.updateVision();
   // sim ref/타이밍 이슈 시에도 건물 발자국은 반드시 밝혀 두기 (맵 전부 검은 현상 방지)
   for (const b of buildings){
     if (!b || !b.alive || b.civ) continue;
@@ -1365,7 +1361,7 @@ function resolveUnitOverlaps(){
 }
   function recomputePower(){
   // Prefer economy module's power calc, but fall back if missing/NaN/0/0 while buildings exist.
-  if (__ou_econ && typeof __ou_econ.recomputePower === "function"){
+  if (isCallable(__ou_econ, "recomputePower")){
     try { __ou_econ.recomputePower(); }
     catch(e){ console.warn("[power] econ recomputePower failed", e); }
   }
@@ -1403,75 +1399,26 @@ function resolveUnitOverlaps(){
     e.powerUse  = ee.use;
   }
 
-  if (__ou_econ && typeof __ou_econ.validateTechQueues === "function"){
+  if (isCallable(__ou_econ, "validateTechQueues")){
     try { __ou_econ.validateTechQueues(); } catch(_){}
   }
 }
-function clearReservation(u){
-  if (__ou_sim && typeof __ou_sim.clearReservation === "function") return __ou_sim.clearReservation(u);
-}
-function settleInfantryToSubslot(u, dt){
-  if (__ou_sim && typeof __ou_sim.settleInfantryToSubslot === "function") return __ou_sim.settleInfantryToSubslot(u, dt);
-}
-function findNearestFreePoint(wx, wy, u, r=3){
-  if (__ou_sim && typeof __ou_sim.findNearestFreePoint === "function") return __ou_sim.findNearestFreePoint(wx, wy, u, r);
-  return {x: wx, y: wy, found: false};
-}
-function findNearestRefinery(team, wx, wy){
-  if (__ou_sim && typeof __ou_sim.findNearestRefinery === "function") return __ou_sim.findNearestRefinery(team, wx, wy);
-  return null;
-}
-function getDockPoint(b, u){
-  if (__ou_sim && typeof __ou_sim.getDockPoint === "function") return __ou_sim.getDockPoint(b, u);
-  return {x: b.x, y: b.y};
-}
-function getClosestPointOnBuilding(b, u){
-  if (__ou_sim && typeof __ou_sim.getClosestPointOnBuilding === "function") return __ou_sim.getClosestPointOnBuilding(b, u);
-  return {x: b.x, y: b.y};
-}
-function isReservedByOther(u, tx, ty){
-  if (__ou_sim && typeof __ou_sim.isReservedByOther === "function") return __ou_sim.isReservedByOther(u, tx, ty);
-  return false;
-}
-function reserveTile(u, tx, ty){
-  if (__ou_sim && typeof __ou_sim.reserveTile === "function") return __ou_sim.reserveTile(u, tx, ty);
-  return false;
-}
-function isSqueezedTile(tx, ty){
-  if (__ou_sim && typeof __ou_sim.isSqueezedTile === "function") return __ou_sim.isSqueezedTile(tx, ty);
-  return false;
-}
-function findNearestFreeStep(u){
-  if (__ou_sim && typeof __ou_sim.findNearestFreeStep === "function") return __ou_sim.findNearestFreeStep(u);
-  return null;
-}
-function canEnterTile(u, tx, ty){
-  if (__ou_sim && typeof __ou_sim.canEnterTile === "function") return __ou_sim.canEnterTile(u, tx, ty);
-  return false;
-}
-function canEnterTileGoal(u, tx, ty, t){
-  if (__ou_sim && typeof __ou_sim.canEnterTileGoal === "function") return __ou_sim.canEnterTileGoal(u, tx, ty, t);
-  return false;
-}
-
-
-
-function heuristic(ax,ay,bx,by){
-  if (__ou_sim && typeof __ou_sim.heuristic === "function") return __ou_sim.heuristic(ax,ay,bx,by);
-  return 0;
-}
-function aStarPath(sx,sy,gx,gy, maxNodes=12000){
-  if (__ou_sim && typeof __ou_sim.aStarPath === "function") return __ou_sim.aStarPath(sx,sy,gx,gy, maxNodes);
-  return null;
-}
-function aStarPathOcc(u, sx, sy, gx, gy){
-  if (__ou_sim && typeof __ou_sim.aStarPathOcc === "function") return __ou_sim.aStarPathOcc(u, sx, sy, gx, gy);
-  return null;
-}
-function setPathTo(u, goalX, goalY){
-  if (__ou_sim && typeof __ou_sim.setPathTo === "function") return __ou_sim.setPathTo(u, goalX, goalY);
-  return false;
-}
+function clearReservation(u){ _sim("clearReservation")(u); }
+function settleInfantryToSubslot(u, dt){ _sim("settleInfantryToSubslot")(u, dt); }
+function findNearestFreePoint(wx, wy, u, r=3){ return _sim("findNearestFreePoint", {x: wx, y: wy, found: false})(wx, wy, u, r) ?? {x: wx, y: wy, found: false}; }
+function findNearestRefinery(team, wx, wy){ return _sim("findNearestRefinery", null)(team, wx, wy) ?? null; }
+function getDockPoint(b, u){ return _sim("getDockPoint", {x: b.x, y: b.y})(b, u) ?? {x: b.x, y: b.y}; }
+function getClosestPointOnBuilding(b, u){ return _sim("getClosestPointOnBuilding", {x: b.x, y: b.y})(b, u) ?? {x: b.x, y: b.y}; }
+function isReservedByOther(u, tx, ty){ return _sim("isReservedByOther", false)(u, tx, ty) ?? false; }
+function reserveTile(u, tx, ty){ return _sim("reserveTile", false)(u, tx, ty) ?? false; }
+function isSqueezedTile(tx, ty){ return _sim("isSqueezedTile", false)(tx, ty) ?? false; }
+function findNearestFreeStep(u){ return _sim("findNearestFreeStep", null)(u) ?? null; }
+function canEnterTile(u, tx, ty){ return _sim("canEnterTile", false)(u, tx, ty) ?? false; }
+function canEnterTileGoal(u, tx, ty, t){ return _sim("canEnterTileGoal", false)(u, tx, ty, t) ?? false; }
+function heuristic(ax,ay,bx,by){ return _sim("heuristic", 0)(ax,ay,bx,by) ?? 0; }
+function aStarPath(sx,sy,gx,gy, maxNodes=12000){ return _sim("aStarPath", null)(sx,sy,gx,gy, maxNodes) ?? null; }
+function aStarPathOcc(u, sx, sy, gx, gy){ return _sim("aStarPathOcc", null)(u, sx, sy, gx, gy) ?? null; }
+function setPathTo(u, goalX, goalY){ return _sim("setPathTo", false)(u, goalX, goalY) ?? false; }
 
 
 
@@ -1791,7 +1738,7 @@ const keys=new Set();
   const _ou_onKeyDown = (e)=>{
     // Pause menu: block gameplay hotkeys while open
     if (pauseMenuOpen){
-      const inOverlay = (__ou_ui && typeof __ou_ui.isPauseOverlayTarget === "function")
+      const inOverlay = isCallable(__ou_ui, "isPauseOverlayTarget")
         ? __ou_ui.isPauseOverlayTarget(e.target)
         : false;
       if (e.key === "Escape" || e.key === "Esc" || e.code === "Escape" || e.keyCode === 27){
@@ -1986,7 +1933,7 @@ const keys=new Set();
     if (state.pan.on){
       const dx = (p.x - state.pan.x0);
       const dy = (p.y - state.pan.y0);
-      if (__ou_cam && typeof __ou_cam.applyPan === "function") {
+      if (isCallable(__ou_cam, "applyPan")) {
         __ou_cam.applyPan(state.pan.camIsoX, state.pan.camIsoY, dx, dy);
       } else {
         const camIsoX = state.pan.camIsoX - dx;
@@ -2447,12 +2394,12 @@ if (state.selection.size>0 && inMap(tx,ty) && ore[idx(tx,ty)]>0){
 
   function applyMouseMode(mode){
     state.mouseMode = mode;
-    if (__ou_ui && typeof __ou_ui.applyMouseMode === "function"){
+    if (isCallable(__ou_ui, "applyMouseMode")){
       __ou_ui.applyMouseMode({ state, mode });
     }
   }
 
-  if (__ou_ui && typeof __ou_ui.bindGameButtons === "function"){
+  if (isCallable(__ou_ui, "bindGameButtons")){
     __ou_ui.bindGameButtons({
       onSetBuild: (kind)=>setBuild(kind),
       onRadarBuild: ()=>setBuild("radar"),
@@ -2483,11 +2430,11 @@ if (state.selection.size>0 && inMap(tx,ty) && ore[idx(tx,ty)]>0){
   let prodCat = "main";
   function setProdCat(cat){
     prodCat = cat;
-    if (__ou_ui && typeof __ou_ui.updateProdTabsUI === "function"){
+    if (isCallable(__ou_ui, "updateProdTabsUI")){
       __ou_ui.updateProdTabsUI({ prodCat });
     }
   }
-  if (__ou_ui && typeof __ou_ui.bindProdTabClicks === "function"){
+  if (isCallable(__ou_ui, "bindProdTabClicks")){
     __ou_ui.bindProdTabClicks({ onSelect: setProdCat });
   }
   setProdCat("main");
@@ -2606,7 +2553,7 @@ if (state.selection.size>0 && inMap(tx,ty) && ore[idx(tx,ty)]>0){
   }
 
   function tryPlaceBuild(){
-    if (__ou_econ && typeof __ou_econ.tryPlaceBuild === "function") {
+    if (isCallable(__ou_econ, "tryPlaceBuild")) {
       __ou_econ.tryPlaceBuild();
       return;
     }
@@ -2639,7 +2586,7 @@ function tickSidebarBuild(dt){
     // Must run even when OUUI is active, otherwise build buttons appear to do nothing.
     if (__ou_econ && __ou_econ.tickBuildLanes) __ou_econ.tickBuildLanes(dt);
 
-    if (__ou_ui && typeof __ou_ui.updateBuildModeUI === "function"){
+    if (isCallable(__ou_ui, "updateBuildModeUI")){
       __ou_ui.updateBuildModeUI({ state });
     }
   }
@@ -2649,7 +2596,7 @@ function tickEconomyPre(dt){
     feedProducers();
     if (__ou_econ && __ou_econ.processEconActions) __ou_econ.processEconActions(_econHandlers);
     tickSidebarBuild(dt);
-    if (__ou_ai && typeof __ou_ai.tickEnemySidebarBuild === "function") {
+    if (isCallable(__ou_ai, "tickEnemySidebarBuild")) {
       __ou_ai.tickEnemySidebarBuild(dt);
     }
   }
@@ -2668,7 +2615,7 @@ function pushClickWave(wx, wy, color){
   if (window.FX && typeof window.FX.pushClickWave === "function") window.FX.pushClickWave(wx, wy, color);
 }
 
-function showUnitPathFx(u){ /* disabled */ }
+function showUnitPathFx(u){ /* no-op: path FX disabled for perf */ }
 
   function updateSelectionUI() {
   if (!__ou_ui || !__ou_ui.updateSelectionUI) return;
@@ -2690,7 +2637,7 @@ function draw(){
         units, buildings, bullets, traces, impacts, fires, healMarks, flashes, casings,
         gameOver, gameOverFadeAlpha, POWER,
         running,
-        updateMoney: (__ou_ui && typeof __ou_ui.updateMoney === "function") ? __ou_ui.updateMoney : null,
+        updateMoney: isCallable(__ou_ui, "updateMoney") ? __ou_ui.updateMoney : null,
         updateProdBadges,
         inMap, idx, tileToWorldCenter, worldToScreen,
         getEntityById, repairWrenches,
@@ -2738,7 +2685,7 @@ function draw(){
   // drawMini moved to render.js (OURender.drawMini)
 
   function setButtonText() {
-    if (__ou_ui && typeof __ou_ui.setSellLabel === "function"){
+    if (isCallable(__ou_ui, "setSellLabel")){
       __ou_ui.setSellLabel({ text: "매각(D)" });
     }
   }
@@ -2884,7 +2831,7 @@ function spawnStartingUnits(){
 }
 
 
-if (__ou_ui && typeof __ou_ui.bindPregameStart === "function"){
+if (isCallable(__ou_ui, "bindPregameStart")){
   __ou_ui.bindPregameStart({ onStart: async (payload) => {
     if (payload && payload.playerColor) state.colors.player = payload.playerColor;
     if (payload && payload.enemyColor) state.colors.enemy  = payload.enemyColor;
@@ -2939,7 +2886,7 @@ if (__ou_ui && typeof __ou_ui.bindPregameStart === "function"){
     // Preload assets before starting (avoid first-hit flicker)
     try {
       if (window.PO && PO.buildings && typeof PO.buildings.preload === "function") {
-        if (__ou_ui && typeof __ou_ui.setPregameLoading === "function"){
+        if (isCallable(__ou_ui, "setPregameLoading")){
           __ou_ui.setPregameLoading({ loading: true });
         }
         await PO.buildings.preload();
@@ -2960,14 +2907,14 @@ if (__ou_ui && typeof __ou_ui.bindPregameStart === "function"){
         if (PO.buildings && typeof PO.buildings.preload === "function"){
           PO.buildings.preload().catch(() => {});
         }
-        if (__ou_ui && typeof __ou_ui.setPregameLoading === "function"){
+        if (isCallable(__ou_ui, "setPregameLoading")){
           __ou_ui.setPregameLoading({ loading: false });
         }
       }
     } catch (e) {
       console.error("[preload] building assets failed", e);
       alert("Asset preload failed. Check DevTools Console/Network.\n" + (e && e.message ? e.message : e));
-      if (__ou_ui && typeof __ou_ui.setPregameLoading === "function"){
+      if (isCallable(__ou_ui, "setPregameLoading")){
         __ou_ui.setPregameLoading({ loading: false, forceEnable: true });
       }
       return;
@@ -2982,7 +2929,7 @@ if (__ou_ui && typeof __ou_ui.bindPregameStart === "function"){
     placeStart(spawnChoice);
     state._placeStartPhase = false;
     spawnStartingUnits();
-    if (__ou_ui && typeof __ou_ui.hidePregame === "function"){
+    if (isCallable(__ou_ui, "hidePregame")){
       __ou_ui.hidePregame({});
     }
     if (pregameBGM && pregameBGM.stop) pregameBGM.stop();
@@ -3004,14 +2951,14 @@ if (__ou_ui && typeof __ou_ui.bindPregameStart === "function"){
   let pauseStartMs = null; // real-time ms when pause menu opened (for freezing battle timer)
 
   function setGameBrightness(v){
-    if (__ou_ui && typeof __ou_ui.setGameBrightness === "function"){
+    if (isCallable(__ou_ui, "setGameBrightness")){
       return __ou_ui.setGameBrightness(v);
     }
     return v;
   }
   // restore brightness (UI owns DOM/localStorage)
   try {
-    if (__ou_ui && typeof __ou_ui.restoreGameBrightness === "function"){
+    if (isCallable(__ou_ui, "restoreGameBrightness")){
       __ou_ui.restoreGameBrightness();
     }
   } catch(_){}
@@ -3043,12 +2990,12 @@ if (__ou_ui && typeof __ou_ui.bindPregameStart === "function"){
 
     pauseMenuOpen = next;
 
-    if (__ou_ui && typeof __ou_ui.setPauseMenuVisible === "function"){
-      const getBright = ()=> (__ou_ui && typeof __ou_ui.getGameBrightness === "function")
+    if (isCallable(__ou_ui, "setPauseMenuVisible")){
+      const getBright = ()=> isCallable(__ou_ui, "getGameBrightness")
         ? __ou_ui.getGameBrightness()
         : 1;
       __ou_ui.setPauseMenuVisible({ open: pauseMenuOpen, bgm: BGM, getBrightness: getBright });
-      if (pauseMenuOpen && typeof __ou_ui.wirePauseMenuUI === "function"){
+      if (pauseMenuOpen && isCallable(__ou_ui, "wirePauseMenuUI")){
         __ou_ui.wirePauseMenuUI({
           bgm: BGM,
           onVol: (v)=> BGM.setMasterVolume(v),
@@ -3118,12 +3065,12 @@ function validateWorld(){
 function sanityCheck(){
     // 모듈 참조로 검증 (window 전역 오염 방지)
     const checks = [
-      ["setPathTo", ()=>__ou_sim && typeof __ou_sim.setPathTo==="function"],
+      ["setPathTo", ()=> isCallable(__ou_sim, "setPathTo")],
       ["findPath", ()=>typeof findPath==="function"],
-      ["issueIFVRepair", ()=>__ou_commands && typeof __ou_commands.issueIFVRepair==="function"],
-      ["boardUnitIntoIFV", ()=>__ou_commands && typeof __ou_commands.boardUnitIntoIFV==="function"],
+      ["issueIFVRepair", ()=> isCallable(__ou_commands, "issueIFVRepair")],
+      ["boardUnitIntoIFV", ()=> isCallable(__ou_commands, "boardUnitIntoIFV")],
       ["unboardIFV", ()=>typeof tryUnloadIFV==="function"],
-      ["resolveUnitOverlaps", ()=>__ou_sim && typeof __ou_sim.resolveUnitOverlaps==="function"]
+      ["resolveUnitOverlaps", ()=> isCallable(__ou_sim, "resolveUnitOverlaps")]
     ];
     const missing = checks.filter(([,fn])=> !fn()).map(([n])=>n);
     if (missing.length){
@@ -3132,6 +3079,38 @@ function sanityCheck(){
     }
   }
 
+
+  function tickBuildingSellFinalize(){
+    const SELL_FINALIZE = [
+      { kind: "barracks", selling: "_barrackSelling", finalizeAt: "_barrackSellFinalizeAt" },
+      { kind: "power", selling: "_powerSelling", finalizeAt: "_powerSellFinalizeAt" },
+      { kind: "refinery", selling: "_refinerySelling", finalizeAt: "_refinerySellFinalizeAt" }
+    ];
+    let needPower = false, needElim = false;
+    for (const b of buildings){
+      if (!b || !b.alive) continue;
+      for (const cfg of SELL_FINALIZE){
+        if (b.kind===cfg.kind && b[cfg.selling] && b[cfg.finalizeAt]!=null && state.t >= b[cfg.finalizeAt]){
+          b.alive = false;
+          state.selection.delete(b.id);
+          setBuildingOcc(b, 0);
+          needPower = needElim = true;
+          break;
+        }
+      }
+    }
+    if (needPower) recomputePower();
+    if (needElim) checkElimination();
+  }
+
+  function tickCameraInput(dt){
+    const sp = cam.speed * dt;
+    if (keys.has("arrowleft")) cam.x -= sp;
+    if (keys.has("arrowright")) cam.x += sp;
+    if (keys.has("arrowup")) cam.y -= sp;
+    if (keys.has("arrowdown")) cam.y += sp;
+    clampCamera();
+  }
 
   function tick(now){
     fitCanvas();
@@ -3146,7 +3125,7 @@ function sanityCheck(){
         gameOver = true;
         running = false;
         const v = state.gameOverVictory;
-        if (__ou_ui && typeof __ou_ui.showResultOverlay === "function"){
+        if (isCallable(__ou_ui, "showResultOverlay")){
           __ou_ui.showResultOverlay({ victory: v, stats: state.stats, gameTime: state.gameOverEndGameTime ?? state.t, colors: state.colors, bgm: BGM, victoryBgmTracks: ASSET.music.victory });
         } else { toast(v ? "승리!" : "패배..."); }
         state.gameOverFade = null;
@@ -3163,46 +3142,12 @@ function sanityCheck(){
         state.gameOverPending = null;
       }
 
-      // Finalize barracks selling AFTER reverse-build animation completes
-      let _needPower=false, _needElim=false;
-      for (const b of buildings){
-        if (!b || !b.alive) continue;
-        if (b.kind==="barracks" && b._barrackSelling && b._barrackSellFinalizeAt!=null && state.t >= b._barrackSellFinalizeAt){
-          b.alive = false;
-          state.selection.delete(b.id);
-          setBuildingOcc(b, 0);
-          _needPower = true;
-          _needElim  = true;
-        }
-        if (b.kind==="power" && b._powerSelling && b._powerSellFinalizeAt!=null && state.t >= b._powerSellFinalizeAt){
-          b.alive = false;
-          state.selection.delete(b.id);
-          setBuildingOcc(b, 0);
-          _needPower = true;
-          _needElim  = true;
-        }
-        if (b.kind==="refinery" && b._refinerySelling && b._refinerySellFinalizeAt!=null && state.t >= b._refinerySellFinalizeAt){
-          b.alive = false;
-          state.selection.delete(b.id);
-          setBuildingOcc(b, 0);
-          _needPower = true;
-          _needElim  = true;
-        }
-      }
-      if (_needPower) recomputePower();
-      if (_needElim)  checkElimination();
+      tickBuildingSellFinalize();
 
       updateCamShake(simDt);
       if (window.FX && window.FX.updateSmoke) window.FX.updateSmoke(simDt);
       if (window.FX && window.FX.updateBlood) window.FX.updateBlood(simDt);
-
-
-      const sp = cam.speed*dt;
-      if (keys.has("arrowleft")) cam.x -= sp;
-      if (keys.has("arrowright")) cam.x += sp;
-      if (keys.has("arrowup")) cam.y -= sp;
-      if (keys.has("arrowdown")) cam.y += sp;
-      clampCamera();
+      tickCameraInput(dt);
 
       let _m0 = 0, _m1 = 0, _m2 = 0, _m3 = 0;
       if (DEBUG_MONEY && state && state.player) _m0 = state.player.money || 0;
@@ -3211,8 +3156,7 @@ function sanityCheck(){
 
       if (DEBUG_MONEY && state && state.player) _m1 = state.player.money || 0;
 
-      // UI: sidebar buttons + overlays are handled in ou_ui.js
-      if (__ou_ui && typeof __ou_ui.updateSidebarButtons === "function") {
+      if (isCallable(__ou_ui, "updateSidebarButtons")) {
         try {
           __ou_ui.updateSidebarButtons({
             state,
@@ -3244,7 +3188,7 @@ function sanityCheck(){
         }
       }
       rebuildEntityByIdCache();
-      if (__ou_sim && typeof __ou_sim.tickSim === "function"){
+      if (isCallable(__ou_sim, "tickSim")){
         __ou_sim.tickSim(simDt);
       } else {
         // sim.js missing: avoid hard crash
@@ -3265,9 +3209,7 @@ function sanityCheck(){
         }
       }
 
-      if (__ou_ai && typeof __ou_ai.tick === "function") {
-        __ou_ai.tick();
-      }
+      if (isCallable(__ou_ai, "tick")) __ou_ai.tick();
       recomputePower();
       updatePowerBar();
       updateSelectionUI();
@@ -3277,7 +3219,7 @@ function sanityCheck(){
     // bind price tooltips (one-time)
   if (!state.__ui_bound_priceTips){
     state.__ui_bound_priceTips = true;
-    if (__ou_ui && typeof __ou_ui.bindPriceTipsOnce === "function"){
+    if (isCallable(__ou_ui, "bindPriceTipsOnce")){
       __ou_ui.bindPriceTipsOnce({ COST });
     }
   }
@@ -3313,7 +3255,7 @@ function sanityCheck(){
 
     fpsAcc += 1/dt; fpsN++; fpsT += dt;
     if (fpsT>=0.5){
-      if (__ou_ui && typeof __ou_ui.updateFps === "function"){
+      if (isCallable(__ou_ui, "updateFps")){
         __ou_ui.updateFps({ fps: Math.round(fpsAcc/fpsN) });
       }
       fpsAcc=0; fpsN=0; fpsT=0;

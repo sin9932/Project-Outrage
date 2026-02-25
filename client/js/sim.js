@@ -67,6 +67,34 @@
     const idx = r.idx;
 
     let _aliveCache = [];
+    const UNIT_GRID_CELL = 128;
+    let _unitGridW = 0, _unitGridH = 0;
+    const _unitGrid = [[], []]; // [team][cellIdx] -> unit[]
+
+    function buildUnitSpatialGrid(){
+      if (WORLD_W<=0 || WORLD_H<=0 || units.length < 30) return;
+      const gW = Math.ceil(WORLD_W / UNIT_GRID_CELL) || 1;
+      const gH = Math.ceil(WORLD_H / UNIT_GRID_CELL) || 1;
+      if (gW !== _unitGridW || gH !== _unitGridH){
+        _unitGridW = gW; _unitGridH = gH;
+        const n = gW * gH;
+        for (let t=0; t<2; t++){
+          _unitGrid[t].length = n;
+          for (let i=0; i<n; i++) _unitGrid[t][i] = [];
+        }
+      } else {
+        for (let t=0; t<2; t++) for (let i=0; i<gW*gH; i++) _unitGrid[t][i].length = 0;
+      }
+      for (const u of units){
+        if (!u.alive || u.inTransport) continue;
+        const t = (u.team===TEAM.PLAYER) ? TEAM.PLAYER : TEAM.ENEMY;
+        if (t!==0 && t!==1) continue;
+        const cx = Math.min(gW-1, (u.x / UNIT_GRID_CELL)|0);
+        const cy = Math.min(gH-1, (u.y / UNIT_GRID_CELL)|0);
+        const ci = cy * gW + cx;
+        _unitGrid[t][ci].push(u);
+      }
+    }
     const spawnTrailPuff = r.spawnTrailPuff;
     const spawnDmgSmokePuff = r.spawnDmgSmokePuff;
     const crushInfantry = r.crushInfantry;
@@ -2383,16 +2411,33 @@
       const enemyTeam = (team===TEAM.PLAYER) ? TEAM.ENEMY : TEAM.PLAYER;
       let best=null, bestD=Infinity;
       const r2=radius*radius;
-      for (const u of units){
-        if (!u.alive || u.team!==enemyTeam || u.inTransport || u.hidden) continue;
-        if (infOnly){
-          const cls = (UNIT[u.kind] && UNIT[u.kind].cls) ? UNIT[u.kind].cls : "";
-          if (cls!=="inf") continue;
+      const iterUnits = (list)=>{
+        for (const u of list){
+          if (!u.alive || u.team!==enemyTeam || u.inTransport || u.hidden) continue;
+          if (infOnly){
+            const cls = (UNIT[u.kind] && UNIT[u.kind].cls) ? UNIT[u.kind].cls : "";
+            if (cls!=="inf") continue;
+          }
+          const tx=tileOfX(u.x), ty=tileOfY(u.y);
+          if (enemyTeam===TEAM.ENEMY && inMap(tx,ty) && !visible[TEAM.PLAYER][idx(tx,ty)]) continue;
+          const d2=dist2(wx,wy,u.x,u.y);
+          if (d2<bestD && d2<=r2){ bestD=d2; best=u; }
         }
-        const tx=tileOfX(u.x), ty=tileOfY(u.y);
-        if (enemyTeam===TEAM.ENEMY && inMap(tx,ty) && !visible[TEAM.PLAYER][idx(tx,ty)]) continue;
-        const d2=dist2(wx,wy,u.x,u.y);
-        if (d2<bestD && d2<=r2){ bestD=d2; best=u; }
+      };
+      if (_unitGridW>0 && _unitGridH>0 && enemyTeam>=0 && enemyTeam<=1){
+        const gW=_unitGridW, gH=_unitGridH;
+        const cx0=(wx/UNIT_GRID_CELL)|0, cy0=(wy/UNIT_GRID_CELL)|0;
+        const cr=Math.ceil(radius/UNIT_GRID_CELL);
+        for (let dy=-cr; dy<=cr; dy++){
+          for (let dx=-cr; dx<=cr; dx++){
+            const cx=cx0+dx, cy=cy0+dy;
+            if (cx<0||cx>=gW||cy<0||cy>=gH) continue;
+            const ci=cy*gW+cx;
+            iterUnits(_unitGrid[enemyTeam][ci]||[]);
+          }
+        }
+      } else {
+        iterUnits(units);
       }
       if (infOnly || unitOnly) return best;
       for (const b of buildings){
@@ -2410,13 +2455,28 @@
       const enemySniper = (team===TEAM.ENEMY && attackerKind==="sniper");
       let best=null, bestD=Infinity;
       const r2=radius*radius;
-
-      for (const u of units){
-        if (!u.alive || u.team!==enemyTeam || u.inTransport || u.hidden) continue;
-        if (attackerKind==="sniper" && (u.kind==="tank" || u.kind==="harvester")) continue;
-        if (enemySniper && (UNIT[u.kind]?.cls!=="inf")) continue; // 적 저격병: 보병만 공격
-        const d2=dist2(wx,wy,u.x,u.y);
-        if (d2<=r2 && d2<bestD){ best=u; bestD=d2; }
+      const iterUnits = (list)=>{
+        for (const u of list){
+          if (!u.alive || u.team!==enemyTeam || u.inTransport || u.hidden) continue;
+          if (attackerKind==="sniper" && (u.kind==="tank" || u.kind==="harvester")) continue;
+          if (enemySniper && (UNIT[u.kind]?.cls!=="inf")) continue;
+          const d2=dist2(wx,wy,u.x,u.y);
+          if (d2<=r2 && d2<bestD){ best=u; bestD=d2; }
+        }
+      };
+      if (_unitGridW>0 && _unitGridH>0 && enemyTeam>=0 && enemyTeam<=1){
+        const gW=_unitGridW, gH=_unitGridH;
+        const cx0=(wx/UNIT_GRID_CELL)|0, cy0=(wy/UNIT_GRID_CELL)|0;
+        const cr=Math.ceil(radius/UNIT_GRID_CELL);
+        for (let dy=-cr; dy<=cr; dy++){
+          for (let dx=-cr; dx<=cr; dx++){
+            const cx=cx0+dx, cy=cy0+dy;
+            if (cx<0||cx>=gW||cy<0||cy>=gH) continue;
+            iterUnits(_unitGrid[enemyTeam][cy*gW+cx]||[]);
+          }
+        }
+      } else {
+        iterUnits(units);
       }
       if (!enemySniper){
         if (attackerKind!=="sniper"){
@@ -2687,6 +2747,7 @@
     }
 
     function tickUnits(dt){
+        buildUnitSpatialGrid();
         clearOcc(dt);
         for (let i=0; i<units.length; i++){
           const u = units[i];
