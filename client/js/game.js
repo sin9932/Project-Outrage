@@ -1280,8 +1280,20 @@ const _sim = (fn, def) => (...args) => (isCallable(__ou_sim, fn) ? __ou_sim[fn](
 function clearOcc(dt){ _sim("clearOcc")(dt); }
 function resolveUnitOverlaps(){ _sim("resolveUnitOverlaps")(); }
   function updateVision(){
-  if (isCallable(__ou_sim, "updateVision")) __ou_sim.updateVision();
-  // sim ref/타이밍 이슈 시에도 건물 발자국은 반드시 밝혀 두기 (맵 전부 검은 현상 방지)
+  if (isCallable(__ou_sim, "updateVision")) {
+    __ou_sim.updateVision();
+    return;
+  }
+  // sim 미로드 시 fallback: 전장안개 OFF면 전맵 밝히기, ON이면 건물 발자국+시야 범위 밝히기
+  if (!fogEnabled) {
+    explored[TEAM.PLAYER].fill(1);
+    visible[TEAM.PLAYER].fill(1);
+    explored[TEAM.ENEMY].fill(1);
+    visible[TEAM.ENEMY].fill(1);
+    return;
+  }
+  visible[TEAM.PLAYER].fill(0);
+  visible[TEAM.ENEMY].fill(0);
   for (const b of buildings){
     if (!b || !b.alive || b.civ) continue;
     if (b.team !== TEAM.PLAYER && b.team !== TEAM.ENEMY) continue;
@@ -1293,6 +1305,44 @@ function resolveUnitOverlaps(){ _sim("resolveUnitOverlaps")(); }
         const i = idx(tx, ty);
         explored[b.team][i] = 1;
         visible[b.team][i] = 1;
+      }
+    }
+    const v = (BUILD[b.kind] && BUILD[b.kind].vision) || 0;
+    if (v > 0) {
+      const v2 = v * v;
+      const rad = Math.ceil(v / TILE) + 1;
+      const tx0 = Math.max(0, Math.floor(b.x / TILE) - rad);
+      const tx1 = Math.min(MAP_W - 1, Math.ceil(b.x / TILE) + rad);
+      const ty0 = Math.max(0, Math.floor(b.y / TILE) - rad);
+      const ty1 = Math.min(MAP_H - 1, Math.ceil(b.y / TILE) + rad);
+      for (let ty = ty0; ty <= ty1; ty++) {
+        for (let tx = tx0; tx <= tx1; tx++) {
+          const cx = (tx + 0.5) * TILE, cy = (ty + 0.5) * TILE;
+          if (dist2(b.x, b.y, cx, cy) <= v2) {
+            explored[b.team][idx(tx, ty)] = 1;
+            visible[b.team][idx(tx, ty)] = 1;
+          }
+        }
+      }
+    }
+  }
+  for (const u of units){
+    if (!u || !u.alive || u.inTransport) continue;
+    if (u.team !== TEAM.PLAYER && u.team !== TEAM.ENEMY) continue;
+    const visR = Math.max((UNIT[u.kind] && UNIT[u.kind].vision) || 200, (u.range || 0));
+    const v2 = visR * visR;
+    const rad = Math.ceil(visR / TILE) + 1;
+    const tx0 = Math.max(0, Math.floor(u.x / TILE) - rad);
+    const tx1 = Math.min(MAP_W - 1, Math.ceil(u.x / TILE) + rad);
+    const ty0 = Math.max(0, Math.floor(u.y / TILE) - rad);
+    const ty1 = Math.min(MAP_H - 1, Math.ceil(u.y / TILE) + rad);
+    for (let ty = ty0; ty <= ty1; ty++) {
+      for (let tx = tx0; tx <= tx1; tx++) {
+        const cx = (tx + 0.5) * TILE, cy = (ty + 0.5) * TILE;
+        if (dist2(u.x, u.y, cx, cy) <= v2) {
+          explored[u.team][idx(tx, ty)] = 1;
+          visible[u.team][idx(tx, ty)] = 1;
+        }
       }
     }
   }
