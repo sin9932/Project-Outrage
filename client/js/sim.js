@@ -3123,9 +3123,8 @@
         }
         }
       }
-    }
     const moved=Math.hypot(u.x-u.lastPosX, u.y-u.lastPosY);
-          const tryingToMove = (u.order && (u.order.type==="move" || u.order.type==="attackmove" || u.order.type==="attack") && !u.holdAttack);
+    const tryingToMove = (u.order && (u.order.type==="move" || u.order.type==="attackmove" || u.order.type==="attack") && !u.holdAttack);
           if (tryingToMove){
             if (moved<0.55) u.stuckTime += dt;
             else { u.stuckTime=0; u.lastPosX=u.x; u.lastPosY=u.y; }
