@@ -633,7 +633,7 @@ function getBaseBuildTime(kind){
   const EXP1_JSON = ASSET.sprite.eff.exp1.json;
 
   // Scale for in-game rendering (used by render.js)
-  const INF_SPRITE_SCALE = 0.12;
+  const INF_SPRITE_SCALE = 0.11;
 
   // [vecToDir8, worldVecToDir8 moved to ou_utils.js]
 
