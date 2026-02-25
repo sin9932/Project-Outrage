@@ -152,7 +152,7 @@
       lastSingleKind: null,
       lastHit: { t: -1e9, x: 0, y: 0 },
       mouseMode: "normal",
-      attackAlert: { cooldownUntil:-1e9, windowUntil:-1e9 },
+      attackAlert: { cooldownUntil:-1e9, windowUntil:-1e9, nextEmit:-1e9 },
       attackEvents: [],
       attackCycle: 0,
       alertFx: []
@@ -2447,7 +2447,7 @@ if (state.selection.size>0 && inMap(tx,ty) && ore[idx(tx,ty)]>0){
   if (__ou_ui && typeof __ou_ui.bindGameButtons === "function"){
     __ou_ui.bindGameButtons({
       onSetBuild: (kind)=>setBuild(kind),
-      onRadarBuild: ()=>{ if(!hasBuilding(TEAM.PLAYER,"refinery")){ toast("레이더는 정제소가 필요함"); return; } setBuild("radar"); },
+      onRadarBuild: ()=>setBuild("radar"),
       onLaneRClick: (laneKey, kind)=>enqueueEcon({ type:"laneRClick", laneKey, kind }),
       onQueueUnit: (kind)=>enqueueEcon({ type:"queueUnit", kind }),
       onUnitRClick: (kind)=>enqueueEcon({ type:"unitRClick", kind }),

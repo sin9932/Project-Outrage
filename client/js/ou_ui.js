@@ -544,7 +544,7 @@ function ensureBadge(btn){
           refinery: ["hq","power"],
           barracks: ["hq","power"],
           factory:  ["hq","barracks"],
-          radar:    ["hq","factory"],
+          radar:    ["hq","factory","refinery"],
           turret:   ["hq","barracks"]
         },
         unitPrereq: {
@@ -1849,8 +1849,9 @@ return {
         state.attackEvents[0].until = now + 4.0;
       }
 
-      if (now >= A.nextEmit) {
-        A.nextEmit = now + 4.0;
+      // RA2 style: 8초 쿨다운 (경고 스팸 방지)
+      if (now >= (A.nextEmit ?? -1e9)) {
+        A.nextEmit = now + 8.0;
         toast(type === "harvester" ? "광물굴착기가 공격 당합니다!" : "아군기지가 공격 당합니다!");
         spawnMiniAlertFx(target.x, target.y);
       }
