@@ -874,10 +874,11 @@
                 if (v===u) continue;
                 if (v.id < u.id) continue;
 
-                const dx = v.x - u.x;
-                const dy = v.y - u.y;
                 const cu = clsOf(u);
                 const cv = clsOf(v);
+                if (cu==="inf" && cv==="inf") continue;
+                const dx = v.x - u.x;
+                const dy = v.y - u.y;
                 const rr = (effCollR(u)+effCollR(v));
                 const d2 = dx*dx + dy*dy;
                 if (d2 >= rr*rr) continue;
@@ -885,16 +886,9 @@
                 const d = Math.sqrt(d2) || 0.001;
                 const overlap = rr - d;
                 if (overlap <= eps) continue;
-
                 const nx = dx / d, ny = dy / d;
-                const bothInf = (cu==="inf" && cv==="inf");
-                if (bothInf) {
-                  const utx = (u.x / TILE) | 0, uty = (u.y / TILE) | 0;
-                  const vtx = (v.x / TILE) | 0, vty = (v.y / TILE) | 0;
-                  if (utx===vtx && uty===vty) continue;
-                }
-                const pushK = bothInf ? 0.70 : basePushK;
-                const maxPush = bothInf ? 10.0 : baseMaxPush;
+                const pushK = basePushK;
+                const maxPush = baseMaxPush;
                 const push = Math.min(maxPush, overlap * pushK);
 
                 const au = isAnchored(u);
@@ -911,8 +905,8 @@
                 else if (!hu && hv){ wu = 1.0; wv = 0.0; }
                 if (u.kind==="harvester" && v.kind!=="harvester"){ wu = 0.08; wv = 0.92; }
                 else if (v.kind==="harvester" && u.kind!=="harvester"){ wu = 0.92; wv = 0.08; }
-                if (cu==="inf" && cv!=="inf"){ wu = 0.0; wv = 1.0; }
-                else if (cv==="inf" && cu!=="inf"){ wu = 1.0; wv = 0.0; }
+                if (cu==="inf" && cv!=="inf"){ wu = 1.0; wv = 0.0; }
+                else if (cv==="inf" && cu!=="inf"){ wu = 0.0; wv = 1.0; }
 
                 u._sepAx = (u._sepAx||0) - nx * push * wu;
                 u._sepAy = (u._sepAy||0) - ny * push * wu;
@@ -924,11 +918,11 @@
         }
 
         // Apply accumulated separation with damping to prevent "진동"
+        // 보병은 bothInf 스킵으로 다른 보병에게서는 _sepAx 없음. 차량에 밀릴 때만 적용.
         for (const uu of alive){
-          if (clsOf(uu)==="inf"){ uu._sepAx = 0; uu._sepAy = 0; continue; }
           let ax = uu._sepAx || 0;
           let ay = uu._sepAy || 0;
-          if (ax===0 && ay===0) continue;
+          if (ax===0 && ay===0){ uu._sepAx = 0; uu._sepAy = 0; continue; }
 
           const damp = 0.55;
           ax *= damp; ay *= damp;
@@ -942,7 +936,7 @@
           }
 
           const mag = Math.hypot(ax, ay);
-          const maxStep = 6.0;
+          const maxStep = (clsOf(uu)==="inf") ? 4.0 : 6.0;
           if (mag > maxStep){
             const k = maxStep / (mag || 1);
             ax *= k; ay *= k;
