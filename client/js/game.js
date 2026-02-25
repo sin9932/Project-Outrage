@@ -1191,6 +1191,7 @@ const __ou_econ = (window.OUEconomy && typeof window.OUEconomy.create==="functio
       BUILD,
       // harvester spawn (refinery)
       terrain, buildOcc, ore, occAll, inMap, idx, tileToWorldCenter,
+      isWalkableTile,
       repairWrenches
     })
   : null;

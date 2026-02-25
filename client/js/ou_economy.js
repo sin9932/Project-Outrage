@@ -68,6 +68,7 @@
     const inMap = ctx.inMap || (()=>false);
     const idx = ctx.idx || ((tx,ty)=>ty*MAP_W+tx);
     const tileToWorldCenter = ctx.tileToWorldCenter || ((tx,ty)=>({x:(tx+0.5)*TILE,y:(ty+0.5)*TILE}));
+    const isWalkableTile = ctx.isWalkableTile || (()=>true);
 
     function findHarvesterSpawnNearBuilding(b){
       if (!b) return { x: 0, y: 0 };
@@ -81,9 +82,8 @@
             const tx = cx + dx;
             const ty = cy + dy;
             if (!inMap(tx,ty)) continue;
+            if (!isWalkableTile(tx,ty)) continue; // 나무/지형/건물 등 유닛 이동 불가 타일 제외
             const i=idx(tx,ty);
-            if (terrain[i]!==0) continue;
-            if (buildOcc[i]===1) continue;
             if (ore[i]>0) continue;
             if ((occAll[i]||0)>0) continue;
             const p = tileToWorldCenter(tx,ty);
