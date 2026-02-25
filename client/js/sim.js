@@ -1629,29 +1629,31 @@
 
       const step=Math.min(getMoveSpeed(u)*dt, d);
       let ax=dx/(d||1), ay=dy/(d||1);
-      let avoidX=0, avoidY=0;
-      const avoidR = (u.r||10) + 16;
-      for (let j=0;j<units.length;j++){
-        const o=units[j];
-        if (!o.alive || o.id===u.id) continue;
-        const same = (o.team===u.team);
-        const rr = (u.r+o.r) + (same?14:4);
-        const dx2=u.x-o.x, dy2=u.y-o.y;
-        const dd=dx2*dx2+dy2*dy2;
-        if (dd<=0.0001 || dd>rr*rr) continue;
-        const inv = 1/Math.sqrt(dd);
-        const push = (rr - Math.sqrt(dd)) * (same?1.15:0.35);
-        avoidX += dx2*inv*push;
-        avoidY += dy2*inv*push;
-      }
-      const alen = Math.hypot(avoidX,avoidY);
-      if (alen>0.0001){
-        const mix = 0.55;
-        const nx = avoidX/alen, ny = avoidY/alen;
-        ax = ax*(1-mix) + nx*mix;
-        ay = ay*(1-mix) + ny*mix;
-        const nlen = Math.hypot(ax,ay)||1;
-        ax/=nlen; ay/=nlen;
+      // RA2 style: 보병은 회피 없이 목표로 직진 (위글+렉 근본 해결)
+      if (u.cls!=="inf"){
+        let avoidX=0, avoidY=0;
+        for (let j=0;j<units.length;j++){
+          const o=units[j];
+          if (!o.alive || o.id===u.id) continue;
+          const same = (o.team===u.team);
+          const rr = (u.r+o.r) + (same?14:4);
+          const dx2=u.x-o.x, dy2=u.y-o.y;
+          const dd=dx2*dx2+dy2*dy2;
+          if (dd<=0.0001 || dd>rr*rr) continue;
+          const inv = 1/Math.sqrt(dd);
+          const push = (rr - Math.sqrt(dd)) * (same?1.15:0.35);
+          avoidX += dx2*inv*push;
+          avoidY += dy2*inv*push;
+        }
+        const alen = Math.hypot(avoidX,avoidY);
+        if (alen>0.0001){
+          const mix = 0.55;
+          const nx = avoidX/alen, ny = avoidY/alen;
+          ax = ax*(1-mix) + nx*mix;
+          ay = ay*(1-mix) + ny*mix;
+          const nlen = Math.hypot(ax,ay)||1;
+          ax/=nlen; ay/=nlen;
+        }
       }
 
       const movingDir = (Math.abs(ax) + Math.abs(ay)) > 1e-4;
@@ -2126,14 +2128,19 @@
       if (u.target!=null) return;
       const ot = u.order && u.order.type;
       if (ot!=="idle" && ot!=="guard") return;
-      if (((u.id + (Math.floor((state.t || 0) * 120) | 0)) % 2) !== 0) return;
+      // RA2 style: 매 틱 실행, sub-slot 근처면 즉시 고정
 
       const tx = tileOfX(u.x), ty = tileOfY(u.y);
       if (!inMap(tx,ty)) return;
 
+      const ss = (u.subSlot==null) ? 0 : (u.subSlot & 3);
+      const sp = tileToWorldSubslot(tx, ty, ss);
+      const toSlot2 = (u.x - sp.x)**2 + (u.y - sp.y)**2;
+      if (toSlot2 < 36){ u.x = sp.x; u.y = sp.y; u.vx = 0; u.vy = 0; u.holdPos = true; return; }
+
       const center = tileToWorldCenter(tx, ty);
       const toCenter2 = (u.x - center.x)**2 + (u.y - center.y)**2;
-      if (toCenter2 > (0.07 * TILE) ** 2) return;
+      if (toCenter2 > (0.12 * TILE) ** 2) return;
 
       const i = idx(tx, ty);
       if (occInf && occInf[i] > INF_SLOT_MAX) {
@@ -2142,9 +2149,6 @@
         u.holdPos = true;
         return;
       }
-
-      const ss = (u.subSlot==null) ? 0 : (u.subSlot & 3);
-      const sp = tileToWorldSubslot(tx, ty, ss);
 
       const dx = sp.x - u.x, dy = sp.y - u.y;
       const d2 = dx*dx + dy*dy;
@@ -2249,14 +2253,19 @@
       if (u.target!=null) return;
       const ot = u.order && u.order.type;
       if (ot!=="idle" && ot!=="guard") return;
-      if (((u.id + (Math.floor((state.t || 0) * 120) | 0)) % 2) !== 0) return;
+      // RA2 style: 매 틱 실행, sub-slot 근처면 즉시 고정
 
       const tx = tileOfX(u.x), ty = tileOfY(u.y);
       if (!inMap(tx,ty)) return;
 
+      const ss = (u.subSlot==null) ? 0 : (u.subSlot & 3);
+      const sp = tileToWorldSubslot(tx, ty, ss);
+      const toSlot2 = (u.x - sp.x)**2 + (u.y - sp.y)**2;
+      if (toSlot2 < 36){ u.x = sp.x; u.y = sp.y; u.vx = 0; u.vy = 0; u.holdPos = true; return; }
+
       const center = tileToWorldCenter(tx, ty);
       const toCenter2 = (u.x - center.x)**2 + (u.y - center.y)**2;
-      if (toCenter2 > (0.07 * TILE) ** 2) return;
+      if (toCenter2 > (0.12 * TILE) ** 2) return;
 
       const i = idx(tx, ty);
       if (occInf && occInf[i] > INF_SLOT_MAX) {
@@ -2265,9 +2274,6 @@
         u.holdPos = true;
         return;
       }
-
-      const ss = (u.subSlot==null) ? 0 : (u.subSlot & 3);
-      const sp = tileToWorldSubslot(tx, ty, ss);
 
       const dx = sp.x - u.x, dy = sp.y - u.y;
       const d2 = dx*dx + dy*dy;
