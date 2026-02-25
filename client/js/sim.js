@@ -1436,32 +1436,8 @@
           u.vx = 0; u.vy = 0;
           u.queueWaitT = (u.queueWaitT||0) + dt;
           if (u.queueWaitT < 0.35) return false;
-          // 교통체증: 오래 대기 시 인접 빈 타일로 비켜나기
-          if (u.queueWaitT > 1.0){
-            const curTileTx = tileOfX(u.x), curTileTy = tileOfY(u.y);
-            let stepAside = findBypassStep(u, curTileTx, curTileTy, curTileTx, curTileTy);
-            if (!stepAside && u.queueWaitT > 1.8){
-              for (let r=2; r<=5 && !stepAside; r++){
-                for (let dy=-r; dy<=r && !stepAside; dy++){
-                  for (let dx=-r; dx<=r && !stepAside; dx++){
-                    if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
-                    const tx = curTileTx + dx, ty = curTileTy + dy;
-                    if (tx===curTileTx && ty===curTileTy) continue;
-                    if (tx===p.tx && ty===p.ty) continue;
-                    if (!inMap(tx,ty) || !isWalkableTile(tx,ty)) continue;
-                    if (!canEnterTile(u, tx, ty)) continue;
-                    stepAside = {tx, ty};
-                  }
-                }
-              }
-            }
-            if (stepAside && reserveTile(u, stepAside.tx, stepAside.ty)){
-              u.path = [{tx:stepAside.tx, ty:stepAside.ty}, ...u.path.slice(u.pathI)];
-              u.pathI = 0;
-              u.queueWaitT = 0;
-              return true;
-            }
-            if (u.queueWaitT > 2.5 && u.order && (u.order.x!=null || u.order.tx!=null)){
+          // RA2: 보병은 stepAside 없이 대기 (위글 방지)
+          if (u.queueWaitT > 2.5 && u.order && (u.order.x!=null || u.order.tx!=null)){
               const gx = (u.order.tx!=null) ? (u.order.tx+0.5)*TILE : (u.order.x!=null ? u.order.x : u.x);
               const gy = (u.order.ty!=null) ? (u.order.ty+0.5)*TILE : (u.order.y!=null ? u.order.y : u.y);
               if ((u._queueRetryT==null || (state.t - u._queueRetryT) > 1.2)){
@@ -1471,7 +1447,6 @@
                 return true;
               }
             }
-          }
         } else {
           u.queueWaitT = 0;
           const sp = tileToWorldSubslot(p.tx, p.ty, slot);
@@ -1503,7 +1478,7 @@
               }
             }
           }
-          const step = findBypassStep(u, curTx, curTy, p.tx, p.ty);
+          const step = (u.cls!=="inf") ? findBypassStep(u, curTx, curTy, p.tx, p.ty) : null;
           if (step && reserveTile(u, step.tx, step.ty)){
             u.path = [{tx:step.tx, ty:step.ty}, ...u.path.slice(u.pathI)];
             u.pathI = 0;
@@ -1596,7 +1571,7 @@
         const nextTile = u.path[u.pathI];
         if (!(nextTile.tx===curTileTx && nextTile.ty===curTileTy)){
           if (!reserveTile(u, nextTile.tx, nextTile.ty) || isReservedByOther(u, nextTile.tx, nextTile.ty)){
-            const bp = findBypassStep(u, curTileTx, curTileTy, nextTile.tx, nextTile.ty);
+            const bp = (u.cls!=="inf") ? findBypassStep(u, curTileTx, curTileTy, nextTile.tx, nextTile.ty) : null;
             if (bp){
               u.path.splice(u.pathI, 0, {tx:bp.tx, ty:bp.ty});
               return true;
@@ -1613,7 +1588,7 @@
                 return false;
               }
             }
-            if ((u.avoidCd||0) <= 0){
+            if ((u.avoidCd||0) <= 0 && u.cls!=="inf"){
               const bypass = findBypassStep(u, curTileTx, curTileTy, nextTile.tx, nextTile.ty);
               if (bypass){
                 u.path.splice(u.pathI, 0, bypass);
@@ -1695,7 +1670,7 @@
         const blockedNext = (!canEnterTile(u, ntx, nty) || isReservedByOther(u, ntx, nty));
         if (blockedNext){
           u.blockT = (u.blockT||0) + dt;
-          if ((u.avoidCd||0) <= 0){
+          if ((u.avoidCd||0) <= 0 && u.cls!=="inf"){
             const bypass = findBypassStep(u, curTx, curTy, ntx, nty);
             if (bypass){
               u.path.splice(u.pathI, 0, bypass);
@@ -1807,7 +1782,7 @@
           u.yieldCd = Math.max(u.yieldCd||0, 0.15);
           return true;
         } else if (goal){
-          const b = findBypassStep(u, curTx, curTy, goal.tx, goal.ty);
+          const b = (u.cls!=="inf") ? findBypassStep(u, curTx, curTy, goal.tx, goal.ty) : null;
           if (b){ u.path.splice(u.pathI, 0, b); }
           else { setPathTo(u, (goal.tx+0.5)*TILE, (goal.ty+0.5)*TILE); }
           u.yieldCd = Math.max(u.yieldCd||0, 0.12);
