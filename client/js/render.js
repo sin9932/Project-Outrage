@@ -2111,8 +2111,8 @@
     ctx.save();
     ctx.fillStyle = "rgba(255,220,80,0.95)";
     ctx.strokeStyle = "rgba(0,0,0,0.6)";
-    ctx.lineWidth = 1;
-    const cw = 4*z, ch = 3*z, gap = 2*z;
+    ctx.lineWidth = Math.max(1, 1.2*z);
+    const cw = 7*z, ch = 5.5*z, gap = 3*z;
     const totalW = n*cw + (n-1)*gap;
     for (let i=0;i<n;i++){
       const cx = x - totalW/2 + cw/2 + i*(cw+gap);

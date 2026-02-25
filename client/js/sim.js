@@ -390,6 +390,38 @@
       }
     }
 
+    function updateOccForUnitMove(u, oldTx, oldTy, newTx, newTy){
+      if (!occAll || !occInf || !occVeh || !occAnyId || !occTeam || !infSlotMask0 || !infSlotMask1) return;
+      if (!u.alive || u.inTransport) return;
+      const cls = (UNIT[u.kind] && UNIT[u.kind].cls) ? UNIT[u.kind].cls : "";
+      const oi = idx(oldTx, oldTy);
+      const ni = idx(newTx, newTy);
+      if (inMap(oldTx, oldTy)){
+        occAll[oi] = Math.max(0, (occAll[oi]||0) - 1);
+        if (cls==="inf"){
+          occInf[oi] = Math.max(0, (occInf[oi]||0) - 1);
+          const mask = (u.team===0) ? infSlotMask0[oi] : infSlotMask1[oi];
+          const slot = (u.subSlot!=null && u.subSlotTx===oldTx && u.subSlotTy===oldTy) ? (u.subSlot & 3) : 0;
+          const cleared = (mask & ~(1<<slot)) & 0x0F;
+          if (u.team===0) infSlotMask0[oi] = cleared; else infSlotMask1[oi] = cleared;
+        } else if (cls==="veh") occVeh[oi] = Math.max(0, (occVeh[oi]||0) - 1);
+        if ((occAll[oi]||0)<=0){ occAnyId[oi]=0; occTeam[oi]=0; }
+      }
+      if (inMap(newTx, newTy)){
+        if ((occAnyId[ni]||0)===0){ occAnyId[ni]=u.id; occTeam[ni]=u.team; }
+        if (cls==="inf"){
+          occInf[ni] = Math.min(255, (occInf[ni]||0) + 1);
+          let mask = (u.team===0) ? infSlotMask0[ni] : infSlotMask1[ni];
+          let slot = (u.subSlot!=null && u.subSlotTx===newTx && u.subSlotTy===newTy && ((mask>>(u.subSlot&3))&1)===0) ? (u.subSlot&3) : -1;
+          if (slot<0){ for (let s=0;s<4;s++){ if (((mask>>s)&1)===0){ slot=s; break; } } if (slot<0) slot=0; }
+          u.subSlot=slot; u.subSlotTx=newTx; u.subSlotTy=newTy;
+          mask=(mask|(1<<slot))&0x0F;
+          if (u.team===0) infSlotMask0[ni]=mask; else infSlotMask1[ni]=mask;
+        } else if (cls==="veh") occVeh[ni] = Math.min(255, (occVeh[ni]||0) + 1);
+        occAll[ni] = Math.min(255, (occAll[ni]||0) + 1);
+      }
+    }
+
     function tickTurrets(dt){
       for (const b of buildings){
         if (!b.alive || b.civ || b.kind!=="turret") continue;
@@ -1178,14 +1210,18 @@
       ];
       const uTx = u ? tileOfX(u.x) : -999;
       const uTy = u ? tileOfY(u.y) : -999;
+      let best = null, bestD = 1e18;
       for (const c of candidates){
         const tx=(c.x/TILE)|0, ty=(c.y/TILE)|0;
         if (!inMap(tx,ty)) continue;
         if (!isWalkableTile(tx,ty)) continue;
         if (!u) return c;
-        if (canEnterTileGoal(u, tx, ty, b) || (tx===uTx && ty===uTy)) return c;
+        if (canEnterTileGoal(u, tx, ty, b) || (tx===uTx && ty===uTy)){
+          const d2 = (u.x - c.x)**2 + (u.y - c.y)**2;
+          if (d2 < bestD){ bestD = d2; best = c; }
+        }
       }
-      return candidates[candidates.length-1];
+      return best || candidates[candidates.length-1];
     }
 
     function isReservedByOther(u, tx, ty){
@@ -1425,6 +1461,16 @@
               u.queueWaitT = 0;
               return true;
             }
+            if (u.queueWaitT > 2.5 && u.order && (u.order.x!=null || u.order.tx!=null)){
+              const gx = (u.order.tx!=null) ? (u.order.tx+0.5)*TILE : (u.order.x!=null ? u.order.x : u.x);
+              const gy = (u.order.ty!=null) ? (u.order.ty+0.5)*TILE : (u.order.y!=null ? u.order.y : u.y);
+              if ((u._queueRetryT==null || (state.t - u._queueRetryT) > 1.2)){
+                u._queueRetryT = state.t;
+                u.queueWaitT = 0;
+                setPathTo(u, gx, gy);
+                return true;
+              }
+            }
           }
         } else {
           u.queueWaitT = 0;
@@ -1445,7 +1491,7 @@
             u.finalBlockT = (u.finalBlockT||0) + dt;
             if (u.finalBlockT > 0.18 && (u.lastRetargetT==null || (state.t - u.lastRetargetT) > 0.50)) {
               const goalWx = (p.tx+0.5)*TILE, goalWy = (p.ty+0.5)*TILE;
-              const spot = findNearestFreePoint(goalWx, goalWy, u, 2);
+              const spot = findNearestFreePoint(goalWx, goalWy, u, 3);
               const nTx = tileOfX(spot.x), nTy = tileOfY(spot.y);
               if ((nTx!==p.tx || nTy!==p.ty) && canEnterTile(u, nTx, nTy) && reserveTile(u, nTx, nTy)) {
                 const wp2 = tileToWorldCenter(nTx, nTy);
@@ -1465,6 +1511,24 @@
           }
           u.blockT = (u.blockT||0) + dt;
           if (u.blockT > 0.48){
+            const pi = idx(p.tx, p.ty);
+            const blockedByEnemy = (occTeam[pi]!==0 && occTeam[pi]!==u.team);
+            const blockerId = blockedByEnemy ? (occAnyId[pi]|0) : 0;
+            const blocker = blockerId ? getEntityById(blockerId) : null;
+            const canEngageBlocker = blocker && blocker.alive && blocker.attackable!==false &&
+              (u.dmg||0)>0 && (u.range||0)>0 && u.kind!=="engineer" && u.kind!=="harvester" &&
+              dist2(u.x, u.y, blocker.x, blocker.y) <= ((u.range||0)*(u.range||0));
+            if (blockedByEnemy && canEngageBlocker){
+              u.target = blocker.id;
+              u.order = {type:"attack", x:u.x, y:u.y, tx:null, ty:null, manual:!!(u.team===TEAM.ENEMY), allowAuto:!(u.team===TEAM.ENEMY), lockTarget:!!(u.team===TEAM.ENEMY)};
+              setPathTo(u, blocker.x, blocker.y);
+              u.pathI = 0;
+              clearReservation(u);
+              u.blockT = 0;
+              u.repathCd = 0.15;
+              u.combatGoalT = 0;
+              return true;
+            }
             const cwx=(curTx+0.5)*TILE, cwy=(curTy+0.5)*TILE;
             u.x=cwx; u.y=cwy;
             const _combatLocked = (u.target!=null && u.order && (u.order.type==="attack" || u.order.type==="attackmove"));
@@ -2016,9 +2080,11 @@
 
     function findNearestRefinery(team, wx, wy){
       let best=null, bestD=1e9;
+      const fakeU = {x: wx, y: wy, r: 28}; // harvester radius for dock selection
       for (const b of buildings){
         if (!b.alive || b.team!==team || b.kind!=="refinery") continue;
-        const d2 = dist2(wx,wy,b.x,b.y);
+        const dock = getDockPoint(b, fakeU);
+        const d2 = dist2(wx, wy, dock.x, dock.y);
         if (d2<bestD){ bestD=d2; best=b; }
       }
       return best;
@@ -2125,21 +2191,27 @@
       ];
       const uTx = u ? tileOfX(u.x) : -999;
       const uTy = u ? tileOfY(u.y) : -999;
+      let best = null, bestD = 1e18;
       for (const c of candidates){
         const tx=(c.x/TILE)|0, ty=(c.y/TILE)|0;
         if (!inMap(tx,ty)) continue;
         if (!isWalkableTile(tx,ty)) continue;
         if (!u) return c;
-        if (canEnterTileGoal(u, tx, ty, b) || (tx===uTx && ty===uTy)) return c;
+        if (canEnterTileGoal(u, tx, ty, b) || (tx===uTx && ty===uTy)){
+          const d2 = (u.x - c.x)**2 + (u.y - c.y)**2;
+          if (d2 < bestD){ bestD = d2; best = c; }
+        }
       }
-      return candidates[candidates.length-1];
+      return best || candidates[candidates.length-1];
     }
 
     function findNearestRefinery(team, wx, wy){
       let best=null, bestD=1e9;
+      const fakeU = {x: wx, y: wy, r: 28};
       for (const b of buildings){
         if (!b.alive || b.team!==team || b.kind!=="refinery") continue;
-        const d2 = dist2(wx,wy,b.x,b.y);
+        const dock = getDockPoint(b, fakeU);
+        const d2 = dist2(wx, wy, dock.x, dock.y);
         if (d2<bestD){ bestD=d2; best=b; }
       }
       return best;
@@ -2544,7 +2616,18 @@
 
     function tickUnits(dt){
         clearOcc(dt);
-        for (const u of units){
+        for (let i=0; i<units.length; i++){
+          const u = units[i];
+          if (i>0){
+            const prev = units[i-1];
+            if (prev.alive && !prev.inTransport && prev._occOldTx!=null && prev._occOldTy!=null){
+              const nTx=tileOfX(prev.x), nTy=tileOfY(prev.y);
+              if (prev._occOldTx!==nTx || prev._occOldTy!==nTy){
+                updateOccForUnitMove(prev, prev._occOldTx, prev._occOldTy, nTx, nTy);
+              }
+            }
+          }
+          u._occOldTx = tileOfX(u.x), u._occOldTy = tileOfY(u.y);
           if (!u.alive) continue;
           applyEliteHeal(u, dt);
           const eliteFx = (u.kind==="infantry" || u.kind==="sniper") ? u :
@@ -3044,26 +3127,32 @@
               } else {
                 u.crushUntil = 0;
                 u.crushTargetId = null;
+                // 위협 제거: idle로 전환 → 아래 idle 블록이 carry/ore에 따라 즉시 harvest/return으로 복구
+                u.order = {type:"idle", x:u.x, y:u.y, tx:null, ty:null};
+                u.path = null; u.pathI = 0;
               }
             }
             const findBestOrePatch = (center) => {
               // Auto-find ore/gem patch (ore와 gem 모두 ore[] 배열에 저장됨)
               // 나무/건물 등으로 막힌 타일 제외 (isWalkableTile)
+              // 다른 하베스터가 선점한 타일 우선 제외 (occVeh) - 여러 하베스터가 1 제련소 공유 시 분산
               // center: optional {x,y} for search origin (e.g. refinery when harvester at dock)
               const wx = (center && center.x != null) ? center.x : u.x;
               const wy = (center && center.y != null) ? center.y : u.y;
               let best=null, bestD=Infinity;
               const cx=tileOfX(wx), cy=tileOfY(wy);
+              const skipOccupied = (ii) => (occVeh && (occVeh[ii]||0) > 0);
 
-              // 1) Nearby scan (cheap)
+              // 1) Nearby scan (cheap) - 비어있는 ore 우선
               const R=18;
               for (let dy=-R; dy<=R; dy++){
                 for (let dx=-R; dx<=R; dx++){
                   const tx=cx+dx, ty=cy+dy;
                   if (!inMap(tx,ty)) continue;
-                  if (!isWalkableTile(tx,ty)) continue; // 나무/지형 등 이동불가 제외
+                  if (!isWalkableTile(tx,ty)) continue;
                   const ii=idx(tx,ty);
-                  if (ore[ii]<=0) continue; // ore/gem 공통: ore[]에 양 저장 (terrain 무관)
+                  if (ore[ii]<=0) continue;
+                  if (skipOccupied(ii)) continue; // 다른 하베스터가 채굴 중인 타일 제외
                   const pTile=tileToWorldCenter(tx,ty);
                   const px=pTile.x, py=pTile.y;
                   const d=dist2(wx,wy,px,py);
@@ -3071,10 +3160,27 @@
                 }
               }
 
-              // 2) Global fallback: pick the nearest ore/gem tile anywhere (not "first found")
+              // 2) Global fallback - 비어있는 ore
               if (!best){
                 for (let ty=0; ty<MAP_H; ty++){
                   for (let tx=0; tx<MAP_W; tx++){
+                    if (!isWalkableTile(tx,ty)) continue;
+                    const ii=idx(tx,ty);
+                    if (ore[ii]<=0) continue;
+                    if (skipOccupied(ii)) continue;
+                    const pTile=tileToWorldCenter(tx,ty);
+                    const px=pTile.x, py=pTile.y;
+                    const d=dist2(wx,wy,px,py);
+                    if (d<bestD){ bestD=d; best={tx,ty}; }
+                  }
+                }
+              }
+              // 3) Fallback: occupied ore도 허용 (다른 하베스터가 곧 비울 수 있음)
+              if (!best){
+                for (let dy=-R; dy<=R; dy++){
+                  for (let dx=-R; dx<=R; dx++){
+                    const tx=cx+dx, ty=cy+dy;
+                    if (!inMap(tx,ty)) continue;
                     if (!isWalkableTile(tx,ty)) continue;
                     const ii=idx(tx,ty);
                     if (ore[ii]<=0) continue;
@@ -3102,6 +3208,7 @@
                 u.target = ref ? ref.id : null;
               }
               if (!ref){
+                u.target = null; // 파괴된 제련소 참조 제거
                 if (hasAnyRefinery(u.team)){
                   const best = findBestOrePatch();
                   if (best){
@@ -3110,7 +3217,7 @@
                     u.repathCd=0.25;
                   } else {
                     u._harvestNoOreTicks = (u._harvestNoOreTicks||0) + 1;
-                    if ((u._harvestNoOreTicks||0) >= 18){ u.order.type="idle"; u._harvestNoOreTicks=0; }
+                    if ((u._harvestNoOreTicks||0) >= 48){ u.order.type="idle"; u._harvestNoOreTicks=0; }
                     else u.repathCd = 0.15;
                   }
                 } else {
@@ -3123,9 +3230,10 @@
     
               if (u.repathCd<=0){
                 const gTx=(dock.x/TILE)|0, gTy=(dock.y/TILE)|0;
-                if (u.lastGoalTx!==gTx || u.lastGoalTy!==gTy){
+                const pathLost = !u.path || !u.path.length;
+                if (pathLost || u.lastGoalTx!==gTx || u.lastGoalTy!==gTy){
                   setPathTo(u, dock.x, dock.y);
-                  u.repathCd=0.55;
+                  u.repathCd = pathLost ? 0.25 : 0.55;
                 }
               }
               followPath(u,dt);
@@ -3155,9 +3263,19 @@
                   u.repathCd=0.25;
                 } else {
                   // After deposit: immediately resume auto-harvest; retry a few times before idle.
-                  // Refinery-on-ore: harvester at dock may not see ore (blocked by building); try refinery center.
+                  // Refinery-on-ore: harvester at dock may not see ore (blocked by building); try multiple origins.
                   let best = findBestOrePatch();
-                  if (!best && ref) best = findBestOrePatch({x:ref.x, y:ref.y});
+                  if (!best && ref){
+                    best = findBestOrePatch({x:ref.x, y:ref.y});
+                    if (!best){
+                      const pad = TILE * 1.5;
+                      const origins = [
+                        {x: ref.x + pad, y: ref.y}, {x: ref.x - pad, y: ref.y},
+                        {x: ref.x, y: ref.y + pad}, {x: ref.x, y: ref.y - pad}
+                      ];
+                      for (const o of origins){ best = findBestOrePatch(o); if (best) break; }
+                    }
+                  }
                   if (best){
                     u.order={type:"harvest", x:u.x,y:u.y, tx:best.tx, ty:best.ty};
                     setPathTo(u, (best.tx+0.5)*TILE, (best.ty+0.5)*TILE);
@@ -3170,7 +3288,7 @@
                     u.order = {type:"harvest", x:u.x, y:u.y, tx:cx, ty:cy};
                     u.path = null; u.pathI = 0;
                     u._harvestNoOreTicks = (u._harvestNoOreTicks||0) + 1;
-                    if ((u._harvestNoOreTicks||0) >= 24){
+                    if ((u._harvestNoOreTicks||0) >= 48){
                       u.order = {type:"idle", x:u.x, y:u.y, tx:null, ty:null};
                       u.target = null;
                       u.path = null; u.pathI = 0;
@@ -3186,6 +3304,18 @@
 
             if (u.order.type==="idle"){
               u._harvestNoOreTicks = 0;
+              // 제련소 복구 시 즉시 복귀 (적군 제련소 파괴 후 재건 대응)
+              if ((u.carry||0) > 0 && hasAnyRefinery(u.team)){
+                const ref = findNearestRefinery(u.team,u.x,u.y);
+                if (ref){
+                  u.target = ref.id;
+                  u.order.type="return";
+                  const dock=getDockPoint(ref,u);
+                  setPathTo(u,dock.x,dock.y);
+                  u.repathCd=0.25;
+                  continue;
+                }
+              }
               // 현재 타일에 ore 있으면 즉시 채굴
               const curTx0 = tileOfX(u.x), curTy0 = tileOfY(u.y);
               if (inMap(curTx0, curTy0) && isWalkableTile(curTx0, curTy0) && ore[idx(curTx0, curTy0)]>0){
@@ -3227,6 +3357,7 @@
                 const cx=tileOfX(u.x), cy=tileOfY(u.y);
                 const R=7;
                 let best=null, bestD=Infinity;
+                const skipOcc = (ii) => (occVeh && (occVeh[ii]||0) > 0);
                 for (let dy=-R; dy<=R; dy++){
                   for (let dx=-R; dx<=R; dx++){
                     const ax=cx+dx, ay=cy+dy;
@@ -3234,10 +3365,26 @@
                     if (!isWalkableTile(ax,ay)) continue;
                     const ii=idx(ax,ay);
                     if (ore[ii]<=0) continue; // ore/gem 공통
+                    if (skipOcc(ii)) continue; // 다른 하베스터 선점 타일 제외
                     const pA=tileToWorldCenter(ax,ay);
                     const px=pA.x, py=pA.y;
                     const d=dist2(u.x,u.y,px,py);
                     if (d<bestD){ bestD=d; best={tx:ax, ty:ay}; }
+                  }
+                }
+                if (!best){
+                  for (let dy=-R; dy<=R; dy++){
+                    for (let dx=-R; dx<=R; dx++){
+                      const ax=cx+dx, ay=cy+dy;
+                      if (!inMap(ax,ay)) continue;
+                      if (!isWalkableTile(ax,ay)) continue;
+                      const ii=idx(ax,ay);
+                      if (ore[ii]<=0) continue;
+                      const pA=tileToWorldCenter(ax,ay);
+                      const px=pA.x, py=pA.y;
+                      const d=dist2(u.x,u.y,px,py);
+                      if (d<bestD){ bestD=d; best={tx:ax, ty:ay}; }
+                    }
                   }
                 }
                 return best;
@@ -3262,7 +3409,7 @@
                   } else {
                     // Don't go idle on first failure: retry for several ticks (pathfinding/race).
                     u._harvestNoOreTicks = (u._harvestNoOreTicks||0) + 1;
-                    if ((u._harvestNoOreTicks||0) >= 24){ u.order.type="idle"; u._harvestNoOreTicks=0; }
+                    if ((u._harvestNoOreTicks||0) >= 48){ u.order.type="idle"; u._harvestNoOreTicks=0; }
                     u.repathCd = 0.12;
                     continue;
                   }
@@ -3840,9 +3987,18 @@
         // Resolve overlaps after movement so units don't clump forever.
         resolveUnitOverlaps();
       }
+      if (units.length>0){
+        const last = units[units.length-1];
+        if (last.alive && !last.inTransport && last._occOldTx!=null && last._occOldTy!=null){
+          const nTx=tileOfX(last.x), nTy=tileOfY(last.y);
+          if (last._occOldTx!==nTx || last._occOldTy!==nTy){
+            updateOccForUnitMove(last, last._occOldTx, last._occOldTy, nTx, nTy);
+          }
+        }
+      }
 
     let _pathFindBudget = 0;
-    const MAX_PATHFINDS_PER_FRAME = 24;
+    const MAX_PATHFINDS_PER_FRAME = 32;
 
     function tickSim(dt) {
       _pathFindBudget = MAX_PATHFINDS_PER_FRAME;

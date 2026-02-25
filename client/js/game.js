@@ -2860,7 +2860,7 @@ function draw(){
     const a = new Audio();
     a.src = ASSET.music.pregame[0];
     a.loop = true;
-    a.volume = 0.5;
+    a.volume = 0.4;
     const pregameEl = document.getElementById("pregame");
     if (pregameEl) {
       const start = () => { a.play().catch(() => {}); };

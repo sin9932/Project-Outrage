@@ -1380,14 +1380,14 @@ function ensureBadge(btn){
             if (typeof bgm.stopAll === "function") bgm.stopAll();
             bgm.audio.src = track;
             bgm.audio.loop = true;
-            bgm.audio.volume = (global.__bgmUserVol != null) ? global.__bgmUserVol : 0.5;
+            bgm.audio.volume = (global.__bgmUserVol != null) ? global.__bgmUserVol : 0.4;
             bgm.audio.play().catch(()=>{});
             showResultOverlay._victoryAudio = bgm.audio;
           } catch(_){}
         } else {
           try {
             const a = new Audio(track);
-            a.volume = (global.__bgmUserVol != null) ? global.__bgmUserVol : 0.5;
+            a.volume = (global.__bgmUserVol != null) ? global.__bgmUserVol : 0.4;
             a.loop = true;
             a.play().catch(()=>{});
             showResultOverlay._victoryAudio = a;
@@ -1453,9 +1453,9 @@ function ensureBadge(btn){
             refs.repeat.textContent = (m==="one") ? "반복: 1곡" : (m==="all" ? "반복: 전체" : "반복: 없음");
           },
           setVol: (v)=>{
-            if (refs.vol) refs.vol.value = String(v ?? 0.5);
+            if (refs.vol) refs.vol.value = String(v ?? 0.4);
             if (refs.volVal){
-              const n = Number.isFinite(v) ? v : 0.5;
+              const n = Number.isFinite(v) ? v : 0.4;
               refs.volVal.textContent = String(Math.max(1, Math.min(10, Math.round(n * 10))));
             }
           },
@@ -1491,7 +1491,7 @@ function ensureBadge(btn){
 
       if (refs.vol) refs.vol.addEventListener("input", ()=>{
         const v = parseFloat(refs.vol.value);
-        if (refs.volVal) refs.volVal.textContent = String(Math.max(1, Math.min(10, Math.round((Number.isFinite(v) ? v : 0.5) * 10))));
+        if (refs.volVal) refs.volVal.textContent = String(Math.max(1, Math.min(10, Math.round((Number.isFinite(v) ? v : 0.4) * 10))));
         if (typeof env.onVol === "function") env.onVol(v);
       });
       if (refs.bright) refs.bright.addEventListener("input", ()=>{

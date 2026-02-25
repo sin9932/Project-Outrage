@@ -713,7 +713,7 @@ function drawBlood(ctx, w2s, cam){
     const T = opts.tile ?? TILE;
     const minN = opts.minN ?? 4;
     const maxN = opts.maxN ?? 12;
-    const baseSize = opts.size ?? 1;
+    const baseSize = opts.size ?? 0.5;
     const n = minN + Math.floor(Math.random() * (maxN - minN + 1));
     for (let i=0;i<n;i++){
       const ang = Math.random() * Math.PI * 2;
@@ -758,7 +758,7 @@ function drawBlood(ctx, w2s, cam){
           vx: -d.vx*0.06, vy: -d.vy*0.06,
           life: 0.18 + Math.random()*0.12,
           ttl: 0.18 + Math.random()*0.12,
-          r: 8 + Math.random()*12
+          r: 4 + Math.random()*6
         });
       }
       d.x += d.vx*dt;
