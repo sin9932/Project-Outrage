@@ -702,13 +702,34 @@
         // normal bullet (linear)
         bl.life -= dt;
         const px = bl.x, py = bl.y;
+
+        if (bl.kind==="missile"){
+          if (bl.tid){
+            const tgt = getEntityById(bl.tid);
+            if (tgt && tgt.alive){
+              const dx = tgt.x - bl.x, dy = tgt.y - bl.y;
+              const d = Math.hypot(dx,dy) || 1;
+              const ROT = 0.14;
+              const spd = Math.hypot(bl.vx,bl.vy) || (bl.sp ?? 1350);
+              const nx = dx/d, ny = dy/d;
+              bl.vx += (nx*spd - bl.vx) * ROT;
+              bl.vy += (ny*spd - bl.vy) * ROT;
+            }
+          }
+          if (bl.vz!=null){
+            bl.z = (bl.z||0) + bl.vz*dt;
+            bl.vz -= 380*dt;
+            if (bl.z < 0){ bl.z = 0; bl.vz = 0; }
+          }
+        }
+
         bl.x += bl.vx*dt;
         bl.y += bl.vy*dt;
 
-        if (bl.kind==="missile" && bl.vz!=null){
-          bl.z = (bl.z||0) + bl.vz*dt;
-          bl.vz -= 520*dt;
-          if (bl.z < 0){ bl.z = 0; bl.vz = 0; }
+        if (bl.kind==="missile"){
+          if (!bl._trail) bl._trail = [];
+          bl._trail.push({x:bl.x, y:bl.y, z:bl.z||0});
+          if (bl._trail.length > 18) bl._trail.shift();
         }
 
         // Swept collision for missiles to prevent tunneling through buildings at high speed.
@@ -2716,7 +2737,12 @@
       const dx=tx-x, dy=ty-y;
       const d=Math.hypot(dx,dy)||1;
       const bl = {kind: (opt.kind||"bullet"),team,x,y,vx:dx/d*sp,vy:dy/d*sp,life:(opt.life??0.35),dmg,ownerId, tx:(opt.tx??tx), ty:(opt.ty??ty)};
-      if (opt.kind==="missile"){ bl.z = 0; bl.vz = opt.vz ?? 140; }
+      if (opt.kind==="missile"){
+        bl.z = 0; bl.vz = opt.vz ?? 80;
+        bl.tid = opt.tid ?? null;
+        bl.sp = sp;
+        bl._trail = [{x,y,z:0}];
+      }
       bullets.push(bl);
     }
 
@@ -2872,29 +2898,46 @@
       spawnBullet(shooter.team, muzzle.x, muzzle.y, target.x, target.y, shooter.dmg, shooter.id, { kind:"shell", dur: 0.12, h: 18, tid: target.id, allowFriendly: !!(shooter.order && shooter.order.allowFriendly) });
     }
 
+    // RA2-style shared hover missile (IFV, Patriot, Aegis 공통)
+    function spawnHoverMissile(team, muzzleX, muzzleY, target, dmg, ownerId, opt){
+      const dx = target.x - muzzleX, dy = target.y - muzzleY;
+      const dist = Math.hypot(dx,dy) || 1;
+      const ang = Math.atan2(dy, dx);
+      const spread = opt.spread ?? 0.08;
+      const count = opt.count ?? 1;
+
+      const sp = opt.sp ?? 1350;
+      const baseLife = dist / sp;
+      const life = Math.max(0.25, Math.min(2.0, baseLife + (opt.lifeAdd ?? 0.18)));
+
+      const tid = (target && typeof target.id==="number") ? target.id : null;
+
+      const targets = [];
+      if (count === 1) {
+        targets.push({ tx: target.x, ty: target.y });
+      } else {
+        const tx1 = muzzleX + Math.cos(ang-spread)*dist;
+        const ty1 = muzzleY + Math.sin(ang-spread)*dist;
+        const tx2 = muzzleX + Math.cos(ang+spread)*dist;
+        const ty2 = muzzleY + Math.sin(ang+spread)*dist;
+        targets.push({ tx: tx1, ty: ty1 }, { tx: tx2, ty: ty2 });
+      }
+
+      for (const t of targets){
+        spawnBullet(team, muzzleX, muzzleY, t.tx, t.ty, dmg, ownerId, {
+          sp, kind:"missile", life, tx:t.tx, ty:t.ty, tid, aimX:target.x, aimY:target.y, vz: opt.vz ?? 80
+        });
+      }
+    }
+
     function fireIFVMissiles(u, t){
       const dx = t.x - u.x, dy = t.y - u.y;
       const dist = Math.hypot(dx,dy) || 1;
       const ang = Math.atan2(dy, dx);
       const nx = Math.cos(ang), ny = Math.sin(ang);
-      const spread = 0.08;
-
-      const sp = 1350;
-      const baseLife = dist / sp;
-      const life = Math.max(0.25, Math.min(2.0, baseLife + 0.18));
-
-      const tid = (t && typeof t.id==="number") ? t.id : null;
-
       const lift = (x,y)=>{ const iso = worldToIso(x,y); return isoToWorld(iso.x, iso.y - 48); };
       const muzzle = lift(u.x + nx*14, u.y + ny*14);
-
-      const tx1 = u.x + Math.cos(ang-spread)*dist;
-      const ty1 = u.y + Math.sin(ang-spread)*dist;
-      const tx2 = u.x + Math.cos(ang+spread)*dist;
-      const ty2 = u.y + Math.sin(ang+spread)*dist;
-
-      spawnBullet(u.team, muzzle.x, muzzle.y, tx1, ty1, u.dmg, u.id, { sp, kind:"missile", life, tx:tx1, ty:ty1, tid, aimX:t.x, aimY:t.y, vz: 140 });
-      spawnBullet(u.team, muzzle.x, muzzle.y, tx2, ty2, u.dmg, u.id, { sp, kind:"missile", life, tx:tx2, ty:ty2, tid, aimX:t.x, aimY:t.y, vz: 140 });
+      spawnHoverMissile(u.team, muzzle.x, muzzle.y, t, u.dmg, u.id, { count: 2 });
     }
 
     function tickUnits(dt){

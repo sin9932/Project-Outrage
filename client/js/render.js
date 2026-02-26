@@ -3164,6 +3164,28 @@
         const z = bl.z || 0;
         const p = { x: p0.x, y: p0.y - z };
         const a=(bl.team===TEAM.PLAYER) ? "rgba(150,220,255,0.95)" : "rgba(255,150,150,0.95)";
+
+        if (bl._trail && bl._trail.length >= 2){
+          ctx.save();
+          ctx.lineCap = "round";
+          ctx.lineJoin = "round";
+          for (let j = 1; j < bl._trail.length; j++){
+            const pt = bl._trail[j];
+            const prev = bl._trail[j-1];
+            const pa = worldToScreen(prev.x, prev.y);
+            const pb = worldToScreen(pt.x, pt.y);
+            const za = prev.z || 0, zb = pt.z || 0;
+            const alpha = 0.15 + 0.55 * (j / bl._trail.length);
+            ctx.strokeStyle = (bl.team===TEAM.PLAYER) ? `rgba(150,220,255,${alpha})` : `rgba(255,150,150,${alpha})`;
+            ctx.lineWidth = 3.5 - 2 * (j / bl._trail.length);
+            ctx.beginPath();
+            ctx.moveTo(pa.x, pa.y - za);
+            ctx.lineTo(pb.x, pb.y - zb);
+            ctx.stroke();
+          }
+          ctx.restore();
+        }
+
         ctx.strokeStyle=a;
         ctx.lineWidth=2;
         ctx.beginPath();

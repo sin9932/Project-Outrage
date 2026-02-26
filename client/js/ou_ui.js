@@ -1590,6 +1590,7 @@ function ensureBadge(btn){
       r.btnFac = r.btnFac || document.getElementById("bFac");
       r.btnRad = r.btnRad || document.getElementById("bRad");
       r.btnTur = r.btnTur || document.getElementById("bTur");
+      r.btnPat = r.btnPat || document.getElementById("bPat");
 
       r.btnInf = r.btnInf || document.getElementById("pInf");
       r.btnEng = r.btnEng || document.getElementById("pEng");
