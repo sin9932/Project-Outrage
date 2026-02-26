@@ -2706,33 +2706,57 @@
         const tx=s-ty;
         if (!inMap(tx,ty)) continue;
         const i=idx(tx,ty);
-
         drawIsoTile(tx,ty,terrain[i]);
+      }
+    }
 
-        const iVis = visible[TEAM.PLAYER][i];
-        const iExp = explored[TEAM.PLAYER][i];
-
-        if (!iExp || !iVis){
-          const c = tileToWorldCenter(tx,ty);
-          const p = worldToScreen(c.x,c.y);
-          const x = p.x, y = p.y;
-          const ox = ISO_X*cam.zoom, oy = ISO_Y*cam.zoom;
-          const eps = Math.max(ox*0.35, oy*0.35, 10);
-          if (!iExp){
-            ctx.fillStyle = "rgba(0,0,0,1)";
-          } else {
-            ctx.fillStyle = "rgba(0,0,0,0.10)";
-          }
-
+    /* RA2-style shroud/fog: full overlay + destination-out erase (no tile gaps) */
+    if (explored && visible) {
+      const ox = ISO_X * cam.zoom, oy = ISO_Y * cam.zoom;
+      const eps = 1.5;
+      const drawDiamond = (x, y) => {
+        ctx.moveTo(x, y - oy - eps);
+        ctx.lineTo(x + ox + eps, y);
+        ctx.lineTo(x, y + oy + eps);
+        ctx.lineTo(x - ox - eps, y);
+        ctx.closePath();
+      };
+      ctx.save();
+      ctx.fillStyle = "rgba(0,0,0,1)";
+      ctx.fillRect(0, 0, W, H);
+      ctx.globalCompositeOperation = "destination-out";
+      ctx.fillStyle = "rgba(0,0,0,1)";
+      for (let s = 0; s <= (MAP_W - 1) + (MAP_H - 1); s++) {
+        for (let ty = 0; ty < MAP_H; ty++) {
+          const tx = s - ty;
+          if (!inMap(tx, ty)) continue;
+          if (!explored[TEAM.PLAYER][idx(tx, ty)]) continue;
+          const c = tileToWorldCenter(tx, ty);
+          const p = worldToScreen(c.x, c.y);
           ctx.beginPath();
-          ctx.moveTo(x, y-oy-eps);
-          ctx.lineTo(x+ox+eps, y);
-          ctx.lineTo(x, y+oy+eps);
-          ctx.lineTo(x-ox-eps, y);
-          ctx.closePath();
+          drawDiamond(p.x, p.y);
           ctx.fill();
         }
       }
+      ctx.globalCompositeOperation = "source-over";
+      ctx.fillStyle = "rgba(0,0,0,0.10)";
+      ctx.fillRect(0, 0, W, H);
+      ctx.globalCompositeOperation = "destination-out";
+      ctx.fillStyle = "rgba(0,0,0,1)";
+      for (let s = 0; s <= (MAP_W - 1) + (MAP_H - 1); s++) {
+        for (let ty = 0; ty < MAP_H; ty++) {
+          const tx = s - ty;
+          if (!inMap(tx, ty)) continue;
+          if (!visible[TEAM.PLAYER][idx(tx, ty)]) continue;
+          const c = tileToWorldCenter(tx, ty);
+          const p = worldToScreen(c.x, c.y);
+          ctx.beginPath();
+          drawDiamond(p.x, p.y);
+          ctx.fill();
+        }
+      }
+      ctx.globalCompositeOperation = "source-over";
+      ctx.restore();
     }
 
     if (typeof worldToScreen === "function" && typeof tileToWorldCenter === "function" && (buildings?.length > 0 || ore)) {
