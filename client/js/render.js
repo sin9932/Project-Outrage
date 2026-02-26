@@ -3161,7 +3161,8 @@
         ctx.fill();
         ctx.restore();
       } else if (bl.kind==="missile"){
-        const p=p0;
+        const z = bl.z || 0;
+        const p = { x: p0.x, y: p0.y - z };
         const a=(bl.team===TEAM.PLAYER) ? "rgba(150,220,255,0.95)" : "rgba(255,150,150,0.95)";
         ctx.strokeStyle=a;
         ctx.lineWidth=2;

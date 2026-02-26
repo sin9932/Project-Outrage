@@ -705,6 +705,12 @@
         bl.x += bl.vx*dt;
         bl.y += bl.vy*dt;
 
+        if (bl.kind==="missile" && bl.vz!=null){
+          bl.z = (bl.z||0) + bl.vz*dt;
+          bl.vz -= 520*dt;
+          if (bl.z < 0){ bl.z = 0; bl.vz = 0; }
+        }
+
         // Swept collision for missiles to prevent tunneling through buildings at high speed.
         if (bl.kind==="missile"){
           const enemyTeam = bl.team===TEAM.PLAYER ? TEAM.ENEMY : TEAM.PLAYER;
@@ -2709,7 +2715,9 @@
       const sp = opt.sp ?? 680;
       const dx=tx-x, dy=ty-y;
       const d=Math.hypot(dx,dy)||1;
-      bullets.push({kind: (opt.kind||"bullet"),team,x,y,vx:dx/d*sp,vy:dy/d*sp,life:(opt.life??0.35),dmg,ownerId, tx:(opt.tx??tx), ty:(opt.ty??ty)});
+      const bl = {kind: (opt.kind||"bullet"),team,x,y,vx:dx/d*sp,vy:dy/d*sp,life:(opt.life??0.35),dmg,ownerId, tx:(opt.tx??tx), ty:(opt.ty??ty)};
+      if (opt.kind==="missile"){ bl.z = 0; bl.vz = opt.vz ?? 140; }
+      bullets.push(bl);
     }
 
     function spawnTrace(x0,y0,x1,y1,team, opt={}){
@@ -2855,18 +2863,20 @@
       const d = Math.hypot(dx,dy)||1;
       const nx = dx/d, ny = dy/d;
 
-      flashes.push({x: shooter.x + nx*18, y: shooter.y + ny*18, r: 26 + Math.random()*12, life: 0.10, delay: 0});
+      const lift = (x,y)=>{ const iso = worldToIso(x,y); return isoToWorld(iso.x, iso.y - 48); };
+      const muzzle = lift(shooter.x + nx*16, shooter.y + ny*16);
 
-      const mx = shooter.x + nx*16, my = shooter.y + ny*16;
-      spawnTrace(mx, my, mx + nx*26, my + ny*26, shooter.team, { kind:"mg", life: 0.06, delay: 0 });
+      flashes.push({x: muzzle.x, y: muzzle.y, r: 26 + Math.random()*12, life: 0.10, delay: 0});
+      spawnTrace(muzzle.x, muzzle.y, muzzle.x + nx*26, muzzle.y + ny*26, shooter.team, { kind:"mg", life: 0.06, delay: 0 });
 
-      spawnBullet(shooter.team, mx, my, target.x, target.y, shooter.dmg, shooter.id, { kind:"shell", dur: 0.12, h: 18, tid: target.id, allowFriendly: !!(shooter.order && shooter.order.allowFriendly) });
+      spawnBullet(shooter.team, muzzle.x, muzzle.y, target.x, target.y, shooter.dmg, shooter.id, { kind:"shell", dur: 0.12, h: 18, tid: target.id, allowFriendly: !!(shooter.order && shooter.order.allowFriendly) });
     }
 
     function fireIFVMissiles(u, t){
       const dx = t.x - u.x, dy = t.y - u.y;
       const dist = Math.hypot(dx,dy) || 1;
       const ang = Math.atan2(dy, dx);
+      const nx = Math.cos(ang), ny = Math.sin(ang);
       const spread = 0.08;
 
       const sp = 1350;
@@ -2875,13 +2885,16 @@
 
       const tid = (t && typeof t.id==="number") ? t.id : null;
 
+      const lift = (x,y)=>{ const iso = worldToIso(x,y); return isoToWorld(iso.x, iso.y - 48); };
+      const muzzle = lift(u.x + nx*14, u.y + ny*14);
+
       const tx1 = u.x + Math.cos(ang-spread)*dist;
       const ty1 = u.y + Math.sin(ang-spread)*dist;
       const tx2 = u.x + Math.cos(ang+spread)*dist;
       const ty2 = u.y + Math.sin(ang+spread)*dist;
 
-      spawnBullet(u.team, u.x, u.y, tx1, ty1, u.dmg, u.id, { sp, kind:"missile", life, tx:tx1, ty:ty1, tid, aimX:t.x, aimY:t.y });
-      spawnBullet(u.team, u.x, u.y, tx2, ty2, u.dmg, u.id, { sp, kind:"missile", life, tx:tx2, ty:ty2, tid, aimX:t.x, aimY:t.y });
+      spawnBullet(u.team, muzzle.x, muzzle.y, tx1, ty1, u.dmg, u.id, { sp, kind:"missile", life, tx:tx1, ty:ty1, tid, aimX:t.x, aimY:t.y, vz: 140 });
+      spawnBullet(u.team, muzzle.x, muzzle.y, tx2, ty2, u.dmg, u.id, { sp, kind:"missile", life, tx:tx2, ty:ty2, tid, aimX:t.x, aimY:t.y, vz: 140 });
     }
 
     function tickUnits(dt){
