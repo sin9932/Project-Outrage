@@ -499,7 +499,7 @@
     }
 
     function aiPickPlayerTarget() {
-      // Priority: harvester (eco) -> refinery -> HQ -> nearest building
+      // Priority: harvester (eco) -> refinery -> HQ -> nearest building -> player units (탈출 유닛 등)
       const pHarv = units.find(u => u.alive && u.team === TEAM.PLAYER && u.kind === "harvester");
       if (pHarv) return pHarv;
 
@@ -509,10 +509,16 @@
       const pHQ = getBuilding(TEAM.PLAYER, "hq");
       if (pHQ) return pHQ;
 
-      const candidates = buildings.filter(b => b.alive && !b.civ && b.team === TEAM.PLAYER);
-      if (!candidates.length) return null;
-      candidates.sort((a, b) => dist2(ai.rally.x, ai.rally.y, a.x, a.y) - dist2(ai.rally.x, ai.rally.y, b.x, b.y));
-      return candidates[0];
+      const buildingCandidates = buildings.filter(b => b.alive && !b.civ && b.team === TEAM.PLAYER);
+      if (buildingCandidates.length) {
+        buildingCandidates.sort((a, b) => dist2(ai.rally.x, ai.rally.y, a.x, a.y) - dist2(ai.rally.x, ai.rally.y, b.x, b.y));
+        return buildingCandidates[0];
+      }
+
+      const unitCandidates = units.filter(u => u.alive && u.team === TEAM.PLAYER);
+      if (!unitCandidates.length) return null;
+      unitCandidates.sort((a, b) => dist2(ai.rally.x, ai.rally.y, a.x, a.y) - dist2(ai.rally.x, ai.rally.y, b.x, b.y));
+      return unitCandidates[0];
     }
 
     function aiPickNearestPlayerInfantryTo(unit) {
