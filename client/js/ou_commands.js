@@ -93,7 +93,7 @@
     }
 
     function tryUnloadIFV(ifv){
-      if (!ifv || !ifv.alive || ifv.kind!=="ifv" || ifv.team!==TEAM.PLAYER) return false;
+      if (!ifv || !ifv.alive || ifv.kind!=="ifv") return false;
       if (!ifv.passengerId) return false;
       const u=getEntityById(ifv.passengerId);
 
@@ -104,7 +104,7 @@
       const y = spValid ? sp.y : (ifv.y + TILE*0.2);
 
       if (!spValid){
-        toast("하차할 공간이 없습니다");
+        if (ifv.team===TEAM.PLAYER) toast("하차할 공간이 없습니다");
         return false;
       }
       if (u){
@@ -117,7 +117,7 @@
       }
       ifv.passengerId = null;
       ifv.passKind = null;
-      toast("하차");
+      if (ifv.team===TEAM.PLAYER) toast("하차");
       return true;
     }
 

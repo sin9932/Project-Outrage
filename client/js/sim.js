@@ -2911,7 +2911,7 @@
     }
 
     // RA2-style shared hover missile (IFV, Patriot, Aegis 공통)
-    // 공격 타일과 1:1 매칭: 항상 target.x, target.y로 직행
+    // 공격 타일과 1:1 매칭: 거리 비례 life로 근접 시 궤적 오버슈트 방지
     function spawnHoverMissile(team, muzzleX, muzzleY, target, dmg, ownerId, opt){
       const tx = target.x, ty = target.y;
       const dx = tx - muzzleX, dy = ty - muzzleY;
@@ -2919,7 +2919,8 @@
 
       const sp = opt.sp ?? 1350;
       const baseLife = dist / sp;
-      const life = Math.max(0.25, Math.min(2.0, baseLife + (opt.lifeAdd ?? 0.18)));
+      // 근접 시 0.25초 고정 → 궤적이 목표를 넘어감. 거리 비례 + 소량 버퍼만
+      const life = Math.max(0.06, Math.min(2.0, baseLife + (opt.lifeAdd ?? 0.06)));
 
       const tid = (target && typeof target.id==="number") ? target.id : null;
       const count = opt.count ?? 1;
