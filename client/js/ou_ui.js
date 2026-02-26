@@ -143,6 +143,7 @@ if (r.uiPowerBar && !r.__powerTipInstalled){
         if (!ent) return "";
         const k = ent.kind || ent.type || ent.name || "";
         if (!k) return "";
+        if (L && L.unit) return L.unit(k);
         if (NAME_KO && NAME_KO[k]) return NAME_KO[k];
         return k;
       };

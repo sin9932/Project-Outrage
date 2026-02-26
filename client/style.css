@@ -333,6 +333,7 @@
   border-radius:12px;
   background:linear-gradient(180deg, rgba(60,25,15,.95), rgba(25,12,8,.98));
   box-shadow:0 20px 60px rgba(0,0,0,.6), inset 0 0 0 1px rgba(255,180,120,.15);
+  overflow:hidden;
   padding:20px;
   color:#f4e7c2;
 }
@@ -350,6 +351,7 @@
 }
 .result-overlay .result-table{
   width:100%; border-collapse:collapse; font-size:13px;
+  table-layout:fixed;
 }
 .result-overlay .result-table th{
   padding:8px 10px; text-align:left;
@@ -361,12 +363,13 @@
   padding:8px 10px; border-bottom:1px solid rgba(255,255,255,.08);
 }
 .result-overlay .result-table td.bar-cell{
-  padding:6px 10px; min-width:80px; max-width:120px;
+  padding:6px 10px; width:14%; overflow:hidden;
 }
 .result-overlay .stat-bar-wrap{
   position:relative; height:24px; border-radius:4px;
   background:rgba(0,0,0,.4); overflow:hidden;
   border:1px solid rgba(255,255,255,.12);
+  max-width:100%; min-width:0;
 }
 .result-overlay .stat-bar-fill{
   position:absolute; left:0; top:0; bottom:0;
@@ -397,7 +400,7 @@
   justify-content:center;
 }
 .result-overlay .mvp-card{
-  flex:1 1 100px; min-width:90px; max-width:130px;
+  flex:1 1 100px; min-width:90px; max-width:180px;
   padding:12px 10px;
   border-radius:10px;
   border:2px solid var(--mvp-color, rgba(255,210,110,.5));
@@ -415,8 +418,8 @@
 }
 .result-overlay .mvp-card-title{
   font-size:11px; font-weight:700; color:#ffdca8;
-  margin-bottom:4px; line-height:1.2;
-  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+  margin-bottom:4px; line-height:1.3;
+  word-wrap:break-word; overflow-wrap:break-word;
 }
 .result-overlay .mvp-card-winner{
   font-size:10px; font-weight:600;
