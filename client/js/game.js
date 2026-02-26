@@ -1103,7 +1103,7 @@ try{
     if (state.shortGame){
       const enemyHasBuildings = buildings.some(b=>b.alive && !b.civ && b.team===TEAM.ENEMY);
       if (!enemyHasBuildings){
-        for (const u of units){ if (u.alive && u.team===TEAM.ENEMY){ u.alive = false; state.selection.delete(u.id); } }
+        for (const u of units){ if (u.alive && u.team===TEAM.ENEMY) handleEntityDeath(u, null, null); }
         state.gameOverPending = { victory: true, endT: state.t + GAMEOVER_WINDDOWN, endGameTime: state.t };
         return;
       }
