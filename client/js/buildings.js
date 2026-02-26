@@ -8,8 +8,7 @@
   const st = PO.buildings._barracks = PO.buildings._barracks || {};
 
   // PATCH VERSION: v3
-  st.version = "v6";
-  console.log("[buildings] barracks+power pivot patch v6 loaded");
+  st.version = "v9";
 
 
   
@@ -28,7 +27,7 @@
         build: { json: "asset/sprite/const/const_anim/barrack/barrack_const.json",   base: "asset/sprite/const/const_anim/barrack/" },
         death: { json: "asset/sprite/const/distruct/barrack/barrack_distruction.json", base: "asset/sprite/const/distruct/barrack/" }
       },
-      prefix: { idle: "barrack_idle", build: "barrack_const", death: "barrack_distruction" },
+      prefix: { idle: "barrack_idle", build: "barrack_con_complete", death: "barrack_distruction" },
       entKey: { buildT0: "_barrackBuildT0", buildDone: "_barrackBuildDone" }
     ,
       sellKey: { flag: "_barrackSelling", t0: "_barrackSellT0", finalizeAt: "_barrackSellFinalizeAt" }
@@ -44,7 +43,7 @@
         build: { json: "asset/sprite/const/const_anim/power/power_const.json",   base: "asset/sprite/const/const_anim/power/" },
         death: { json: "asset/sprite/const/distruct/power/power_distruction.json", base: "asset/sprite/const/distruct/power/" }
       },
-      prefix: { idle: "power_idle", build: "power_const", death: "power_distruction" },
+      prefix: { idle: "power_idle", build: "power_con_complete", death: "power_distruction" },
       entKey: { buildT0: "_powerBuildT0", buildDone: "_powerBuildDone" }
     ,
       sellKey: { flag: "_powerSelling", t0: "_powerSellT0", finalizeAt: "_powerSellFinalizeAt" }
@@ -583,7 +582,10 @@
       if (idx < stKind.frames.build.length){
         return drawFrameTeam(ent.kind, "build", stKind.atlases.build, ctx, stKind.frames.build[idx], sx, sy, team, scale, state);
       }
+      // 마지막 build 프레임을 1프레임 더 유지 후 idle 전환 (막사/발전소 깜박임 방지)
+      const lastIdx = stKind.frames.build.length - 1;
       ent[ek.buildDone] = true;
+      return drawFrameTeam(ent.kind, "build", stKind.atlases.build, ctx, stKind.frames.build[lastIdx], sx, sy, team, scale, state);
     }
 
     // Idle/Active: choose normal vs damaged variant based on HP ratio
@@ -629,7 +631,7 @@
     return drawFrameTeam(ent.kind, "idle", stKind.atlases.idle, ctx, frames[idx], sx, sy, team, scale, state);
 };
 
-  console.log("[buildings] barracks+power pivot patch v8 loaded");
+  console.log("[buildings] barracks+power pivot patch v9 loaded");
   // Expose preload for boot-time asset warmup
   PO.buildings.preload = ensureAllKindsLoaded;
 

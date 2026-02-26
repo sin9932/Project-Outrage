@@ -32,6 +32,7 @@
       "ui.main":"메인", "ui.def":"방어", "ui.inf":"보병", "ui.veh":"기갑", "ui.production":"생산",
       "ui.minimap":"미니맵", "ui.selectionInfo":"선택 정보", "ui.primary":"주요", "ui.reserve":"예약",
       "ui.ready":"READY", "ui.power":"전력", "ui.options":"옵션", "ui.play":"재생", "ui.shuffle":"셔플",
+      "ui.pmResume":"게임 돌아가기", "ui.pmExit":"게임 종료",
       "ui.repeatAll":"반복: 전체", "ui.repeatOne":"반복: 1곡", "ui.repeatOff":"반복: 없음",
       "ui.shuffleOn":"셔플: ON", "ui.shuffleOff":"셔플: OFF",
       // 프리게임
@@ -80,6 +81,7 @@
       "ui.main":"Main", "ui.def":"Defense", "ui.inf":"Infantry", "ui.veh":"Vehicles", "ui.production":"Production",
       "ui.minimap":"Minimap", "ui.selectionInfo":"Selection", "ui.primary":"Primary", "ui.reserve":"Queued",
       "ui.ready":"READY", "ui.power":"Power", "ui.options":"Options", "ui.play":"Play", "ui.shuffle":"Shuffle",
+      "ui.pmResume":"Back to game", "ui.pmExit":"Exit game",
       "ui.repeatAll":"Repeat: All", "ui.repeatOne":"Repeat: One", "ui.repeatOff":"Repeat: Off",
       "ui.shuffleOn":"Shuffle: ON", "ui.shuffleOff":"Shuffle: OFF",
       "pregame.skirmish":"Skirmish", "pregame.sub":"Select team colors and map start position.",
@@ -126,6 +128,7 @@
       "ui.main":"メイン", "ui.def":"防御", "ui.inf":"歩兵", "ui.veh":"機甲", "ui.production":"生産",
       "ui.minimap":"ミニマップ", "ui.selectionInfo":"選択情報", "ui.primary":"主要", "ui.reserve":"予約",
       "ui.ready":"READY", "ui.power":"電力", "ui.options":"オプション", "ui.play":"再生", "ui.shuffle":"シャッフル",
+      "ui.pmResume":"ゲームに戻る", "ui.pmExit":"ゲーム終了",
       "ui.repeatAll":"リピート: 全曲", "ui.repeatOne":"リピート: 1曲", "ui.repeatOff":"リピート: なし",
       "ui.shuffleOn":"シャッフル: ON", "ui.shuffleOff":"シャッフル: OFF",
       "pregame.skirmish":"スカーミッシュ", "pregame.sub":"陣営カラーとマップ開始地点を選択してください。",

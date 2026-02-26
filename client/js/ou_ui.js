@@ -418,7 +418,8 @@ function ensureBadge(btn){
 
     function updateProdBars(env){
       env = env || {};
-      const { state, buildings, TEAM, clamp, prodFIFO, NAME_KO } = env;
+      const { state, buildings, TEAM, clamp, prodFIFO, NAME_KO, L } = env;
+      const _reserve = (L && L("ui.reserve")) || "예약";
       if (!state || !isFn(clamp)) return;
 
       // Building lanes (prefer state.getLaneStatus)
@@ -433,12 +434,12 @@ function ensureBadge(btn){
       if (r.qTxtMain){
         r.qTxtMain.textContent = (mainSt && mainSt.ready) ? `READY: ${(NAME_KO && NAME_KO[mainSt.ready]) ? NAME_KO[mainSt.ready] : mainSt.ready}` :
           (mainSt && mainSt.queue) ? `${(NAME_KO && NAME_KO[mainSt.queue]) ? NAME_KO[mainSt.queue] : mainSt.queue} ${Math.round(lanePct(mainSt)*100)}%` :
-          (mainSt && mainSt.fifoLen) ? `예약 ${mainSt.fifoLen}` : "-";
+          (mainSt && mainSt.fifoLen) ? `${_reserve} ${mainSt.fifoLen}` : "-";
       }
       if (r.qTxtDef){
         r.qTxtDef.textContent = (defSt && defSt.ready) ? `READY: ${(NAME_KO && NAME_KO[defSt.ready]) ? NAME_KO[defSt.ready] : defSt.ready}` :
           (defSt && defSt.queue) ? `${(NAME_KO && NAME_KO[defSt.queue]) ? NAME_KO[defSt.queue] : defSt.queue} ${Math.round(lanePct(defSt)*100)}%` :
-          (defSt && defSt.fifoLen) ? `예약 ${defSt.fifoLen}` : "-";
+          (defSt && defSt.fifoLen) ? `${_reserve} ${defSt.fifoLen}` : "-";
       }
 
       // Unit producers (prefer state.getProducerStatus)
@@ -485,10 +486,10 @@ function ensureBadge(btn){
       if (r.qFillVeh) r.qFillVeh.style.width = `${vehPct*100}%`;
 
       if (r.qTxtInf){
-        r.qTxtInf.textContent = (fifoB || qBarr) ? `예약 ${fifoB + qBarr}` : "-";
+        r.qTxtInf.textContent = (fifoB || qBarr) ? `${_reserve} ${fifoB + qBarr}` : "-";
       }
       if (r.qTxtVeh){
-        r.qTxtVeh.textContent = (fifoF || qFac) ? `예약 ${fifoF + qFac}` : "-";
+        r.qTxtVeh.textContent = (fifoF || qFac) ? `${_reserve} ${fifoF + qFac}` : "-";
       }
     }
 
@@ -848,6 +849,10 @@ function ensureBadge(btn){
       applyEnabledState();
       applyProgressOverlays();
 
+      if (typeof updateProdBars === "function") {
+        try { updateProdBars({ state, buildings, TEAM, clamp: e.clamp, prodFIFO: e.prodFIFO, NAME_KO: e.NAME_KO, L: e.L }); } catch (_x) {}
+      }
+
       // Panels themselves (optional): if tab is hidden, also hide its panel to avoid empty UI.
       // (game.js setProdCat already does this; this is just extra safety)
       if (panels && prodCat && panels[prodCat]){
@@ -1116,13 +1121,67 @@ function ensureBadge(btn){
     }
 
     function refreshPregameText(){
+      refreshAllStaticUIText();
+    }
+
+    function refreshAllStaticUIText(){
       const L = (window.OULocale && window.OULocale.L) ? window.OULocale.L : null;
       if (!L) return;
       const set = (id, key)=>{ const e = document.getElementById(id); if (e) e.textContent = L(key); };
+      const setUnit = (id, kind)=>{
+        const e = document.getElementById(id);
+        if (!e) return;
+        const val = L.unit ? L.unit(kind) : kind;
+        const badge = e.querySelector(".badge");
+        e.textContent = "";
+        e.appendChild(document.createTextNode(val));
+        if (badge) e.appendChild(badge);
+      };
+      // Pregame
       set("pregameTitle", "pregame.skirmish");
       set("pregameSub", "pregame.sub");
+      set("lblPlayerColor", "pregame.playerColor");
+      set("lblEnemyColor", "pregame.enemyColor");
+      set("lblMap", "pregame.map");
+      set("lblMoney", "pregame.initialMoney");
+      set("lblMoneyHint", "pregame.moneyHint");
+      set("lblFogOff", "pregame.fogOff");
+      set("lblFogHint", "pregame.fogHint");
+      set("lblFastProd", "pregame.fastProd");
+      set("lblFastProdHint", "pregame.fastProdHint");
+      set("lblShortGame", "pregame.shortGame");
+      set("lblShortGameHint", "pregame.shortGameHint");
+      set("mapThumbHint", "pregame.mapHint");
       const startBtn = document.getElementById("startBtn");
       if (startBtn && startBtn.dataset._oldTxt !== "LOADING...") startBtn.textContent = L("pregame.start");
+      // In-game UI
+      set("uiMinimap", "ui.minimap");
+      set("btnRepairMode", "ui.repair");
+      set("btnSellMode", "ui.sell");
+      set("uiProdTitle", "ui.production");
+      set("tabMain", "ui.main");
+      set("tabDef", "ui.def");
+      set("tabInf", "ui.inf");
+      set("tabVeh", "ui.veh");
+      setUnit("bPow", "power");
+      setUnit("bRef", "refinery");
+      setUnit("bBar", "barracks");
+      setUnit("bFac", "factory");
+      setUnit("bRad", "radar");
+      setUnit("bTur", "turret");
+      setUnit("pInf", "infantry");
+      setUnit("pEng", "engineer");
+      setUnit("pSnp", "sniper");
+      setUnit("pTnk", "tank");
+      setUnit("pHar", "harvester");
+      setUnit("pIFV", "ifv");
+      set("uiSelInfoTitle", "ui.selectionInfo");
+      set("pmTitle", "ui.options");
+      set("pmLblPlay", "ui.play");
+      set("pmLblRepeat", "ui.repeatAll");
+      set("pmShuffle", "ui.shuffle");
+      set("pmResume", "ui.pmResume");
+      set("pmExit", "ui.pmExit");
     }
 
     function setPregameLoading(env){

@@ -2951,7 +2951,12 @@
     }
 
     function tickUnits(dt){
-        buildUnitSpatialGrid();
+        if (units.length >= 15 && (!state._lastGridRebuild || state.t - state._lastGridRebuild > 0.1)) {
+          state._lastGridRebuild = state.t;
+          buildUnitSpatialGrid();
+        } else if (units.length < 15 && _unitGridW > 0) {
+          _unitGridW = 0; _unitGridH = 0;
+        }
         clearOcc(dt);
         assignFlowFieldToGroups();
         for (let i=0; i<units.length; i++){
@@ -3038,7 +3043,7 @@
             const otPre = u.order && u.order.type;
             const wantsAuto = (!u.target && (otPre==="idle" || otPre==="guard" || otPre==="guard_return" || otPre==="attackmove"));
             if (wantsAuto && u.aggroCd<=0 && state.t >= (u._nextAcquire||0)){
-              const infThrottle = (u.team===TEAM.ENEMY && (u.kind==="infantry" || u.kind==="sniper")) ? 0.42 + (u.id % 11)*0.03 : 0.18 + (u.id % 7)*0.02;
+              const infThrottle = (u.team===TEAM.ENEMY && (u.kind==="infantry" || u.kind==="sniper")) ? 0.55 + (u.id % 13)*0.04 : 0.18 + (u.id % 7)*0.02;
               u._nextAcquire = state.t + infThrottle;
               const sniperMode = (u.kind==="sniper" || (u.kind==="ifv" && u.passKind==="sniper"));
       const manualLock = !!(u.order && u.order.manual && u.order.allowAuto!==true);
@@ -3400,7 +3405,7 @@
               const atkR = (u.range||0) * 1.08;
               const atkKindG = (u.kind==="ifv" && u.passKind==="sniper") ? "sniper" : u.kind;
               let inRangeG = null;
-              const guardScanThrottle = (u.team===TEAM.ENEMY && (u.kind==="infantry" || u.kind==="sniper")) ? 0.08 : 0.05;
+              const guardScanThrottle = (u.team===TEAM.ENEMY && (u.kind==="infantry" || u.kind==="sniper")) ? 0.16 : 0.05;
               if (atkR > 0 && state.t >= (u._nextGuardScan||0)){
                 u._nextGuardScan = state.t + guardScanThrottle;
                 inRangeG = findNearestAttackMoveTargetFor(u.team, u.x, u.y, atkR, atkKindG);
@@ -3415,7 +3420,7 @@
                 continue;
               } else if (state.t < (u._nextAcquire||0)) { settleInfantryToSubslot(u, dt); continue; }
               else {
-              const guardThrottle = (u.team===TEAM.ENEMY && (u.kind==="infantry" || u.kind==="sniper")) ? 0.12 + (u.id % 7)*0.01 : 0.18 + (u.id % 7)*0.02;
+              const guardThrottle = (u.team===TEAM.ENEMY && (u.kind==="infantry" || u.kind==="sniper")) ? 0.22 + (u.id % 9)*0.02 : 0.18 + (u.id % 7)*0.02;
               u._nextAcquire = state.t + guardThrottle;
               const scanR = Math.max(u.vision||0, (u.range||0));
               const atkKind = (u.kind==="ifv" && u.passKind==="sniper") ? "sniper" : u.kind;
@@ -3441,7 +3446,7 @@
               const atkR = (u.range||0) * 1.08;
               const atkKind = (u.kind==="ifv" && u.passKind==="sniper") ? "sniper" : u.kind;
               let inRange = null;
-              const atkMoveScanThrottle = (u.team===TEAM.ENEMY && (u.kind==="infantry" || u.kind==="sniper")) ? 0.08 : 0.05;
+              const atkMoveScanThrottle = (u.team===TEAM.ENEMY && (u.kind==="infantry" || u.kind==="sniper")) ? 0.16 : 0.05;
               if (atkR > 0 && state.t >= (u._nextAtkMoveScan||0)){
                 u._nextAtkMoveScan = state.t + atkMoveScanThrottle;
                 inRange = findNearestAttackMoveTargetFor(u.team, u.x, u.y, atkR, atkKind);
@@ -3453,7 +3458,7 @@
                 setPathTo(u, inRange.x, inRange.y);
                 u.repathCd=0.25;
               } else if (state.t >= (u._nextAcquire||0)) {
-                const atkMoveThrottle = (u.team===TEAM.ENEMY && (u.kind==="infantry" || u.kind==="sniper")) ? 0.12 + (u.id % 7)*0.01 : 0.18 + (u.id % 7)*0.02;
+                const atkMoveThrottle = (u.team===TEAM.ENEMY && (u.kind==="infantry" || u.kind==="sniper")) ? 0.22 + (u.id % 9)*0.02 : 0.18 + (u.id % 7)*0.02;
                 u._nextAcquire = state.t + atkMoveThrottle;
                 const scanR = Math.max(520, UNIT[u.kind]?.vision || 400, u.range || 0); // 터렛(520)보다 넓게 선제 탐색
                 const enemy = findNearestAttackMoveTargetFor(u.team, u.x, u.y, scanR, atkKind);
@@ -3479,7 +3484,7 @@
     
             // Guard/idle auto-acquire: if standing idle and an enemy enters range, engage. Throttle in mass combat.
             if (u.order.type==="idle" && (u.range||0)>0 && u.kind!=="engineer" && state.t >= (u._nextAcquire||0)){
-              const idleThrottle = (u.team===TEAM.ENEMY && (u.kind==="infantry" || u.kind==="sniper")) ? 0.42 + (u.id % 11)*0.03 : 0.18 + (u.id % 7)*0.02;
+              const idleThrottle = (u.team===TEAM.ENEMY && (u.kind==="infantry" || u.kind==="sniper")) ? 0.55 + (u.id % 13)*0.04 : 0.18 + (u.id % 7)*0.02;
               u._nextAcquire = state.t + idleThrottle;
               const sniperMode = (u.kind==="sniper" || (u.kind==="ifv" && u.passKind==="sniper"));
       const manualLock = !!(u.order && u.order.manual && u.order.allowAuto!==true);

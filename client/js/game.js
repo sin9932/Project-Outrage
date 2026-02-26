@@ -1028,56 +1028,51 @@ function tryUnloadIFV(ifv){ return __ou_commands && __ou_commands.tryUnloadIFV ?
     //    If no valid spawn tile exists, it will safely skip.
     spawnEvacUnitsFromBuilding(b, true);
 
-    // 2) Big destruction FX
-    if (window.FX && window.FX.addBuildingExplosion) window.FX.addBuildingExplosion(b);
+    // 2) Big destruction FX - 다음 프레임에 지연 실행하여 순간 렉 방지
+    const bx = b.x, by = b.y, bKind = b.kind;
     const bw = (b.w || (b.tw*TILE) || (TILE*4));
     const bh = (b.h || (b.th*TILE) || (TILE*4));
     const bSize = Math.sqrt(bw*bw + bh*bh) / (TILE*2);
-    if (window.FX && window.FX.addDebris) window.FX.addDebris(b.x, b.y, { minN:4, maxN:12, size: clamp(bSize, 0.8, 2.5) });
-    // 2.2) Smoke ring + smoke plume at destruction point
     let _smkS = 1;
     try{
-      const bw = (b.w || (b.tw*TILE) || (TILE*4));
-      const bh = (b.h || (b.th*TILE) || (TILE*4));
       let s = Math.sqrt(bw*bw + bh*bh) / (TILE*2.0);
       _smkS = clamp(s, 0.8, 2.2);
     }catch(_e){}
-    try{ if (window.FX && window.FX.addSmokeEmitter) window.FX.addSmokeEmitter(b.x, b.y, _smkS); }catch(_e){}
-// 2.3) Restore the old "noisy gradient smoke particle" feel:
-//      - a burst of dusty smoke blobs + lingering smoke puffs.
-//      (kept deterministic-ish and cheap)
-try{
-  // Fewer puffs per frame to avoid freeze on destroy (spread cost).
-  const puffN = Math.min(12, Math.floor(18 * _smkS));
-  for (let i=0;i<puffN;i++){
-    if (window.FX && window.FX.spawnSmokePuff) window.FX.spawnSmokePuff(b.x, b.y, 1.35 * _smkS);
-  }
-  const hazeN = Math.min(4, Math.floor(4 * _smkS));
-  for (let i=0;i<hazeN;i++){
-    if (window.FX && window.FX.spawnSmokeHaze) window.FX.spawnSmokeHaze(b.x, b.y, 1.10 * _smkS);
-  }
-}catch(_e){}
-    // 2.5) HQ special: play large exp1 sprite explosion + world camera shake (UI not affected)
-    if (b.kind === "hq"){
-      // HQ special: exp1 sprite explosion + world camera shake (UI not affected)
-      // NOTE: scaled down to keep it on-screen.
+    requestAnimationFrame(()=>{
+      try{
+        if (window.FX && window.FX.addBuildingExplosion) window.FX.addBuildingExplosion({x:bx, y:by, kind:bKind, w:bw, h:bh, tw:b.tw, th:b.th});
+        if (window.FX && window.FX.addDebris) window.FX.addDebris(bx, by, { minN:3, maxN:8, size: clamp(bSize, 0.8, 2.5) });
+        if (window.FX && window.FX.addSmokeEmitter) window.FX.addSmokeEmitter(bx, by, _smkS);
+        const puffN = Math.min(6, Math.floor(10 * _smkS));
+        for (let i=0;i<puffN;i++){
+          if (window.FX && window.FX.spawnSmokePuff) window.FX.spawnSmokePuff(bx, by, 1.35 * _smkS);
+        }
+        const hazeN = Math.min(2, Math.floor(3 * _smkS));
+        for (let i=0;i<hazeN;i++){
+          if (window.FX && window.FX.spawnSmokeHaze) window.FX.spawnSmokeHaze(bx, by, 1.10 * _smkS);
+        }
+      }catch(_e){}
+    });
+    // 2.5) HQ special - 지연 실행
+    if (bKind === "hq"){
       let sc = 1.0;
       try{
         const fr0 = (window.OURender && typeof OURender.getExp1Frame0 === "function")
           ? OURender.getExp1Frame0()
           : null;
         if (fr0){
-          const bw = (b.w || (b.tw*TILE) || (TILE*4));
-          const bh = (b.h || (b.th*TILE) || (TILE*4));
           const sx = bw / Math.max(1, fr0.w);
           const sy = bh / Math.max(1, fr0.h);
-
-          // Smaller than before. Tune here if needed.
           sc = clamp(Math.max(sx, sy) * 0.35, 0.55, 1.35);
         }
       }catch(_e){}
-      if (window.FX && window.FX.spawnExp1FxAt) window.FX.spawnExp1FxAt(b.x, b.y, sc, 0.05);
-      startCamShake(0.65, 22, 36);
+      const hqSc = sc;
+      requestAnimationFrame(()=>{
+        try{
+          if (window.FX && window.FX.spawnExp1FxAt) window.FX.spawnExp1FxAt(bx, by, hqSc, 0.05);
+          if (typeof startCamShake === "function") startCamShake(0.65, 22, 36);
+        }catch(_e){}
+      });
     }
 
 
@@ -3096,7 +3091,11 @@ function sanityCheck(){
             buildings: buildings,
             TEAM,
             prodCat,
-            setProdCat
+            setProdCat,
+            clamp,
+            prodFIFO,
+            NAME_KO,
+            L
           });
         } catch (_e) {}
       }
