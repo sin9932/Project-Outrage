@@ -484,13 +484,11 @@
     }
 
     function aiCommandAttackWave(list, target) {
+      const targetIsUnit = target && !BUILD[target.kind];
       for (const u of list) {
-        // Don't override engineer-IFV harassment/capture logic.
         if (u.kind === "ifv" && u.passengerId && u.passKind === "engineer") continue;
-        // Keep snipers out of frontal waves (they should IFV-harass instead).
         if (u.kind === "sniper") continue;
-        // Avoid sending empty IFVs to frontal waves (keep them for passenger pickup).
-        if (u.kind === "ifv" && !u.passengerId) continue;
+        if (u.kind === "ifv" && !u.passengerId && !targetIsUnit) continue;
         u.order = { type: "attack", x: u.x, y: u.y, tx: null, ty: null, manual:true, allowAuto:false, lockTarget:true };
         u.target = target ? target.id : null;
         if (target) setPathTo(u, target.x, target.y);
@@ -1211,10 +1209,12 @@
         }
       }
 
-      // Occasionally retarget
-      if (Math.random() < 0.06) {
-        const target = aiPickPlayerTarget();
-        if (target) aiCommandAttackWave(combat, target);
+      // Retarget: 유닛 타겟(탈출 잔당)은 이동하므로 더 자주 재지정
+      const curTarget = aiPickPlayerTarget();
+      if (curTarget) {
+        const isUnitTarget = !BUILD[curTarget.kind];
+        const retargetChance = isUnitTarget ? 0.18 : 0.06;
+        if (Math.random() < retargetChance) aiCommandAttackWave(combat, curTarget);
       }
       // sniper block already handled above (before rushDefense)
     }
