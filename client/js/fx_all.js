@@ -99,10 +99,10 @@ function spawnDustPuff(wx, wy, vx, vy, strength=1){
   });
 }
 
-// Damage smoke from a crippled unit (from turret area). World-positioned.
+// Damage smoke from a crippled unit. 연기스럽게: 크기/위치/수명 다양화
 function spawnDmgSmokePuff(wx, wy, strength=1){
-  const size = clamp(strength, 0.6, 2.4);
-  const spread = TILE * 0.16 * size;
+  const size = clamp(strength, 0.5, 2.0);
+  const spread = TILE * 0.22 * size;
   const ang = Math.random() * Math.PI * 2;
   const rad = Math.sqrt(Math.random()) * spread;
   const x = wx + Math.cos(ang) * rad;
@@ -110,14 +110,15 @@ function spawnDmgSmokePuff(wx, wy, strength=1){
 
   dmgSmokePuffs.push({
     x, y,
-    vx: (Math.random()*2-1)*(TILE*0.02*size),
-    vy: (Math.random()*2-1)*(TILE*0.02*size) - (TILE*0.03*size),
+    vx: (Math.random()*2-1)*(TILE*0.04*size),
+    vy: (Math.random()*2-1)*(TILE*0.02*size) - (TILE*0.05*size),
     t: 0,
-    ttl: 1.9 + Math.random()*1.0,
-    r0: (8 + Math.random()*7) * size,
-    grow: (44 + Math.random()*34) * size,
+    ttl: 2.2 + Math.random()*1.4,
+    r0: (6 + Math.random()*10) * size,
+    grow: (38 + Math.random()*50) * size,
     seed: Math.random()*9999,
-    a0: 0.18 + Math.random()*0.10
+    a0: 0.14 + Math.random()*0.12,
+    squash: 0.5 + Math.random()*0.35
   });
 }
 
@@ -501,36 +502,53 @@ function drawDmgSmokePuffs(ctx, w2s, cam){
   if (!dmgSmokePuffs.length) return;
 
   const z = (typeof cam !== "undefined" && cam && typeof cam.zoom==="number") ? cam.zoom : 1;
+  const pr = (seed, n)=>{ const x = Math.sin((seed + n) * 12.9898) * 43758.5453; return x - Math.floor(x); };
+
   ctx.save();
   for (const p of dmgSmokePuffs){
     const k = p.t / p.ttl;
+    const ease = 1 - Math.pow(1 - k, 1.5);
     const a = (1-k) * p.a0;
-    const r = (p.r0 + p.grow*k) * z;
+    const r = (p.r0 + p.grow*ease) * z;
     const s = worldToScreen(p.x, p.y);
+    const squash = p.squash ?? 0.7;
 
-    // Small black smoke with noisy gradient
-    const g = ctx.createRadialGradient(s.x, s.y, 0, s.x, s.y, r*1.25);
-    g.addColorStop(0.00, `rgba(10, 10, 10, ${a*0.70})`);
-    g.addColorStop(0.55, `rgba(55, 55, 55, ${a*0.30})`);
-    g.addColorStop(1.00, `rgba(55, 55, 55, 0)`);
+    // 연기스럽게: 부드러운 그라데이션 + 살짝 찌그러진 형태
+    ctx.save();
+    ctx.translate(s.x, s.y);
+    ctx.scale(1, squash);
+
+    const g = ctx.createRadialGradient(0, 0, 0, 0, 0, r*1.4);
+    g.addColorStop(0.00, `rgba(25, 25, 25, ${a*0.55})`);
+    g.addColorStop(0.35, `rgba(45, 45, 45, ${a*0.35})`);
+    g.addColorStop(0.65, `rgba(55, 55, 55, ${a*0.15})`);
+    g.addColorStop(1.00, "rgba(60, 60, 60, 0)");
 
     ctx.fillStyle = g;
     ctx.beginPath();
-    ctx.ellipse(s.x, s.y, r*1.10, r*0.95, 0, 0, Math.PI*2);
+    ctx.ellipse(0, 0, r*(1.05 + pr(p.seed,1)*0.1), r*(0.9 + pr(p.seed,2)*0.15), pr(p.seed,3)*0.3, 0, Math.PI*2);
     ctx.fill();
 
-    const n = 5 + ((p.seed*0.23)|0)%5;
-    const ph = p.seed*0.041 + p.t*1.9;
-    ctx.fillStyle = `rgba(20, 20, 20, ${a*0.28})`;
+    // 옅은 연무 덩이 2~3개 (동그라미 반복 대신)
+    const n = 2 + ((p.seed*0.17)|0)%2;
     for (let j=0;j<n;j++){
-      const t = ph + j*2.1;
-      const ox = Math.cos(t*1.02) * r * (0.22 + 0.12*Math.sin(t*0.8));
-      const oy = Math.sin(t*0.88) * r * (0.18 + 0.10*Math.cos(t*0.9));
-      const rr = r * (0.16 + 0.07*Math.cos(t*1.7));
+      const ang = (j/n)*Math.PI*2 + pr(p.seed, 10+j)*1.2 + p.t*0.5;
+      const dist = r * (0.3 + pr(p.seed, 20+j)*0.4);
+      const rx = r * (0.25 + pr(p.seed, 30+j)*0.2);
+      const ry = r * (0.15 + pr(p.seed, 40+j)*0.15);
+      const g2 = ctx.createRadialGradient(
+        Math.cos(ang)*dist, Math.sin(ang)*dist, 0,
+        Math.cos(ang)*dist, Math.sin(ang)*dist, Math.max(rx,ry)*1.5
+      );
+      g2.addColorStop(0, `rgba(35,35,35,${a*0.25})`);
+      g2.addColorStop(0.6, `rgba(50,50,50,${a*0.08})`);
+      g2.addColorStop(1, "rgba(0,0,0,0)");
+      ctx.fillStyle = g2;
       ctx.beginPath();
-      ctx.ellipse(s.x+ox, s.y+oy, rr*0.95, rr*0.75, 0, 0, Math.PI*2);
+      ctx.ellipse(Math.cos(ang)*dist, Math.sin(ang)*dist, rx, ry, ang*0.5, 0, Math.PI*2);
       ctx.fill();
     }
+    ctx.restore();
   }
   ctx.restore();
 }

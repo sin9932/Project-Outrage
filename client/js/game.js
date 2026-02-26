@@ -296,6 +296,7 @@
 
   const bullets=[];
   const traces=[];
+  const missileTrailFades=[]; // IFV missile trails that fade out after impact
   const impacts=[]; // MG bullet impact sparks
   const fires=[]; // building fire particles (low HP)
   const explosions = (window.FX && window.FX.explosions) ? window.FX.explosions : [];
@@ -1187,6 +1188,7 @@ const __ou_sim = (window.OUSim && typeof window.OUSim.create==="function")
       healMarks,
       casings,
       traces,
+      missileTrailFades,
       TEAM,
       POWER,
       DEFENSE,
@@ -2635,7 +2637,7 @@ function draw(){
         canvas, ctx, cam, state, TEAM, MAP_W, MAP_H, TILE, ISO_X, ISO_Y,
         terrain, ore, explored, visible, BUILD, DEFENSE, NAME_KO, ORE_VALUE, ORE_MAX,
         treeHp,
-        units, buildings, bullets, traces, impacts, fires, healMarks, flashes, casings,
+        units, buildings, bullets, traces, missileTrailFades, impacts, fires, healMarks, flashes, casings,
         gameOver, gameOverFadeAlpha, POWER,
         running,
         updateMoney: isCallable(__ou_ui, "updateMoney") ? __ou_ui.updateMoney : null,
@@ -2692,7 +2694,7 @@ function draw(){
   }
 
   function clearWorld(){
-    units.length=0; buildings.length=0; bullets.length=0; traces.length=0;
+    units.length=0; buildings.length=0; bullets.length=0; traces.length=0; missileTrailFades.length=0;
     explosions.length=0; debris.length=0; debrisTrail.length=0; exp1Fxs.length=0;
     if (window.FX){
       if (window.FX.smokeWaves) window.FX.smokeWaves.length=0;

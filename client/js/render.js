@@ -2681,7 +2681,7 @@
       canvas, ctx, cam, state, TEAM, MAP_W, MAP_H, TILE, ISO_X, ISO_Y,
       terrain, ore, explored, visible, BUILD, DEFENSE, NAME_KO,
       treeHp,
-      units, buildings, bullets, traces, impacts, fires, healMarks, flashes, casings,
+      units, buildings, bullets, traces, missileTrailFades = [], impacts, fires, healMarks, flashes, casings,
       gameOver, gameOverFadeAlpha = 0, POWER,
       smokeWaves, smokePuffs, dustPuffs, dmgSmokePuffs, bloodStains, bloodPuffs,
       updateMoney, updateProdBadges,
@@ -3186,31 +3186,46 @@
           ctx.restore();
         }
 
-        ctx.strokeStyle=a;
-        ctx.lineWidth=2;
+        // 헤드만 심플한 글로우 (화살표 모양 제거)
+        ctx.save();
+        ctx.globalAlpha = 0.95;
+        ctx.shadowBlur = 12;
+        ctx.shadowColor = a;
+        ctx.fillStyle = a;
         ctx.beginPath();
-        ctx.moveTo(p.x, p.y);
-        ctx.lineTo(p.x - bl.vx*0.040, p.y - bl.vy*0.040);
-        ctx.stroke();
-
-        const ang = Math.atan2(bl.vy, bl.vx);
-        const len = 8.5;
-        const wid = 4.2;
-        const hx = Math.cos(ang), hy = Math.sin(ang);
-        const px = -hy, py = hx;
-
-        ctx.fillStyle=a;
-        ctx.beginPath();
-        ctx.moveTo(p.x + hx*len, p.y + hy*len);
-        ctx.lineTo(p.x - hx*len*0.55 + px*wid, p.y - hy*len*0.55 + py*wid);
-        ctx.lineTo(p.x - hx*len*0.55 - px*wid, p.y - hy*len*0.55 - py*wid);
-        ctx.closePath();
+        ctx.arc(p.x, p.y, 3, 0, Math.PI*2);
         ctx.fill();
+        ctx.shadowBlur = 0;
+        ctx.restore();
       } else {
         const p=p0;
         ctx.fillStyle=(bl.team===TEAM.PLAYER) ? "rgba(150,220,255,0.9)" : "rgba(255,150,150,0.9)";
         ctx.fillRect(p.x-2,p.y-2,4,4);
       }
+    }
+
+    // Fading missile trails (잔상이 폭발 후에도 부드럽게 사라지도록)
+    for (const m of missileTrailFades){
+      if (!m.trail || m.trail.length < 2) continue;
+      const alphaMul = Math.max(0, m.life / 0.35);
+      ctx.save();
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+      for (let j = 1; j < m.trail.length; j++){
+        const pt = m.trail[j];
+        const prev = m.trail[j-1];
+        const pa = worldToScreen(prev.x, prev.y);
+        const pb = worldToScreen(pt.x, pt.y);
+        const za = prev.z || 0, zb = pt.z || 0;
+        const alpha = (0.15 + 0.55 * (j / m.trail.length)) * alphaMul;
+        ctx.strokeStyle = (m.team===TEAM.PLAYER) ? `rgba(150,220,255,${alpha})` : `rgba(255,150,150,${alpha})`;
+        ctx.lineWidth = 3.5 - 2 * (j / m.trail.length);
+        ctx.beginPath();
+        ctx.moveTo(pa.x, pa.y - za);
+        ctx.lineTo(pb.x, pb.y - zb);
+        ctx.stroke();
+      }
+      ctx.restore();
     }
 
     for (const tr of traces){

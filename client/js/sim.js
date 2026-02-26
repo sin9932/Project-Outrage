@@ -21,6 +21,7 @@
     const healMarks = r.healMarks || [];
     const casings = r.casings || [];
     const traces = r.traces || [];
+    const missileTrailFades = r.missileTrailFades || [];
 
     const TEAM = r.TEAM || {};
     const POWER = r.POWER || {};
@@ -579,9 +580,20 @@
     }
 
     function tickBullets(dt){
+      // Fade out persisted missile trails
+      for (let i = missileTrailFades.length - 1; i >= 0; i--){
+        const m = missileTrailFades[i];
+        m.life -= dt;
+        if (m.life <= 0) missileTrailFades.splice(i, 1);
+      }
+
       // bullets + shells
 
       function explodeMissile(bl, ix, iy){
+        // Persist trail for fade-out (잔상이 뿅 사라지는 버그 수정)
+        if (bl._trail && bl._trail.length >= 2){
+          missileTrailFades.push({ trail: bl._trail.slice(), team: bl.team, life: 0.35 });
+        }
         // impact FX (missile)
         flashes.push({x: ix, y: iy, r: 44 + Math.random()*10, life: 0.10, delay: 0});
         for (let k=0;k<6;k++){
@@ -2899,33 +2911,22 @@
     }
 
     // RA2-style shared hover missile (IFV, Patriot, Aegis 공통)
+    // 공격 타일과 1:1 매칭: 항상 target.x, target.y로 직행
     function spawnHoverMissile(team, muzzleX, muzzleY, target, dmg, ownerId, opt){
-      const dx = target.x - muzzleX, dy = target.y - muzzleY;
+      const tx = target.x, ty = target.y;
+      const dx = tx - muzzleX, dy = ty - muzzleY;
       const dist = Math.hypot(dx,dy) || 1;
-      const ang = Math.atan2(dy, dx);
-      const spread = opt.spread ?? 0.08;
-      const count = opt.count ?? 1;
 
       const sp = opt.sp ?? 1350;
       const baseLife = dist / sp;
       const life = Math.max(0.25, Math.min(2.0, baseLife + (opt.lifeAdd ?? 0.18)));
 
       const tid = (target && typeof target.id==="number") ? target.id : null;
+      const count = opt.count ?? 1;
 
-      const targets = [];
-      if (count === 1) {
-        targets.push({ tx: target.x, ty: target.y });
-      } else {
-        const tx1 = muzzleX + Math.cos(ang-spread)*dist;
-        const ty1 = muzzleY + Math.sin(ang-spread)*dist;
-        const tx2 = muzzleX + Math.cos(ang+spread)*dist;
-        const ty2 = muzzleY + Math.sin(ang+spread)*dist;
-        targets.push({ tx: tx1, ty: ty1 }, { tx: tx2, ty: ty2 });
-      }
-
-      for (const t of targets){
-        spawnBullet(team, muzzleX, muzzleY, t.tx, t.ty, dmg, ownerId, {
-          sp, kind:"missile", life, tx:t.tx, ty:t.ty, tid, aimX:target.x, aimY:target.y, vz: opt.vz ?? 80
+      for (let i = 0; i < count; i++){
+        spawnBullet(team, muzzleX, muzzleY, tx, ty, dmg, ownerId, {
+          sp, kind:"missile", life, tx, ty, tid, aimX:tx, aimY:ty, vz: opt.vz ?? 80
         });
       }
     }
@@ -4049,8 +4050,10 @@
                       applyOreDamageInRadius(tx, ty, 18, d);
                     }
                   } else {
-                    // unloaded IFV missile mode (ground fire): missiles handle impact FX + damage on arrival
-                    fireIFVMissiles(u, {x:tx, y:ty, id:null, _ground:true});
+                    // unloaded IFV missile mode (ground fire): 타일 중심으로 1:1 매칭
+                    const tTx = tileOfX(tx), tTy = tileOfY(ty);
+                    const tc = tileToWorldCenter(tTx, tTy);
+                    fireIFVMissiles(u, {x:tc.x, y:tc.y, id:null, _ground:true});
                   }
                 } else {
                   spawnBullet(u.team, u.x, u.y, tx, ty, Math.max(1, u.dmg*0.6), u.id, { sp: 720 });
@@ -4282,20 +4285,24 @@
               u._dustAcc = 0;
             }
     
-            // Damage smoke when HP is in yellow/red (spawned at the time, does NOT follow unit)
+            // Damage smoke when HP is in yellow/red. 일정시간(6초) 후 종료.
             const hpPct = (u.hpMax>0) ? (u.hp / u.hpMax) : 1;
             if (hpPct < 0.50 && (UNIT[u.kind] && UNIT[u.kind].cls==="veh")){
-              u._dmgSmokeAcc = (u._dmgSmokeAcc || 0) + dt;
-              const interval = (hpPct < 0.20) ? 0.08 : 0.14;
-              if (u._dmgSmokeAcc >= interval){
-                u._dmgSmokeAcc = 0;
-                // Rough turret/top origin (good enough visually, and stays world-fixed)
-                const wx = u.x;
-                const wy = u.y - (TILE * 0.06);
-                spawnDmgSmokePuff(wx, wy, 1.0);
+              if (u._dmgSmokeT0 == null) u._dmgSmokeT0 = state.t;
+              const smokeDur = state.t - u._dmgSmokeT0;
+              if (smokeDur < 6.0){
+                u._dmgSmokeAcc = (u._dmgSmokeAcc || 0) + dt;
+                const interval = (hpPct < 0.20) ? 0.12 : 0.20;
+                if (u._dmgSmokeAcc >= interval){
+                  u._dmgSmokeAcc = 0;
+                  const wx = u.x + (Math.random()*2-1)*(TILE*0.12);
+                  const wy = u.y - (TILE * 0.06) + (Math.random()*2-1)*(TILE*0.08);
+                  spawnDmgSmokePuff(wx, wy, 0.7 + Math.random()*0.6);
+                }
               }
             } else {
               u._dmgSmokeAcc = 0;
+              u._dmgSmokeT0 = null;
             }
           }
     
