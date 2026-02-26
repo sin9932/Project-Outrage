@@ -260,6 +260,7 @@
   let canvas, ctx, cam, state, TEAM, MAP_W, MAP_H, TILE, ISO_X, ISO_Y;
   let terrain, ore, explored, visible, BUILD, DEFENSE, BUILD_SPRITE, NAME_KO, POWER, ORE_VALUE = 1200, ORE_MAX = 2400;
   let worldToScreen, tileToWorldCenter, idx, inMap, clamp, getEntityById;
+  let isVisibleAt = () => true;
 
   // === TMJ 湲곕컲 留???쇱뀑 ?뚮뜑??(forest_ground.tmj) ===
   const FG_TMJ_URL = "asset/sprite/map/editmap/forest_ground.tmj";
@@ -2354,6 +2355,7 @@
     const z = (typeof cam !== "undefined" && cam && typeof cam.zoom==="number") ? cam.zoom : 1;
 
     for (const e of explosions){
+      if (!isVisibleAt(e.x, e.y)) continue;
       const p = worldToScreen(e.x, e.y);
       const k = clamp(1 - (e.t / Math.max(0.001, e.ttl)), 0, 1);
 
@@ -2441,6 +2443,7 @@
     ctx.globalAlpha = 1;
 
     for (const fx of exp1Fxs){
+      if (!isVisibleAt(fx.x, fx.y)) continue;
       const age = state.t - fx.t0;
       const fi = Math.floor(age / Math.max(0.001, fx.frameDur));
       if (fi < 0 || fi >= EXP1_FRAMES.length) continue;
@@ -2475,6 +2478,7 @@
     };
 
     for (const w of smokeWaves){
+      if (!isVisibleAt(w.x, w.y)) continue;
       const p = worldToScreen(w.x, w.y);
       const t = clamp(w.t / Math.max(0.001, w.ttl), 0, 1);
       const ease = 1 - Math.pow(1 - t, 4);
@@ -2551,6 +2555,7 @@
     const z = (typeof cam !== "undefined" && cam && typeof cam.zoom==="number") ? cam.zoom : 1;
 
     for (const s of smokePuffs){
+      if (!isVisibleAt(s.x, s.y)) continue;
       const p = worldToScreen(s.x, s.y);
       const t = clamp(s.t / Math.max(0.001, s.ttl), 0, 1);
 
@@ -2580,6 +2585,7 @@
     const z = (typeof cam !== "undefined" && cam && typeof cam.zoom==="number") ? cam.zoom : 1;
     ctx.save();
     for (const p of dustPuffs){
+      if (!isVisibleAt(p.x, p.y)) continue;
       const k = p.t / p.ttl;
       const a = (1-k) * p.a0;
       const r = (p.r0 + p.grow*k) * z;
@@ -2597,6 +2603,7 @@
     const z = (typeof cam !== "undefined" && cam && typeof cam.zoom==="number") ? cam.zoom : 1;
     ctx.save();
     for (const p of dmgSmokePuffs){
+      if (!isVisibleAt(p.x, p.y)) continue;
       const k = p.t / p.ttl;
       const a = (1-k) * p.a0;
       const r = (p.r0 + p.grow*k) * z;
@@ -2613,6 +2620,7 @@
     const z = (typeof cam !== "undefined" && cam && typeof cam.zoom==="number") ? cam.zoom : 1;
 
     for (const s of bloodStains){
+      if (!isVisibleAt(s.x, s.y)) continue;
       const p = worldToScreen(s.x, s.y);
       const t = clamp(s.t / Math.max(0.001, s.ttl), 0, 1);
       const a = s.a0 * Math.pow(1 - t, 0.55);
@@ -2638,6 +2646,7 @@
     }
 
     for (const b of bloodPuffs){
+      if (!isVisibleAt(b.x, b.y)) continue;
       const p = worldToScreen(b.x, b.y);
       const t = clamp(b.t / Math.max(0.001, b.ttl), 0, 1);
       const a = b.a0 * Math.pow(1 - t, 0.70);
@@ -2685,16 +2694,25 @@
       gameOver, gameOverFadeAlpha = 0, POWER,
       smokeWaves, smokePuffs, dustPuffs, dmgSmokePuffs, bloodStains, bloodPuffs,
       updateMoney, updateProdBadges,
-      inMap, idx, tileToWorldCenter, worldToScreen,
+      inMap, idx, tileOfX, tileOfY, tileToWorldCenter, worldToScreen,
       getEntityById, REPAIR_WRENCH_IMG, repairWrenches,
       snapHoverToTileOrigin, buildingWorldFromTileOrigin, inBuildRadius, isBlockedFootprint, footprintBlockedMask,
       rectFromDrag, refreshPrimaryBuildingBadgesUI,
       drawBuildingSprite,
       worldVecToDir8,
-      isUnderPower, clamp
+      isUnderPower, clamp,
+      getFogEnabled
     } = env;
 
     const W=canvas.width, H=canvas.height;
+    const fogOn = typeof getFogEnabled === "function" && getFogEnabled();
+    isVisibleAt = (wx, wy) => {
+      if (!fogOn) return true;
+      const tx = tileOfX ? tileOfX(wx) : ((wx/TILE)|0);
+      const ty = tileOfY ? tileOfY(wy) : ((wy/TILE)|0);
+      return inMap(tx, ty) && visible && visible[TEAM.PLAYER] && visible[TEAM.PLAYER][idx(tx, ty)];
+    };
+
     ctx.clearRect(0,0,W,H);
     if (typeof updateMoney === "function") updateMoney(state.player.money);
     if (typeof updateProdBadges === "function") updateProdBadges();
@@ -3168,6 +3186,7 @@
     if (typeof drawWrenchFx === "function") drawWrenchFx();
 
     for (const bl of bullets){
+      if (!isVisibleAt(bl.x, bl.y)) continue;
       const p0=worldToScreen(bl.x,bl.y);
 
       if (bl.kind==="shell"){
@@ -3237,6 +3256,8 @@
     // Fading missile trails (잔상이 폭발 후에도 부드럽게 사라지도록)
     for (const m of missileTrailFades){
       if (!m.trail || m.trail.length < 2) continue;
+      const mtx = m.trail[0];
+      if (mtx && !isVisibleAt(mtx.x, mtx.y)) continue;
       const alphaMul = Math.max(0, m.life / 0.35);
       ctx.save();
       ctx.lineCap = "round";
@@ -3260,6 +3281,7 @@
 
     for (const tr of traces){
       if ((tr.delay||0) > 0) continue;
+      if (!isVisibleAt(tr.x0, tr.y0) && !isVisibleAt(tr.x1, tr.y1)) continue;
       const a=worldToScreen(tr.x0,tr.y0);
       const b=worldToScreen(tr.x1,tr.y1);
       let alpha;
@@ -3375,6 +3397,7 @@
 
     for (const f of flashes){
       if ((f.delay||0) > 0) continue;
+      if (!isVisibleAt(f.x, f.y)) continue;
       const p=worldToScreen(f.x,f.y);
       const a = Math.min(1, f.life/0.06);
       ctx.globalAlpha = a;
@@ -3413,6 +3436,7 @@
       }
       if (debrisTrail && debrisTrail.length > 0){
         for (const t of debrisTrail){
+          if (!isVisibleAt(t.x, t.y)) continue;
           const pp = worldToScreen(t.x, t.y);
           const a = Math.max(0, t.life / Math.max(0.001, t.ttl));
           const rr = (t.r || 12) * z * a;
@@ -3434,6 +3458,7 @@
       if (debris && debris.length > 0){
         const Z_SCALE = 0.4;
         for (const d of debris){
+          if (!isVisibleAt(d.x, d.y)) continue;
           const a = Math.max(0, 1 - d.t / Math.max(0.001, d.ttl));
           const zh = (d.z || 0);
           const shdP = worldToScreen(d.x, d.y);
@@ -3463,6 +3488,7 @@
     }
 
     for (const f of fires){
+      if (!isVisibleAt(f.x, f.y)) continue;
       const p = worldToScreen(f.x, f.y);
       const a = clamp(f.life/0.6, 0, 1);
       const z = (typeof cam !== "undefined" && cam && typeof cam.zoom==="number") ? cam.zoom : 1;
@@ -3476,6 +3502,7 @@
     }
 
     for (const p0 of impacts){
+      if (!isVisibleAt(p0.x, p0.y)) continue;
       const p=worldToScreen(p0.x,p0.y);
       ctx.globalAlpha = Math.min(1, p0.life/0.22);
       ctx.fillStyle = "rgba(255, 210, 90, 0.95)";
@@ -3486,6 +3513,7 @@
     if (typeof drawBlood === "function") drawBlood(ctx);
 
     for (const h of healMarks){
+      if (!isVisibleAt(h.x, h.y)) continue;
       const p = worldToScreen(h.x, h.y);
       const a = Math.min(1, h.life/0.45);
       const s = 10 + (1-a)*6;
@@ -3512,6 +3540,7 @@
 
     for (const c of casings){
       if ((c.delay||0) > 0) continue;
+      if (!isVisibleAt(c.x, c.y)) continue;
       const p=worldToScreen(c.x, c.y);
       const y = p.y - (c.z||0)*0.18;
       const a = Math.min(1, c.life/0.35);

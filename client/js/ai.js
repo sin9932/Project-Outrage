@@ -908,6 +908,8 @@
         ai.underRushUntil = Math.max(ai.underRushUntil || 0, state.t + 22);
       }
       const rushDefense = state.t < (ai.underRushUntil || 0);
+      const playerBuildingCount = buildings.filter(b => b.alive && !b.civ && b.team === TEAM.PLAYER).length;
+      const finishHimEarly = playerBuildingCount <= 2;
 
       // Defense placement when rich (non-blocking)
       aiPlaceDefenseIfRich(e);
@@ -955,7 +957,7 @@
         }
       }
 
-      if (rushDefense){
+      if (rushDefense && !finishHimEarly){
         ai.mode = "defend";
         aiCommandMoveToRally(eUnits.filter(u => u.kind !== "harvester" && u.kind !== "sniper"));
       }
@@ -1146,59 +1148,61 @@
       const poor = e.money < 250;
       const rich = e.money > 900;
 
-      // 목표 병력 규모: 병력만 모으고 러시 안 오는 문제 해결 - 목표 완화
-      // Army size goal: lower thresholds so AI actually pushes.
-      const goal = (!hasFac && hasBar) ? 3 : ((state.t < 160) ? 4 : (state.t < 360 ? 6 : 8));
+      const playerBuildings = buildings.filter(b => b.alive && !b.civ && b.team === TEAM.PLAYER).length;
+      const finishHim = playerBuildings <= 2;
 
-      // If we have basically no army, don't "attack", keep rallying while producing.
+      // 목표 병력 규모: 병력만 모으고 러시 안 오는 문제 해결 - 목표 완화
+      const goal = finishHim ? 2 : ((!hasFac && hasBar) ? 3 : ((state.t < 160) ? 4 : (state.t < 360 ? 6 : 8)));
+
       if (combat.length < 2) {
         ai.mode = "rally";
         return;
       }
 
-      if (poor || threat >= 5 || rushDefense) {
+      if (!finishHim && (poor || threat >= 5 || rushDefense)) {
         ai.mode = "defend";
         aiCommandMoveToRally(combat);
         return;
       }
 
-      // 탱크 1대만 있어도 러시 허용 (무한 대기 방지)
-      if (hasFac && tankCount < 1) {
+      if (!finishHim && hasFac && tankCount < 1) {
         ai.mode = "defend";
         aiCommandMoveToRally(combat);
         return;
       }
 
-      // 오래 모였으면 강제 러시 (rally 25초 초과 시 goal 80%만 있어도 푸시)
       const rallyDuration = state.t - (ai.waveT || 0);
-      const forcePush = rallyDuration > 25 && combat.length >= Math.max(4, Math.floor(goal * 0.8));
+      const forcePush = finishHim || (rallyDuration > 25 && combat.length >= Math.max(4, Math.floor(goal * 0.8)));
 
-      // Attack cadence: 웨이브 쿨다운 단축
       if (ai.mode !== "attack") {
         ai.mode = "rally";
-        // idle/guard만 집결로 당김 (attackmove 재명령 방지 → 이동질 감소)
         const strays = combat.filter(u => !u.order || u.order.type === "idle" || u.order.type === "guard");
         if (strays.length) aiCommandMoveToRally(strays);
-        const earlyOK = (!hasFac && hasBar) ? (state.t > 45) : (state.t > 55);
-        const waveCooldown = forcePush ? 0 : 5.0;
-        const meetsGoal = (forcePush && combat.length >= Math.max(4, Math.floor(goal * 0.8))) || combat.length >= goal;
+        const earlyOK = finishHim || ((!hasFac && hasBar) ? (state.t > 45) : (state.t > 55));
+        const waveCooldown = (forcePush || finishHim) ? 0 : 5.0;
+        const meetsGoal = combat.length >= goal;
         if (earlyOK && meetsGoal && state.t > ai.waveT + waveCooldown) {
           ai.waveT = state.t;
           const target = aiPickPlayerTarget();
           if (target) {
             ai.mode = "attack";
-            ai.attackUntil = state.t + (rich ? 30 : 22);
+            ai.attackUntil = state.t + (finishHim ? 45 : (rich ? 30 : 22));
             aiCommandAttackWave(combat, target);
           }
         }
         return;
       }
 
-      // While attacking, keep pressure; if time is up, go back to rally and rebuild wave.
       if (state.t > ai.attackUntil) {
-        ai.mode = "rally";
-        aiCommandMoveToRally(combat);
-        return;
+        if (finishHim) {
+          ai.attackUntil = state.t + 20;
+          const target = aiPickPlayerTarget();
+          if (target) aiCommandAttackWave(combat, target);
+        } else {
+          ai.mode = "rally";
+          aiCommandMoveToRally(combat);
+          return;
+        }
       }
 
       // Occasionally retarget

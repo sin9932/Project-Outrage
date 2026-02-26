@@ -2641,7 +2641,7 @@ function draw(){
         running,
         updateMoney: isCallable(__ou_ui, "updateMoney") ? __ou_ui.updateMoney : null,
         updateProdBadges,
-        inMap, idx, tileToWorldCenter, worldToScreen,
+        inMap, idx, tileOfX, tileOfY, tileToWorldCenter, worldToScreen,
         getEntityById, repairWrenches,
         snapHoverToTileOrigin, buildingWorldFromTileOrigin, inBuildRadius, isBlockedFootprint, footprintBlockedMask,
         rectFromDrag, refreshPrimaryBuildingBadgesUI,
@@ -3151,6 +3151,7 @@ function sanityCheck(){
       }
 
       if (isCallable(__ou_ai, "tick")) __ou_ai.tick();
+      checkElimination();
       recomputePower();
       updatePowerBar();
       updateSelectionUI();
