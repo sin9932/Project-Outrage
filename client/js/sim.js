@@ -441,7 +441,9 @@
         if (cls==="inf"){
           occInf[ni] = Math.min(255, (occInf[ni]||0) + 1);
           let mask = (u.team===0) ? infSlotMask0[ni] : infSlotMask1[ni];
-          let slot = (u.subSlot!=null && u.subSlotTx===newTx && u.subSlotTy===newTy && ((mask>>(u.subSlot&3))&1)===0) ? (u.subSlot&3) : -1;
+          let slot = -1;
+          if (u.navSlot!=null && u.navSlotTx===newTx && u.navSlotTy===newTy) slot = (u.navSlot&3);
+          else if (u.subSlot!=null && u.subSlotTx===newTx && u.subSlotTy===newTy && ((mask>>(u.subSlot&3))&1)===0) slot = (u.subSlot&3);
           if (slot<0){ for (let s=0;s<4;s++){ if (((mask>>s)&1)===0){ slot=s; break; } } if (slot<0) slot=0; }
           u.subSlot=slot; u.subSlotTx=newTx; u.subSlotTy=newTy;
           mask=(mask|(1<<slot))&0x0F;
@@ -1413,6 +1415,7 @@
         return false;
       }
       if (!u.path || u.pathI >= u.path.length){
+        u.vx = 0; u.vy = 0;
         const ot = (u.order && u.order.type) ? u.order.type : null;
         if (ot==="move" || ot==="guard_return" || ot==="attackmove"){
           const gx = (u.order && u.order.x!=null) ? u.order.x : u.x;
@@ -1420,7 +1423,6 @@
           const d2 = dist2(u.x,u.y,gx,gy);
           if (d2 < 12*12){
             u.x = gx; u.y = gy;
-            u.vx = 0; u.vy = 0;
             u.path = null; u.pathI = 0;
             clearReservation(u);
             if (ot==="attackmove"){
@@ -1447,11 +1449,15 @@
       if (u.navSlot!=null && u.navSlotTx===p.tx && u.navSlotTy===p.ty){ slot = (u.navSlot & 3); }
       else {
         for (let s=0; s<4; s++){ if (((mask>>s)&1)===0){ slot=s; break; } }
-        if (slot>=0){ u.navSlot=slot; u.navSlotTx=p.tx; u.navSlotTy=p.ty; }
+        if (slot>=0){
+          u.navSlot=slot; u.navSlotTx=p.tx; u.navSlotTy=p.ty;
+          mask = (mask | (1<<slot)) & 0x0F;
+          if (u.team===0) infSlotMask0[ni] = mask; else infSlotMask1[ni] = mask;
+        }
       }
       if (slot>=0 && isLastTile){ const sp=tileToWorldSubslot(p.tx,p.ty,slot); wx=sp.x; wy=sp.y; }
 
-      if (u.holdPos && curTx===p.tx && curTy===p.ty) return false;
+      if (u.holdPos && curTx===p.tx && curTy===p.ty){ u.vx=0; u.vy=0; return false; }
 
       if (!(p.tx===curTx && p.ty===curTy)){
         const _tGoal = (u.target!=null) ? getEntityById(u.target) : null;
@@ -1504,6 +1510,7 @@
           const slot2 = (u.navSlot!=null && u.navSlotTx===p.tx && u.navSlotTy===p.ty) ? (u.navSlot&3) : ((u.order && u.order.tx===p.tx && u.order.ty===p.ty && u.order.subSlot!=null) ? (u.order.subSlot|0) : (u.subSlot|0));
           const sp = tileToWorldSubslot(p.tx, p.ty, slot2);
           u.x = sp.x; u.y = sp.y; u.vx = 0; u.vy = 0; u.holdPos = true;
+          u.subSlot = slot2; u.subSlotTx = p.tx; u.subSlotTy = p.ty;
         }
         u.pathI++; clearReservation(u);
         if (u.pathI >= u.path.length){
@@ -1526,11 +1533,11 @@
       const ax = dx/(d||1), ay = dy/(d||1);
       const nx = u.x + ax*step, ny = u.y + ay*step;
       const ntx = tileOfX(nx), nty = tileOfY(ny);
-      if (!isWalkableTile(ntx,nty)) return false;
+      if (!isWalkableTile(ntx,nty)){ u.vx=0; u.vy=0; return false; }
       if (ntx!==curTx || nty!==curTy){
-        if (!canEnterTile(u, ntx, nty) || isReservedByOther(u, ntx, nty)) return false;
+        if (!canEnterTile(u, ntx, nty) || isReservedByOther(u, ntx, nty)){ u.vx=0; u.vy=0; return false; }
       }
-      if (isBlockedWorldPoint(u, nx, ny)) return false;
+      if (isBlockedWorldPoint(u, nx, ny)){ u.vx=0; u.vy=0; return false; }
 
       u.x = clamp(nx, 0, WORLD_W);
       u.y = clamp(ny, 0, WORLD_H);
