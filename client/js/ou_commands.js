@@ -336,6 +336,11 @@
         uu.atkSlotRing = ring;
       }
 
+      // Path budget is per-frame; issuing many attack orders at once exhausts it.
+      // Only setPathTo for first N units; rest get order+target, sim will path them next tick.
+      const MAX_INITIAL_PATHS = 12;
+      let pathsSet = 0;
+
       for (let i=0;i<ids.length;i++){
         const u=getEntityById(ids[i]);
         if (!u || !u.alive || u.type!=="unit") continue;
@@ -361,28 +366,33 @@
           u.order = { type:"move", x:u.x, y:u.y, tx:null, ty:null, manual:true, allowAuto:false, lockTarget:false };
           u.holdPos = false;
           const p=getChasePointForAttack(u,t);
-          const ok=setPathTo(u, p.x+ox, p.y+oy);
-          if (!ok){
-            const gx = p.x+ox, gy = p.y+oy;
-            const gtx = tileOfX(gx), gty = tileOfY(gy);
-            u.path = [{tx:gtx, ty:gty}]; u.pathI=0;
-          }
-          u.orderFx = {t:0.55, kind:"move", x:p.x+ox, y:p.y+oy, targetId};
-          pushOrderFx(u.id,"move",p.x+ox,p.y+oy,targetId,"rgba(90,255,90,0.95)");
+          const gx = p.x+ox, gy = p.y+oy;
+          const gtx = tileOfX(gx), gty = tileOfY(gy);
+          if (pathsSet < MAX_INITIAL_PATHS){
+            const ok=setPathTo(u, gx, gy);
+            if (ok) pathsSet++;
+            else { u.path = [{tx:gtx, ty:gty}]; u.pathI=0; }
+          } else { u.path = [{tx:gtx, ty:gty}]; u.pathI=0; u.repathCd=0; }
+          u.orderFx = {t:0.55, kind:"move", x:gx, y:gy, targetId};
+          pushOrderFx(u.id,"move",gx,gy,targetId,"rgba(90,255,90,0.95)");
         } else {
           u.order={type:"attack", x:u.x, y:u.y, tx:null, ty:null, manual:true, allowAuto:false, lockTarget:true};
           u.target=targetId;
           u.forceFire=null;
 
           const p=getChasePointForAttack(u,t);
-          const ok=setPathTo(u, p.x+ox, p.y+oy);
-          if (!ok){
-            const gx = p.x+ox, gy = p.y+oy;
-            const gtx = tileOfX(gx), gty = tileOfY(gy);
+          const gx = p.x+ox, gy = p.y+oy;
+          const gtx = tileOfX(gx), gty = tileOfY(gy);
+          if (pathsSet < MAX_INITIAL_PATHS){
+            const ok=setPathTo(u, gx, gy);
+            if (ok) pathsSet++;
+            else { u.path = [{tx:gtx, ty:gty}]; u.pathI=0; }
+          } else {
             u.path = [{tx:gtx, ty:gty}]; u.pathI=0;
+            u.repathCd=0;
           }
-          u.orderFx = {t:0.55, kind:"attack", x:p.x+ox, y:p.y+oy, targetId};
-          pushOrderFx(u.id,"attack",p.x+ox,p.y+oy,targetId,"rgba(255,70,70,0.95)");
+          u.orderFx = {t:0.55, kind:"attack", x:gx, y:gy, targetId};
+          pushOrderFx(u.id,"attack",gx,gy,targetId,"rgba(255,70,70,0.95)");
         }
       }
     }

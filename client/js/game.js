@@ -2386,7 +2386,7 @@ if (state.selection.size>0 && inMap(tx,ty) && ore[idx(tx,ty)]>0){
         fifo.splice(i,1);
         prodTotal[kind] = Math.max(0, (prodTotal[kind]||0)-1);
         updateProdBadges();
-        toast("예약 취소");
+        toast(L ? L("toast.reserveCancel") : "예약 취소");
         return;
       }
     }

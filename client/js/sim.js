@@ -1545,6 +1545,19 @@
           if (slot<0){
             u.vx=0; u.vy=0;
             u.queueWaitT = (u.queueWaitT||0) + dt;
+            if (u.queueWaitT > 1.0 && (u._queueRetryT==null || (state.t - u._queueRetryT) > 0.6)){
+              u._queueRetryT = state.t;
+              const goalWx = (p.tx+0.5)*TILE, goalWy = (p.ty+0.5)*TILE;
+              const spot = findNearestFreePoint(goalWx, goalWy, u, 4);
+              if (spot && spot.found && (spot.x!==goalWx || spot.y!==goalWy)){
+                const nTx = tileOfX(spot.x), nTy = tileOfY(spot.y);
+                if (canEnterTile(u, nTx, nTy)){
+                  u.queueWaitT = 0;
+                  setPathTo(u, spot.x, spot.y);
+                  return true;
+                }
+              }
+            }
             if (u.queueWaitT > 2.5 && u.order && (u.order.x!=null || u.order.tx!=null)){
               const gx = (u.order.tx!=null) ? (u.order.tx+0.5)*TILE : (u.order.x!=null ? u.order.x : u.x);
               const gy = (u.order.ty!=null) ? (u.order.ty+0.5)*TILE : (u.order.y!=null ? u.order.y : u.y);
@@ -4366,7 +4379,7 @@
       }
 
     let _pathFindBudget = 0;
-    const MAX_PATHFINDS_PER_FRAME = 32;
+    const MAX_PATHFINDS_PER_FRAME = 48;
 
     function tickSim(dt) {
       _pathFindBudget = MAX_PATHFINDS_PER_FRAME;

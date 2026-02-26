@@ -245,17 +245,17 @@
         </div>
 
         <div class="pmRow">
-          <span class="lbl">볼륨</span>
+          <span id="pmLblVolume" class="lbl">볼륨</span>
           <span class="val"></span>
         </div>
         <div class="pmRow">
-          <span class="lbl">음악</span>
+          <span id="pmLblMusic" class="lbl">음악</span>
           <input id="pmVol" type="range" min="0" max="1" step="0.01" value="0.5" />
           <span id="pmVolVal" class="val">5</span>
         </div>
 
         <div class="pmRow">
-          <span class="lbl">게임 밝기</span>
+          <span id="pmLblBrightness" class="lbl">게임 밝기</span>
           <input id="pmBright" type="range" min="0.6" max="1.6" step="0.01" value="1.00" />
           <span id="pmBrightVal" class="val">1.00</span>
         </div>
@@ -273,12 +273,12 @@
   <div class="result-panel">
     <h2 class="result-title" id="resultTitle">승리!</h2>
     <div class="result-header">
-      <span class="result-game-num">게임: 1</span>
+      <span id="resultGameNum" class="result-game-num">게임: 1</span>
       <span class="result-time" id="resultTime">시간: 00:00:00</span>
     </div>
     <table class="result-table">
       <thead>
-        <tr><th>플레이어</th><th>킬수</th><th>손실</th><th>건설</th><th>자원수집량</th><th>점수</th></tr>
+        <tr><th id="resultThPlayer">플레이어</th><th id="resultThKills">킬수</th><th id="resultThLosses">손실</th><th id="resultThBuilt">건설</th><th id="resultThHarvest">자원수집량</th><th id="resultThScore">점수</th></tr>
       </thead>
       <tbody id="resultTableBody"></tbody>
     </table>

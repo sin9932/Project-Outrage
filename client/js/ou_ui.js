@@ -113,7 +113,8 @@ if (r.uiPowerBar && !r.__powerTipInstalled){
   }
 
   const showTip = (e)=>{
-    const txt = r.__powerTipText || (r.uiPowerBar && r.uiPowerBar.title) || "전력";
+    const L = (window.OULocale && window.OULocale.L) ? window.OULocale.L : null;
+    const txt = r.__powerTipText || (r.uiPowerBar && r.uiPowerBar.title) || (L ? L("ui.powerTip") : "전력");
     if (r.uiPTip){
       r.uiPTip.textContent = txt;
       r.uiPTip.style.display = "block";
@@ -222,7 +223,9 @@ if (r.uiPowerBar && !r.__powerTipInstalled){
               if (ratios.length){
                 const avg = ratios.reduce((a,b)=>a+b,0) / ratios.length;
                 const mn  = Math.min(...ratios);
-                summary += `  (평균 HP ${(avg*100).toFixed(0)}% / 최소 ${(mn*100).toFixed(0)}%)`;
+                const _avg = (window.OULocale && window.OULocale.L) ? window.OULocale.L("ui.avgHp") : "평균 HP";
+                const _min = (window.OULocale && window.OULocale.L) ? window.OULocale.L("ui.minHp") : "최소";
+                summary += `  (${_avg} ${(avg*100).toFixed(0)}% / ${_min} ${(mn*100).toFixed(0)}%)`;
               }
 
               const list = [];
@@ -300,7 +303,9 @@ if (r.uiPowerBar && !r.__powerTipInstalled){
   const use  = p.powerUse  || 0;
 
   // Tooltip text (production / consumption)
-  const tip = `전력: ${prod} / ${use}`;
+  const L = (window.OULocale && window.OULocale.L) ? window.OULocale.L : null;
+  const powerLabel = L ? L("ui.powerTip") : "전력";
+  const tip = `${powerLabel}: ${prod} / ${use}`;
   r.__powerTipText = tip;
   if (r.uiPowerBar) r.uiPowerBar.title = tip;
 
@@ -920,12 +925,13 @@ function ensureBadge(btn){
       const defReady  = !!(state.buildLane && state.buildLane.def  && state.buildLane.def.ready);
       const anyReady  = mainReady || defReady;
 
+      const L = (window.OULocale && window.OULocale.L) ? window.OULocale.L : null;
       if (mode==="repair"){
-        el.textContent = "REPAIR";
+        el.textContent = L ? L("ui.modeRepair") : "REPAIR";
         el.className = "pill warn";
         el.style.display = "";
       } else if (mode==="sell"){
-        el.textContent = "SELL";
+        el.textContent = L ? L("ui.modeSell") : "SELL";
         el.className = "pill warn";
         el.style.display = "";
       } else if (anyReady){
@@ -1001,6 +1007,81 @@ function ensureBadge(btn){
         return { x: sx / arr.length, y: sy / arr.length };
       };
       return [centroid(left), centroid(right)];
+    }
+
+    function refreshAllStaticUIText(){
+      const L = (window.OULocale && window.OULocale.L) ? window.OULocale.L : null;
+      if (!L) return;
+      const set = (id, key)=>{ const e = document.getElementById(id); if (e) e.textContent = L(key); };
+      const setUnit = (id, kind)=>{
+        const e = document.getElementById(id);
+        if (!e) return;
+        const val = L.unit ? L.unit(kind) : kind;
+        const badge = e.querySelector(".badge");
+        e.textContent = "";
+        e.appendChild(document.createTextNode(val));
+        if (badge){
+          e.appendChild(badge);
+          if (id === "bBar" || id === "bFac") badge.textContent = L("ui.primary");
+        }
+      };
+      // Pregame
+      set("pregameTitle", "pregame.skirmish");
+      set("pregameSub", "pregame.sub");
+      set("lblPlayerColor", "pregame.playerColor");
+      set("lblEnemyColor", "pregame.enemyColor");
+      set("lblMap", "pregame.map");
+      set("lblMoney", "pregame.initialMoney");
+      set("lblMoneyHint", "pregame.moneyHint");
+      set("lblFogOff", "pregame.fogOff");
+      set("lblFogHint", "pregame.fogHint");
+      set("lblFastProd", "pregame.fastProd");
+      set("lblFastProdHint", "pregame.fastProdHint");
+      set("lblShortGame", "pregame.shortGame");
+      set("lblShortGameHint", "pregame.shortGameHint");
+      set("mapThumbHint", "pregame.mapHint");
+      const startBtn = document.getElementById("startBtn");
+      if (startBtn && startBtn.dataset._oldTxt !== "LOADING...") startBtn.textContent = L("pregame.start");
+      // In-game UI
+      set("uiMinimap", "ui.minimap");
+      set("btnRepairMode", "ui.repair");
+      set("btnSellMode", "ui.sell");
+      set("uiProdTitle", "ui.production");
+      set("tabMain", "ui.main");
+      set("tabDef", "ui.def");
+      set("tabInf", "ui.inf");
+      set("tabVeh", "ui.veh");
+      setUnit("bPow", "power");
+      setUnit("bRef", "refinery");
+      setUnit("bBar", "barracks");
+      setUnit("bFac", "factory");
+      setUnit("bRad", "radar");
+      setUnit("bTur", "turret");
+      setUnit("pInf", "infantry");
+      setUnit("pEng", "engineer");
+      setUnit("pSnp", "sniper");
+      setUnit("pTnk", "tank");
+      setUnit("pHar", "harvester");
+      setUnit("pIFV", "ifv");
+      set("uiSelInfoTitle", "ui.selectionInfo");
+      set("pmTitle", "ui.options");
+      set("pmLblPlay", "ui.play");
+      set("pmShuffle", "ui.shuffle");
+      set("pmRepeat", "ui.repeatAll");
+      set("pmLblVolume", "ui.volume");
+      set("pmLblMusic", "ui.music");
+      set("pmLblBrightness", "ui.brightness");
+      set("pmResume", "ui.pmResume");
+      set("pmExit", "ui.pmExit");
+      set("resultGameNum", "result.gameNum");
+      set("resultThPlayer", "result.player");
+      set("resultThKills", "result.kills");
+      set("resultThLosses", "result.losses");
+      set("resultThBuilt", "result.construction");
+      set("resultThHarvest", "result.harvest");
+      set("resultThScore", "result.score");
+      const contBtn = document.getElementById("resultContinue");
+      if (contBtn) contBtn.textContent = L("result.continue");
     }
 
     function initPregameUI(env){
@@ -1124,66 +1205,6 @@ function ensureBadge(btn){
       refreshAllStaticUIText();
     }
 
-    function refreshAllStaticUIText(){
-      const L = (window.OULocale && window.OULocale.L) ? window.OULocale.L : null;
-      if (!L) return;
-      const set = (id, key)=>{ const e = document.getElementById(id); if (e) e.textContent = L(key); };
-      const setUnit = (id, kind)=>{
-        const e = document.getElementById(id);
-        if (!e) return;
-        const val = L.unit ? L.unit(kind) : kind;
-        const badge = e.querySelector(".badge");
-        e.textContent = "";
-        e.appendChild(document.createTextNode(val));
-        if (badge) e.appendChild(badge);
-      };
-      // Pregame
-      set("pregameTitle", "pregame.skirmish");
-      set("pregameSub", "pregame.sub");
-      set("lblPlayerColor", "pregame.playerColor");
-      set("lblEnemyColor", "pregame.enemyColor");
-      set("lblMap", "pregame.map");
-      set("lblMoney", "pregame.initialMoney");
-      set("lblMoneyHint", "pregame.moneyHint");
-      set("lblFogOff", "pregame.fogOff");
-      set("lblFogHint", "pregame.fogHint");
-      set("lblFastProd", "pregame.fastProd");
-      set("lblFastProdHint", "pregame.fastProdHint");
-      set("lblShortGame", "pregame.shortGame");
-      set("lblShortGameHint", "pregame.shortGameHint");
-      set("mapThumbHint", "pregame.mapHint");
-      const startBtn = document.getElementById("startBtn");
-      if (startBtn && startBtn.dataset._oldTxt !== "LOADING...") startBtn.textContent = L("pregame.start");
-      // In-game UI
-      set("uiMinimap", "ui.minimap");
-      set("btnRepairMode", "ui.repair");
-      set("btnSellMode", "ui.sell");
-      set("uiProdTitle", "ui.production");
-      set("tabMain", "ui.main");
-      set("tabDef", "ui.def");
-      set("tabInf", "ui.inf");
-      set("tabVeh", "ui.veh");
-      setUnit("bPow", "power");
-      setUnit("bRef", "refinery");
-      setUnit("bBar", "barracks");
-      setUnit("bFac", "factory");
-      setUnit("bRad", "radar");
-      setUnit("bTur", "turret");
-      setUnit("pInf", "infantry");
-      setUnit("pEng", "engineer");
-      setUnit("pSnp", "sniper");
-      setUnit("pTnk", "tank");
-      setUnit("pHar", "harvester");
-      setUnit("pIFV", "ifv");
-      set("uiSelInfoTitle", "ui.selectionInfo");
-      set("pmTitle", "ui.options");
-      set("pmLblPlay", "ui.play");
-      set("pmLblRepeat", "ui.repeatAll");
-      set("pmShuffle", "ui.shuffle");
-      set("pmResume", "ui.pmResume");
-      set("pmExit", "ui.pmExit");
-    }
-
     function setPregameLoading(env){
       env = env || {};
       const startBtn = env.startBtn || document.getElementById("startBtn");
@@ -1294,6 +1315,7 @@ function ensureBadge(btn){
       refs.overlay.setAttribute("aria-hidden", open ? "false" : "true");
 
       if (!open) return;
+      if (typeof refreshAllStaticUIText === "function") refreshAllStaticUIText();
 
       const bgm = env.bgm;
       // BGM UI values are driven via adapter in wirePauseMenuUI (mountUI -> updateUI).
@@ -1535,11 +1557,15 @@ function ensureBadge(btn){
             }
           },
           setPlay: (playing)=>{ if (refs.play) refs.play.textContent = playing ? "⏸" : "▶"; },
-          setShuffle: (on)=>{ if (refs.shuffle) refs.shuffle.textContent = on ? "셔플: ON" : "셔플: OFF"; },
+          setShuffle: (on)=>{
+            const L = window.OULocale?.L;
+            if (refs.shuffle) refs.shuffle.textContent = L ? (on ? L("ui.shuffleOn") : L("ui.shuffleOff")) : (on ? "셔플: ON" : "셔플: OFF");
+          },
           setRepeat: (mode)=>{
             if (!refs.repeat) return;
+            const L = window.OULocale?.L;
             const m = String(mode||"none");
-            refs.repeat.textContent = (m==="one") ? "반복: 1곡" : (m==="all" ? "반복: 전체" : "반복: 없음");
+            refs.repeat.textContent = L ? (m==="one" ? L("ui.repeatOne") : (m==="all" ? L("ui.repeatAll") : L("ui.repeatOff"))) : (m==="one" ? "반복: 1곡" : (m==="all" ? "반복: 전체" : "반복: 없음"));
           },
           setVol: (v)=>{
             if (refs.vol) refs.vol.value = String(v ?? 0.4);
