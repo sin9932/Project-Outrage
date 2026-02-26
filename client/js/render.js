@@ -2717,8 +2717,7 @@
           const p = worldToScreen(c.x,c.y);
           const x = p.x, y = p.y;
           const ox = ISO_X*cam.zoom, oy = ISO_Y*cam.zoom;
-
-          const eps = 2.4*cam.zoom;
+          const eps = Math.max(ox*0.35, oy*0.35, 10);
           if (!iExp){
             ctx.fillStyle = "rgba(0,0,0,1)";
           } else {
