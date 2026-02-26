@@ -45,6 +45,7 @@
 </script>
 
 <script src="./js/ou_deps.js?v=1" defer></script>
+<script src="./js/locale.js" defer></script>
 <script src="./js/fx_all.js" defer></script>
 <script src="./js/units.js" defer></script>
 
@@ -78,8 +79,16 @@
 <div id="pTip"></div>
 <div id="pregame">
 <div class="card skirmish-card">
-<h2>스커미시 게임</h2>
-<div class="sub">진영 컬러 / 맵 스타트 지점을 선택하고 시작하세요.</div>
+<h2 id="pregameTitle">스커미시 게임</h2>
+<div class="sub" id="pregameSub">진영 컬러 / 맵 스타트 지점을 선택하고 시작하세요.</div>
+<div class="langRow" style="margin-bottom:12px;">
+  <label>언어</label>
+  <div class="choiceRow">
+    <div class="chip lang" data-lang="ko">한국어</div>
+    <div class="chip lang" data-lang="en">English</div>
+    <div class="chip lang" data-lang="ja">日本語</div>
+  </div>
+</div>
 <div class="skirmish-layout">
 <div class="skirmish-left">
 <label>플레이어 컬러</label>

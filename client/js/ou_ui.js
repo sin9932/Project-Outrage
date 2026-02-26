@@ -133,7 +133,7 @@ if (r.uiPowerBar && !r.__powerTipInstalled){
 
     function updateSelectionUI(env) {
       env = env || {};
-      const { state, hasRadarAlive, getEntityById, NAME_KO } = env;
+      const { state, hasRadarAlive, getEntityById, NAME_KO, L } = env;
 
       if (!state) return;
 
@@ -185,9 +185,9 @@ if (r.uiPowerBar && !r.__powerTipInstalled){
       try{
         if (r.uiRadarStat){
           if (hasRadarAlive && isFn(hasRadarAlive)){
-            r.uiRadarStat.textContent = hasRadarAlive() ? "RADAR ONLINE" : "RADAR REQUIRED";
+            r.uiRadarStat.textContent = hasRadarAlive() ? (L ? L("ui.radarOnline") : "RADAR ONLINE") : (L ? L("ui.radarRequired") : "RADAR REQUIRED");
           } else {
-            r.uiRadarStat.textContent = "RADAR REQUIRED";
+            r.uiRadarStat.textContent = L ? L("ui.radarRequired") : "RADAR REQUIRED";
           }
         }
       }catch(_e){}
@@ -197,7 +197,7 @@ if (r.uiPowerBar && !r.__powerTipInstalled){
         if (r.uiSelInfo){
           const ids = selIds.length ? selIds : (hoverId != null ? [hoverId] : []);
           if (!ids.length){
-            r.uiSelInfo.textContent = "아무것도 선택 안 됨";
+            r.uiSelInfo.textContent = L ? L("ui.nothingSelected") : "아무것도 선택 안 됨";
           } else {
             const ents = [];
             for (const id of ids){
@@ -209,16 +209,16 @@ if (r.uiPowerBar && !r.__powerTipInstalled){
             }
 
             if (!ents.length){
-              r.uiSelInfo.textContent = selIds.length ? `${selIds.length}개 선택` : "선택됨";
+              r.uiSelInfo.textContent = selIds.length ? (selIds.length + (L ? L("ui.selectCount") : "개 선택")) : (L ? L("ui.selected") : "선택됨");
             } else if (selIds.length <= 1){
               const e0 = ents[0];
-              const n = nameOf(e0) || "선택됨";
+              const n = nameOf(e0) || (L ? L("ui.selected") : "선택됨");
               const hp = hpText(e0);
               r.uiSelInfo.textContent = hp ? `[${n}] HP ${hp}` : `[${n}]`;
             } else {
               // multi-select summary + list (old behavior friendly)
               const ratios = ents.map(hpRatio).filter(v => v != null);
-              let summary = `${selIds.length}개 선택`;
+              let summary = selIds.length + (L ? L("ui.selectCount") : "개 선택");
               if (ratios.length){
                 const avg = ratios.reduce((a,b)=>a+b,0) / ratios.length;
                 const mn  = Math.min(...ratios);
@@ -245,7 +245,7 @@ if (r.uiPowerBar && !r.__powerTipInstalled){
       try{
         if (r.uiMmHint){
           r.uiMmHint.textContent = hasRadarAlive && isFn(hasRadarAlive) && hasRadarAlive()
-            ? "미니맵 활성"
+            ? (L ? L("ui.minimapActive") : "미니맵 활성")
             : "";
         }
       }catch(_e){}
@@ -1094,7 +1094,35 @@ function ensureBadge(btn){
       for (const chip of mapChips){
         chip.addEventListener("click", ()=>setMapChip(chip));
       }
+      const langChips = Array.from(document.querySelectorAll(".chip.lang"));
+      const L = (window.OULocale && window.OULocale.L) ? window.OULocale.L : null;
+      if (L && langChips.length){
+        const cur = L.getLang ? L.getLang() : "ko";
+        for (const c of langChips){
+          if (c.dataset && c.dataset.lang === cur) c.classList.add("on");
+          else c.classList.remove("on");
+          c.addEventListener("click", ()=>{
+            const lang = c.dataset && c.dataset.lang;
+            if (lang && L.setLang && L.setLang(lang)){
+              for (const x of langChips) x.classList.remove("on");
+              c.classList.add("on");
+              refreshPregameText();
+            }
+          });
+        }
+      }
+      refreshPregameText();
       loadMapThumbnail("forest_ground");
+    }
+
+    function refreshPregameText(){
+      const L = (window.OULocale && window.OULocale.L) ? window.OULocale.L : null;
+      if (!L) return;
+      const set = (id, key)=>{ const e = document.getElementById(id); if (e) e.textContent = L(key); };
+      set("pregameTitle", "pregame.skirmish");
+      set("pregameSub", "pregame.sub");
+      const startBtn = document.getElementById("startBtn");
+      if (startBtn && startBtn.dataset._oldTxt !== "LOADING...") startBtn.textContent = L("pregame.start");
     }
 
     function setPregameLoading(env){
@@ -1120,7 +1148,7 @@ function ensureBadge(btn){
 
     function setSellLabel(env){
       env = env || {};
-      const btn = env.btn || document.getElementById("sell");
+      const btn = env.btn || document.getElementById("sell") || document.getElementById("btnSellMode");
       if (btn && env.text != null) btn.textContent = String(env.text);
     }
 
@@ -1222,6 +1250,7 @@ function ensureBadge(btn){
 
     function showResultOverlay(env){
       env = env || {};
+      const L = (window.OULocale && window.OULocale.L) ? window.OULocale.L : null;
       const overlay = document.getElementById("resultOverlay");
       const titleEl = document.getElementById("resultTitle");
       const timeEl = document.getElementById("resultTime");
@@ -1237,7 +1266,7 @@ function ensureBadge(btn){
       const colors = env.colors || { player: "#4a90e2", enemy: "#e25a4a" };
 
       if (titleEl){
-        titleEl.textContent = victory ? "승리!" : "패배...";
+        titleEl.textContent = victory ? (L ? L("result.victory") : "승리!") : (L ? L("result.defeat") : "패배...");
         titleEl.className = "result-title " + (victory ? "victory" : "defeat");
       }
       if (timeEl){
@@ -1245,13 +1274,13 @@ function ensureBadge(btn){
         const s = Math.floor(gameTime % 60);
         const h = Math.floor(m / 60);
         const mm = m % 60;
-        timeEl.textContent = "시간: " + String(h).padStart(2,"0") + ":" + String(mm).padStart(2,"0") + ":" + String(s).padStart(2,"0");
+        timeEl.textContent = (L ? L("result.time") : "시간") + ": " + String(h).padStart(2,"0") + ":" + String(mm).padStart(2,"0") + ":" + String(s).padStart(2,"0");
       }
 
       const TEAM = { PLAYER: 0, ENEMY: 1 };
       const rows = [
-        { name: "플레이어", team: TEAM.PLAYER, color: colors.player || "#4a90e2" },
-        { name: "컴퓨터", team: TEAM.ENEMY, color: colors.enemy || "#e25a4a" }
+        { name: L ? L("result.player") : "플레이어", team: TEAM.PLAYER, color: colors.player || "#4a90e2" },
+        { name: L ? L("result.computer") : "컴퓨터", team: TEAM.ENEMY, color: colors.enemy || "#e25a4a" }
       ];
 
       const vals = { k: [], l: [], c: [], h: [], s: [] };
@@ -1304,15 +1333,16 @@ function ensureBadge(btn){
         });
       });
 
+      const _mvpFallback = { "mvp.cupRamen":"컵라면 뚝딱!", "mvp.cupRamenDesc":"3분 만에 승리", "mvp.fiveMin":"5분 순삭", "mvp.fiveMinDesc":"5분 만에 승리", "mvp.engineerCaptures":"너희 기지 다 내꺼다요", "mvp.engineerCapturesDesc":"가장 많은 적 건물 엔지니어 점령", "mvp.sniperKills":"안되겠소 쏩시다!", "mvp.sniperKillsDesc":"가장 많은 적 보병을 저격병/저격IFV로 처치", "mvp.vehicleKills":"탱크헌터", "mvp.vehicleKillsDesc":"가장 많은 적 기갑유닛 처치", "mvp.armorProduced":"몽땅 쓸어주마", "mvp.armorProducedDesc":"가장 많은 기갑 공격유닛 생산", "mvp.infantryProduced":"고기분쇄기", "mvp.infantryProducedDesc":"가장 많은 보병 생산", "mvp.turretBuilt":"철의 장막", "mvp.turretBuiltDesc":"가장 많은 방어시설 건설" };
       const mvpList = [
-        { key: "cupRamen", label: "컵라면 뚝딱!", desc: "3분 만에 승리", time: 180, priority: 0 },
-        { key: "fiveMin", label: "5분 순삭", desc: "5분 만에 승리", time: 300, priority: 1 },
-        { key: "engineerCaptures", label: "너희 기지 다 내꺼다요", desc: "가장 많은 적 건물 엔지니어 점령", priority: 2 },
-        { key: "sniperInfantryKills", label: "안되겠소 쏩시다!", desc: "가장 많은 적 보병을 저격병/저격IFV로 처치", priority: 3 },
-        { key: "vehicleKills", label: "탱크헌터", desc: "가장 많은 적 기갑유닛 처치", priority: 4, minVal: 2 },
-        { key: "armorProduced", label: "몽땅 쓸어주마", desc: "가장 많은 기갑 공격유닛 생산", priority: 5 },
-        { key: "infantryProduced", label: "고기분쇄기", desc: "가장 많은 보병 생산", priority: 6 },
-        { key: "turretBuilt", label: "철의 장막", desc: "가장 많은 방어시설 건설", priority: 7 }
+        { key: "cupRamen", labelKey: "mvp.cupRamen", descKey: "mvp.cupRamenDesc", time: 180, priority: 0 },
+        { key: "fiveMin", labelKey: "mvp.fiveMin", descKey: "mvp.fiveMinDesc", time: 300, priority: 1 },
+        { key: "engineerCaptures", labelKey: "mvp.engineerCaptures", descKey: "mvp.engineerCapturesDesc", priority: 2 },
+        { key: "sniperInfantryKills", labelKey: "mvp.sniperKills", descKey: "mvp.sniperKillsDesc", priority: 3 },
+        { key: "vehicleKills", labelKey: "mvp.vehicleKills", descKey: "mvp.vehicleKillsDesc", priority: 4, minVal: 2 },
+        { key: "armorProduced", labelKey: "mvp.armorProduced", descKey: "mvp.armorProducedDesc", priority: 5 },
+        { key: "infantryProduced", labelKey: "mvp.infantryProduced", descKey: "mvp.infantryProducedDesc", priority: 6 },
+        { key: "turretBuilt", labelKey: "mvp.turretBuilt", descKey: "mvp.turretBuiltDesc", priority: 7 }
       ];
       if (mvpEl){
         const m = stats.mvp || {};
@@ -1338,7 +1368,7 @@ function ensureBadge(btn){
             const minV = it.minVal || 1;
             if (winner && val < minV) winner = null;
           }
-          if (winner) items.push({ label: it.label, desc: it.desc, val, time: !!it.time, winner, priority: it.priority });
+          if (winner) items.push({ label: (L ? L(it.labelKey) : _mvpFallback[it.labelKey]) || it.labelKey, desc: (L ? L(it.descKey) : _mvpFallback[it.descKey]) || it.descKey, val, time: !!it.time, winner, priority: it.priority });
         }
         items.sort((a,b)=>{
           const aTime = !!a.time, bTime = !!b.time;
@@ -1354,9 +1384,9 @@ function ensureBadge(btn){
           }
           return x.val.toLocaleString();
         };
-        const winnerName = (w)=> w === "player" ? "플레이어" : "컴퓨터";
+        const winnerName = (w)=> w === "player" ? (L ? L("result.player") : "플레이어") : (L ? L("result.computer") : "컴퓨터");
         const winnerColor = (w)=> w === "player" ? (colors.player || "#4a90e2") : (colors.enemy || "#e25a4a");
-        mvpEl.innerHTML = displayItems.length ? "<div class=\"result-mvp-title\">MVP</div><div class=\"result-mvp-cards\">" + displayItems.map((x,i)=>
+        mvpEl.innerHTML = displayItems.length ? "<div class=\"result-mvp-title\">" + (L ? L("result.mvp") : "MVP") + "</div><div class=\"result-mvp-cards\">" + displayItems.map((x,i)=>
           `<div class="mvp-card ${i===0 ? "mvp-card-top" : ""}" style="--mvp-color:${winnerColor(x.winner)}"><div class="mvp-card-title">${x.label}</div><div class="mvp-card-winner">${winnerName(x.winner)}</div><div class="mvp-card-val">${fmtVal(x)}</div><div class="mvp-card-desc">${x.desc}</div></div>`
         ).join("") + "</div>" : "";
         mvpEl.style.display = displayItems.length ? "block" : "none";
@@ -1791,6 +1821,7 @@ return {
   // Attack alerts (toast + minimap + SPACE camera). Requires state, toast, centerCameraOn.
   OUUI.createAttackAlerts = function createAttackAlerts(refs) {
     const { state, toast, centerCameraOn } = refs || {};
+    const L = (window.OULocale && window.OULocale.L) ? window.OULocale.L : null;
     if (!state || typeof toast !== "function" || typeof centerCameraOn !== "function") {
       return {
         ensureAttackState: () => {},
@@ -1855,7 +1886,7 @@ return {
       // RA2 style: 8초 쿨다운 (경고 스팸 방지)
       if (now >= (A.nextEmit ?? -1e9)) {
         A.nextEmit = now + 8.0;
-        toast(type === "harvester" ? "광물굴착기가 공격 당합니다!" : "아군기지가 공격 당합니다!");
+        toast(L ? (type === "harvester" ? L("toast.underAttackHarvester") : L("toast.underAttackBase")) : (type === "harvester" ? "광물굴착기가 공격 당합니다!" : "아군기지가 공격 당합니다!"));
         spawnMiniAlertFx(target.x, target.y);
       }
     }
@@ -1864,14 +1895,14 @@ return {
       ensureAttackState();
       const evs = state.attackEvents || [];
       if (!evs.length) {
-        toast("최근 공격 이벤트 없음", 1.0);
+        toast(L ? L("toast.noRecentAttack") : "최근 공격 이벤트 없음", 1.0);
         return;
       }
       const n = Math.min(2, evs.length);
       const i = (state.attackCycle || 0) % n;
       const ev = evs[i];
       centerCameraOn(ev.x, ev.y);
-      toast("최근 피격 지점으로 이동", 0.8);
+      toast(L ? L("toast.moveToAttack") : "최근 피격 지점으로 이동", 0.8);
       state.attackCycle = (i + 1) % n;
     }
 

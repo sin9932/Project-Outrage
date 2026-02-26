@@ -19,6 +19,7 @@
       worldToScreen,
       cam,
       toast,
+      L,
       updateSelectionUI,
       tileOfX,
       tileOfY,
@@ -79,7 +80,7 @@
 
     function selectSameType(){
       if (!state.selection || state.selection.size===0){
-        toast("선택한 유닛이 없음");
+        toast(L ? L("toast.noUnits") : "선택한 유닛이 없음");
         return;
       }
 
@@ -118,13 +119,13 @@
         }
       }
       if (!refKind){
-        toast("선택한 유닛이 없음");
+        toast(L ? L("toast.noUnits") : "선택한 유닛이 없음");
         return;
       }
 
       const ids = getAllPlayerUnitsOfKind(refKind);
       if (!ids || ids.length===0){
-        toast("대상 없음");
+        toast(L ? L("toast.noTarget") : "대상 없음");
         return;
       }
 

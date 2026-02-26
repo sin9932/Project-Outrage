@@ -28,6 +28,7 @@
       tileOfX,
       tileOfY,
       toast,
+      L,
       INF_SLOT_MAX,
       clamp,
       dist2,
@@ -61,7 +62,7 @@
 
     function tryBoardIFV(ifv){
       if (!ifv || !ifv.alive || ifv.kind!=="ifv" || ifv.team!==TEAM.PLAYER) return false;
-      if (ifv.passengerId) { toast("이미 탑승중"); return true; }
+      if (ifv.passengerId) { toast(L ? L("toast.alreadyBoarded") : "이미 탑승중"); return true; }
 
       let cand=null;
       for (const id of state.selection){
@@ -71,7 +72,7 @@
         const d2 = dist2(u.x,u.y,ifv.x,ifv.y);
         if (d2<=65*65){ cand=u; break; }
       }
-      if (!cand){ toast("탑승할 보병이 근처에 없음"); return true; }
+      if (!cand){ toast(L ? L("toast.noInfNear") : "탑승할 보병이 근처에 없음"); return true; }
 
       ifv.passengerId = cand.id;
       ifv.passKind = cand.kind;
@@ -88,7 +89,7 @@
       cand.selectable = false;
       state.selection.delete(cand.id);
       if (updateSelectionUI) updateSelectionUI();
-      toast("탑승");
+      toast(L ? L("toast.boarded") : "탑승");
       return true;
     }
 
@@ -104,7 +105,7 @@
       const y = spValid ? sp.y : (ifv.y + TILE*0.2);
 
       if (!spValid){
-        if (ifv.team===TEAM.PLAYER) toast("하차할 공간이 없습니다");
+        if (ifv.team===TEAM.PLAYER) toast(L ? L("toast.noUnloadSpace") : "하차할 공간이 없습니다");
         return false;
       }
       if (u){
@@ -117,7 +118,7 @@
       }
       ifv.passengerId = null;
       ifv.passKind = null;
-      if (ifv.team===TEAM.PLAYER) toast("하차");
+      if (ifv.team===TEAM.PLAYER) toast(L ? L("toast.unboard") : "하차");
       return true;
     }
 
@@ -395,7 +396,7 @@
         if (BUILD[e.kind]){
           if (e.kind==="turret"){
             e.forceFire = { mode:"id", id: targetId };
-            toast("공격 지정");
+            toast(L ? L("toast.attackSet") : "공격 지정");
           }
           continue;
         }
@@ -422,7 +423,7 @@
         if (BUILD[e.kind]){
           if (e.kind==="turret"){
             e.forceFire = { mode:"pos", x, y };
-            toast("공격 지정");
+            toast(L ? L("toast.attackSet") : "공격 지정");
           }
           continue;
         }
@@ -462,7 +463,7 @@
       const t=getEntityById(targetId);
       if (!t || !BUILD[t.kind] || t.civ) return;
       if (t.team!==TEAM.PLAYER) return;
-      if (t.hp >= t.hpMax-0.5){ toast("수리 불필요"); return; }
+      if (t.hp >= t.hpMax-0.5){ toast(L ? L("toast.repairUnneeded") : "수리 불필요"); return; }
       for (const id of state.selection){
         const e=getEntityById(id);
         if (!e || e.team!==TEAM.PLAYER) continue;
@@ -506,7 +507,7 @@
       if (BUILD[t.kind]) return;
       const tcls = (UNIT[t.kind] && UNIT[t.kind].cls) ? UNIT[t.kind].cls : "";
       if (tcls!=="veh") return;
-      if (t.hp >= t.hpMax-0.5){ toast("수리 불필요"); return; }
+      if (t.hp >= t.hpMax-0.5){ toast(L ? L("toast.repairUnneeded") : "수리 불필요"); return; }
 
       for (const id of state.selection){
         const u=getEntityById(id);
@@ -517,7 +518,7 @@
         setPathTo(u, t.x, t.y);
         u.repathCd = 0.25;
       }
-      toast("IFV 수리");
+      toast(L ? L("toast.ifvRepair") : "IFV 수리");
     }
 
     function issueForceMoveAll(x,y){

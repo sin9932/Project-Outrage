@@ -33,6 +33,7 @@
 
     // UI hooks (optional)
     const toast = ctx.toast || noop;
+    const L = ctx.L || null;
     const updateProdBadges = ctx.updateProdBadges || noop;
 
     // Progress helpers (single source of truth for UI overlays)
@@ -308,7 +309,7 @@
           if (payRate>0 && (state.player.money / payRate) <= 0){
             q.paused = true;
             q.autoPaused = true;
-            if (!q._autoToast){ q._autoToast=true; toast("대기"); }
+            if (!q._autoToast){ q._autoToast=true; toast(L ? L("toast.wait") : "대기"); }
           }
           return;
         }
@@ -351,7 +352,7 @@
 
       // Can't queue without having a producer.
       const hasProducer = buildings.some(b=>b.alive && !b.civ && b.team===TEAM.PLAYER && b.kind===need);
-      if (!hasProducer){ toast("생산 건물이 없습니다"); return; }
+      if (!hasProducer){ toast(L ? L("toast.noProducer") : "생산 건물이 없습니다"); return; }
 
       // If a front-of-queue item of this kind is currently paused, left-click resumes instead of enqueuing another.
       for (const b of buildings){
@@ -360,7 +361,7 @@
         if (q && q.kind===kind && q.paused){
           q.paused = false;
           q.autoPaused = false;
-          toast("재개");
+          toast(L ? L("toast.resume") : "재개");
           return;
         }
       }
@@ -537,7 +538,7 @@
             if (payRate>0 && (teamWallet.money / payRate) <= 0){
               q.paused = true;
               q.autoPaused = true;
-              if (!q._autoToast && b.team===TEAM.PLAYER){ q._autoToast=true; toast("대기"); }
+              if (!q._autoToast && b.team===TEAM.PLAYER){ q._autoToast=true; toast(L ? L("toast.wait") : "대기"); }
             }
             continue;
           }

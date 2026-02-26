@@ -342,14 +342,14 @@ function getBaseBuildTime(kind){
         console.error("[RUNTIME ERROR]", ev.error || ev.message);
       }catch(_){}
       running = false;
-      toast("런타임 오류로 중지됨 (콘솔 확인)");
+      toast(L ? L("toast.runtimeError") : "런타임 오류로 중지됨 (콘솔 확인)");
     });
     window.addEventListener("unhandledrejection", (ev)=>{
       try{
         console.error("[UNHANDLED REJECTION]", ev.reason);
       }catch(_){}
       running = false;
-      toast("런타임 오류로 중지됨 (콘솔 확인)");
+      toast(L ? L("toast.runtimeError") : "런타임 오류로 중지됨 (콘솔 확인)");
     });
   }
 
@@ -428,9 +428,13 @@ function getBaseBuildTime(kind){
     infantry:"보병", engineer:"엔지니어", sniper:"저격병", tank:"경전차", ifv:"IFV", harvester:"굴착기"
   };
 
+  const L = (window.OULocale && window.OULocale.L) ? window.OULocale.L : null;
   const _extNames = (window.G && window.G.Units && window.G.Units.NAME_KO) ? window.G.Units.NAME_KO : null;
-  const NAME_KO = Object.assign({}, DEFAULT_NAME_KO, _extNames || {});
-  if (NAME_KO.tank !== "경전차") NAME_KO.tank = "경전차";
+  const NAME_KO = {};
+  for (const k of Object.keys(DEFAULT_NAME_KO)){
+    NAME_KO[k] = L ? L.unit(k) : (DEFAULT_NAME_KO[k] || k);
+  }
+  if (_extNames) Object.assign(NAME_KO, _extNames);
 
 
   // === Centralized assets (refactor) ===
@@ -1137,7 +1141,7 @@ const __ou_econ = (window.OUEconomy && typeof window.OUEconomy.create==="functio
       BUILD_PROD_MULT,
       MULTIPLE_FACTORY,
       ENEMY_PROD_SPEED,
-      toast,
+      toast, L,
       updateProdBadges,
       // spawn helpers (used by production completion)
       addUnit,
@@ -1166,7 +1170,7 @@ if (!__ou_econ) console.warn("[ou_economy] missing: include js/ou_economy.js bef
 const __ou_selection = (window.OUSelection && typeof window.OUSelection.create === "function")
   ? window.OUSelection.create({
       state, units, buildings, controlGroups, BUILD, TEAM, UNIT,
-      getEntityById, worldToScreen, cam, toast, updateSelectionUI,
+      getEntityById, worldToScreen, cam, toast, L, updateSelectionUI,
       tileOfX, tileOfY, inMap, explored, idx, tileToWorldSubslot, dist2, pointInPoly, ISO_X, TILE
     })
   : null;
@@ -1463,7 +1467,7 @@ function queueUnit(kind){
       }
     }
     if (resumed){
-      toast("재개");
+      toast(L ? L("toast.resume") : "재개");
       return;
     }
     return (__ou_econ && __ou_econ.queueUnit) ? __ou_econ.queueUnit(kind) : undefined;
@@ -1707,7 +1711,7 @@ function getChasePointForAttack(u, t){
         state, getEntityById, TEAM, BUILD, UNIT, setPathTo, pushOrderFx, showUnitPathFx,
         canEnterTile, reserveTile, findNearestFreePoint, tileToWorldCenter, tileToWorldSubslot,
         inMap, snapWorldToTileCenter, buildFormationOffsets, shouldIgnoreCmd, stampCmd,
-        TILE, getClosestPointOnBuilding, getChasePointForAttack, tileOfX, tileOfY, toast, INF_SLOT_MAX, clamp,
+        TILE, getClosestPointOnBuilding, getChasePointForAttack, tileOfX, tileOfY, toast, L, INF_SLOT_MAX, clamp,
         dist2, updateSelectionUI
       })
     : null;
@@ -1810,7 +1814,7 @@ const keys=new Set();
       // ESC: cancel repair/sell mouse mode first, otherwise toggle pause menu
       if (state.mouseMode === "repair" || state.mouseMode === "sell"){
         applyMouseMode("normal");
-        toast("수리/매각 해제");
+        toast(L ? L("toast.repairSellOff") : "수리/매각 해제");
         e.preventDefault();
         return;
       }
@@ -1827,11 +1831,11 @@ const keys=new Set();
 
     if (k==="k"){
       applyMouseMode(state.mouseMode==="repair" ? "normal" : "repair");
-      toast(state.mouseMode==="repair" ? "수리 모드" : "수리 해제");
+      toast(L ? (state.mouseMode==="repair" ? L("toast.repairMode") : L("toast.repairOff")) : (state.mouseMode==="repair" ? "수리 모드" : "수리 해제"));
     }
     if (k==="l"){
       applyMouseMode(state.mouseMode==="sell" ? "normal" : "sell");
-      toast(state.mouseMode==="sell" ? "매각 모드" : "매각 해제");
+      toast(L ? (state.mouseMode==="sell" ? L("toast.sellMode") : L("toast.sellOff")) : (state.mouseMode==="sell" ? "매각 모드" : "매각 해제"));
     }
     if (e.key === "]"){
       const speeds = [1, 2, 4];
@@ -1897,19 +1901,19 @@ const keys=new Set();
       if (t && t.alive && BUILD[t.kind] && !t.civ){
         if (state.mouseMode==="repair"){
           // Repair mode is for buildings only.
-          if (!BUILD[t.kind]){ toast("건물만 수리 가능"); return; }
-          if (t.team!==TEAM.PLAYER){ toast("수리 불가"); return; }
-          if (t.hp >= t.hpMax-0.5){ toast("수리 불필요"); return; }
+          if (!BUILD[t.kind]){ toast(L ? L("toast.repairOnly") : "건물만 수리 가능"); return; }
+          if (t.team!==TEAM.PLAYER){ toast(L ? L("toast.repairCant") : "수리 불가"); return; }
+          if (t.hp >= t.hpMax-0.5){ toast(L ? L("toast.repairUnneeded") : "수리 불필요"); return; }
           enqueueEcon({ type:"toggleRepairById", id: t.id });
           return;
         }
         if (state.mouseMode==="sell"){
-          if (t.team!==TEAM.PLAYER){ toast("매각 불가"); return; }
+          if (t.team!==TEAM.PLAYER){ toast(L ? L("toast.sellCant") : "매각 불가"); return; }
           enqueueEcon({ type:"sellById", id: t.id });
           return;
         }
       } else {
-        toast("대상 없음");
+        toast(L ? L("toast.noTarget") : "대상 없음");
       }
       return;
     }
@@ -2011,7 +2015,7 @@ const keys=new Set();
       if (state.lastClick.id===picked.id && (now - state.lastClick.t) < 0.35){
         if (picked.kind==="barracks") state.primary.player.barracks = picked.id;
         if (picked.kind==="factory")  state.primary.player.factory  = picked.id;
-        toast("주요건물 지정");
+        toast(L ? L("toast.hqSet") : "주요건물 지정");
       }
       state.lastClick.id = picked.id;
       state.lastClick.t  = now;
@@ -2230,20 +2234,20 @@ if (state.selection.size>0 && inMap(tx,ty) && ore[idx(tx,ty)]>0){
     // If this exact kind is paused at the head of this lane, left-click resumes.
     if (lane.queue && lane.queue.kind === kind && lane.queue.paused){
       lane.queue.paused = false;
-      toast("재개");
+      toast(L ? L("toast.resume") : "재개");
       return;
     }
 
     // If we are currently in placement mode for another building, don't allow switching.
     if (state.build.active && state.build.kind && state.build.kind !== kind){
-      toast("명령을 따를 수 없습니다. 건설 중입니다");
+      toast(L ? L("toast.cantOrder") : "명령을 따를 수 없습니다. 건설 중입니다");
       return;
     }
 
     // If this lane is already constructing something else (or has READY pending), block switching.
     if ((lane.queue && lane.queue.kind && lane.queue.kind !== kind) ||
         (lane.ready && lane.ready !== kind)){
-      toast("명령을 따를 수 없습니다. 건설 중입니다");
+      toast(L ? L("toast.cantOrder") : "명령을 따를 수 없습니다. 건설 중입니다");
       return;
     }
 
@@ -2267,7 +2271,7 @@ if (state.selection.size>0 && inMap(tx,ty) && ore[idx(tx,ty)]>0){
 
     // Avoid unintentional duplicate reservations of the same building.
     if ((lane.queue && lane.queue.kind === kind) || (lane.fifo && lane.fifo.includes(kind))){
-      toast("이미 건설 대기중");
+      toast(L ? L("toast.alreadyQueued") : "이미 건설 대기중");
       return;
     }
 
@@ -2296,7 +2300,7 @@ if (state.selection.size>0 && inMap(tx,ty) && ore[idx(tx,ty)]>0){
         state.build.kind = null;
         state.build.lane = null;
       }
-      toast("취소 + 환불");
+      toast(L ? L("toast.cancelRefund") : "취소 + 환불");
       return;
     }
 
@@ -2306,7 +2310,7 @@ if (state.selection.size>0 && inMap(tx,ty) && ore[idx(tx,ty)]>0){
         for (let i=lane.fifo.length-1; i>=0; i--){
           if (lane.fifo[i] === kind){
             lane.fifo.splice(i,1);
-            toast("예약 취소");
+            toast(L ? L("toast.reserveCancel") : "예약 취소");
             return;
           }
         }
@@ -2315,7 +2319,7 @@ if (state.selection.size>0 && inMap(tx,ty) && ore[idx(tx,ty)]>0){
     }
     if (!lane.queue.paused){
       lane.queue.paused = true;
-      toast("대기");
+      toast(L ? L("toast.wait") : "대기");
     } else {
       // cancel + refund paid so far
       const paid = Math.floor(lane.queue.paid || 0);
@@ -2325,7 +2329,7 @@ if (state.selection.size>0 && inMap(tx,ty) && ore[idx(tx,ty)]>0){
       if (lane.fifo && lane.fifo.length){
         lane.fifo = lane.fifo.filter(k=>k!==kind);
       }
-      toast("취소 + 환불");
+      toast(L ? L("toast.cancelRefund") : "취소 + 환불");
     }
   }
 
@@ -2350,7 +2354,7 @@ if (state.selection.size>0 && inMap(tx,ty) && ore[idx(tx,ty)]>0){
       if (!q.paused){
         q.paused = true;
         q.autoPaused = false;
-        toast("대기");
+        toast(L ? L("toast.wait") : "대기");
         return;
       }
       const paid = Math.floor(q.paid || 0);
@@ -2358,7 +2362,7 @@ if (state.selection.size>0 && inMap(tx,ty) && ore[idx(tx,ty)]>0){
       pb.buildQ.shift();
       prodTotal[kind] = Math.max(0, (prodTotal[kind]||0)-1);
       updateProdBadges();
-      toast("취소 + 환불");
+      toast(L ? L("toast.cancelRefund") : "취소 + 환불");
       return;
     }
 
@@ -2373,7 +2377,7 @@ if (state.selection.size>0 && inMap(tx,ty) && ore[idx(tx,ty)]>0){
           ql.splice(i,1);
           prodTotal[kind] = Math.max(0, (prodTotal[kind]||0)-1);
           updateProdBadges();
-          toast("예약 취소");
+          toast(L ? L("toast.reserveCancel") : "예약 취소");
           return;
         }
       }
@@ -2418,11 +2422,11 @@ if (state.selection.size>0 && inMap(tx,ty) && ore[idx(tx,ty)]>0){
       onScatterUnits: ()=>scatterUnits(),
       onToggleRepairMode: ()=>{
         applyMouseMode(state.mouseMode==="repair" ? "normal" : "repair");
-        toast(state.mouseMode==="repair" ? "수리 모드" : "수리 해제");
+        toast(L ? (state.mouseMode==="repair" ? L("toast.repairMode") : L("toast.repairOff")) : (state.mouseMode==="repair" ? "수리 모드" : "수리 해제"));
       },
       onToggleSellMode: ()=>{
         applyMouseMode(state.mouseMode==="sell" ? "normal" : "sell");
-        toast(state.mouseMode==="sell" ? "매각 모드" : "매각 해제");
+        toast(L ? (state.mouseMode==="sell" ? L("toast.sellMode") : L("toast.sellOff")) : (state.mouseMode==="sell" ? "매각 모드" : "매각 해제"));
       },
       onSelectAllKind: ()=>selectAllUnitsScreenThenMap()
     });
@@ -2480,7 +2484,7 @@ if (state.selection.size>0 && inMap(tx,ty) && ore[idx(tx,ty)]>0){
       const b = getEntityById(id);
       if (b && b.alive && b.team===TEAM.PLAYER && BUILD[b.kind] && !b.civ){
         b.repairOn = !b.repairOn;
-        toast(b.repairOn ? "수리 시작" : "수리 취소");
+        toast(L ? (b.repairOn ? L("toast.repairStart") : L("toast.repairCancel")) : (b.repairOn ? "수리 시작" : "수리 취소"));
         updateSelectionUI();
       }
     },
@@ -2489,7 +2493,7 @@ if (state.selection.size>0 && inMap(tx,ty) && ore[idx(tx,ty)]>0){
       const b = getEntityById(id);
       if (b && b.alive && b.team===TEAM.PLAYER && BUILD[b.kind] && !b.civ){
         sellBuilding(b);
-        toast("매각");
+        toast(L ? L("toast.sell") : "매각");
         updateSelectionUI();
       }
     },
@@ -2623,7 +2627,7 @@ function showUnitPathFx(u){ /* no-op: path FX disabled for perf */ }
   function updateSelectionUI() {
   if (!__ou_ui || !__ou_ui.updateSelectionUI) return;
   __ou_ui.updateSelectionUI({
-    state, buildings, TEAM, COST, prodTotal, QCAP, hasRadarAlive, getEntityById, BUILD, NAME_KO
+    state, buildings, TEAM, COST, prodTotal, QCAP, hasRadarAlive, getEntityById, BUILD, NAME_KO, L
   });
 }
 
@@ -2689,7 +2693,7 @@ function draw(){
 
   function setButtonText() {
     if (isCallable(__ou_ui, "setSellLabel")){
-      __ou_ui.setSellLabel({ text: "매각(D)" });
+      __ou_ui.setSellLabel({ text: L ? L("ui.sellD") : "매각(D)" });
     }
   }
 
@@ -2947,7 +2951,7 @@ if (isCallable(__ou_ui, "bindPregameStart")){
     if (!esc) return;
     if (state.mouseMode === "repair" || state.mouseMode === "sell"){
       applyMouseMode("normal");
-      toast("수리/매각 해제");
+      toast(L ? L("toast.repairSellOff") : "수리/매각 해제");
       e.preventDefault();
       e.stopImmediatePropagation();
       return;
@@ -3056,7 +3060,7 @@ function sanityCheck(){
         const v = state.gameOverVictory;
         if (isCallable(__ou_ui, "showResultOverlay")){
           __ou_ui.showResultOverlay({ victory: v, stats: state.stats, gameTime: state.gameOverEndGameTime ?? state.t, colors: state.colors, bgm: BGM, victoryBgmTracks: ASSET.music.victory });
-        } else { toast(v ? "승리!" : "패배..."); }
+        } else { toast(L ? (v ? L("toast.victory") : L("toast.defeat")) : (v ? "승리!" : "패배...")); }
         state.gameOverFade = null;
       }
     } else if (running && !gameOver && !pauseMenuOpen){
