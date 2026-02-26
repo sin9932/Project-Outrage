@@ -1735,13 +1735,15 @@ function ensureBadge(btn){
       const eColorInput = env.eColorInput || $("eColor");
       const fogOffChk = env.fogOffChk || $("fogOff");
       const fastProdChk = env.fastProdChk || $("fastProd");
+      const shortGameChk = env.shortGameChk || $("shortGame");
 
       startBtn.addEventListener("click", async ()=>{
         const payload = {
           playerColor: pColorInput ? pColorInput.value : null,
           enemyColor: eColorInput ? eColorInput.value : null,
           fogOff: !!(fogOffChk && fogOffChk.checked),
-          fastProd: !!(fastProdChk && fastProdChk.checked)
+          fastProd: !!(fastProdChk && fastProdChk.checked),
+          shortGame: !!(shortGameChk && shortGameChk.checked)
         };
         try{
           await onStart(payload);

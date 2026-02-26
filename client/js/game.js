@@ -1098,6 +1098,16 @@ try{
 
   function checkElimination(){
     if (gameOver || state.gameOverPending) return;
+
+    if (state.shortGame){
+      const enemyHasBuildings = buildings.some(b=>b.alive && !b.civ && b.team===TEAM.ENEMY);
+      if (!enemyHasBuildings){
+        for (const u of units){ if (u.alive && u.team===TEAM.ENEMY){ u.alive = false; state.selection.delete(u.id); } }
+        state.gameOverPending = { victory: true, endT: state.t + GAMEOVER_WINDDOWN, endGameTime: state.t };
+        return;
+      }
+    }
+
     const enemyAlive = hasControllableAssets(TEAM.ENEMY);
     const playerAlive = hasControllableAssets(TEAM.PLAYER);
 
@@ -2783,6 +2793,7 @@ if (isCallable(__ou_ui, "bindPregameStart")){
     // Debug: player-only instant production/build completion (1s)
     state.debug = state.debug || {};
     state.debug.fastProd = !!(payload && payload.fastProd);
+    state.shortGame = !!(payload && payload.shortGame);
 
     START_MONEY = Math.floor(Number(startMoney) || 10000);
     state.player.money = START_MONEY;

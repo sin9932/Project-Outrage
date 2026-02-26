@@ -72,7 +72,7 @@
     const _unitGrid = [[], []]; // [team][cellIdx] -> unit[]
 
     function buildUnitSpatialGrid(){
-      if (WORLD_W<=0 || WORLD_H<=0 || units.length < 30) return;
+      if (WORLD_W<=0 || WORLD_H<=0 || units.length < 15) return;
       const gW = Math.ceil(WORLD_W / UNIT_GRID_CELL) || 1;
       const gH = Math.ceil(WORLD_H / UNIT_GRID_CELL) || 1;
       if (gW !== _unitGridW || gH !== _unitGridH){
@@ -226,9 +226,27 @@
 
     function applyAreaDamageAt(x,y, radius, dmg, srcId=null, srcTeam=null, isExplosive=false){
       const r2 = radius*radius;
-      for (const u of units){
-        if (!u.alive || u.inTransport || u.hidden) continue;
-        if (dist2(x,y,u.x,u.y) <= r2){ applyDamage(u, dmg, srcId, srcTeam); }
+      const iterUnitsInRadius = (list)=>{
+        for (const u of list){
+          if (!u.alive || u.inTransport || u.hidden) continue;
+          if (dist2(x,y,u.x,u.y) <= r2) applyDamage(u, dmg, srcId, srcTeam);
+        }
+      };
+      if (_unitGridW>0 && _unitGridH>0){
+        const gW=_unitGridW, gH=_unitGridH;
+        const cx0=(x/UNIT_GRID_CELL)|0, cy0=(y/UNIT_GRID_CELL)|0;
+        const cr=Math.ceil(radius/UNIT_GRID_CELL)||1;
+        for (let t=0; t<2; t++){
+          for (let dy=-cr; dy<=cr; dy++){
+            for (let dx=-cr; dx<=cr; dx++){
+              const cx=cx0+dx, cy=cy0+dy;
+              if (cx<0||cx>=gW||cy<0||cy>=gH) continue;
+              iterUnitsInRadius(_unitGrid[t][cy*gW+cx]||[]);
+            }
+          }
+        }
+      } else {
+        for (const u of units) iterUnitsInRadius([u]);
       }
       for (const b of buildings){
         if (!b.alive || b.civ) continue;
@@ -528,6 +546,38 @@
       }
     }
 
+    // Bullet-unit collision using spatial grid when available (O(cells) vs O(units))
+    function findUnitHitForBullet(bx, by, checkRadius, enemyTeam, hitTest){
+      const iter = (list)=>{
+        for (const u of list){
+          if (!u.alive || u.team!==enemyTeam || u.inTransport || u.hidden) continue;
+          const tx=tileOfX(u.x), ty=tileOfY(u.y);
+          if (enemyTeam===TEAM.ENEMY && inMap(tx,ty) && !explored[TEAM.PLAYER][idx(tx,ty)]) continue;
+          if (hitTest(u)) return u;
+        }
+        return null;
+      };
+      if (_unitGridW>0 && _unitGridH>0 && enemyTeam>=0 && enemyTeam<=1){
+        const gW=_unitGridW, gH=_unitGridH;
+        const cx0=(bx/UNIT_GRID_CELL)|0, cy0=(by/UNIT_GRID_CELL)|0;
+        const cr=Math.ceil(checkRadius/UNIT_GRID_CELL)||1;
+        for (let dy=-cr; dy<=cr; dy++){
+          for (let dx=-cr; dx<=cr; dx++){
+            const cx=cx0+dx, cy=cy0+dy;
+            if (cx<0||cx>=gW||cy<0||cy>=gH) continue;
+            const hit=iter(_unitGrid[enemyTeam][cy*gW+cx]||[]);
+            if (hit) return hit;
+          }
+        }
+        return null;
+      }
+      for (const u of units){
+        const h=iter([u]);
+        if (h) return h;
+      }
+      return null;
+    }
+
     function tickBullets(dt){
       // bullets + shells
 
@@ -596,15 +646,8 @@
             const enemyTeam = bl.team===TEAM.PLAYER ? TEAM.ENEMY : TEAM.PLAYER;
 
             if (!hit){
-              // units
-              for (const u of units){
-                if (!u.alive || u.team!==enemyTeam || u.inTransport || u.hidden) continue;
-                const tx=tileOfX(u.x), ty=tileOfY(u.y);
-                if (enemyTeam===TEAM.ENEMY){
-                  if (inMap(tx,ty) && !explored[TEAM.PLAYER][idx(tx,ty)]) continue;
-                }
-                if (dist2(bl.x, bl.y, u.x, u.y) <= (u.r+10)*(u.r+10)){ hit=u; break; }
-              }
+              hit = findUnitHitForBullet(bl.x, bl.y, 40, enemyTeam, (u)=>
+                dist2(bl.x, bl.y, u.x, u.y) <= (u.r+10)*(u.r+10));
               // buildings
               if (!hit){
                 for (const b of buildings){
@@ -631,9 +674,10 @@
 
             if (hit) applyDamage(hit, dmg, bl.ownerId, bl.team);
 
-            // impact FX
+            // impact FX (reduced when FX count high)
+            const fxHeavy = (flashes.length + impacts.length) > 80;
             flashes.push({x: bl.x, y: bl.y, r: 48 + Math.random()*10, life: 0.10, delay: 0});
-            for (let k=0;k<6;k++){
+            for (let k=0;k<(fxHeavy?2:6);k++){
               const ang = Math.random()*Math.PI*2;
               const spd = 60 + Math.random()*140;
               impacts.push({x:bl.x,y:bl.y,vx:Math.cos(ang)*spd,vy:Math.sin(ang)*spd,life:0.22,delay:0});
@@ -664,17 +708,11 @@
         // Swept collision for missiles to prevent tunneling through buildings at high speed.
         if (bl.kind==="missile"){
           const enemyTeam = bl.team===TEAM.PLAYER ? TEAM.ENEMY : TEAM.PLAYER;
-          let hit=null;
-
-          for (const u of units){
-            if (!u.alive||u.team!==enemyTeam||u.inTransport||u.hidden) continue;
-            const txU=tileOfX(u.x), tyU=tileOfY(u.y);
-            if (enemyTeam===TEAM.ENEMY){
-              if (inMap(txU,tyU) && !explored[TEAM.PLAYER][idx(txU,tyU)]) continue;
-            }
+          const segLen = Math.hypot(bl.x-px, bl.y-py) || 1;
+          let hit = findUnitHitForBullet((px+bl.x)/2, (py+bl.y)/2, segLen/2 + 25, enemyTeam, (u)=>{
             const rr = (u.r||18) + 3;
-            if (segIntersectsCircle(px,py, bl.x,bl.y, u.x,u.y, rr)){ hit=u; break; }
-          }
+            return segIntersectsCircle(px, py, bl.x, bl.y, u.x, u.y, rr);
+          });
           if (!hit){
             for (const b of buildings){
               if (!b.alive||b.team!==enemyTeam) continue;
@@ -704,16 +742,8 @@
         }
 
         const enemyTeam = bl.team===TEAM.PLAYER ? TEAM.ENEMY : TEAM.PLAYER;
-        let hit=null;
-
-        for (const u of units){
-          if (!u.alive||u.team!==enemyTeam||u.inTransport||u.hidden) continue;
-          const tx=tileOfX(u.x), ty=tileOfY(u.y);
-          if (enemyTeam===TEAM.ENEMY){
-            if (inMap(tx,ty) && !explored[TEAM.PLAYER][idx(tx,ty)]) continue;
-          }
-          if (dist2(bl.x,bl.y,u.x,u.y) <= u.r*u.r){ hit=u; break; }
-        }
+        let hit = findUnitHitForBullet(bl.x, bl.y, 25, enemyTeam, (u)=>
+          dist2(bl.x, bl.y, u.x, u.y) <= (u.r||8)*(u.r||8));
         if (!hit){
           for (const b of buildings){
             if (!b.alive||b.team!==enemyTeam) continue;
@@ -2683,6 +2713,7 @@
     }
 
     function spawnTrace(x0,y0,x1,y1,team, opt={}){
+      if (traces.length > 80) return;
       const life = (opt.life ?? 0.09);
       window.__combatUntil = Math.max(window.__combatUntil||0, performance.now()+12000);
       traces.push({x0,y0,x1,y1,team,life, maxLife: (opt.maxLife ?? life), kind: opt.kind || "line", delay: opt.delay ?? 0, fx: opt.fx || null});
@@ -2702,7 +2733,9 @@
         return {x:w.x, y:w.y};
       };
 
-      const bursts = 4;
+      const fxCount = traces.length + casings.length + impacts.length;
+      const lite = fxCount > 50;
+      const bursts = lite ? 2 : 4;
       const gap = 0.07;
       const tracerLife = 0.045;
       const muzzleLife = 0.045;
@@ -2724,25 +2757,27 @@
         const f0 = lift(shooter.x + nx*14, shooter.y + ny*14);
         flashes.push({ x: f0.x, y: f0.y, r: 22 + Math.random()*8, life: muzzleLife, delay });
 
-        const side = (Math.random() < 0.5) ? -1 : 1;
-        const ex = shooter.x + px*side*6 + nx*6;
-        const ey = shooter.y + py*side*6 + ny*6;
-        const e0 = lift(ex, ey);
-        const ex2 = e0.x, ey2 = e0.y;
-        const sp = 260 + Math.random()*260;
-        casings.push({
-          x: ex2, y: ey2,
-          vx: (px*side*0.85 - nx*0.25) * sp + (Math.random()*2-1)*30,
-          vy: (py*side*0.85 - ny*0.25) * sp + (Math.random()*2-1)*30,
-          z: 8 + Math.random()*10,
-          vz: 260 + Math.random()*220,
-          rot: Math.random()*Math.PI*2,
-          w: 4.5, h: 2.0,
-          life: 0.20,
-          delay
-        });
+        if (!lite){
+          const side = (Math.random() < 0.5) ? -1 : 1;
+          const ex = shooter.x + px*side*6 + nx*6;
+          const ey = shooter.y + py*side*6 + ny*6;
+          const e0 = lift(ex, ey);
+          const ex2 = e0.x, ey2 = e0.y;
+          const sp = 260 + Math.random()*260;
+          casings.push({
+            x: ex2, y: ey2,
+            vx: (px*side*0.85 - nx*0.25) * sp + (Math.random()*2-1)*30,
+            vy: (py*side*0.85 - ny*0.25) * sp + (Math.random()*2-1)*30,
+            z: 8 + Math.random()*10,
+            vz: 260 + Math.random()*220,
+            rot: Math.random()*Math.PI*2,
+            w: 4.5, h: 2.0,
+            life: 0.20,
+            delay
+          });
+        }
 
-        const sparks = 4;
+        const sparks = lite ? 1 : 4;
         for (let k=0;k<sparks;k++){
           const ang = Math.random()*Math.PI*2;
           const spd = 40 + Math.random()*90;
