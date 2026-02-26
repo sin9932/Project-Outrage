@@ -770,6 +770,15 @@
             bullets.splice(i,1);
             continue;
           }
+          // 목표 지점(bl.tx,bl.ty) 근접 시 즉시 폭발 → 궤적이 공격 타일에서 끝남
+          if (bl.tx!=null && bl.ty!=null && !bl.tid){
+            const d2 = (bl.tx-bl.x)**2 + (bl.ty-bl.y)**2;
+            if (d2 < 30*30){
+              explodeMissile(bl, bl.tx, bl.ty);
+              bullets.splice(i,1);
+              continue;
+            }
+          }
         }
 
         if (bl.life<=0){
@@ -2911,7 +2920,7 @@
     }
 
     // RA2-style shared hover missile (IFV, Patriot, Aegis 공통)
-    // 공격 타일과 1:1 매칭: 거리 비례 life로 근접 시 궤적 오버슈트 방지
+    // 공격 타일과 1:1 매칭: life를 목표 도달 시점에 맞춰 궤적 오버슈트 방지
     function spawnHoverMissile(team, muzzleX, muzzleY, target, dmg, ownerId, opt){
       const tx = target.x, ty = target.y;
       const dx = tx - muzzleX, dy = ty - muzzleY;
@@ -2919,8 +2928,8 @@
 
       const sp = opt.sp ?? 1350;
       const baseLife = dist / sp;
-      // 근접 시 0.25초 고정 → 궤적이 목표를 넘어감. 거리 비례 + 소량 버퍼만
-      const life = Math.max(0.06, Math.min(2.0, baseLife + (opt.lifeAdd ?? 0.06)));
+      // 최소 버퍼만 사용 (0.06→0.015): 81유닛 오버슈트 → ~20유닛
+      const life = Math.max(0.06, Math.min(2.0, baseLife + (opt.lifeAdd ?? 0.015)));
 
       const tid = (target && typeof target.id==="number") ? target.id : null;
       const count = opt.count ?? 1;
