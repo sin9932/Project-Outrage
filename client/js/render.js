@@ -2710,22 +2710,29 @@
       }
     }
 
-    /* RA2-style shroud/fog: full overlay + destination-out erase (no tile gaps) */
+    /* RA2-style shroud/fog: offscreen layer + destination-out erase, then composite on terrain */
     if (explored && visible) {
       const ox = ISO_X * cam.zoom, oy = ISO_Y * cam.zoom;
       const eps = 1.5;
-      const drawDiamond = (x, y) => {
-        ctx.moveTo(x, y - oy - eps);
-        ctx.lineTo(x + ox + eps, y);
-        ctx.lineTo(x, y + oy + eps);
-        ctx.lineTo(x - ox - eps, y);
-        ctx.closePath();
+      const drawDiamond = (ctx2, x, y) => {
+        ctx2.moveTo(x, y - oy - eps);
+        ctx2.lineTo(x + ox + eps, y);
+        ctx2.lineTo(x, y + oy + eps);
+        ctx2.lineTo(x - ox - eps, y);
+        ctx2.closePath();
       };
-      ctx.save();
-      ctx.fillStyle = "rgba(0,0,0,1)";
-      ctx.fillRect(0, 0, W, H);
-      ctx.globalCompositeOperation = "destination-out";
-      ctx.fillStyle = "rgba(0,0,0,1)";
+      let fogCanvas = drawMain._fogCanvas;
+      if (!fogCanvas || fogCanvas.width !== W || fogCanvas.height !== H) {
+        fogCanvas = document.createElement("canvas");
+        fogCanvas.width = W;
+        fogCanvas.height = H;
+        drawMain._fogCanvas = fogCanvas;
+      }
+      const fctx = fogCanvas.getContext("2d");
+      fctx.fillStyle = "rgba(0,0,0,1)";
+      fctx.fillRect(0, 0, W, H);
+      fctx.globalCompositeOperation = "destination-out";
+      fctx.fillStyle = "rgba(0,0,0,1)";
       for (let s = 0; s <= (MAP_W - 1) + (MAP_H - 1); s++) {
         for (let ty = 0; ty < MAP_H; ty++) {
           const tx = s - ty;
@@ -2733,16 +2740,16 @@
           if (!explored[TEAM.PLAYER][idx(tx, ty)]) continue;
           const c = tileToWorldCenter(tx, ty);
           const p = worldToScreen(c.x, c.y);
-          ctx.beginPath();
-          drawDiamond(p.x, p.y);
-          ctx.fill();
+          fctx.beginPath();
+          drawDiamond(fctx, p.x, p.y);
+          fctx.fill();
         }
       }
-      ctx.globalCompositeOperation = "source-over";
-      ctx.fillStyle = "rgba(0,0,0,0.10)";
-      ctx.fillRect(0, 0, W, H);
-      ctx.globalCompositeOperation = "destination-out";
-      ctx.fillStyle = "rgba(0,0,0,1)";
+      fctx.globalCompositeOperation = "source-over";
+      fctx.fillStyle = "rgba(0,0,0,0.10)";
+      fctx.fillRect(0, 0, W, H);
+      fctx.globalCompositeOperation = "destination-out";
+      fctx.fillStyle = "rgba(0,0,0,1)";
       for (let s = 0; s <= (MAP_W - 1) + (MAP_H - 1); s++) {
         for (let ty = 0; ty < MAP_H; ty++) {
           const tx = s - ty;
@@ -2750,13 +2757,13 @@
           if (!visible[TEAM.PLAYER][idx(tx, ty)]) continue;
           const c = tileToWorldCenter(tx, ty);
           const p = worldToScreen(c.x, c.y);
-          ctx.beginPath();
-          drawDiamond(p.x, p.y);
-          ctx.fill();
+          fctx.beginPath();
+          drawDiamond(fctx, p.x, p.y);
+          fctx.fill();
         }
       }
-      ctx.globalCompositeOperation = "source-over";
-      ctx.restore();
+      fctx.globalCompositeOperation = "source-over";
+      ctx.drawImage(fogCanvas, 0, 0);
     }
 
     if (typeof worldToScreen === "function" && typeof tileToWorldCenter === "function" && (buildings?.length > 0 || ore)) {
