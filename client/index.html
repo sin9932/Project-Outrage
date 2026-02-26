@@ -20,9 +20,9 @@
   #ui { position: fixed !important; top: 0 !important; right: 0 !important; bottom: 0 !important; height: 100vh !important; z-index: 9000 !important; }
   #pauseOverlay { position: absolute !important; inset: 0 !important; z-index: 11000 !important; }
 
-  /* Before start: canvas/UI should not eat clicks */
+  /* Before start: hide sidebar, canvas/UI should not eat clicks */
+  body:not(.started) #ui { display: none !important; }
   body:not(.started) #c { pointer-events: none !important; }
-  body:not(.started) #ui, body:not(.started) #ui * { pointer-events: none !important; }
 
   /* After start: enable interactions again */
   body.started #c { pointer-events: auto !important; }
