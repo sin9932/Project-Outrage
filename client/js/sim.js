@@ -3237,7 +3237,12 @@
       if (u.aggroCd<=0 && okAuto){
         const atkR = (u.range||0) * 1.08;
         if (atkR > 0){
-          const inRange = findNearestEnemyFor(u.team, u.x, u.y, atkR, sniperMode, true);
+          let inRange = null;
+          const inRangeThrottle = (u.team===TEAM.ENEMY && (u.kind==="infantry" || u.kind==="sniper")) ? 0.10 : 0.06;
+          if (state.t >= (u._nextInRangeCheck||0)){
+            u._nextInRangeCheck = state.t + inRangeThrottle;
+            inRange = findNearestEnemyFor(u.team, u.x, u.y, atkR, sniperMode, true);
+          }
           if (inRange && (!sniperMode || isEnemyInf(inRange))){
             u.order = {type:"attack", x:u.x,y:u.y, tx:null,ty:null};
             u.target = inRange.id;
@@ -3328,7 +3333,12 @@
               // scan for enemy in vision, then engage. Throttle to reduce cost in mass combat.
               const atkR = (u.range||0) * 1.08;
               const atkKindG = (u.kind==="ifv" && u.passKind==="sniper") ? "sniper" : u.kind;
-              const inRangeG = (atkR > 0) ? findNearestAttackMoveTargetFor(u.team, u.x, u.y, atkR, atkKindG) : null;
+              let inRangeG = null;
+              const guardScanThrottle = (u.team===TEAM.ENEMY && (u.kind==="infantry" || u.kind==="sniper")) ? 0.08 : 0.05;
+              if (atkR > 0 && state.t >= (u._nextGuardScan||0)){
+                u._nextGuardScan = state.t + guardScanThrottle;
+                inRangeG = findNearestAttackMoveTargetFor(u.team, u.x, u.y, atkR, atkKindG);
+              }
               if (inRangeG){
                 const lock = (u.team===TEAM.ENEMY);
                 u.order={type:"attack", x:u.x, y:u.y, tx:null,ty:null, manual:lock, allowAuto:!lock, lockTarget:lock};
@@ -3364,7 +3374,12 @@
             if (u.order.type==="attackmove"){
               const atkR = (u.range||0) * 1.08;
               const atkKind = (u.kind==="ifv" && u.passKind==="sniper") ? "sniper" : u.kind;
-              const inRange = (atkR > 0) ? findNearestAttackMoveTargetFor(u.team, u.x, u.y, atkR, atkKind) : null;
+              let inRange = null;
+              const atkMoveScanThrottle = (u.team===TEAM.ENEMY && (u.kind==="infantry" || u.kind==="sniper")) ? 0.08 : 0.05;
+              if (atkR > 0 && state.t >= (u._nextAtkMoveScan||0)){
+                u._nextAtkMoveScan = state.t + atkMoveScanThrottle;
+                inRange = findNearestAttackMoveTargetFor(u.team, u.x, u.y, atkR, atkKind);
+              }
               if (inRange){
                 const lock = (u.team===TEAM.ENEMY);
                 u.order={type:"attack", x:u.x, y:u.y, tx:null,ty:null, manual:lock, allowAuto:!lock, lockTarget:lock};
@@ -3885,44 +3900,13 @@
     
           // Auto-acquire: combat units will engage enemies that enter vision while idle.
           // Sniper rule: do NOT pre-emptively attack buildings or vehicle-class units (tanks/IFV/harvester, etc).
-          if (u.order.type==="idle" && u.dmg>0 && u.range>0){
-            const enemyTeam = u.team===TEAM.PLAYER ? TEAM.ENEMY : TEAM.PLAYER;
+          // Uses spatial grid + throttle to avoid O(n) per-frame cost in mass combat.
+          if (u.order.type==="idle" && u.dmg>0 && u.range>0 && state.t >= (u._nextIdleAcquire||0)){
+            const idleAcquireThrottle = (u.team===TEAM.ENEMY && (u.kind==="infantry" || u.kind==="sniper")) ? 0.25 + (u.id % 9)*0.02 : 0.15 + (u.id % 7)*0.02;
+            u._nextIdleAcquire = state.t + idleAcquireThrottle;
             const sniperLike = (u.kind==="sniper" || (u.kind==="ifv" && u.passKind==="sniper"));
-            let best=null, bestD2=Infinity;
-    
-            // Enemy units
-            for (const eu of units){
-              if (!eu.alive || eu.team!==enemyTeam) continue;
-    
-              if (sniperLike){
-                const cls = UNIT[eu.kind]?.cls;
-                if (cls==="veh") continue; // ignore vehicles for auto-acquire
-              }
-    
-              // Player units don't auto-target into unexplored fog.
-              if (u.team===TEAM.PLAYER){
-                const tx=(eu.x/TILE)|0, ty=(eu.y/TILE)|0;
-                if (inMap(tx,ty) && !explored[TEAM.PLAYER][idx(tx,ty)]) continue;
-              }
-    
-              const d2=dist2(u.x,u.y,eu.x,eu.y);
-              if (d2 <= u.vision*u.vision && d2 < bestD2){ best=eu; bestD2=d2; }
-            }
-    
-            // Enemy buildings (snipers never auto-acquire buildings)
-            if (!sniperLike){
-              for (const eb of buildings){
-                if (!eb.alive || eb.attackable===false) continue;
-                if (eb.team!==enemyTeam) continue;
-                if (u.team===TEAM.PLAYER){
-                  const tx=(eb.x/TILE)|0, ty=(eb.y/TILE)|0;
-                  if (inMap(tx,ty) && !explored[TEAM.PLAYER][idx(tx,ty)]) continue;
-                }
-                const d2=dist2(u.x,u.y,eb.x,eb.y);
-                if (d2 <= u.vision*u.vision && d2 < bestD2){ best=eb; bestD2=d2; }
-              }
-            }
-    
+            const vis = Math.max(u.vision||280, u.range||0);
+            const best = findNearestEnemyFor(u.team, u.x, u.y, vis, sniperLike, !sniperLike);
             if (best){
               u.order.type="attack";
               u.target = best.id;
