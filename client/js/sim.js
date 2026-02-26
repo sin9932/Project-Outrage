@@ -2935,11 +2935,10 @@
     function fireIFVMissiles(u, t){
       const dx = t.x - u.x, dy = t.y - u.y;
       const dist = Math.hypot(dx,dy) || 1;
-      const ang = Math.atan2(dy, dx);
-      const nx = Math.cos(ang), ny = Math.sin(ang);
-      const lift = (x,y)=>{ const iso = worldToIso(x,y); return isoToWorld(iso.x, iso.y - 48); };
-      const muzzle = lift(u.x + nx*14, u.y + ny*14);
-      spawnHoverMissile(u.team, muzzle.x, muzzle.y, t, u.dmg, u.id, { count: 2 });
+      const nx = dx/dist, ny = dy/dist;
+      // 시뮬레이션은 월드 좌표만 사용. lift(iso 변환)는 궤적을 실제 타겟에서 벗어나게 함
+      const muzzleX = u.x + nx*14, muzzleY = u.y + ny*14;
+      spawnHoverMissile(u.team, muzzleX, muzzleY, t, u.dmg, u.id, { count: 2 });
     }
 
     function tickUnits(dt){
