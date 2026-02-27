@@ -878,6 +878,8 @@
   }catch(_e){}
   const LITE_TANK_BASE = "asset/sprite/unit/tank/lite_tank/";
   const HARVESTER_BASE = "asset/sprite/unit/tank/harvester/";
+  const PROMOTION_BASE = "asset/sprite/unit/promotion/";
+  let PROMOTION_ATLAS = null;
   const LITE_TANK_BASE_SCALE = 0.13;
   const HARVESTER_BASE_SCALE = 0.13;
   // Use atlas anchor by default; set this to override if needed.
@@ -994,6 +996,40 @@
       console.log("[sprite] harvester atlases loaded");
     }catch(err){
       console.warn("[sprite] harvester atlas load failed", err);
+    }
+  })();
+
+  const PROMOTION_CACHE_SIZE = 32;
+  let PROMOTION_CACHE_VETERAN = null;
+  let PROMOTION_CACHE_ELITE = null;
+
+  function _buildPromotionCache(){
+    if (!PROMOTION_ATLAS || !PROMOTION_ATLAS.img || !PROMOTION_ATLAS.img.complete) return;
+    const frV = PROMOTION_ATLAS.frames.get("promotion_veteran.png");
+    const frE = PROMOTION_ATLAS.frames.get("promotion_elite.png");
+    if (!frV || !frE) return;
+    const sz = PROMOTION_CACHE_SIZE;
+    const drawOne = (fr)=>{
+      const c = document.createElement("canvas");
+      c.width = sz; c.height = sz;
+      const cctx = c.getContext("2d");
+      const crop = fr.frame;
+      cctx.drawImage(PROMOTION_ATLAS.img, crop.x|0, crop.y|0, crop.w|0, crop.h|0, 0, 0, sz, sz);
+      return c;
+    };
+    PROMOTION_CACHE_VETERAN = drawOne(frV);
+    PROMOTION_CACHE_ELITE = drawOne(frE);
+  }
+
+  ;(async()=>{
+    try{
+      PROMOTION_ATLAS = await _loadTPAtlasFromUrl(PROMOTION_BASE + "promotion.json", PROMOTION_BASE);
+      if (PROMOTION_ATLAS && PROMOTION_ATLAS.img) {
+        if (PROMOTION_ATLAS.img.complete) _buildPromotionCache();
+        else PROMOTION_ATLAS.img.addEventListener("load", _buildPromotionCache);
+      }
+    }catch(e){
+      console.warn("[promotion] atlas load failed:", e);
     }
   })();
 
@@ -2097,6 +2133,9 @@
     ctx.restore();
   }
 
+  const PROMOTION_BADGE_MAX_PER_FRAME = 28;
+  const PROMOTION_BADGE_MIN_PX = 10;
+
   function drawVeteranBadge(ent, p){
     let rank = 0;
     if (ent.kind==="infantry" || ent.kind==="sniper") rank = ent.veteran || 0;
@@ -2106,8 +2145,21 @@
     }
     if (rank < 1) return;
     const z = (typeof cam !== "undefined" && cam && typeof cam.zoom==="number") ? cam.zoom : 1;
+    const scale = 0.6 * z;
+    const badgePx = PROMOTION_CACHE_SIZE * scale;
+    if (badgePx < PROMOTION_BADGE_MIN_PX) return;
+    if ((drawVeteranBadge._drawnThisFrame || 0) >= PROMOTION_BADGE_MAX_PER_FRAME) return;
+    drawVeteranBadge._drawnThisFrame = (drawVeteranBadge._drawnThisFrame || 0) + 1;
     const x = p.x + (ent.r||12)*0.8;
     const y = p.y + (ent.r||12)*0.8;
+    const cache = rank >= 2 ? PROMOTION_CACHE_ELITE : PROMOTION_CACHE_VETERAN;
+    if (cache){
+      const w = PROMOTION_CACHE_SIZE * scale, h = PROMOTION_CACHE_SIZE * scale;
+      ctx.drawImage(cache, 0, 0, PROMOTION_CACHE_SIZE, PROMOTION_CACHE_SIZE, x - w/2, y - h/2, w, h);
+      return;
+    }
+    const atlasScale = 0.32 * z;
+    if (PROMOTION_ATLAS && drawTPFrame(PROMOTION_ATLAS, rank >= 2 ? "promotion_elite.png" : "promotion_veteran.png", x, y, atlasScale, null, {x:0.5,y:0.5})) return;
     const n = rank >= 2 ? 3 : 1;
     ctx.save();
     ctx.fillStyle = "rgba(255,220,80,0.95)";
@@ -3000,6 +3052,8 @@
       if (aIsB !== bIsB) return aIsB ? -1 : 1;
       return (a.id||0) - (b.id||0);
     });
+
+    drawVeteranBadge._drawnThisFrame = 0;
 
     for (const ent of drawables){
       ctx.save();
