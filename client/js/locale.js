@@ -25,6 +25,7 @@
       "toast.underAttackHarvester":"광물굴착기가 공격 당합니다!", "toast.underAttackBase":"아군기지가 공격 당합니다!",
       "toast.noRecentAttack":"최근 공격 이벤트 없음", "toast.moveToAttack":"최근 피격 지점으로 이동",
       "toast.victory":"승리!", "toast.defeat":"패배...", "toast.runtimeError":"런타임 오류로 중지됨 (콘솔 확인)",
+      "toast.speedMul":"시간 x{0}", "toast.moduleValidationFailed":"모듈 검증 실패: {0}",
       // UI
       "ui.radarOnline":"RADAR ONLINE", "ui.radarRequired":"RADAR REQUIRED", "ui.nothingSelected":"아무것도 선택 안 됨",
       "ui.selected":"선택됨", "ui.selectCount":"개 선택", "ui.minimapActive":"미니맵 활성",
@@ -81,6 +82,7 @@
       "toast.underAttackHarvester":"Harvester under attack!", "toast.underAttackBase":"Base under attack!",
       "toast.noRecentAttack":"No recent attack", "toast.moveToAttack":"Moving to last attack",
       "toast.victory":"Victory!", "toast.defeat":"Defeat...", "toast.runtimeError":"Runtime error (check console)",
+      "toast.speedMul":"Time x{0}", "toast.moduleValidationFailed":"Module validation failed: {0}",
       "ui.radarOnline":"RADAR ONLINE", "ui.radarRequired":"RADAR REQUIRED", "ui.nothingSelected":"Nothing selected",
       "ui.selected":"Selected", "ui.selectCount":" selected", "ui.minimapActive":"Minimap active",
       "ui.repair":"Repair", "ui.sell":"Sell", "ui.build":"Build", "ui.repairD":"Repair(D)", "ui.sellD":"Sell(D)",
@@ -133,6 +135,7 @@
       "toast.underAttackHarvester":"採掘車が攻撃されています!", "toast.underAttackBase":"味方拠点が攻撃されています!",
       "toast.noRecentAttack":"直近の攻撃イベントなし", "toast.moveToAttack":"最後の被弾地点へ移動",
       "toast.victory":"勝利!", "toast.defeat":"敗北...", "toast.runtimeError":"ランタイムエラー（コンソール確認）",
+      "toast.speedMul":"時間 x{0}", "toast.moduleValidationFailed":"モジュール検証失敗: {0}",
       "ui.radarOnline":"RADAR ONLINE", "ui.radarRequired":"RADAR REQUIRED", "ui.nothingSelected":"未選択",
       "ui.selected":"選択中", "ui.selectCount":"体選択", "ui.minimapActive":"ミニマップ有効",
       "ui.repair":"修理", "ui.sell":"売却", "ui.build":"建設", "ui.repairD":"修理(D)", "ui.sellD":"売却(D)",

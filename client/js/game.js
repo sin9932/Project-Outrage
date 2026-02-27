@@ -1837,7 +1837,7 @@ const keys=new Set();
       const cur = state.speedMul || 1;
       const idx = speeds.indexOf(cur);
       state.speedMul = speeds[(idx+1) % speeds.length];
-      toast(`시간 x${state.speedMul}`);
+      toast(L ? L("toast.speedMul").replace("{0}", state.speedMul) : `시간 x${state.speedMul}`);
       e.preventDefault();
       return;
     }
@@ -3004,7 +3004,7 @@ function sanityCheck(){
     const missing = checks.filter(([,fn])=> !fn()).map(([n])=>n);
     if (missing.length){
       console.error("SanityCheck: missing module refs:", missing);
-      toast("모듈 검증 실패: " + missing.join(", "));
+      toast(L ? L("toast.moduleValidationFailed").replace("{0}", missing.join(", ")) : "모듈 검증 실패: " + missing.join(", "));
     }
   }
 
