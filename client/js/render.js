@@ -2133,8 +2133,8 @@
     ctx.restore();
   }
 
-  const PROMOTION_BADGE_MAX_PER_FRAME = 28;
   const PROMOTION_BADGE_MIN_PX = 10;
+  const PROMOTION_BADGE_VIEWPORT_MARGIN = 48;
 
   function drawVeteranBadge(ent, p){
     let rank = 0;
@@ -2148,10 +2148,10 @@
     const scale = 0.6 * z;
     const badgePx = PROMOTION_CACHE_SIZE * scale;
     if (badgePx < PROMOTION_BADGE_MIN_PX) return;
-    if ((drawVeteranBadge._drawnThisFrame || 0) >= PROMOTION_BADGE_MAX_PER_FRAME) return;
-    drawVeteranBadge._drawnThisFrame = (drawVeteranBadge._drawnThisFrame || 0) + 1;
     const x = p.x + (ent.r||12)*0.8;
     const y = p.y + (ent.r||12)*0.8;
+    const vw = drawVeteranBadge._viewportW, vh = drawVeteranBadge._viewportH;
+    if (vw != null && vh != null && (x < -PROMOTION_BADGE_VIEWPORT_MARGIN || x > vw + PROMOTION_BADGE_VIEWPORT_MARGIN || y < -PROMOTION_BADGE_VIEWPORT_MARGIN || y > vh + PROMOTION_BADGE_VIEWPORT_MARGIN)) return;
     const cache = rank >= 2 ? PROMOTION_CACHE_ELITE : PROMOTION_CACHE_VETERAN;
     if (cache){
       const w = PROMOTION_CACHE_SIZE * scale, h = PROMOTION_CACHE_SIZE * scale;
@@ -2167,16 +2167,16 @@
     ctx.lineWidth = Math.max(1, 1.2*z);
     const cw = 7*z, ch = 5.5*z, gap = 3*z;
     const totalW = n*cw + (n-1)*gap;
+    ctx.beginPath();
     for (let i=0;i<n;i++){
       const cx = x - totalW/2 + cw/2 + i*(cw+gap);
-      ctx.beginPath();
       ctx.moveTo(cx, y - ch);
       ctx.lineTo(cx - cw/2, y);
       ctx.lineTo(cx + cw/2, y);
       ctx.closePath();
-      ctx.fill();
-      ctx.stroke();
     }
+    ctx.fill();
+    ctx.stroke();
     ctx.restore();
   }
 
@@ -3053,7 +3053,8 @@
       return (a.id||0) - (b.id||0);
     });
 
-    drawVeteranBadge._drawnThisFrame = 0;
+    drawVeteranBadge._viewportW = W;
+    drawVeteranBadge._viewportH = H;
 
     for (const ent of drawables){
       ctx.save();
