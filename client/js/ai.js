@@ -372,6 +372,13 @@
       if (!aiEnemyHas("hq")) { ai.build.ready = null; ai.build.readySince = 0; ai.build.queue = null; return false; }
 
       const kind = ai.build.ready;
+      if (!aiPrereqOk(kind, BUILD_PREREQ)) {
+        const costTotal = COST[kind] || 0;
+        if (costTotal > 0 && state.enemy) state.enemy.money = (state.enemy.money || 0) + costTotal;
+        ai.build.ready = null;
+        ai.build.readySince = 0;
+        return false;
+      }
       const spec = BUILD[kind];
       if (!spec) { ai.build.ready = null; ai.build.readySince = 0; return false; }
 
@@ -446,6 +453,12 @@
       if (!aiEnemyHas("hq")) { ai.build.queue = null; ai.build.ready = null; ai.build.readySince = 0; return; }
       if (!ai.build.queue) return;
       const q = ai.build.queue;
+      if (!aiPrereqOk(q.kind, BUILD_PREREQ)) {
+        const costTotal = q.cost || 0;
+        if (costTotal > 0 && (q.paid || 0) > 0 && state.enemy) state.enemy.money = (state.enemy.money || 0) + (q.paid || 0);
+        ai.build.queue = null;
+        return;
+      }
       const pf = getPowerFactor(TEAM.ENEMY);
       const speed = pf * GAME_SPEED * BUILD_PROD_MULT;
 
@@ -466,8 +479,12 @@
 
       if (q.t >= tNeed - 1e-6) {
         q.t = tNeed; q.paid = costTotal;
-        ai.build.ready = q.kind;
-        ai.build.readySince = state.t;
+        if (aiPrereqOk(q.kind, BUILD_PREREQ)) {
+          ai.build.ready = q.kind;
+          ai.build.readySince = state.t;
+        } else {
+          if (costTotal > 0 && state.enemy) state.enemy.money = (state.enemy.money || 0) + costTotal;
+        }
         ai.build.queue = null;
       }
     }
