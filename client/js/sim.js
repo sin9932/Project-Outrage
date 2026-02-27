@@ -72,8 +72,9 @@
     let _unitGridW = 0, _unitGridH = 0;
     const _unitGrid = [[], []]; // [team][cellIdx] -> unit[]
 
+    const UNIT_GRID_MIN_UNITS = 10; // 그리드 활성화 최소 유닛 수 (대규모 교전 시 findNearest 비용 절감)
     function buildUnitSpatialGrid(){
-      if (WORLD_W<=0 || WORLD_H<=0 || units.length < 15) return;
+      if (WORLD_W<=0 || WORLD_H<=0 || units.length < UNIT_GRID_MIN_UNITS) return;
       const gW = Math.ceil(WORLD_W / UNIT_GRID_CELL) || 1;
       const gH = Math.ceil(WORLD_H / UNIT_GRID_CELL) || 1;
       if (gW !== _unitGridW || gH !== _unitGridH){
@@ -2781,7 +2782,7 @@
     }
 
     function spawnTrace(x0,y0,x1,y1,team, opt={}){
-      if (traces.length > 80) return;
+      if (traces.length > 70) return;  // 대규모 교전 시 렌더 부하 방지
       const life = (opt.life ?? 0.09);
       window.__combatUntil = Math.max(window.__combatUntil||0, performance.now()+12000);
       traces.push({x0,y0,x1,y1,team,life, maxLife: (opt.maxLife ?? life), kind: opt.kind || "line", delay: opt.delay ?? 0, fx: opt.fx || null});
@@ -2802,8 +2803,9 @@
       };
 
       const fxCount = traces.length + casings.length + impacts.length;
-      const lite = fxCount > 50;
-      const bursts = lite ? 2 : 4;
+      const ultraLite = fxCount > 70;   // 대규모 교전 시 최소 이펙트만 (렉 방지)
+      const lite = fxCount > 35 || ultraLite;
+      const bursts = ultraLite ? 1 : (lite ? 2 : 4);
       const gap = 0.07;
       const tracerLife = 0.045;
       const muzzleLife = 0.045;
@@ -2822,10 +2824,12 @@
 
         spawnTrace(mx2, my2, endX, endY, shooter.team, { kind:"mg", life:tracerLife, delay });
 
-        const f0 = lift(shooter.x + nx*14, shooter.y + ny*14);
-        flashes.push({ x: f0.x, y: f0.y, r: 22 + Math.random()*8, life: muzzleLife, delay });
+        if (flashes.length <= 90){
+          const f0 = lift(shooter.x + nx*14, shooter.y + ny*14);
+          flashes.push({ x: f0.x, y: f0.y, r: 22 + Math.random()*8, life: muzzleLife, delay });
+        }
 
-        if (!lite){
+        if (!lite && !ultraLite){
           const side = (Math.random() < 0.5) ? -1 : 1;
           const ex = shooter.x + px*side*6 + nx*6;
           const ey = shooter.y + py*side*6 + ny*6;
@@ -2845,7 +2849,7 @@
           });
         }
 
-        const sparks = lite ? 1 : 4;
+        const sparks = ultraLite ? 0 : (lite ? 1 : 4);
         for (let k=0;k<sparks;k++){
           const ang = Math.random()*Math.PI*2;
           const spd = 40 + Math.random()*90;
@@ -2964,10 +2968,10 @@
     }
 
     function tickUnits(dt){
-        if (units.length >= 15 && (!state._lastGridRebuild || state.t - state._lastGridRebuild > 0.1)) {
+        if (units.length >= UNIT_GRID_MIN_UNITS && (!state._lastGridRebuild || state.t - state._lastGridRebuild > 0.1)) {
           state._lastGridRebuild = state.t;
           buildUnitSpatialGrid();
-        } else if (units.length < 15 && _unitGridW > 0) {
+        } else if (units.length < UNIT_GRID_MIN_UNITS && _unitGridW > 0) {
           _unitGridW = 0; _unitGridH = 0;
         }
         clearOcc(dt);
@@ -3056,7 +3060,7 @@
             const otPre = u.order && u.order.type;
             const wantsAuto = (!u.target && (otPre==="idle" || otPre==="guard" || otPre==="guard_return" || otPre==="attackmove"));
             if (wantsAuto && u.aggroCd<=0 && state.t >= (u._nextAcquire||0)){
-              const infThrottle = (u.team===TEAM.ENEMY && (u.kind==="infantry" || u.kind==="sniper")) ? 0.55 + (u.id % 13)*0.04 : 0.18 + (u.id % 7)*0.02;
+              const infThrottle = (u.team===TEAM.ENEMY && (u.kind==="infantry" || u.kind==="sniper")) ? 0.65 + (u.id % 13)*0.05 : 0.18 + (u.id % 7)*0.02;
               u._nextAcquire = state.t + infThrottle;
               const sniperMode = (u.kind==="sniper" || (u.kind==="ifv" && u.passKind==="sniper"));
       const manualLock = !!(u.order && u.order.manual && u.order.allowAuto!==true);
@@ -3418,7 +3422,7 @@
               const atkR = (u.range||0) * 1.08;
               const atkKindG = (u.kind==="ifv" && u.passKind==="sniper") ? "sniper" : u.kind;
               let inRangeG = null;
-              const guardScanThrottle = (u.team===TEAM.ENEMY && (u.kind==="infantry" || u.kind==="sniper")) ? 0.16 : 0.05;
+              const guardScanThrottle = (u.team===TEAM.ENEMY && (u.kind==="infantry" || u.kind==="sniper")) ? 0.24 : 0.05;
               if (atkR > 0 && state.t >= (u._nextGuardScan||0)){
                 u._nextGuardScan = state.t + guardScanThrottle;
                 inRangeG = findNearestAttackMoveTargetFor(u.team, u.x, u.y, atkR, atkKindG);
@@ -3459,7 +3463,7 @@
               const atkR = (u.range||0) * 1.08;
               const atkKind = (u.kind==="ifv" && u.passKind==="sniper") ? "sniper" : u.kind;
               let inRange = null;
-              const atkMoveScanThrottle = (u.team===TEAM.ENEMY && (u.kind==="infantry" || u.kind==="sniper")) ? 0.16 : 0.05;
+              const atkMoveScanThrottle = (u.team===TEAM.ENEMY && (u.kind==="infantry" || u.kind==="sniper")) ? 0.24 : 0.05;
               if (atkR > 0 && state.t >= (u._nextAtkMoveScan||0)){
                 u._nextAtkMoveScan = state.t + atkMoveScanThrottle;
                 inRange = findNearestAttackMoveTargetFor(u.team, u.x, u.y, atkR, atkKind);
