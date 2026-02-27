@@ -2679,7 +2679,8 @@ function draw(){
         worldVecToDir8,
         isUnderPower, clamp,
         infDeathFxs, snipDeathFxs,
-        getFogEnabled: () => !!fogEnabled
+        getFogEnabled: () => !!fogEnabled,
+        L
       });
     }
   }

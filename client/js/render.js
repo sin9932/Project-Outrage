@@ -899,7 +899,9 @@
     return img;
   }
 
+  let _L = null;
   function bindEnv(env){
+    _L = env.L || null;
     canvas = env.canvas; ctx = env.ctx; cam = env.cam; state = env.state;
     TEAM = env.TEAM; MAP_W = env.MAP_W; MAP_H = env.MAP_H; TILE = env.TILE; ISO_X = env.ISO_X; ISO_Y = env.ISO_Y;
     terrain = env.terrain; ore = env.ore; explored = env.explored; visible = env.visible;
@@ -2241,7 +2243,7 @@
     const p=worldToScreen(b.x,b.y);
     const yy = p.y - (Math.max(b.tw,b.th)*ISO_Y*cam.zoom) - 40;
     const xx = p.x + ISO_X*(b.tw*0.72)*cam.zoom;
-    const text="주요";
+    const text = (_L && _L("ui.primary")) || "주요";
     ctx.save();
     ctx.font="bold 12px system-ui";
     ctx.textAlign="left";
