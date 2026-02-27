@@ -2803,8 +2803,8 @@
       };
 
       const fxCount = traces.length + casings.length + impacts.length;
-      const ultraLite = fxCount > 70;   // 대규모 교전 시 최소 이펙트만 (렉 방지)
-      const lite = fxCount > 35 || ultraLite;
+      const ultraLite = fxCount > 50;   // 대규모 교전 시 최소 이펙트만 (확대 시 렉 방지)
+      const lite = fxCount > 28 || ultraLite;
       const bursts = ultraLite ? 1 : (lite ? 2 : 4);
       const gap = 0.07;
       const tracerLife = 0.045;

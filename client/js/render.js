@@ -2758,6 +2758,10 @@
 
     const W=canvas.width, H=canvas.height;
     const fogOn = typeof getFogEnabled === "function" && getFogEnabled();
+    const zoom = (cam && typeof cam.zoom==="number") ? cam.zoom : 1;
+    const fxHeavy = (traces?.length || 0) + (flashes?.length || 0) + (impacts?.length || 0) > 45 || zoom > 1.25;
+    const VFX_VIEWPORT_MARGIN = 100;
+    const isInViewport = (sx, sy, m = VFX_VIEWPORT_MARGIN) => sx >= -m && sx <= W + m && sy >= -m && sy <= H + m;
     isVisibleAt = (wx, wy) => {
       if (!fogOn) return true;
       const tx = tileOfX ? tileOfX(wx) : ((wx/TILE)|0);
@@ -3243,6 +3247,7 @@
     for (const bl of bullets){
       if (!isVisibleAt(bl.x, bl.y)) continue;
       const p0=worldToScreen(bl.x,bl.y);
+      if (!isInViewport(p0.x, p0.y)) continue;
 
       if (bl.kind==="shell"){
         const t = Math.max(0, Math.min(1, bl.t||0));
@@ -3251,7 +3256,7 @@
 
         ctx.save();
         ctx.globalAlpha = 0.95;
-        ctx.shadowBlur = 26;
+        ctx.shadowBlur = fxHeavy ? 0 : 26;
         ctx.shadowColor = "rgba(255,180,70,1.0)";
         ctx.fillStyle = "rgba(255,210,110,0.95)";
         ctx.beginPath();
@@ -3293,7 +3298,7 @@
         // 헤드만 심플한 글로우 (화살표 모양 제거)
         ctx.save();
         ctx.globalAlpha = 0.95;
-        ctx.shadowBlur = 12;
+        ctx.shadowBlur = fxHeavy ? 0 : 12;
         ctx.shadowColor = a;
         ctx.fillStyle = a;
         ctx.beginPath();
@@ -3313,6 +3318,7 @@
       if (!m.trail || m.trail.length < 2) continue;
       const mtx = m.trail[0];
       if (mtx && !isVisibleAt(mtx.x, mtx.y)) continue;
+      if (mtx) { const sp = worldToScreen(mtx.x, mtx.y); if (!isInViewport(sp.x, sp.y)) continue; }
       const alphaMul = Math.max(0, m.life / 0.35);
       ctx.save();
       ctx.lineCap = "round";
@@ -3339,6 +3345,8 @@
       if (!isVisibleAt(tr.x0, tr.y0) && !isVisibleAt(tr.x1, tr.y1)) continue;
       const a=worldToScreen(tr.x0,tr.y0);
       const b=worldToScreen(tr.x1,tr.y1);
+      if (!isInViewport(a.x, a.y) && !isInViewport(b.x, b.y)) continue;
+      const noShadow = fxHeavy;
       let alpha;
       if (tr.kind === "snip"){
         alpha = Math.min(1, tr.life / (tr.maxLife ?? 0.80));
@@ -3351,7 +3359,7 @@
         ctx.save();
         ctx.lineCap = "round";
         ctx.globalAlpha = alpha*0.85;
-        ctx.shadowBlur = 22;
+        ctx.shadowBlur = noShadow ? 0 : 22;
         ctx.shadowColor = "rgba(255, 195, 80, 1.0)";
         ctx.strokeStyle = "rgba(255, 220, 120, 0.70)";
         ctx.lineWidth = 6.2;
@@ -3375,7 +3383,7 @@
         ctx.lineCap = "round";
 
         ctx.globalAlpha = alpha*0.95;
-        ctx.shadowBlur = 34;
+        ctx.shadowBlur = noShadow ? 0 : 34;
         ctx.shadowColor = "rgba(255, 170, 40, 1.0)";
         ctx.strokeStyle = "rgba(255, 210, 90, 0.85)";
         ctx.lineWidth = 10.5;
@@ -3401,7 +3409,7 @@
         const core = "rgba(255, 255, 255, 1.0)";
 
         ctx.globalAlpha = alpha*0.80;
-        ctx.shadowBlur = 28;
+        ctx.shadowBlur = noShadow ? 0 : 28;
         ctx.shadowColor = glow;
         ctx.strokeStyle = mid;
         ctx.lineWidth = 7.2;
@@ -3423,6 +3431,7 @@
 
       } else if (tr.kind === "impE"){
         const c = worldToScreen(tr.x0, tr.y0);
+        if (!isInViewport(c.x, c.y)) { ctx.globalAlpha=1; continue; }
         const range = tr.fx?.range ?? 48;
         const px = worldToScreen(tr.x0 + range, tr.y0);
         const py = worldToScreen(tr.x0, tr.y0 + range);
@@ -3436,7 +3445,7 @@
         ctx.fillStyle = (tr.team===TEAM.PLAYER) ? "rgba(255, 200, 90, 0.16)" : "rgba(255, 200, 90, 0.16)";
         ctx.strokeStyle = "rgba(255, 210, 110, 0.88)";
         ctx.lineWidth = tr.fx?.strokeW ?? 4.6;
-        ctx.shadowBlur = 22;
+        ctx.shadowBlur = noShadow ? 0 : 22;
         ctx.shadowColor = "rgba(255, 170, 60, 1.0)";
         ctx.fill();
         ctx.stroke();
@@ -3454,17 +3463,25 @@
       if ((f.delay||0) > 0) continue;
       if (!isVisibleAt(f.x, f.y)) continue;
       const p=worldToScreen(f.x,f.y);
+      if (!isInViewport(p.x, p.y)) continue;
       const a = Math.min(1, f.life/0.06);
       ctx.globalAlpha = a;
       const r = f.r;
-      const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, r);
-      g.addColorStop(0, "rgba(255, 245, 200, 0.95)");
-      g.addColorStop(0.25, "rgba(255, 220, 120, 0.55)");
-      g.addColorStop(1, "rgba(255, 200, 80, 0.0)");
-      ctx.fillStyle = g;
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, r, 0, Math.PI*2);
-      ctx.fill();
+      if (fxHeavy){
+        ctx.fillStyle = "rgba(255, 230, 150, 0.6)";
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, r, 0, Math.PI*2);
+        ctx.fill();
+      } else {
+        const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, r);
+        g.addColorStop(0, "rgba(255, 245, 200, 0.95)");
+        g.addColorStop(0.25, "rgba(255, 220, 120, 0.55)");
+        g.addColorStop(1, "rgba(255, 200, 80, 0.0)");
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, r, 0, Math.PI*2);
+        ctx.fill();
+      }
       ctx.globalAlpha = 1;
     }
 
@@ -3559,6 +3576,7 @@
     for (const p0 of impacts){
       if (!isVisibleAt(p0.x, p0.y)) continue;
       const p=worldToScreen(p0.x,p0.y);
+      if (!isInViewport(p.x, p.y)) continue;
       ctx.globalAlpha = Math.min(1, p0.life/0.22);
       ctx.fillStyle = "rgba(255, 210, 90, 0.95)";
       ctx.fillRect(p.x-1.4, p.y-1.4, 2.8, 2.8);
@@ -3597,13 +3615,14 @@
       if ((c.delay||0) > 0) continue;
       if (!isVisibleAt(c.x, c.y)) continue;
       const p=worldToScreen(c.x, c.y);
+      if (!isInViewport(p.x, p.y)) continue;
       const y = p.y - (c.z||0)*0.18;
       const a = Math.min(1, c.life/0.35);
       ctx.save();
       ctx.globalAlpha = a*0.95;
       ctx.translate(p.x, y);
       ctx.rotate(c.rot||0);
-      ctx.shadowBlur = 8;
+      ctx.shadowBlur = fxHeavy ? 0 : 8;
       ctx.shadowColor = "rgba(255, 210, 110, 0.55)";
       ctx.fillStyle = "rgba(255, 200, 90, 0.95)";
       ctx.fillRect(-(c.w||4)/2, -(c.h||2)/2, (c.w||4), (c.h||2));
