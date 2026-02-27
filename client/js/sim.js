@@ -4068,6 +4068,7 @@
               crushInfantry(u);
             } else {
               u.path=null;
+              u.vx=0; u.vy=0;
               if (u.shootCd<=0 && (u.kind!=="tank" || (_ffAimDir!=null && u.turretDir===_ffAimDir && !u.turretTurn))){
                 u.shootCd=u.rof*getVeteranROF(u);
                 u.holdPosT = 0.10;

@@ -3196,9 +3196,10 @@
           {
             if (ent.kind==="sniper"){
               const firing = ((ent.fireHoldT||0)>0);
+              const isStanding = !!(ent.order && (ent.order.type==="idle" || ent.order.type==="guard"));
               const isMoveOrder = !!(ent.order && (ent.order.type==="move" || ent.order.type==="attackmove"));
               const v2 = (ent.vx||0)*(ent.vx||0) + (ent.vy||0)*(ent.vy||0);
-              const moving = isMoveOrder || v2 > 0.0004 || (ent.path && ent.path.length>0);
+              const moving = !isStanding && (isMoveOrder || v2 > 0.01 || (ent.path && ent.path.length>0));
               if (!firing && moving){
                 drawSniperMoveByDir(ctx, p.x, p.y, infDir, a, ent.team, state.t);
               } else {
@@ -3206,9 +3207,10 @@
               }
             } else {
               const firing = ((ent.fireHoldT||0)>0);
+              const isStanding = !!(ent.order && (ent.order.type==="idle" || ent.order.type==="guard"));
               const isMoveOrder = !!(ent.order && (ent.order.type==="move" || ent.order.type==="attackmove"));
               const v2 = (ent.vx||0)*(ent.vx||0) + (ent.vy||0)*(ent.vy||0);
-              const moving = isMoveOrder || v2 > 0.0004 || (ent.path && ent.path.length>0);
+              const moving = !isStanding && (isMoveOrder || v2 > 0.01 || (ent.path && ent.path.length>0));
               if (!firing && moving){
                 if (infDir===0)      drawInfantryMoveEast(ctx, p.x, p.y, a, ent.team, state.t);
                 else if (infDir===1) drawInfantryMoveNE(ctx, p.x, p.y, a, ent.team, state.t);
