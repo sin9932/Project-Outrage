@@ -323,10 +323,35 @@
       return ai._playerTurrets.length >= 6;
     }
 
+    const BUILD_PREREQ = {
+      power: ["hq"],
+      refinery: ["hq", "power"],
+      barracks: ["hq", "power"],
+      factory: ["hq", "barracks"],
+      radar: ["hq", "factory", "refinery"],
+      turret: ["hq", "barracks"]
+    };
+    const UNIT_PREREQ = {
+      infantry: ["barracks"],
+      engineer: ["barracks"],
+      sniper: ["barracks", "radar"],
+      tank: ["factory"],
+      ifv: ["factory"],
+      harvester: ["factory"]
+    };
+    function aiPrereqOk(kind, map) {
+      const req = map[kind];
+      if (!req || !req.length) return true;
+      for (const k of req) {
+        if (!aiEnemyHas(k)) return false;
+      }
+      return true;
+    }
+
     function aiTryStartBuild(kind) {
-      // Only one building build at a time (simple sidebar)
       if (ai.build.queue || ai.build.ready) return false;
       if (!aiEnemyHas("hq")) return false;
+      if (!aiPrereqOk(kind, BUILD_PREREQ)) return false;
 
       const centers = aiEnemyCenters();
       if (!centers.length) return false;
@@ -664,11 +689,10 @@
           bar.buildQ.push({ kind: "engineer", t: 0, tNeed: getBaseBuildTime("engineer") / pf, cost: COST.engineer, paid: 0 });
         }
 
-        // Snipers: only if player infantry exists, cap at 2~3 total.
-        if (playerHasInf && fac && bar.buildQ.length < 8) {
+        // Snipers: barracks+radar 필요, player infantry 존재 시, IFV 있으면
+        if (playerHasInf && fac && aiEnemyHas("radar") && bar.buildQ.length < 8) {
           const maxSnp = rich ? 3 : 2;
           const totalSnp = eSnp.length + queuedSnp;
-          // Only build snipers if there is IFV capacity to use them.
           if (totalSnp < maxSnp && eIFV.length > 0) {
             bar.buildQ.push({ kind: "sniper", t: 0, tNeed: getBaseBuildTime("sniper") / pf, cost: COST.sniper, paid: 0 });
           }

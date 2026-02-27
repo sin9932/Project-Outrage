@@ -1907,10 +1907,27 @@
   }
 
   function drawSelectionEllipseAt(ent){
-    const col = (ent.team===TEAM.PLAYER) ? "#28ff6a" : "#ff2a2a";
-    const ringOpt = { alphaFill: 0.0, alphaStroke: 0.95, strokeW: 3.0 };
+    const p = worldToScreen(ent.x, ent.y);
     const base = (ent.kind==="infantry" || ent.kind==="engineer" || ent.kind==="sniper") ? TILE*0.26 : TILE*0.34;
-    drawRangeEllipseWorld(ent.x, ent.y, base, col, ringOpt);
+    const px = worldToScreen(ent.x + base, ent.y);
+    const py = worldToScreen(ent.x, ent.y + base);
+    const rx = Math.abs(px.x - p.x);
+    const ry = Math.abs(py.y - p.y);
+    const isP = ent.team === TEAM.PLAYER;
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.ellipse(p.x, p.y, rx, ry, 0, 0, Math.PI*2);
+    const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, Math.max(rx, ry));
+    g.addColorStop(0.0, isP ? "rgba(40,255,106,0.35)" : "rgba(255,42,42,0.35)");
+    g.addColorStop(0.5, isP ? "rgba(40,255,106,0.12)" : "rgba(255,42,42,0.12)");
+    g.addColorStop(1.0, isP ? "rgba(40,255,106,0.0)" : "rgba(255,42,42,0.0)");
+    ctx.fillStyle = g;
+    ctx.fill();
+    ctx.strokeStyle = isP ? "rgba(40,255,106,0.95)" : "rgba(255,42,42,0.95)";
+    ctx.lineWidth = 3.0;
+    ctx.stroke();
+    ctx.restore();
   }
 
   function drawHpBlocksAtScreen(px, py, blocks, ratio){
@@ -2138,10 +2155,11 @@
 
   function drawVeteranBadge(ent, p){
     let rank = 0;
-    if (ent.kind==="infantry" || ent.kind==="sniper") rank = ent.veteran || 0;
-    else if (ent.kind==="ifv" && ent.passengerId && (ent.passKind==="infantry" || ent.passKind==="sniper")){
+    if (ent.kind==="ifv" && ent.passengerId && (ent.passKind==="infantry" || ent.passKind==="sniper")){
       const pass = getEntityById ? getEntityById(ent.passengerId) : null;
       if (pass && pass.alive) rank = pass.veteran || 0;
+    } else if (ent.kind==="infantry" || ent.kind==="sniper" || ent.kind==="tank" || ent.kind==="ifv" || ent.kind==="harvester") {
+      rank = ent.veteran || 0;
     }
     if (rank < 1) return;
     const z = (typeof cam !== "undefined" && cam && typeof cam.zoom==="number") ? cam.zoom : 1;
@@ -3437,16 +3455,19 @@
         const py = worldToScreen(tr.x0, tr.y0 + range);
         const rx = Math.abs(px.x - c.x);
         const ry = Math.abs(py.y - c.y);
+        const isP = tr.team === TEAM.PLAYER;
 
         ctx.save();
         ctx.beginPath();
         ctx.ellipse(c.x, c.y, rx, ry, 0, 0, Math.PI*2);
-
-        ctx.fillStyle = (tr.team===TEAM.PLAYER) ? "rgba(255, 200, 90, 0.16)" : "rgba(255, 200, 90, 0.16)";
-        ctx.strokeStyle = "rgba(255, 210, 110, 0.88)";
+        const fillCol = isP ? "rgba(100, 220, 255, 0.18)" : "rgba(255, 100, 100, 0.18)";
+        const strokeCol = isP ? "rgba(80, 200, 255, 0.88)" : "rgba(255, 80, 80, 0.88)";
+        const glowCol = isP ? "rgba(60, 180, 255, 1.0)" : "rgba(255, 60, 60, 1.0)";
+        ctx.fillStyle = fillCol;
+        ctx.strokeStyle = strokeCol;
         ctx.lineWidth = tr.fx?.strokeW ?? 4.6;
         ctx.shadowBlur = noShadow ? 0 : 22;
-        ctx.shadowColor = "rgba(255, 170, 60, 1.0)";
+        ctx.shadowColor = glowCol;
         ctx.fill();
         ctx.stroke();
         ctx.restore();

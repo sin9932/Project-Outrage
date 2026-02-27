@@ -703,7 +703,7 @@ function addUnit(team, kind, x, y, opts){
       u.bodyDir = 6;
       u.turretDir = null;
     }
-    if (kind === "infantry" || kind === "sniper") {
+    if (kind === "infantry" || kind === "sniper" || kind === "tank" || kind === "ifv" || kind === "harvester") {
       u.veteran = 0;
       u.veteranExp = 0;
     }
@@ -886,7 +886,7 @@ function tileToWorldSubslot(tx, ty, slot){
 
   function getMoveSpeed(u){
     let s = u.speed;
-    if (u.kind==="infantry" || u.kind==="sniper") s *= getVeteranSpeed(u);
+    if (u.kind==="infantry" || u.kind==="sniper" || u.kind==="tank" || u.kind==="ifv" || u.kind==="harvester") s *= getVeteranSpeed(u);
     if (u.kind==="tank"){
       const hpPct = u.hpMax>0 ? (u.hp/u.hpMax) : 1;
       if (u.crippled){

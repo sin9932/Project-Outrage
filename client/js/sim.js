@@ -1768,6 +1768,7 @@
         if (u.pathI >= u.path.length){
           const ot2 = (u.order && u.order.type) ? u.order.type : null;
           u.vx = 0; u.vy = 0;
+          if (ucls === "veh") u._vehCurSpeed = 0;
           u.path = null; u.pathI = 0;
           clearReservation(u);
           if (ot2==="attackmove"){
@@ -1818,7 +1819,16 @@
         }
       }
 
-      const step=Math.min(getMoveSpeed(u)*dt, d);
+      // RA2 style: 기갑(veh) 가속/감속 (AccelerationFactor 0.03)
+      const maxSpeed = getMoveSpeed(u);
+      let step = maxSpeed * dt;
+      if (ucls === "veh") {
+        if (u._vehCurSpeed == null) u._vehCurSpeed = 0;
+        u._vehCurSpeed += (maxSpeed - u._vehCurSpeed) * 0.03;
+        step = Math.min(u._vehCurSpeed * dt, d);
+      } else {
+        step = Math.min(step, d);
+      }
       let ax=dx/(d||1), ay=dy/(d||1);
       // RA2 style: 보병은 회피 없이 목표로 직진 (위글+렉 근본 해결)
       if (u.cls!=="inf"){
@@ -1861,6 +1871,7 @@
         if (u.kind === "tank" || u.kind === "harvester"){
           if (u.bodyDir == null) u.bodyDir = (u.dir!=null ? u.dir : 6);
           if (fd !== u.bodyDir){
+            if (u._vehCurSpeed != null) u._vehCurSpeed *= (1 - 0.12);
             _tankUpdateHull(u, fd, dt);
             u.dir = u.bodyDir;
             u.faceDir = (u.fireDir!=null ? u.fireDir : (u.turretDir!=null ? u.turretDir : u.bodyDir));
@@ -2267,6 +2278,7 @@
     if (d2 < 14 * 14) {
       u.x = gx; u.y = gy;
       u.vx = 0; u.vy = 0;
+      if ((UNIT[u.kind] && UNIT[u.kind].cls) === "veh") u._vehCurSpeed = 0;
       u.flowGoal = null;
       const ot = (u.order && u.order.type) ? u.order.type : null;
       if (ot === "attackmove") {
@@ -2279,8 +2291,14 @@
     }
     const flow = OUFlowField.getFlowAt(field, u.x, u.y, TILE, tileOfX, tileOfY);
     if (!flow || (flow.dx === 0 && flow.dy === 0)) return false;
-    const speed = getMoveSpeed(u) || 80;
-    const step = speed * dt;
+    const maxSpeed = getMoveSpeed(u) || 80;
+    const ucls = (UNIT[u.kind] && UNIT[u.kind].cls) || "";
+    let step = maxSpeed * dt;
+    if (ucls === "veh") {
+      if (u._vehCurSpeed == null) u._vehCurSpeed = 0;
+      u._vehCurSpeed += (maxSpeed - u._vehCurSpeed) * 0.03;
+      step = u._vehCurSpeed * dt;
+    }
     const nx = u.x + flow.dx * step;
     const ny = u.y + flow.dy * step;
     const ntx = tileOfX(nx), nty = tileOfY(ny);
@@ -2288,8 +2306,9 @@
     if (isBlockedWorldPoint(u, nx, ny)) return false;
     u.x = clamp(nx, 0, WORLD_W);
     u.y = clamp(ny, 0, WORLD_H);
-    u.vx = flow.dx * speed;
-    u.vy = flow.dy * speed;
+    const curSpd = (ucls === "veh" && u._vehCurSpeed != null) ? u._vehCurSpeed : maxSpeed;
+    u.vx = flow.dx * curSpd;
+    u.vy = flow.dy * curSpd;
     u.faceDir = worldVecToDir8(flow.dx, flow.dy);
     u.dir = u.faceDir;
     return true;

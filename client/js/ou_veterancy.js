@@ -9,7 +9,7 @@
   OUVeterancy.create = function create(refs) {
     const r = refs || {};
     const getEntityById = r.getEntityById || (() => null);
-    const COST = r.COST || { infantry: 100, sniper: 600 };
+    const COST = r.COST || { infantry: 100, sniper: 600, tank: 900, ifv: 600, harvester: 2450 };
 
     const VETERAN_RATIO = 3;
     // RA2 공식 수치 (rulesmd.ini): 베테랑/엘리트 동일, 스택 안 함
@@ -34,7 +34,10 @@
 
     function getVeteranRank(u) {
       const v = getVeteranUnit(u);
-      return (v && (v.kind === "infantry" || v.kind === "sniper")) ? (v.veteran || 0) : 0;
+      if (!v) return 0;
+      if (v.kind === "infantry" || v.kind === "sniper") return v.veteran || 0;
+      if (v.kind === "tank" || v.kind === "ifv" || v.kind === "harvester") return v.veteran || 0;
+      return 0;
     }
 
     function getVeteranCombat(u) {
@@ -69,7 +72,9 @@
       if (!killer || !killer.alive) return;
       if (victimTeam != null && killer.team === victimTeam) return;
       const v = getVeteranUnit(killer);
-      if (!v || (v.kind !== "infantry" && v.kind !== "sniper")) return;
+      if (!v) return;
+      const canVet = v.kind === "infantry" || v.kind === "sniper" || v.kind === "tank" || v.kind === "ifv" || v.kind === "harvester";
+      if (!canVet) return;
       if (v.veteran >= 2) return;
       const cost = COST[v.kind] || 100;
       const need = cost * VETERAN_RATIO + 1;
