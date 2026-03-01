@@ -267,13 +267,17 @@
   // forest_ground.tmj: start 레이어의 start_beacon( firstgid 235 ) 타일 위치 → 기지 스타트 지점
   let startBeaconTiles = []; // [{tx,ty}, ...] 최대 2개, left=0번 right=1번
 
-  // [refactor] loadForestGround -> OUMap.loadFromTMJ (map.js)
+  // [refactor] loadForestGround -> OUMap.loadFromTMJ (map.js). 캐시해 두 번 로드 방지.
+  let _loadForestGroundPromise = null;
   const loadForestGround = (window.OUMap && typeof window.OUMap.loadFromTMJ === "function")
-    ? async () => {
-        const url = `asset/sprite/map/editmap/${mapChoice || "forest_ground"}.tmj`;
-        await window.OUMap.loadFromTMJ(url, {
-          terrain, ore, isGem, treeHp, startBeaconTiles, MAP_W, MAP_H, idx, oreAmountFromGid, TREE_HP_MAX
-        });
+    ? () => {
+        if (!_loadForestGroundPromise) {
+          const url = `asset/sprite/map/editmap/${mapChoice || "forest_ground"}.tmj`;
+          _loadForestGroundPromise = window.OUMap.loadFromTMJ(url, {
+            terrain, ore, isGem, treeHp, startBeaconTiles, MAP_W, MAP_H, idx, oreAmountFromGid, TREE_HP_MAX
+          });
+        }
+        return _loadForestGroundPromise;
       }
     : async () => { console.warn("[OUMap.loadFromTMJ] missing"); };
 
@@ -2818,31 +2822,29 @@ if (isCallable(__ou_ui, "bindPregameStart")){
         if (isCallable(__ou_ui, "setPregameLoading")){
           __ou_ui.setPregameLoading({ loading: true });
         }
-        await PO.buildings.preload();
-
-        // Preload key sprite images (inf/sniper/exp1/etc)
-        await preloadImages([
+        const imgUrls = [
           INF_IDLE_PNG, INF_ATK_PNG, INF_MOV_PNG, INF_MOV_NE_PNG, INF_MOV_N_PNG, INF_MOV_NW_PNG,
           INF_MOV_W_PNG, INF_MOV_SW_PNG, INF_MOV_S_PNG, INF_MOV_SE_PNG, INF_DIE_PNG,
           SNIP_IDLE_PNG, SNIP_MOV_PNG, SNIP_MOV_NE_PNG, SNIP_MOV_N_PNG, SNIP_MOV_NW_PNG,
           SNIP_MOV_W_PNG, SNIP_MOV_SW_PNG, SNIP_MOV_S_PNG, SNIP_MOV_SE_PNG, SNIP_DIE_PNG,
           REPAIR_WRENCH_PNG, EXP1_PNG, CON_YARD_PNG
+        ];
+        const exp1Promise = (window.OURender && typeof window.OURender.preloadExp1 === "function")
+          ? window.OURender.preloadExp1() : Promise.resolve();
+        await Promise.all([
+          PO.buildings.preload(),
+          preloadImages(imgUrls),
+          exp1Promise,
+          loadForestGround()
         ]);
-
-        if (window.OURender && typeof window.OURender.preloadExp1 === "function"){
-          await window.OURender.preloadExp1();
-        }
-
-        // Prewarm building atlases (incl. death) so first destroy doesn't freeze or flicker
         if (PO.buildings && typeof PO.buildings.prewarm === "function"){
           await PO.buildings.prewarm({ state, teams: [TEAM.PLAYER, TEAM.ENEMY], kinds: ["barracks", "power", "refinery"] });
-        }
-        if (PO.buildings && typeof PO.buildings.preload === "function"){
-          PO.buildings.preload().catch(() => {});
         }
         if (isCallable(__ou_ui, "setPregameLoading")){
           __ou_ui.setPregameLoading({ loading: false });
         }
+      } else {
+        await loadForestGround();
       }
     } catch (e) {
       console.error("[preload] building assets failed", e);
@@ -2852,8 +2854,6 @@ if (isCallable(__ou_ui, "bindPregameStart")){
       }
       return;
     }
-
-    await loadForestGround();
     explored[TEAM.PLAYER].fill(0);
     explored[TEAM.ENEMY].fill(0);
     visible[TEAM.PLAYER].fill(0);
