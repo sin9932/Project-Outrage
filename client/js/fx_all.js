@@ -770,7 +770,8 @@ function drawBlood(ctx, w2s, cam){
       d.t += dt;
       if (d.t >= d.ttl){ debris.splice(i,1); continue; }
       const speedH = Math.hypot(d.vx, d.vy);
-      if (speedH > 50 && (d.z||0) > 5){
+      const zh = d.z || 0;
+      if (speedH > 50 && zh > 2 && zh < 55){
         debrisTrail.push({
           x: d.x, y: d.y,
           vx: -d.vx*0.06, vy: -d.vy*0.06,

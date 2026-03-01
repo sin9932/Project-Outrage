@@ -8,7 +8,7 @@
   const st = PO.buildings._barracks = PO.buildings._barracks || {};
 
   // PATCH VERSION: v3
-  st.version = "v9";
+  st.version = "v10";
 
 
   
@@ -28,7 +28,7 @@
         death: { json: "asset/sprite/const/distruct/barrack/barrack_distruction.json", base: "asset/sprite/const/distruct/barrack/" }
       },
       prefix: { idle: "barrack_idle", build: "barrack_con_complete", death: "barrack_distruction" },
-      entKey: { buildT0: "_barrackBuildT0", buildDone: "_barrackBuildDone" }
+      entKey: { buildT0: "_barrackBuildT0", buildDone: "_barrackBuildDone", buildHoldUntil: "_barrackBuildHoldUntil" }
     ,
       sellKey: { flag: "_barrackSelling", t0: "_barrackSellT0", finalizeAt: "_barrackSellFinalizeAt" }
     },
@@ -44,7 +44,7 @@
         death: { json: "asset/sprite/const/distruct/power/power_distruction.json", base: "asset/sprite/const/distruct/power/" }
       },
       prefix: { idle: "power_idle", build: "power_con_complete", death: "power_distruction" },
-      entKey: { buildT0: "_powerBuildT0", buildDone: "_powerBuildDone" }
+      entKey: { buildT0: "_powerBuildT0", buildDone: "_powerBuildDone", buildHoldUntil: "_powerBuildHoldUntil" }
     ,
       sellKey: { flag: "_powerSelling", t0: "_powerSellT0", finalizeAt: "_powerSellFinalizeAt" }
     }
@@ -72,7 +72,7 @@
         death: { json: "asset/sprite/const/distruct/refinery/refinery_distruction.json", base: "asset/sprite/const/distruct/refinery/" }
       },
       prefix: { idle: "refinery", build: "refinery_con_complete", death: "refinery_distruction" },
-      entKey: { buildT0: "_refineryBuildT0", buildDone: "_refineryBuildDone" }
+      entKey: { buildT0: "_refineryBuildT0", buildDone: "_refineryBuildDone", buildHoldUntil: "_refineryBuildHoldUntil" }
     ,
       sellKey: { flag: "_refinerySelling", t0: "_refinerySellT0", finalizeAt: "_refinerySellFinalizeAt" }
     }
@@ -288,6 +288,23 @@
     return true;
   }
 
+  function _prewarmAtlasTeamTint(kind, atlasKey, teams, state){
+    const stKind = ST.kinds[kind];
+    const cfg = TYPE_CFG[kind];
+    if (!stKind || !cfg || cfg.teamColorMode === "frame") return;
+    const atlas = stKind.atlases[atlasKey];
+    if (!atlas || !atlas.frames) return;
+    const texIndices = new Set();
+    const frameValues = atlas.frames instanceof Map ? atlas.frames.values() : Object.values(atlas.frames || {});
+    for (const fr of frameValues){ if (fr) texIndices.add(fr.texIndex != null ? fr.texIndex : 0); }
+    if (texIndices.size === 0) texIndices.add(0);
+    for (const team of teams){
+      for (const ti of texIndices){
+        _getTeamTextureImg(stKind, atlasKey, atlas, ti, team, state);
+      }
+    }
+  }
+
   function _prewarmFrameTint(kind, atlasKey, filename, team, state){
     const stKind = ST.kinds[kind];
     const cfg = TYPE_CFG[kind];
@@ -326,6 +343,8 @@
     for (const kind of kinds){
       const stKind = ST.kinds[kind];
       if (!stKind || !stKind.ready) continue;
+
+      _prewarmAtlasTeamTint(kind, "death", teams, state);
 
       const frames = new Set();
       const addAll = (arr)=>{ if (arr && arr.length){ for (const n of arr) frames.add(n); } };
@@ -576,16 +595,25 @@
 
     // Build -> Idle
     const ek = cfg.entKey;
+    const buildHoldKey = ek.buildHoldUntil;
     if (ent[ek.buildT0] != null && !ent[ek.buildDone] && stKind.frames.build.length){
+      const lastIdx = stKind.frames.build.length - 1;
+      const lastFrame = stKind.frames.build[lastIdx];
+      if (buildHoldKey && ent[buildHoldKey] != null){
+        if (now < ent[buildHoldKey]){
+          return drawFrameTeam(ent.kind, "build", stKind.atlases.build, ctx, lastFrame, sx, sy, team, scale, state);
+        }
+        ent[buildHoldKey] = null;
+        ent[ek.buildDone] = true;
+        return drawFrameTeam(ent.kind, "build", stKind.atlases.build, ctx, lastFrame, sx, sy, team, scale, state);
+      }
       const dt = Math.max(0, now - ent[ek.buildT0]);
       const idx = Math.floor(dt * cfg.fps.build);
       if (idx < stKind.frames.build.length){
         return drawFrameTeam(ent.kind, "build", stKind.atlases.build, ctx, stKind.frames.build[idx], sx, sy, team, scale, state);
       }
-      // 마지막 build 프레임을 1프레임 더 유지 후 idle 전환 (막사/발전소 깜박임 방지)
-      const lastIdx = stKind.frames.build.length - 1;
-      ent[ek.buildDone] = true;
-      return drawFrameTeam(ent.kind, "build", stKind.atlases.build, ctx, stKind.frames.build[lastIdx], sx, sy, team, scale, state);
+      ent[buildHoldKey] = now + 0.15;
+      return drawFrameTeam(ent.kind, "build", stKind.atlases.build, ctx, lastFrame, sx, sy, team, scale, state);
     }
 
     // Idle/Active: choose normal vs damaged variant based on HP ratio
@@ -631,7 +659,7 @@
     return drawFrameTeam(ent.kind, "idle", stKind.atlases.idle, ctx, frames[idx], sx, sy, team, scale, state);
 };
 
-  console.log("[buildings] barracks+power pivot patch v9 loaded");
+  console.log("[buildings] barracks+power pivot patch v10 loaded");
   // Expose preload for boot-time asset warmup
   PO.buildings.preload = ensureAllKindsLoaded;
 

@@ -2829,9 +2829,13 @@ if (isCallable(__ou_ui, "bindPregameStart")){
           REPAIR_WRENCH_PNG, EXP1_PNG, CON_YARD_PNG
         ]);
 
+        if (window.OURender && typeof window.OURender.preloadExp1 === "function"){
+          await window.OURender.preloadExp1();
+        }
+
         // Prewarm building atlases (incl. death) so first destroy doesn't freeze or flicker
         if (PO.buildings && typeof PO.buildings.prewarm === "function"){
-          PO.buildings.prewarm({ state, teams: [TEAM.PLAYER, TEAM.ENEMY], kinds: ["barracks", "power", "refinery"] });
+          await PO.buildings.prewarm({ state, teams: [TEAM.PLAYER, TEAM.ENEMY], kinds: ["barracks", "power", "refinery"] });
         }
         if (PO.buildings && typeof PO.buildings.preload === "function"){
           PO.buildings.preload().catch(() => {});

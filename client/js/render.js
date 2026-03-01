@@ -3764,6 +3764,7 @@
   window.OURender.resetExp1Pivot = resetExp1Pivot;
   window.OURender.isExp1Ready = isExp1Ready;
   window.OURender.getExp1Frame0 = getExp1Frame0;
+  window.OURender.preloadExp1 = _initExp1IfNeeded;
 })();
 
 

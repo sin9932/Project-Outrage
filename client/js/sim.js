@@ -1688,9 +1688,17 @@
         if (!_canEnter || !reserveTile(u, p.tx, p.ty)) {
           if (u.pathI >= (u.path.length-1)) {
             u.finalBlockT = (u.finalBlockT||0) + dt;
+            const goalWx = (p.tx+0.5)*TILE, goalWy = (p.ty+0.5)*TILE;
+            const distToGoal2 = (u.x - goalWx)**2 + (u.y - goalWy)**2;
+            if (distToGoal2 < 75*75 && (u.order?.type==="move" || u.order?.type==="guard_return")) {
+              u.order = {type:"idle", x:u.x, y:u.y, tx:null, ty:null};
+              u.path = null; u.pathI = 0;
+              clearReservation(u);
+              u.finalBlockT = 0;
+              return false;
+            }
             if (u.finalBlockT > 0.18 && (u.lastRetargetT==null || (state.t - u.lastRetargetT) > 0.50)) {
-              const goalWx = (p.tx+0.5)*TILE, goalWy = (p.ty+0.5)*TILE;
-              const spot = findNearestFreePoint(goalWx, goalWy, u, 3);
+              const spot = findNearestFreePoint(goalWx, goalWy, u, 4);
               const nTx = tileOfX(spot.x), nTy = tileOfY(spot.y);
               if ((nTx!==p.tx || nTy!==p.ty) && canEnterTile(u, nTx, nTy) && reserveTile(u, nTx, nTy)) {
                 const wp2 = tileToWorldCenter(nTx, nTy);
@@ -1797,7 +1805,7 @@
           if (!canEnterTile(u, nextTile.tx, nextTile.ty)){
             if (u.order && (u.order.type==="move" || u.order.type==="attackmove") && u.pathI >= (u.path.length-1)){
               const dd = dist2(u.x,u.y,u.order.x,u.order.y);
-              if (dd < 58*58){
+              if (dd < 75*75){
                 u.order = {type:"idle", x:u.x, y:u.y, tx:null, ty:null};
                 u.path = null; u.pathI = 0;
                 clearReservation(u);
@@ -1848,7 +1856,10 @@
         }
         const alen = Math.hypot(avoidX,avoidY);
         if (alen>0.0001){
-          const mix = 0.55;
+          const isLastWp = (u.pathI >= (u.path.length-1));
+          const ot = u.order && u.order.type;
+          const nearGoal = isLastWp && (ot==="move" || ot==="guard_return") && d < 72;
+          const mix = nearGoal ? 0.22 : 0.55;
           const nx = avoidX/alen, ny = avoidY/alen;
           ax = ax*(1-mix) + nx*mix;
           ay = ay*(1-mix) + ny*mix;
@@ -2423,58 +2434,6 @@
       u.resTx = null; u.resTy = null;
     }
 
-    function settleInfantryToSubslot(u, dt){
-      const cls = (UNIT[u.kind] && UNIT[u.kind].cls) ? UNIT[u.kind].cls : "";
-      if (cls!=="inf") return;
-      if (!u.alive || u.inTransport) return;
-      if (u.target!=null) return;
-      const ot = u.order && u.order.type;
-      if (ot!=="idle" && ot!=="guard") return;
-      // RA2 style: 매 틱 실행, sub-slot 근처면 즉시 고정
-
-      const tx = tileOfX(u.x), ty = tileOfY(u.y);
-      if (!inMap(tx,ty)) return;
-
-      const ss = (u.subSlot==null) ? 0 : (u.subSlot & 3);
-      const sp = tileToWorldSubslot(tx, ty, ss);
-      const toSlot2 = (u.x - sp.x)**2 + (u.y - sp.y)**2;
-      if (toSlot2 < 25){ u.x = sp.x; u.y = sp.y; u.vx = 0; u.vy = 0; u.holdPos = true; return; }
-
-      const center = tileToWorldCenter(tx, ty);
-      const toCenter2 = (u.x - center.x)**2 + (u.y - center.y)**2;
-      if (toCenter2 > (0.12 * TILE) ** 2) return;
-
-      const i = idx(tx, ty);
-      if (occInf && occInf[i] > INF_SLOT_MAX) {
-        u.x = center.x; u.y = center.y;
-        u.vx = 0; u.vy = 0;
-        u.holdPos = true;
-        return;
-      }
-
-      const dx = sp.x - u.x, dy = sp.y - u.y;
-      const d2 = dx*dx + dy*dy;
-      if (d2 < 25){
-        u.x = sp.x; u.y = sp.y;
-        u.vx = 0; u.vy = 0;
-        u.holdPos = true;
-        return;
-      }
-
-      const d = Math.sqrt(d2);
-      const easeIn = (d < 15) ? Math.max(0.35, d/15) : 1;
-      const maxStep = Math.min(80 * dt * easeIn, Math.max(d * 0.25, 1.5));
-      const step = Math.min(maxStep, d);
-      const nx = dx / (d||1), ny = dy / (d||1);
-      u.x += nx * step;
-      u.y += ny * step;
-
-      const velMag = (dt > 0 && step > 0) ? (step / dt) : 0;
-      u.vx = nx * velMag;
-      u.vy = ny * velMag;
-      u.holdPos = true;
-    }
-
     function getClosestPointOnBuilding(b, u){
       const x0 = b.tx*TILE, y0 = b.ty*TILE;
       const x1 = (b.tx+b.tw)*TILE, y1 = (b.ty+b.th)*TILE;
@@ -2577,6 +2536,7 @@
         u.x = center.x; u.y = center.y;
         u.vx = 0; u.vy = 0;
         u.holdPos = true;
+        u.subSlot = null; u.subSlotTx = null; u.subSlotTy = null;
         return;
       }
 
