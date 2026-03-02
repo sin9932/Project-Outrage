@@ -3035,45 +3035,18 @@
       ctx.restore();
     }
 
-    if (cloudsImage && typeof state.t === "number" && typeof worldToScreen === "function" && TILE) {
-      const z = (cam && typeof cam.zoom === "number") ? cam.zoom : 1;
+    if (cloudsImage) {
+      ctx.save();
+      ctx.globalCompositeOperation = "multiply";
       const tw = cloudsImage.width;
       const th = cloudsImage.height;
-      const isoFlatten = 0.48;
-      const worldW = MAP_W * TILE;
-      const worldH = MAP_H * TILE;
-      const period = TILE * 400;
-      const driftX = (state.t * 18) % period;
-      const driftY = (state.t * 10) % period;
-      const cloudScreenW = Math.max(W, H) * 3.2 * z;
-      const cloudScreenH = (th / tw) * cloudScreenW * isoFlatten;
-      let cloudBuf = null;
-      try {
-        cloudBuf = document.createElement("canvas");
-        cloudBuf.width = W;
-        cloudBuf.height = H;
-      } catch (e) { cloudBuf = null; }
-      const cctx = cloudBuf ? cloudBuf.getContext("2d") : null;
-      if (cctx) {
-        cctx.clearRect(0, 0, W, H);
-        const cx1 = worldW * 0.35 + driftX;
-        const cy1 = worldH * 0.35 + driftY;
-        const p1 = worldToScreen(cx1, cy1);
-        cctx.globalAlpha = 0.58;
-        cctx.drawImage(cloudsImage, 0, 0, tw, th, p1.x - cloudScreenW / 2, p1.y - cloudScreenH / 2, cloudScreenW, cloudScreenH);
-        const cx2 = worldW * 0.7 - driftX * 0.6;
-        const cy2 = worldH * 0.65 - driftY * 0.6;
-        const p2 = worldToScreen(cx2, cy2);
-        cctx.globalAlpha = 0.28;
-        cctx.drawImage(cloudsImage, 0, 0, tw, th, p2.x - (cloudScreenW * 0.85) / 2, p2.y - (cloudScreenH * 0.85) / 2, cloudScreenW * 0.85, cloudScreenH * 0.85);
-        cctx.globalAlpha = 1;
-        ctx.save();
-        ctx.globalCompositeOperation = "multiply";
-        ctx.globalAlpha = 1;
-        ctx.drawImage(cloudBuf, 0, 0, W, H, 0, 0, W, H);
-        ctx.globalCompositeOperation = "source-over";
-        ctx.restore();
-      }
+      const sx = W / tw;
+      const sy = H / th;
+      const scale = Math.max(sx, sy);
+      const dw = tw * scale;
+      const dh = th * scale;
+      ctx.drawImage(cloudsImage, 0, 0, tw, th, (W - dw) / 2, (H - dh) / 2, dw, dh);
+      ctx.restore();
     }
 
     if (state.build.active && state.build.kind){
