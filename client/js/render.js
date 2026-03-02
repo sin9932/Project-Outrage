@@ -312,8 +312,8 @@
       .catch(e => { console.warn("[render] FG TMJ load failed:", e); });
   })();
 
-  const CLOUDS_IMAGE_URL = FG_MAP_BASE + "CloudsFineDetail.png";
-  const CLOUDS_IMAGE_URL_JPG = FG_MAP_BASE + "CloudsFineDetail.jpg";
+  const CLOUDS_IMAGE_URL = FG_MAP_BASE + "cloud.png";
+  const CLOUDS_IMAGE_URL_JPG = FG_MAP_BASE + "cloud.jpg";
   let cloudsImage = null;
   (function loadClouds() {
     loadImage(CLOUDS_IMAGE_URL)
