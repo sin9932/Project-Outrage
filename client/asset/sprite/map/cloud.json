@@ -1,0 +1,201 @@
+{
+  "resolution": 512,
+  "time": 31.317096000001282,
+  "animSpeed": 2.22,
+  "animate": true,
+  "checkerboard": true,
+  "blackBackground": false,
+  "postEffects": {
+    "blurEnabled": false,
+    "blurStrength": 1,
+    "sharpenEnabled": false,
+    "sharpenStrength": 1,
+    "pixelationEnabled": false,
+    "pixelSize": 10,
+    "chromaticAberrationEnabled": false,
+    "chromaticAberration": 0.01,
+    "vignetteEnabled": false,
+    "vignetteStrength": 0.5,
+    "vignetteSize": 0.5,
+    "vignetteColor": [
+      0,
+      0,
+      0
+    ],
+    "scanlineEnabled": false,
+    "scanlineDensity": 100,
+    "scanlineSpeed": 1,
+    "scanlineStrength": 0.5,
+    "scanlineColor": [
+      0,
+      0,
+      0
+    ],
+    "kaleidoscopeEnabled": false,
+    "kaleidoSegments": 6,
+    "kaleidoRotation": 0,
+    "mirrorTileEnabled": false,
+    "mirrorTileX": true,
+    "mirrorTileY": true,
+    "swirlEnabled": false,
+    "swirlStrength": 3,
+    "swirlRadius": 0.5,
+    "edgeDetectionEnabled": false,
+    "edgeThickness": 1,
+    "edgeColor": [
+      0,
+      1,
+      0
+    ],
+    "toonEnabled": false,
+    "toonDark": 4,
+    "toonLight": 4,
+    "vignetteMaskEnabled": false,
+    "colorEnabled": false,
+    "colorShadow": [
+      0,
+      0,
+      0
+    ],
+    "colorMidtone": [
+      0.5,
+      0.5,
+      0.5
+    ],
+    "colorHighlight": [
+      1,
+      1,
+      1
+    ]
+  },
+  "activeLayerId": 3,
+  "layerCounter": 4,
+  "layers": [
+    {
+      "id": 1,
+      "name": "Layer 1",
+      "type": "AbsNoise",
+      "blendMode": "normal",
+      "opacity": 1,
+      "polarConversion": false,
+      "invertEnable": true,
+      "typeParams": [
+        3.5,
+        1,
+        2,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "gradEnable": false
+    },
+    {
+      "id": 2,
+      "name": "Layer 2",
+      "type": "SimplexNoise",
+      "blendMode": "normal",
+      "opacity": 1,
+      "polarConversion": false,
+      "invertEnable": false,
+      "typeParams": [
+        4.5,
+        2,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "toonEnable": false,
+      "toonDark": 4,
+      "toonLight": 4,
+      "tilingSeamless": false,
+      "tilingRadialMask": false,
+      "colorEnable": false,
+      "colorShadow": [
+        0,
+        0,
+        0
+      ],
+      "colorMidtone": [
+        0.5,
+        0.5,
+        0.5
+      ],
+      "colorHighlight": [
+        1,
+        1,
+        1
+      ],
+      "gradEnable": false
+    },
+    {
+      "id": 3,
+      "name": "Layer 3",
+      "type": "AbsNoise",
+      "blendMode": "normal",
+      "opacity": 1,
+      "polarConversion": false,
+      "invertEnable": false,
+      "typeParams": [
+        3,
+        1,
+        4,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "toonEnable": false,
+      "toonDark": 4,
+      "toonLight": 4,
+      "tilingSeamless": false,
+      "tilingRadialMask": false,
+      "colorEnable": false,
+      "colorShadow": [
+        0,
+        0,
+        0
+      ],
+      "colorMidtone": [
+        0.5,
+        0.5,
+        0.5
+      ],
+      "colorHighlight": [
+        1,
+        1,
+        1
+      ],
+      "gradEnable": false
+    }
+  ]
+}
