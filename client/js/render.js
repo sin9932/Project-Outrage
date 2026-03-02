@@ -316,17 +316,24 @@
   const CLOUDS_IMAGE_URL_JPG = FG_MAP_BASE + "cloud.jpg";
   const CLOUDS_JSON_URL = FG_MAP_BASE + "cloud.json";
   let cloudsImage = null;
+  let cloudsFromJson = null;
 
-  function generateCloudFromJson(json) {
+  function createCloudRendererFromJson(json) {
     const res = json.resolution || 512;
     const layers = json.layers || [];
+    const animate = json.animate === true;
+    const animSpeed = Number(json.animSpeed) || 1;
+    const baseTime = Number(json.time) || 0;
     const canvas = document.createElement("canvas");
     canvas.width = res;
     canvas.height = res;
     const ctx = canvas.getContext("2d");
-    if (!ctx) return null;
+    const tmp = document.createElement("canvas");
+    tmp.width = res;
+    tmp.height = res;
+    const tctx = tmp.getContext("2d");
+    if (!ctx || !tctx || !layers.length) return null;
 
-    // 2D simplex-like noise (고정 시드로 cloud.json 스타일 일관 유지)
     const perm = new Uint8Array(512);
     let seed = 12345;
     function rnd() { seed = (seed * 9301 + 49297) % 233280; return seed / 233280; }
@@ -360,7 +367,7 @@
       return 70 * (n0 + n1 + n2);
     }
 
-    function layerNoise(layer, scale) {
+    function layerNoise(layer, scale, timeOff) {
       const p = layer.typeParams || [];
       const s = (p[0] || 3) * (scale || 1) * 0.02;
       const octaves = Math.max(1, (p[1] || 1) | 0);
@@ -371,7 +378,7 @@
         for (let x = 0; x < res; x++) {
           let v = 0, amp = 1, freq = 1;
           for (let o = 0; o < octaves; o++) {
-            v += noise2D(x * s * freq, y * s * freq) * amp;
+            v += noise2D(x * s * freq + timeOff, y * s * freq + timeOff * 0.7) * amp;
             amp *= 0.5;
             freq *= detail;
           }
@@ -386,39 +393,35 @@
       return imgData;
     }
 
-    ctx.fillStyle = "#fff";
-    ctx.fillRect(0, 0, res, res);
-    const tmp = document.createElement("canvas");
-    tmp.width = res;
-    tmp.height = res;
-    const tctx = tmp.getContext("2d");
-    for (let i = 0; i < layers.length; i++) {
-      const layer = layers[i];
-      const img = layerNoise(layer, 1);
-      if (img && tctx) {
+    function render(time) {
+      const timeOff = animate ? baseTime + time * animSpeed : 0;
+      ctx.fillStyle = "#fff";
+      ctx.fillRect(0, 0, res, res);
+      for (let i = 0; i < layers.length; i++) {
+        const layer = layers[i];
+        const img = layerNoise(layer, 1, timeOff);
         tctx.putImageData(img, 0, 0);
         ctx.globalAlpha = layer.opacity ?? 1;
         ctx.globalCompositeOperation = i === 0 ? "source-over" : "multiply";
         ctx.drawImage(tmp, 0, 0);
       }
+      ctx.globalAlpha = 1;
+      ctx.globalCompositeOperation = "source-over";
     }
-    ctx.globalAlpha = 1;
-    ctx.globalCompositeOperation = "source-over";
 
-    if (!layers.length) return Promise.resolve(null);
-
-    const out = new Image();
-    out.src = canvas.toDataURL("image/png");
-    return new Promise(r => { out.onload = () => r(out); out.onerror = () => r(null); });
+    render(0);
+    return { canvas, animate, animSpeed, baseTime, render };
   }
 
   (function loadClouds() {
-    function setAndDone(img) { cloudsImage = img; }
     loadImage(CLOUDS_IMAGE_URL)
-      .then(setAndDone)
-      .catch(() => loadImage(CLOUDS_IMAGE_URL_JPG).then(setAndDone))
-      .catch(() => fetch(CLOUDS_JSON_URL).then(r => r.ok ? r.json() : Promise.reject()).then(generateCloudFromJson))
-      .then(img => { if (img) cloudsImage = img; })
+      .then(img => { cloudsImage = img; })
+      .catch(() => loadImage(CLOUDS_IMAGE_URL_JPG).then(img => { cloudsImage = img; }))
+      .catch(() => fetch(CLOUDS_JSON_URL).then(r => r.ok ? r.json() : Promise.reject()))
+      .then(json => {
+        const renderer = createCloudRendererFromJson(json);
+        if (renderer) cloudsFromJson = renderer;
+      })
       .catch(() => {});
   })();
 
@@ -3035,17 +3038,21 @@
       ctx.restore();
     }
 
-    if (cloudsImage) {
+    const cloudSrc = cloudsFromJson ? cloudsFromJson.canvas : cloudsImage;
+    if (cloudSrc) {
+      if (cloudsFromJson && cloudsFromJson.animate && typeof state.t === "number") {
+        cloudsFromJson.render(state.t);
+      }
       ctx.save();
       ctx.globalCompositeOperation = "multiply";
-      const tw = cloudsImage.width;
-      const th = cloudsImage.height;
+      const tw = cloudSrc.width;
+      const th = cloudSrc.height;
       const sx = W / tw;
       const sy = H / th;
       const scale = Math.max(sx, sy);
       const dw = tw * scale;
       const dh = th * scale;
-      ctx.drawImage(cloudsImage, 0, 0, tw, th, (W - dw) / 2, (H - dh) / 2, dw, dh);
+      ctx.drawImage(cloudSrc, 0, 0, tw, th, (W - dw) / 2, (H - dh) / 2, dw, dh);
       ctx.restore();
     }
 
