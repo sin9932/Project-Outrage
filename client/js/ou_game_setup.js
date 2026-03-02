@@ -55,12 +55,15 @@
       let a, b;
 
       if (startBeaconTiles.length >= 2) {
+        // 썸네일 left=화면 왼쪽(거점1), right=화면 오른쪽(거점2). 타일 정렬(ty*W+tx)과 화면 좌우가 반대.
+        const idxForLeft = 1;
+        const idxForRight = 0;
         if (spawn === "left") {
-          a = { tx: startBeaconTiles[0].tx, ty: startBeaconTiles[0].ty };
-          b = { tx: startBeaconTiles[1].tx, ty: startBeaconTiles[1].ty };
+          a = { tx: startBeaconTiles[idxForLeft].tx, ty: startBeaconTiles[idxForLeft].ty };
+          b = { tx: startBeaconTiles[idxForRight].tx, ty: startBeaconTiles[idxForRight].ty };
         } else {
-          a = { tx: startBeaconTiles[1].tx, ty: startBeaconTiles[1].ty };
-          b = { tx: startBeaconTiles[0].tx, ty: startBeaconTiles[0].ty };
+          a = { tx: startBeaconTiles[idxForRight].tx, ty: startBeaconTiles[idxForRight].ty };
+          b = { tx: startBeaconTiles[idxForLeft].tx, ty: startBeaconTiles[idxForLeft].ty };
         }
       } else {
         if (spawn === "left") {
