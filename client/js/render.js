@@ -3043,20 +3043,24 @@
     }
 
     const cloudSrc = cloudsFromJson ? cloudsFromJson.canvas : cloudsImage;
-    if (cloudSrc) {
+    if (cloudSrc && typeof worldToScreen === "function" && TILE) {
       if (cloudsFromJson && cloudsFromJson.animate && typeof state.t === "number") {
-        cloudsFromJson.render(state.t);
+        cloudsFromJson.render(state.t * 0.02);
       }
       ctx.save();
       ctx.globalCompositeOperation = "multiply";
       const tw = cloudSrc.width;
       const th = cloudSrc.height;
-      const sx = W / tw;
-      const sy = H / th;
-      const scale = Math.max(sx, sy);
-      const dw = tw * scale;
-      const dh = th * scale;
-      ctx.drawImage(cloudSrc, 0, 0, tw, th, (W - dw) / 2, (H - dh) / 2, dw, dh);
+      const z = (cam && typeof cam.zoom === "number") ? cam.zoom : 1;
+      const worldW = MAP_W * TILE;
+      const worldH = MAP_H * TILE;
+      const cloudCenterWx = worldW * 0.5;
+      const cloudCenterWy = worldH * 0.5;
+      const p = worldToScreen(cloudCenterWx, cloudCenterWy);
+      const cloudScreenSize = Math.max(W, H) * 8 * z;
+      const dw = cloudScreenSize;
+      const dh = (th / tw) * cloudScreenSize;
+      ctx.drawImage(cloudSrc, 0, 0, tw, th, p.x - dw / 2, p.y - dh / 2, dw, dh);
       ctx.restore();
     }
 
