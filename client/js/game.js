@@ -1125,6 +1125,8 @@ function tryUnloadIFV(ifv){ return __ou_commands && __ou_commands.tryUnloadIFV ?
 // Player production request queues (FIFO per factory type).
 const prodFIFO = { barracks: [], factory: [] };
 const prodTotal = { infantry:0, engineer:0, sniper:0, tank:0, harvester:0, ifv:0 };
+// 유닛별 '멈춤' 플래그: 우클릭 취소 시 true → feedProducers가 prodFIFO에서 해당 유닛을 더 채우지 않음
+const prodFeedStopped = {};
 const QCAP = 30;
 
 // Economy module hookup (ou_economy.js)
@@ -1132,7 +1134,7 @@ const QCAP = 30;
 const __ou_econ = (window.OUEconomy && typeof window.OUEconomy.create==="function")
   ? window.OUEconomy.create({
       state, buildings, TEAM, COST, POWER,
-      prodFIFO, prodTotal, QCAP,
+      prodFIFO, prodTotal, prodFeedStopped, QCAP,
       clamp,
       creditsInt: (window.OU && typeof window.OU.creditsInt==="function") ? window.OU.creditsInt : (v=>Math.floor(Number(v)||0)),
       BUILD_SPEED_MIN_PER_1000,
@@ -1460,6 +1462,7 @@ function queueUnit(kind){
       if (!b || !b.alive || b.civ || b.team !== TEAM.PLAYER || b.kind !== need) continue;
       const q = b.buildQ && b.buildQ[0];
       if (q && q.kind === kind && q.paused){
+        prodFeedStopped[kind] = false;
         q.paused = false;
         q.autoPaused = false;
         resumed = true;
@@ -2356,6 +2359,7 @@ if (state.selection.size>0 && inMap(tx,ty) && ore[idx(tx,ty)]>0){
         toast(L ? L("toast.wait") : "대기");
         return;
       }
+      prodFeedStopped[kind] = true;
       const paid = Math.floor(q.paid || 0);
       state.player.money = Math.floor((state.player.money||0) + paid);
       pb.buildQ.shift();
@@ -2371,6 +2375,7 @@ if (state.selection.size>0 && inMap(tx,ty) && ore[idx(tx,ty)]>0){
       const ql = b.buildQ || [];
       for (let i=ql.length-1; i>=1; i--){
         if (ql[i] && ql[i].kind===kind){
+          prodFeedStopped[kind] = true;
           const paid = Math.floor(ql[i].paid || 0);
           if (paid>0) state.player.money = Math.floor((state.player.money||0) + paid);
           ql.splice(i,1);
@@ -2387,6 +2392,7 @@ if (state.selection.size>0 && inMap(tx,ty) && ore[idx(tx,ty)]>0){
     if (!fifo || !fifo.length) return;
     for (let i=fifo.length-1; i>=0; i--){
       if (fifo[i].kind===kind){
+        prodFeedStopped[kind] = true;
         fifo.splice(i,1);
         prodTotal[kind] = Math.max(0, (prodTotal[kind]||0)-1);
         updateProdBadges();

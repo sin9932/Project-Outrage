@@ -20,6 +20,7 @@
     // Shared queue data (kept in game.js for now, passed in by reference)
     const prodFIFO = ctx.prodFIFO || { barracks:[], factory:[] };
     const prodTotal = ctx.prodTotal || {};
+    const prodFeedStopped = ctx.prodFeedStopped || {};
     const QCAP = (typeof ctx.QCAP==="number") ? ctx.QCAP : 30;
 
     // Tunables / helpers
@@ -366,6 +367,7 @@
         }
       }
 
+      prodFeedStopped[kind] = false;
       prodFIFO[need].push({ kind });
       if (prodTotal[kind]==null || Number.isNaN(prodTotal[kind])) prodTotal[kind]=0;
       prodTotal[kind] += 1;
@@ -436,11 +438,13 @@
       // Barracks queue (infantry + engineer share order)
       let guard=0;
       while (prodFIFO.barracks.length && guard++<200){
+        const req = prodFIFO.barracks[0];
+        if (prodFeedStopped[req.kind]) break;
         const b = findProducer(TEAM.PLAYER, "barracks");
         if (!b) break;
         if (b.buildQ.length >= 12) break;
 
-        const req = prodFIFO.barracks.shift();
+        prodFIFO.barracks.shift();
         const k = req.kind;
         b.buildQ.push({ kind:k, t:0, tNeed:getBaseBuildTime(k), cost:COST[k], paid:0 });
       }
@@ -448,11 +452,13 @@
       // Factory queue (vehicles)
       guard=0;
       while (prodFIFO.factory.length && guard++<200){
+        const req = prodFIFO.factory[0];
+        if (prodFeedStopped[req.kind]) break;
         const b = findProducer(TEAM.PLAYER, "factory");
         if (!b) break;
         if (b.buildQ.length >= 10) break;
 
-        const req = prodFIFO.factory.shift();
+        prodFIFO.factory.shift();
         const k = req.kind;
         b.buildQ.push({ kind:k, t:0, tNeed:getBaseBuildTime(k), cost:COST[k], paid:0 });
       }
