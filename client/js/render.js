@@ -319,8 +319,8 @@
   let cloudsFromJson = null;
 
   function createCloudRendererFromJson(json) {
-    const res = json.resolution || 512;
-    const layers = json.layers || [];
+    const res = Math.min(json.resolution || 512, 256);
+    const layers = (json.layers || []).slice(0, 2);
     const animate = json.animate === true;
     const animSpeed = Number(json.animSpeed) || 1;
     const baseTime = Number(json.time) || 0;
@@ -367,15 +367,16 @@
       return 70 * (n0 + n1 + n2);
     }
 
+    const step = res > 128 ? 2 : 1;
     function layerNoise(layer, scale, timeOff) {
       const p = layer.typeParams || [];
       const s = (p[0] || 3) * (scale || 1) * 0.02;
-      const octaves = Math.max(1, (p[1] || 1) | 0);
+      const octaves = Math.min(2, Math.max(1, (p[1] || 1) | 0));
       const detail = (p[2] || 2) | 0;
       const imgData = ctx.createImageData(res, res);
       const data = imgData.data;
-      for (let y = 0; y < res; y++) {
-        for (let x = 0; x < res; x++) {
+      for (let y = 0; y < res; y += step) {
+        for (let x = 0; x < res; x += step) {
           let v = 0, amp = 1, freq = 1;
           for (let o = 0; o < octaves; o++) {
             v += noise2D(x * s * freq + timeOff, y * s * freq + timeOff * 0.7) * amp;
@@ -386,8 +387,13 @@
           if (layer.invertEnable) v = 1 - v;
           v = Math.max(0, Math.min(1, v));
           const gray = Math.floor(v * 255);
-          const i = (y * res + x) * 4;
-          data[i] = gray; data[i+1] = gray; data[i+2] = gray; data[i+3] = 255;
+          for (let dy = 0; dy < step && y + dy < res; dy++) {
+            for (let dx = 0; dx < step && x + dx < res; dx++) {
+              const i = ((y + dy) * res + (x + dx)) * 4;
+              data[i] = data[i+1] = data[i+2] = gray;
+              data[i+3] = 255;
+            }
+          }
         }
       }
       return imgData;
@@ -410,7 +416,16 @@
     }
 
     render(0);
-    return { canvas, animate, animSpeed, baseTime, render };
+    let lastRenderT = -999;
+    const THROTTLE_MS = 100;
+    function renderThrottled(time) {
+      if (!animate || typeof time !== "number") return;
+      const now = performance.now();
+      if (now - lastRenderT < THROTTLE_MS) return;
+      lastRenderT = now;
+      render(time);
+    }
+    return { canvas, animate, render: renderThrottled };
   }
 
   (function loadClouds() {
