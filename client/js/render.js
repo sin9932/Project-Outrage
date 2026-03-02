@@ -314,11 +314,112 @@
 
   const CLOUDS_IMAGE_URL = FG_MAP_BASE + "cloud.png";
   const CLOUDS_IMAGE_URL_JPG = FG_MAP_BASE + "cloud.jpg";
+  const CLOUDS_JSON_URL = FG_MAP_BASE + "cloud.json";
   let cloudsImage = null;
+
+  function generateCloudFromJson(json) {
+    const res = json.resolution || 512;
+    const layers = json.layers || [];
+    const canvas = document.createElement("canvas");
+    canvas.width = res;
+    canvas.height = res;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return null;
+
+    // 2D simplex-like noise (고정 시드로 cloud.json 스타일 일관 유지)
+    const perm = new Uint8Array(512);
+    let seed = 12345;
+    function rnd() { seed = (seed * 9301 + 49297) % 233280; return seed / 233280; }
+    for (let i = 0; i < 256; i++) perm[i] = i;
+    for (let i = 255; i > 0; i--) {
+      const j = Math.floor(rnd() * (i + 1));
+      [perm[i], perm[j]] = [perm[j], perm[i]];
+    }
+    for (let i = 0; i < 256; i++) perm[i + 256] = perm[i];
+    const grad3 = [[1,1,0],[-1,1,0],[1,-1,0],[-1,-1,0],[1,0,1],[-1,0,1],[1,0,-1],[-1,0,-1],[0,1,1],[0,-1,1],[0,1,-1],[0,-1,-1]];
+    function noise2D(x, y) {
+      const s = (x + y) * 0.366025404;
+      const i = Math.floor(x + s), j = Math.floor(y + s);
+      const t = (i + j) * 0.211324865;
+      const X0 = i - t, Y0 = j - t, x0 = x - X0, y0 = y - Y0;
+      let i1, j1;
+      if (x0 > y0) { i1 = 1; j1 = 0; } else { i1 = 0; j1 = 1; }
+      const x1 = x0 - i1 + 0.211324865, y1 = y0 - j1 + 0.211324865;
+      const x2 = x0 - 1 + 0.42264973, y2 = y0 - 1 + 0.42264973;
+      const ii = i & 255, jj = j & 255;
+      const gi0 = perm[ii + perm[jj]] % 12;
+      const gi1 = perm[ii + i1 + perm[jj + j1]] % 12;
+      const gi2 = perm[ii + 1 + perm[jj + 1]] % 12;
+      let n0 = 0, n1 = 0, n2 = 0;
+      let t0 = 0.5 - x0*x0 - y0*y0;
+      if (t0 >= 0) { t0 *= t0; n0 = t0 * t0 * (grad3[gi0][0]*x0 + grad3[gi0][1]*y0); }
+      let t1 = 0.5 - x1*x1 - y1*y1;
+      if (t1 >= 0) { t1 *= t1; n1 = t1 * t1 * (grad3[gi1][0]*x1 + grad3[gi1][1]*y1); }
+      let t2 = 0.5 - x2*x2 - y2*y2;
+      if (t2 >= 0) { t2 *= t2; n2 = t2 * t2 * (grad3[gi2][0]*x2 + grad3[gi2][1]*y2); }
+      return 70 * (n0 + n1 + n2);
+    }
+
+    function layerNoise(layer, scale) {
+      const p = layer.typeParams || [];
+      const s = (p[0] || 3) * (scale || 1) * 0.02;
+      const octaves = Math.max(1, (p[1] || 1) | 0);
+      const detail = (p[2] || 2) | 0;
+      const imgData = ctx.createImageData(res, res);
+      const data = imgData.data;
+      for (let y = 0; y < res; y++) {
+        for (let x = 0; x < res; x++) {
+          let v = 0, amp = 1, freq = 1;
+          for (let o = 0; o < octaves; o++) {
+            v += noise2D(x * s * freq, y * s * freq) * amp;
+            amp *= 0.5;
+            freq *= detail;
+          }
+          v = (v * 0.5 + 0.5);
+          if (layer.invertEnable) v = 1 - v;
+          v = Math.max(0, Math.min(1, v));
+          const gray = Math.floor(v * 255);
+          const i = (y * res + x) * 4;
+          data[i] = gray; data[i+1] = gray; data[i+2] = gray; data[i+3] = 255;
+        }
+      }
+      return imgData;
+    }
+
+    ctx.fillStyle = "#fff";
+    ctx.fillRect(0, 0, res, res);
+    const tmp = document.createElement("canvas");
+    tmp.width = res;
+    tmp.height = res;
+    const tctx = tmp.getContext("2d");
+    for (let i = 0; i < layers.length; i++) {
+      const layer = layers[i];
+      const img = layerNoise(layer, 1);
+      if (img && tctx) {
+        tctx.putImageData(img, 0, 0);
+        ctx.globalAlpha = layer.opacity ?? 1;
+        ctx.globalCompositeOperation = i === 0 ? "source-over" : "multiply";
+        ctx.drawImage(tmp, 0, 0);
+      }
+    }
+    ctx.globalAlpha = 1;
+    ctx.globalCompositeOperation = "source-over";
+
+    if (!layers.length) return Promise.resolve(null);
+
+    const out = new Image();
+    out.src = canvas.toDataURL("image/png");
+    return new Promise(r => { out.onload = () => r(out); out.onerror = () => r(null); });
+  }
+
   (function loadClouds() {
+    function setAndDone(img) { cloudsImage = img; }
     loadImage(CLOUDS_IMAGE_URL)
-      .then(img => { cloudsImage = img; })
-      .catch(() => loadImage(CLOUDS_IMAGE_URL_JPG).then(img => { cloudsImage = img; }).catch(() => {}));
+      .then(setAndDone)
+      .catch(() => loadImage(CLOUDS_IMAGE_URL_JPG).then(setAndDone))
+      .catch(() => fetch(CLOUDS_JSON_URL).then(r => r.ok ? r.json() : Promise.reject()).then(generateCloudFromJson))
+      .then(img => { if (img) cloudsImage = img; })
+      .catch(() => {});
   })();
 
   const TALL_SPRITE_TH = 100;
