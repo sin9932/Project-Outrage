@@ -414,14 +414,18 @@
   }
 
   (function loadClouds() {
-    loadImage(CLOUDS_IMAGE_URL)
-      .then(img => { cloudsImage = img; })
-      .catch(() => loadImage(CLOUDS_IMAGE_URL_JPG).then(img => { cloudsImage = img; }))
-      .catch(() => fetch(CLOUDS_JSON_URL).then(r => r.ok ? r.json() : Promise.reject()))
+    // json 우선: animate/animSpeed/time 설정대로 구름 흐름. 없을 때만 png 사용
+    fetch(CLOUDS_JSON_URL)
+      .then(r => r.ok ? r.json() : Promise.reject())
       .then(json => {
         const renderer = createCloudRendererFromJson(json);
         if (renderer) cloudsFromJson = renderer;
       })
+      .catch(() =>
+        loadImage(CLOUDS_IMAGE_URL)
+          .then(img => { cloudsImage = img; })
+          .catch(() => loadImage(CLOUDS_IMAGE_URL_JPG).then(img => { cloudsImage = img; }))
+      )
       .catch(() => {});
   })();
 
