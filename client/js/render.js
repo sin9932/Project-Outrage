@@ -3048,6 +3048,7 @@
         cloudsFromJson.render(state.t * 0.02);
       }
       ctx.save();
+      ctx.filter = "invert(1)";
       ctx.globalCompositeOperation = "multiply";
       const tw = cloudSrc.width;
       const th = cloudSrc.height;
@@ -3061,6 +3062,7 @@
       const dw = cloudScreenSize;
       const dh = (th / tw) * cloudScreenSize;
       ctx.drawImage(cloudSrc, 0, 0, tw, th, p.x - dw / 2, p.y - dh / 2, dw, dh);
+      ctx.filter = "none";
       ctx.restore();
     }
 
