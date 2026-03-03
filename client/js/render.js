@@ -3410,30 +3410,55 @@
         }
 
         if (ent.attackable !== false && ent.hpMax > 0 && ent.hp / ent.hpMax < 0.30) {
+          const tx0 = ent.tx, ty0 = ent.ty, tx1 = ent.tx + (ent.tw || 1), ty1 = ent.ty + (ent.th || 1);
+          const c0 = worldToScreen(tx0 * TILE, ty0 * TILE);
+          const c1 = worldToScreen(tx1 * TILE, ty0 * TILE);
+          const c2 = worldToScreen(tx1 * TILE, ty1 * TILE);
+          const c3 = worldToScreen(tx0 * TILE, ty1 * TILE);
           const fp = worldToScreen(rX, rY);
           const zFire = (cam && typeof cam.zoom==="number") ? cam.zoom : 1;
-          const zw = (ent.tw || 1) * ISO_X * zFire * 0.9;
-          const zh = (ent.th || 1) * ISO_Y * zFire * 0.7;
+          const zw = (ent.tw || 1) * ISO_X * zFire;
+          const zh = (ent.th || 1) * ISO_Y * zFire;
           const flicker = 0.85 + Math.sin(state.t * 12) * 0.15;
           if (flameFromJson && flameFromJson.canvas) {
             const fc = flameFromJson.canvas;
             ctx.save();
             ctx.beginPath();
-            ctx.ellipse(fp.x, fp.y - zh * 0.2, zw * 0.85, zh * 1.1, 0, 0, Math.PI * 2);
+            ctx.moveTo(c0.x, c0.y);
+            ctx.lineTo(c1.x, c1.y);
+            ctx.lineTo(c2.x, c2.y);
+            ctx.lineTo(c3.x, c3.y);
+            ctx.closePath();
             ctx.clip();
+            const pad = zh * 0.6;
+            const dx1 = Math.min(c0.x, c1.x, c2.x, c3.x) - pad;
+            const dy1 = Math.min(c0.y, c1.y, c2.y, c3.y) - pad;
+            const dx2 = Math.max(c0.x, c1.x, c2.x, c3.x) + pad;
+            const dy2 = Math.max(c0.y, c1.y, c2.y, c3.y) + pad;
             ctx.globalCompositeOperation = "lighter";
-            ctx.globalAlpha = flicker * 0.5;
-            ctx.drawImage(fc, 0, 0, fc.width, fc.height, fp.x - zw * 1.1, fp.y - zh * 1.4, zw * 2.2, zh * 2.2);
+            ctx.globalAlpha = flicker * 0.55;
+            ctx.drawImage(fc, 0, 0, fc.width, fc.height, dx1, dy1, dx2 - dx1, dy2 - dy1);
             ctx.restore();
           } else {
-            const grad = ctx.createRadialGradient(fp.x, fp.y - zh*0.3, 0, fp.x, fp.y - zh*0.3, Math.max(zw, zh));
-            grad.addColorStop(0, "rgba(255, 200, 80, " + (0.25 * flicker) + ")");
-            grad.addColorStop(0.5, "rgba(255, 100, 20, " + (0.12 * flicker) + ")");
+            ctx.save();
+            ctx.beginPath();
+            ctx.moveTo(c0.x, c0.y);
+            ctx.lineTo(c1.x, c1.y);
+            ctx.lineTo(c2.x, c2.y);
+            ctx.lineTo(c3.x, c3.y);
+            ctx.closePath();
+            ctx.clip();
+            const gx = (c0.x + c1.x + c2.x + c3.x) / 4;
+            const gy = (c0.y + c1.y + c2.y + c3.y) / 4;
+            const grad = ctx.createRadialGradient(gx, gy - zh*0.3, 0, gx, gy, Math.max(zw, zh)*1.1);
+            grad.addColorStop(0, "rgba(255, 200, 80, " + (0.28 * flicker) + ")");
+            grad.addColorStop(0.5, "rgba(255, 100, 20, " + (0.14 * flicker) + ")");
             grad.addColorStop(1, "rgba(255, 50, 0, 0)");
             ctx.fillStyle = grad;
-            ctx.beginPath();
-            ctx.ellipse(fp.x, fp.y - zh*0.2, zw*0.8, zh, 0, 0, Math.PI*2);
-            ctx.fill();
+            const mx = Math.min(c0.x, c1.x, c2.x, c3.x);
+            const my = Math.min(c0.y, c1.y, c2.y, c3.y);
+            ctx.fillRect(mx - zw, my - zh, zw * 3, zh * 3);
+            ctx.restore();
           }
         }
 
