@@ -467,7 +467,7 @@
 
     let swirlDstData = null;
     function render(time) {
-      if (animate && (time - lastRenderTime) < 0.04) return;
+      if (animate && (time - lastRenderTime) < 0.08) return;
       if (animate) lastRenderTime = time;
       const timeOff = animate ? baseTime + time * animSpeed : 0;
       ctx.fillStyle = "#000";
@@ -505,11 +505,12 @@
   })();
 
   function createCloudRendererFromJson(json) {
-    const res = Math.min(json.resolution || 512, 192);
+    const res = Math.min(json.resolution || 512, 128);
     const layers = json.layers || [];
     const animate = json.animate === true;
     const animSpeed = Number(json.animSpeed) || 1;
     const baseTime = Number(json.time) || 0;
+    let lastCloudTime = -999;
     const canvas = document.createElement("canvas");
     canvas.width = res;
     canvas.height = res;
@@ -579,7 +580,9 @@
       return imgData;
     }
 
-    function render(time) {
+    function render(time, realSec) {
+      if (animate && typeof realSec === "number" && (realSec - lastCloudTime) < 0.05) return;
+      if (animate && typeof realSec === "number") lastCloudTime = realSec;
       const timeOff = animate ? baseTime + time * animSpeed : 0;
       ctx.fillStyle = "#fff";
       ctx.fillRect(0, 0, res, res);
@@ -3177,7 +3180,7 @@
       ctx.globalCompositeOperation = "lighter";
       // Only iterate tiles that can be on screen (viewport cull) to reduce cost.
       const camTx = (cam.x / TILE) | 0, camTy = (cam.y / TILE) | 0;
-      const viewMargin = 16;
+      const viewMargin = 12;
       const txLo = Math.max(0, camTx - viewMargin);
       const txHi = Math.min(MAP_W - 1, camTx + viewMargin);
       const tyLo = Math.max(0, camTy - viewMargin);
@@ -3246,7 +3249,7 @@
     if (cloudSrc && typeof worldToScreen === "function" && TILE) {
       const cloudTime = (typeof env.renderTime === "number" ? env.renderTime : state.t) || 0;
       if (cloudsFromJson && cloudsFromJson.animate) {
-        cloudsFromJson.render(cloudTime * 0.02);
+        cloudsFromJson.render(cloudTime * 0.02, cloudTime);
       }
       ctx.save();
       ctx.filter = "invert(1)";
