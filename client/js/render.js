@@ -322,12 +322,13 @@
   let flameFromJson = null;
 
   function createFlameRendererFromJson(json) {
-    const res = json.resolution || 256;
+    const res = Math.min(json.resolution || 256, 256);
     const layers = (json.layers || []).filter(l => (l.type === "Fire" || l.type === "AbsNoise" || l.type === "SimplexNoise"));
     const animate = json.animate === true;
     const animSpeed = Number(json.animSpeed) || 1;
     const baseTime = Number(json.time) || 0;
     const post = json.postEffects || {};
+    let lastRenderTime = -999;
     const canvas = document.createElement("canvas");
     canvas.width = res;
     canvas.height = res;
@@ -338,6 +339,7 @@
     const tctx = tmp.getContext("2d");
     if (!ctx || !tctx || !layers.length) return null;
 
+    const layerBuffers = layers.map(() => ctx.createImageData(res, res));
     const perm = new Uint8Array(512);
     let seed = 54321;
     function rnd() { seed = (seed * 9301 + 49297) % 233280; return seed / 233280; }
@@ -371,12 +373,11 @@
       return 70 * (n0 + n1 + n2);
     }
 
-    function layerNoiseGrayscale(layer, timeOff) {
+    function layerNoiseGrayscale(layer, timeOff, imgData) {
       const p = layer.typeParams || [];
       const s = (p[0] || 1) * 0.04;
       const octaves = Math.min(4, Math.max(1, (p[1] || 1) | 0));
       const detail = (p[2] || 2) | 0;
-      const imgData = ctx.createImageData(res, res);
       const data = imgData.data;
       for (let y = 0; y < res; y++) {
         for (let x = 0; x < res; x++) {
@@ -397,12 +398,11 @@
       return imgData;
     }
 
-    function layerFire(layer, timeOff) {
+    function layerFire(layer, timeOff, imgData) {
       const p = layer.typeParams || [];
       const s = (p[0] || 1.1) * 0.04;
       const octaves = Math.min(4, Math.max(2, Math.round(p[1] || 2)));
       const detail = (p[2] || 2) | 0;
-      const imgData = ctx.createImageData(res, res);
       const data = imgData.data;
       for (let y = 0; y < res; y++) {
         const vy = 1 - y / res;
@@ -465,14 +465,17 @@
       }
     }
 
+    let swirlDstData = null;
     function render(time) {
+      if (animate && (time - lastRenderTime) < 0.04) return;
+      if (animate) lastRenderTime = time;
       const timeOff = animate ? baseTime + time * animSpeed : 0;
       ctx.fillStyle = "#000";
       ctx.fillRect(0, 0, res, res);
       for (let i = 0; i < layers.length; i++) {
         const layer = layers[i];
-        const img = (layer.type === "Fire") ? layerFire(layer, timeOff) : layerNoiseGrayscale(layer, timeOff);
-        tctx.putImageData(img, 0, 0);
+        const buf = (layer.type === "Fire") ? layerFire(layer, timeOff, layerBuffers[i]) : layerNoiseGrayscale(layer, timeOff, layerBuffers[i]);
+        tctx.putImageData(buf, 0, 0);
         ctx.globalAlpha = layer.opacity ?? 1;
         ctx.globalCompositeOperation = (layer.blendMode === "add" || layer.blendMode === "lighter") ? "lighter" : (layer.blendMode === "mask" ? "destination-in" : (i === 0 ? "source-over" : "multiply"));
         ctx.drawImage(tmp, 0, 0);
@@ -481,9 +484,9 @@
       ctx.globalCompositeOperation = "source-over";
       if (post.swirlEnabled) {
         const srcData = ctx.getImageData(0, 0, res, res);
-        const dstData = ctx.createImageData(res, res);
-        applySwirl(srcData, dstData);
-        ctx.putImageData(dstData, 0, 0);
+        if (!swirlDstData) swirlDstData = ctx.createImageData(res, res);
+        applySwirl(srcData, swirlDstData);
+        ctx.putImageData(swirlDstData, 0, 0);
       }
     }
 
@@ -502,12 +505,11 @@
   })();
 
   function createCloudRendererFromJson(json) {
-    const res = Math.min(json.resolution || 512, 256);
+    const res = Math.min(json.resolution || 512, 192);
     const layers = json.layers || [];
     const animate = json.animate === true;
     const animSpeed = Number(json.animSpeed) || 1;
     const baseTime = Number(json.time) || 0;
-    let lastRenderTime = -999;
     const canvas = document.createElement("canvas");
     canvas.width = res;
     canvas.height = res;
@@ -578,8 +580,6 @@
     }
 
     function render(time) {
-      if (animate && (time - lastRenderTime) < 0.06) return;
-      if (animate) lastRenderTime = time;
       const timeOff = animate ? baseTime + time * animSpeed : 0;
       ctx.fillStyle = "#fff";
       ctx.fillRect(0, 0, res, res);
@@ -3177,7 +3177,7 @@
       ctx.globalCompositeOperation = "lighter";
       // Only iterate tiles that can be on screen (viewport cull) to reduce cost.
       const camTx = (cam.x / TILE) | 0, camTy = (cam.y / TILE) | 0;
-      const viewMargin = 22;
+      const viewMargin = 16;
       const txLo = Math.max(0, camTx - viewMargin);
       const txHi = Math.min(MAP_W - 1, camTx + viewMargin);
       const tyLo = Math.max(0, camTy - viewMargin);
