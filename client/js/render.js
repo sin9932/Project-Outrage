@@ -318,192 +318,6 @@
   let cloudsImage = null;
   let cloudsFromJson = null;
 
-  const FLAME_JSON_URL = "asset/sprite/eff/json/flame.json";
-  let flameFromJson = null;
-
-  function createFlameRendererFromJson(json) {
-    const res = Math.min(json.resolution || 256, 256);
-    const layers = (json.layers || []).filter(l => (l.type === "Fire" || l.type === "AbsNoise" || l.type === "SimplexNoise"));
-    const animate = json.animate === true;
-    const animSpeed = Number(json.animSpeed) || 1;
-    const baseTime = Number(json.time) || 0;
-    const post = json.postEffects || {};
-    let lastRenderTime = -999;
-    const canvas = document.createElement("canvas");
-    canvas.width = res;
-    canvas.height = res;
-    const ctx = canvas.getContext("2d");
-    const tmp = document.createElement("canvas");
-    tmp.width = res;
-    tmp.height = res;
-    const tctx = tmp.getContext("2d");
-    if (!ctx || !tctx || !layers.length) return null;
-
-    const layerBuffers = layers.map(() => ctx.createImageData(res, res));
-    const perm = new Uint8Array(512);
-    let seed = 54321;
-    function rnd() { seed = (seed * 9301 + 49297) % 233280; return seed / 233280; }
-    for (let i = 0; i < 256; i++) perm[i] = i;
-    for (let i = 255; i > 0; i--) {
-      const j = Math.floor(rnd() * (i + 1));
-      [perm[i], perm[j]] = [perm[j], perm[i]];
-    }
-    for (let i = 0; i < 256; i++) perm[i + 256] = perm[i];
-    const grad3 = [[1,1,0],[-1,1,0],[1,-1,0],[-1,-1,0],[1,0,1],[-1,0,1],[1,0,-1],[-1,0,-1],[0,1,1],[0,-1,1],[0,1,-1],[0,-1,-1]];
-    function noise2D(x, y) {
-      const s = (x + y) * 0.366025404;
-      const i = Math.floor(x + s), j = Math.floor(y + s);
-      const t = (i + j) * 0.211324865;
-      const X0 = i - t, Y0 = j - t, x0 = x - X0, y0 = y - Y0;
-      let i1, j1;
-      if (x0 > y0) { i1 = 1; j1 = 0; } else { i1 = 0; j1 = 1; }
-      const x1 = x0 - i1 + 0.211324865, y1 = y0 - j1 + 0.211324865;
-      const x2 = x0 - 1 + 0.42264973, y2 = y0 - 1 + 0.42264973;
-      const ii = i & 255, jj = j & 255;
-      const gi0 = perm[ii + perm[jj]] % 12;
-      const gi1 = perm[ii + i1 + perm[jj + j1]] % 12;
-      const gi2 = perm[ii + 1 + perm[jj + 1]] % 12;
-      let n0 = 0, n1 = 0, n2 = 0;
-      let t0 = 0.5 - x0*x0 - y0*y0;
-      if (t0 >= 0) { t0 *= t0; n0 = t0 * t0 * (grad3[gi0][0]*x0 + grad3[gi0][1]*y0); }
-      let t1 = 0.5 - x1*x1 - y1*y1;
-      if (t1 >= 0) { t1 *= t1; n1 = t1 * t1 * (grad3[gi1][0]*x1 + grad3[gi1][1]*y1); }
-      let t2 = 0.5 - x2*x2 - y2*y2;
-      if (t2 >= 0) { t2 *= t2; n2 = t2 * t2 * (grad3[gi2][0]*x2 + grad3[gi2][1]*y2); }
-      return 70 * (n0 + n1 + n2);
-    }
-
-    function layerNoiseGrayscale(layer, timeOff, imgData) {
-      const p = layer.typeParams || [];
-      const s = (p[0] || 1) * 0.04;
-      const octaves = Math.min(4, Math.max(1, (p[1] || 1) | 0));
-      const detail = (p[2] || 2) | 0;
-      const data = imgData.data;
-      for (let y = 0; y < res; y++) {
-        for (let x = 0; x < res; x++) {
-          let v = 0, amp = 1, freq = 1;
-          for (let o = 0; o < octaves; o++) {
-            v += noise2D(x * s * freq + timeOff, y * s * freq + timeOff * 0.5) * amp;
-            amp *= 0.5;
-            freq *= detail;
-          }
-          v = v * 0.5 + 0.5;
-          if (layer.invertEnable) v = 1 - v;
-          v = Math.max(0, Math.min(1, v));
-          const i = (y * res + x) * 4;
-          data[i] = data[i+1] = data[i+2] = Math.floor(v * 255);
-          data[i+3] = 255;
-        }
-      }
-      return imgData;
-    }
-
-    function layerFire(layer, timeOff, imgData) {
-      const p = layer.typeParams || [];
-      const s = (p[0] || 1.1) * 0.04;
-      const octaves = Math.min(4, Math.max(2, Math.round(p[1] || 2)));
-      const detail = (p[2] || 2) | 0;
-      const data = imgData.data;
-      for (let y = 0; y < res; y++) {
-        const vy = 1 - y / res;
-        for (let x = 0; x < res; x++) {
-          let v = 0, amp = 1, freq = 1;
-          for (let o = 0; o < octaves; o++) {
-            v += noise2D(x * s * freq + timeOff, y * s * freq + timeOff * 0.6) * amp;
-            amp *= 0.5;
-            freq *= detail;
-          }
-          v = (v * 0.5 + 0.5) * vy;
-          if (layer.invertEnable) v = 1 - v;
-          v = Math.max(0, Math.min(1, v));
-          const r = Math.floor(200 + v * 55);
-          const g = Math.floor(50 + v * 140);
-          const b = Math.floor(v * 50);
-          const i = (y * res + x) * 4;
-          data[i] = r;
-          data[i+1] = g;
-          data[i+2] = b;
-          data[i+3] = Math.floor(v * 255);
-        }
-      }
-      return imgData;
-    }
-
-    function applySwirl(srcData, dstData) {
-      const sw = post.swirlEnabled && post.swirlStrength !== 0;
-      if (!sw) { for (let i = 0; i < srcData.data.length; i++) dstData.data[i] = srcData.data[i]; return; }
-      const strength = (post.swirlStrength || -1) * Math.PI;
-      const radius = (post.swirlRadius ?? 0.5) * res;
-      const cx = res * 0.5, cy = res * 0.5;
-      const src = srcData.data;
-      const dst = dstData.data;
-      for (let y = 0; y < res; y++) {
-        for (let x = 0; x < res; x++) {
-          const dx = x - cx, dy = y - cy;
-          const r = Math.hypot(dx, dy);
-          let sx = x, sy = y;
-          if (r > 0 && r < radius) {
-            const t = 1 - r / radius;
-            const a = Math.atan2(dy, dx) - strength * t;
-            sx = cx + r * Math.cos(a);
-            sy = cy + r * Math.sin(a);
-          }
-          const x0 = Math.max(0, Math.min(res - 1, Math.floor(sx)));
-          const y0 = Math.max(0, Math.min(res - 1, Math.floor(sy)));
-          const xi = Math.min(res - 1, x0 + 1);
-          const yi = Math.min(res - 1, y0 + 1);
-          const fx = sx - x0, fy = sy - y0;
-          const i00 = (y0 * res + x0) * 4, i10 = (y0 * res + xi) * 4;
-          const i01 = (yi * res + x0) * 4, i11 = (yi * res + xi) * 4;
-          const oi = (y * res + x) * 4;
-          for (let c = 0; c < 4; c++) {
-            const v = src[i00 + c] * (1 - fx) * (1 - fy) + src[i10 + c] * fx * (1 - fy) +
-              src[i01 + c] * (1 - fx) * fy + src[i11 + c] * fx * fy;
-            dst[oi + c] = Math.max(0, Math.min(255, v | 0));
-          }
-        }
-      }
-    }
-
-    let swirlDstData = null;
-    function render(time) {
-      if (animate && (time - lastRenderTime) < 0.05) return;
-      if (animate) lastRenderTime = time;
-      const timeOff = animate ? baseTime + time * animSpeed : 0;
-      ctx.fillStyle = "#000";
-      ctx.fillRect(0, 0, res, res);
-      for (let i = 0; i < layers.length; i++) {
-        const layer = layers[i];
-        const buf = (layer.type === "Fire") ? layerFire(layer, timeOff, layerBuffers[i]) : layerNoiseGrayscale(layer, timeOff, layerBuffers[i]);
-        tctx.putImageData(buf, 0, 0);
-        ctx.globalAlpha = layer.opacity ?? 1;
-        ctx.globalCompositeOperation = (layer.blendMode === "add" || layer.blendMode === "lighter") ? "lighter" : (layer.blendMode === "mask" ? "destination-in" : (i === 0 ? "source-over" : "multiply"));
-        ctx.drawImage(tmp, 0, 0);
-      }
-      ctx.globalAlpha = 1;
-      ctx.globalCompositeOperation = "source-over";
-      if (post.swirlEnabled) {
-        const srcData = ctx.getImageData(0, 0, res, res);
-        if (!swirlDstData) swirlDstData = ctx.createImageData(res, res);
-        applySwirl(srcData, swirlDstData);
-        ctx.putImageData(swirlDstData, 0, 0);
-      }
-    }
-
-    render(0);
-    return { canvas, animate, render };
-  }
-
-  (function loadFlame() {
-    fetch(FLAME_JSON_URL)
-      .then(r => r.ok ? r.json() : Promise.reject())
-      .then(json => {
-        const renderer = createFlameRendererFromJson(json);
-        if (renderer) flameFromJson = renderer;
-      })
-      .catch(() => {});
-  })();
-
   function createCloudRendererFromJson(json) {
     const res = Math.min(json.resolution || 512, 256);
     const layers = json.layers || [];
@@ -513,11 +327,11 @@
     const canvas = document.createElement("canvas");
     canvas.width = res;
     canvas.height = res;
-    const ctx = canvas.getContext("2d");
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
     const tmp = document.createElement("canvas");
     tmp.width = res;
     tmp.height = res;
-    const tctx = tmp.getContext("2d");
+    const tctx = tmp.getContext("2d", { willReadFrequently: true });
     if (!ctx || !tctx || !layers.length) return null;
 
     const layerBuffers = layers.map(() => ctx.createImageData(res, res));
@@ -2782,24 +2596,14 @@
           const rr = (prt.r * z) * (0.65 + (1-a)*0.6);
           const lift = (prt.rise||0) * z;
           ctx.globalAlpha = 0.55 * a;
-          if (flameFromJson && flameFromJson.canvas) {
-            const fc = flameFromJson.canvas;
-            const srcSize = Math.min(fc.width, fc.height);
-            const sx = (Math.abs((pp.x*7+pp.y*11) % 100) / 100) * (srcSize * 0.5);
-            const sy = (state.t * 20 % 100) / 100 * (srcSize * 0.5);
-            ctx.globalCompositeOperation = "lighter";
-            ctx.drawImage(fc, sx, sy, srcSize*0.5, srcSize*0.5, pp.x - rr, pp.y - lift - rr, rr*2, rr*2);
-            ctx.globalCompositeOperation = "source-over";
-          } else {
-            const gf = ctx.createRadialGradient(pp.x, pp.y - lift, 0, pp.x, pp.y - lift, rr);
-            gf.addColorStop(0.0, "rgba(255,180,80,0.45)");
-            gf.addColorStop(0.45, "rgba(255,120,40,0.25)");
-            gf.addColorStop(1.0, "rgba(0,0,0,0)");
-            ctx.fillStyle = gf;
-            ctx.beginPath();
-            ctx.arc(pp.x, pp.y - lift, rr, 0, Math.PI*2);
-            ctx.fill();
-          }
+          const gf = ctx.createRadialGradient(pp.x, pp.y - lift, 0, pp.x, pp.y - lift, rr);
+          gf.addColorStop(0.0, "rgba(255,180,80,0.45)");
+          gf.addColorStop(0.45, "rgba(255,120,40,0.25)");
+          gf.addColorStop(1.0, "rgba(0,0,0,0)");
+          ctx.fillStyle = gf;
+          ctx.beginPath();
+          ctx.arc(pp.x, pp.y - lift, rr, 0, Math.PI*2);
+          ctx.fill();
         }
       }
 
@@ -3126,7 +2930,7 @@
         fogCanvas.height = H;
         drawMain._fogCanvas = fogCanvas;
       }
-      const fctx = fogCanvas.getContext("2d");
+      const fctx = fogCanvas.getContext("2d", { willReadFrequently: true });
       fctx.fillStyle = "rgba(0,0,0,1)";
       fctx.fillRect(0, 0, W, H);
       fctx.globalCompositeOperation = "destination-out";
@@ -3238,10 +3042,6 @@
       ctx.restore();
     }
 
-    const visualTime = (typeof env.renderTime === "number" ? env.renderTime : state.t) || 0;
-    if (flameFromJson && flameFromJson.animate) {
-      flameFromJson.render(visualTime * 0.6);
-    }
     const cloudSrc = cloudsFromJson ? cloudsFromJson.canvas : cloudsImage;
     if (cloudSrc && typeof worldToScreen === "function" && TILE) {
       if (cloudsFromJson && cloudsFromJson.animate) {
@@ -3415,64 +3215,6 @@
         } else {
           drawBuildingShadow(ent);
           drawFootprintPrism(ent, fill, stroke);
-        }
-
-        if (ent.attackable !== false && ent.hpMax > 0 && ent.hp / ent.hpMax < 0.30) {
-          const tx0 = ent.tx, ty0 = ent.ty, tx1 = ent.tx + (ent.tw || 1), ty1 = ent.ty + (ent.th || 1);
-          const p0 = worldToScreen(tx0 * TILE, ty0 * TILE);
-          const p1 = worldToScreen(tx1 * TILE, ty0 * TILE);
-          const p2 = worldToScreen(tx1 * TILE, ty1 * TILE);
-          const p3 = worldToScreen(tx0 * TILE, ty1 * TILE);
-          const allP = [p0, p1, p2, p3];
-          const minX = Math.max(0, Math.floor(Math.min(...allP.map(q => q.x))));
-          const maxX = Math.min(W, Math.ceil(Math.max(...allP.map(q => q.x))));
-          const minY = Math.max(0, Math.floor(Math.min(...allP.map(q => q.y)) - (BUILD[ent.kind] && BUILD[ent.kind].hLevel || 2) * 34 * (cam?.zoom || 1)));
-          const maxY = Math.min(H, Math.ceil(Math.max(...allP.map(q => q.y))));
-          const rw = Math.max(1, maxX - minX);
-          const rh = Math.max(1, maxY - minY);
-          const zFire = (cam && typeof cam.zoom === "number") ? cam.zoom : 1;
-          const zw = (ent.tw || 1) * ISO_X * zFire;
-          const zh = (ent.th || 1) * ISO_Y * zFire;
-          const flicker = 0.85 + Math.sin(state.t * 12) * 0.15;
-          if (flameFromJson && flameFromJson.canvas && rw <= W && rh <= H) {
-            const fc = flameFromJson.canvas;
-            const src = ctx.getImageData(minX, minY, rw, rh);
-            const fd = src.data;
-            let tmp = drawMain._flameTmp;
-            if (!tmp || tmp.width < rw || tmp.height < rh) {
-              tmp = document.createElement("canvas");
-              tmp.width = rw;
-              tmp.height = rh;
-              drawMain._flameTmp = tmp;
-            }
-            const tctx = tmp.getContext("2d");
-            tctx.clearRect(0, 0, rw, rh);
-            tctx.drawImage(fc, 0, 0, fc.width * 0.4, fc.height * 0.4, 0, 0, rw, rh);
-            const flameImg = tctx.getImageData(0, 0, rw, rh);
-            const fd2 = flameImg.data;
-            for (let i = 0; i < fd.length; i += 4) {
-              const ba = fd[i + 3];
-              if (ba < 12) continue;
-              const mul = flicker * 0.55 * (ba / 255);
-              fd[i] = Math.min(255, fd[i] + fd2[i] * mul);
-              fd[i + 1] = Math.min(255, fd[i + 1] + fd2[i + 1] * mul);
-              fd[i + 2] = Math.min(255, fd[i + 2] + fd2[i + 2] * mul);
-            }
-            ctx.putImageData(src, minX, minY);
-          } else if (!flameFromJson || !flameFromJson.canvas) {
-            ctx.save();
-            const gx = (minX + maxX) / 2;
-            const gy = (minY + maxY) / 2;
-            const grad = ctx.createRadialGradient(gx, gy - zh * 0.3, 0, gx, gy, Math.max(zw, zh) * 1.2);
-            grad.addColorStop(0, "rgba(255, 200, 80, " + (0.28 * flicker) + ")");
-            grad.addColorStop(0.5, "rgba(255, 100, 20, " + (0.14 * flicker) + ")");
-            grad.addColorStop(1, "rgba(255, 50, 0, 0)");
-            ctx.fillStyle = grad;
-            ctx.globalCompositeOperation = "source-atop";
-            ctx.globalAlpha = flicker;
-            ctx.fillRect(minX - zw, minY - zh, zw * 3, zh * 3);
-            ctx.restore();
-          }
         }
 
         if (ent.kind==="turret" && POWER && POWER.turretUse>0 && isUnderPower(ent.team)){

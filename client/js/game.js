@@ -22,7 +22,7 @@
   canvas.style.height = "100vh";
   canvas.style.display = "block";
   canvas.style.zIndex = "1";
-  const ctx = canvas.getContext("2d");
+  const ctx = canvas.getContext("2d", { willReadFrequently: true });
   const mmCanvas = document.getElementById("mmc");
   const mmCtx = mmCanvas.getContext("2d");
 
