@@ -467,7 +467,7 @@
 
     let swirlDstData = null;
     function render(time) {
-      if (animate && (time - lastRenderTime) < 0.08) return;
+      if (animate && (time - lastRenderTime) < 0.05) return;
       if (animate) lastRenderTime = time;
       const timeOff = animate ? baseTime + time * animSpeed : 0;
       ctx.fillStyle = "#000";
@@ -505,12 +505,11 @@
   })();
 
   function createCloudRendererFromJson(json) {
-    const res = Math.min(json.resolution || 512, 128);
+    const res = Math.min(json.resolution || 512, 256);
     const layers = json.layers || [];
     const animate = json.animate === true;
     const animSpeed = Number(json.animSpeed) || 1;
     const baseTime = Number(json.time) || 0;
-    let lastCloudTime = -999;
     const canvas = document.createElement("canvas");
     canvas.width = res;
     canvas.height = res;
@@ -580,9 +579,7 @@
       return imgData;
     }
 
-    function render(time, realSec) {
-      if (animate && typeof realSec === "number" && (realSec - lastCloudTime) < 0.05) return;
-      if (animate && typeof realSec === "number") lastCloudTime = realSec;
+    function render(time) {
       const timeOff = animate ? baseTime + time * animSpeed : 0;
       ctx.fillStyle = "#fff";
       ctx.fillRect(0, 0, res, res);
@@ -3180,7 +3177,7 @@
       ctx.globalCompositeOperation = "lighter";
       // Only iterate tiles that can be on screen (viewport cull) to reduce cost.
       const camTx = (cam.x / TILE) | 0, camTy = (cam.y / TILE) | 0;
-      const viewMargin = 12;
+      const viewMargin = 18;
       const txLo = Math.max(0, camTx - viewMargin);
       const txHi = Math.min(MAP_W - 1, camTx + viewMargin);
       const tyLo = Math.max(0, camTy - viewMargin);
@@ -3247,9 +3244,15 @@
     }
     const cloudSrc = cloudsFromJson ? cloudsFromJson.canvas : cloudsImage;
     if (cloudSrc && typeof worldToScreen === "function" && TILE) {
-      const cloudTime = (typeof env.renderTime === "number" ? env.renderTime : state.t) || 0;
       if (cloudsFromJson && cloudsFromJson.animate) {
-        cloudsFromJson.render(cloudTime * 0.02, cloudTime);
+        const realTime = (typeof env.renderTime === "number" ? env.renderTime : state.t) || 0;
+        let acc = drawMain._cloudTimeAcc;
+        let last = drawMain._cloudTimeLast;
+        if (typeof last !== "number") { last = realTime; acc = realTime; }
+        const delta = Math.min(0.06, Math.max(0, realTime - last));
+        drawMain._cloudTimeLast = realTime;
+        drawMain._cloudTimeAcc = acc + delta;
+        cloudsFromJson.render(drawMain._cloudTimeAcc * 0.02);
       }
       ctx.save();
       ctx.filter = "invert(1)";
