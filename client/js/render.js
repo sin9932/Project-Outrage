@@ -318,6 +318,146 @@
   let cloudsImage = null;
   let cloudsFromJson = null;
 
+  const FLAME_JSON_URL = "asset/sprite/eff/json/flame.json";
+  let flameFromJson = null;
+
+  function createFlameRendererFromJson(json) {
+    const res = Math.min(json.resolution || 512, 128);
+    const layers = (json.layers || []).filter(l => (l.type === "Fire" || l.type === "AbsNoise" || l.type === "SimplexNoise"));
+    const animate = json.animate === true;
+    const animSpeed = Number(json.animSpeed) || 1;
+    const baseTime = Number(json.time) || 0;
+    const canvas = document.createElement("canvas");
+    canvas.width = res;
+    canvas.height = res;
+    const ctx = canvas.getContext("2d");
+    const tmp = document.createElement("canvas");
+    tmp.width = res;
+    tmp.height = res;
+    const tctx = tmp.getContext("2d");
+    if (!ctx || !tctx || !layers.length) return null;
+
+    const perm = new Uint8Array(512);
+    let seed = 54321;
+    function rnd() { seed = (seed * 9301 + 49297) % 233280; return seed / 233280; }
+    for (let i = 0; i < 256; i++) perm[i] = i;
+    for (let i = 255; i > 0; i--) {
+      const j = Math.floor(rnd() * (i + 1));
+      [perm[i], perm[j]] = [perm[j], perm[i]];
+    }
+    for (let i = 0; i < 256; i++) perm[i + 256] = perm[i];
+    const grad3 = [[1,1,0],[-1,1,0],[1,-1,0],[-1,-1,0],[1,0,1],[-1,0,1],[1,0,-1],[-1,0,-1],[0,1,1],[0,-1,1],[0,1,-1],[0,-1,-1]];
+    function noise2D(x, y) {
+      const s = (x + y) * 0.366025404;
+      const i = Math.floor(x + s), j = Math.floor(y + s);
+      const t = (i + j) * 0.211324865;
+      const X0 = i - t, Y0 = j - t, x0 = x - X0, y0 = y - Y0;
+      let i1, j1;
+      if (x0 > y0) { i1 = 1; j1 = 0; } else { i1 = 0; j1 = 1; }
+      const x1 = x0 - i1 + 0.211324865, y1 = y0 - j1 + 0.211324865;
+      const x2 = x0 - 1 + 0.42264973, y2 = y0 - 1 + 0.42264973;
+      const ii = i & 255, jj = j & 255;
+      const gi0 = perm[ii + perm[jj]] % 12;
+      const gi1 = perm[ii + i1 + perm[jj + j1]] % 12;
+      const gi2 = perm[ii + 1 + perm[jj + 1]] % 12;
+      let n0 = 0, n1 = 0, n2 = 0;
+      let t0 = 0.5 - x0*x0 - y0*y0;
+      if (t0 >= 0) { t0 *= t0; n0 = t0 * t0 * (grad3[gi0][0]*x0 + grad3[gi0][1]*y0); }
+      let t1 = 0.5 - x1*x1 - y1*y1;
+      if (t1 >= 0) { t1 *= t1; n1 = t1 * t1 * (grad3[gi1][0]*x1 + grad3[gi1][1]*y1); }
+      let t2 = 0.5 - x2*x2 - y2*y2;
+      if (t2 >= 0) { t2 *= t2; n2 = t2 * t2 * (grad3[gi2][0]*x2 + grad3[gi2][1]*y2); }
+      return 70 * (n0 + n1 + n2);
+    }
+
+    function layerNoiseGrayscale(layer, timeOff) {
+      const p = layer.typeParams || [];
+      const s = (p[0] || 1) * 0.04;
+      const octaves = Math.min(4, Math.max(1, (p[1] || 1) | 0));
+      const detail = (p[2] || 2) | 0;
+      const imgData = ctx.createImageData(res, res);
+      const data = imgData.data;
+      for (let y = 0; y < res; y++) {
+        for (let x = 0; x < res; x++) {
+          let v = 0, amp = 1, freq = 1;
+          for (let o = 0; o < octaves; o++) {
+            v += noise2D(x * s * freq + timeOff, y * s * freq + timeOff * 0.5) * amp;
+            amp *= 0.5;
+            freq *= detail;
+          }
+          v = v * 0.5 + 0.5;
+          if (layer.invertEnable) v = 1 - v;
+          v = Math.max(0, Math.min(1, v));
+          const i = (y * res + x) * 4;
+          data[i] = data[i+1] = data[i+2] = Math.floor(v * 255);
+          data[i+3] = 255;
+        }
+      }
+      return imgData;
+    }
+
+    function layerFire(layer, timeOff) {
+      const p = layer.typeParams || [];
+      const s = (p[0] || 1.1) * 0.04;
+      const octaves = Math.min(3, Math.max(1, (p[1] || 1) | 0));
+      const detail = (p[2] || 2) | 0;
+      const imgData = ctx.createImageData(res, res);
+      const data = imgData.data;
+      for (let y = 0; y < res; y++) {
+        const vy = 1 - y / res;
+        for (let x = 0; x < res; x++) {
+          let v = 0, amp = 1, freq = 1;
+          for (let o = 0; o < octaves; o++) {
+            v += noise2D(x * s * freq + timeOff, y * s * freq + timeOff * 0.6) * amp;
+            amp *= 0.5;
+            freq *= detail;
+          }
+          v = (v * 0.5 + 0.5) * vy;
+          if (layer.invertEnable) v = 1 - v;
+          v = Math.max(0, Math.min(1, v));
+          const r = Math.floor(200 + v * 55);
+          const g = Math.floor(50 + v * 140);
+          const b = Math.floor(v * 50);
+          const i = (y * res + x) * 4;
+          data[i] = r;
+          data[i+1] = g;
+          data[i+2] = b;
+          data[i+3] = Math.floor(v * 255);
+        }
+      }
+      return imgData;
+    }
+
+    function render(time) {
+      const timeOff = animate ? baseTime + time * animSpeed : 0;
+      ctx.fillStyle = "#000";
+      ctx.fillRect(0, 0, res, res);
+      for (let i = 0; i < layers.length; i++) {
+        const layer = layers[i];
+        const img = (layer.type === "Fire") ? layerFire(layer, timeOff) : layerNoiseGrayscale(layer, timeOff);
+        tctx.putImageData(img, 0, 0);
+        ctx.globalAlpha = layer.opacity ?? 1;
+        ctx.globalCompositeOperation = (layer.blendMode === "add" || layer.blendMode === "lighter") ? "lighter" : (layer.blendMode === "mask" ? "destination-in" : (i === 0 ? "source-over" : "multiply"));
+        ctx.drawImage(tmp, 0, 0);
+      }
+      ctx.globalAlpha = 1;
+      ctx.globalCompositeOperation = "source-over";
+    }
+
+    render(0);
+    return { canvas, animate, render };
+  }
+
+  (function loadFlame() {
+    fetch(FLAME_JSON_URL)
+      .then(r => r.ok ? r.json() : Promise.reject())
+      .then(json => {
+        const renderer = createFlameRendererFromJson(json);
+        if (renderer) flameFromJson = renderer;
+      })
+      .catch(() => {});
+  })();
+
   function createCloudRendererFromJson(json) {
     const res = json.resolution || 512;
     const layers = json.layers || [];
@@ -2596,14 +2736,24 @@
           const rr = (prt.r * z) * (0.65 + (1-a)*0.6);
           const lift = (prt.rise||0) * z;
           ctx.globalAlpha = 0.55 * a;
-          const gf = ctx.createRadialGradient(pp.x, pp.y - lift, 0, pp.x, pp.y - lift, rr);
-          gf.addColorStop(0.0, "rgba(255,180,80,0.45)");
-          gf.addColorStop(0.45, "rgba(255,120,40,0.25)");
-          gf.addColorStop(1.0, "rgba(0,0,0,0)");
-          ctx.fillStyle = gf;
-          ctx.beginPath();
-          ctx.arc(pp.x, pp.y - lift, rr, 0, Math.PI*2);
-          ctx.fill();
+          if (flameFromJson && flameFromJson.canvas) {
+            const fc = flameFromJson.canvas;
+            const srcSize = Math.min(fc.width, fc.height);
+            const sx = (Math.abs((pp.x*7+pp.y*11) % 100) / 100) * (srcSize * 0.5);
+            const sy = (state.t * 20 % 100) / 100 * (srcSize * 0.5);
+            ctx.globalCompositeOperation = "lighter";
+            ctx.drawImage(fc, sx, sy, srcSize*0.5, srcSize*0.5, pp.x - rr, pp.y - lift - rr, rr*2, rr*2);
+            ctx.globalCompositeOperation = "source-over";
+          } else {
+            const gf = ctx.createRadialGradient(pp.x, pp.y - lift, 0, pp.x, pp.y - lift, rr);
+            gf.addColorStop(0.0, "rgba(255,180,80,0.45)");
+            gf.addColorStop(0.45, "rgba(255,120,40,0.25)");
+            gf.addColorStop(1.0, "rgba(0,0,0,0)");
+            ctx.fillStyle = gf;
+            ctx.beginPath();
+            ctx.arc(pp.x, pp.y - lift, rr, 0, Math.PI*2);
+            ctx.fill();
+          }
         }
       }
 
@@ -3042,6 +3192,9 @@
       ctx.restore();
     }
 
+    if (flameFromJson && flameFromJson.animate && typeof state.t === "number") {
+      flameFromJson.render(state.t * 0.04);
+    }
     const cloudSrc = cloudsFromJson ? cloudsFromJson.canvas : cloudsImage;
     if (cloudSrc && typeof worldToScreen === "function" && TILE) {
       if (cloudsFromJson && cloudsFromJson.animate && typeof state.t === "number") {
@@ -3216,14 +3369,23 @@
           const zw = (ent.tw || 1) * ISO_X * zFire * 0.9;
           const zh = (ent.th || 1) * ISO_Y * zFire * 0.7;
           const flicker = 0.85 + Math.sin(state.t * 12) * 0.15;
-          const grad = ctx.createRadialGradient(fp.x, fp.y - zh*0.3, 0, fp.x, fp.y - zh*0.3, Math.max(zw, zh));
-          grad.addColorStop(0, "rgba(255, 200, 80, " + (0.25 * flicker) + ")");
-          grad.addColorStop(0.5, "rgba(255, 100, 20, " + (0.12 * flicker) + ")");
-          grad.addColorStop(1, "rgba(255, 50, 0, 0)");
-          ctx.fillStyle = grad;
-          ctx.beginPath();
-          ctx.ellipse(fp.x, fp.y - zh*0.2, zw*0.8, zh, 0, 0, Math.PI*2);
-          ctx.fill();
+          if (flameFromJson && flameFromJson.canvas) {
+            const fc = flameFromJson.canvas;
+            ctx.globalCompositeOperation = "lighter";
+            ctx.globalAlpha = flicker * 0.45;
+            ctx.drawImage(fc, 0, 0, fc.width, fc.height, fp.x - zw*0.8, fp.y - zh*1.1, zw*1.6, zh*1.4);
+            ctx.globalAlpha = 1;
+            ctx.globalCompositeOperation = "source-over";
+          } else {
+            const grad = ctx.createRadialGradient(fp.x, fp.y - zh*0.3, 0, fp.x, fp.y - zh*0.3, Math.max(zw, zh));
+            grad.addColorStop(0, "rgba(255, 200, 80, " + (0.25 * flicker) + ")");
+            grad.addColorStop(0.5, "rgba(255, 100, 20, " + (0.12 * flicker) + ")");
+            grad.addColorStop(1, "rgba(255, 50, 0, 0)");
+            ctx.fillStyle = grad;
+            ctx.beginPath();
+            ctx.ellipse(fp.x, fp.y - zh*0.2, zw*0.8, zh, 0, 0, Math.PI*2);
+            ctx.fill();
+          }
         }
 
         if (ent.kind==="turret" && POWER && POWER.turretUse>0 && isUnderPower(ent.team)){
