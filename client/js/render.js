@@ -3240,7 +3240,7 @@
 
     const visualTime = (typeof env.renderTime === "number" ? env.renderTime : state.t) || 0;
     if (flameFromJson && flameFromJson.animate) {
-      flameFromJson.render(visualTime * 0.35);
+      flameFromJson.render(visualTime * 0.6);
     }
     const cloudSrc = cloudsFromJson ? cloudsFromJson.canvas : cloudsImage;
     if (cloudSrc && typeof worldToScreen === "function" && TILE) {
@@ -3423,54 +3423,44 @@
           const p1 = worldToScreen(tx1 * TILE, ty0 * TILE);
           const p2 = worldToScreen(tx1 * TILE, ty1 * TILE);
           const p3 = worldToScreen(tx0 * TILE, ty1 * TILE);
-          const level = (BUILD[ent.kind] && typeof BUILD[ent.kind].hLevel === "number") ? BUILD[ent.kind].hLevel : 2;
-          const unitH = 34 * (cam && cam.zoom) || 34;
-          const h = Math.max(0, level) * unitH;
-          const t0 = { x: p0.x, y: p0.y - h };
-          const t1 = { x: p1.x, y: p1.y - h };
-          const t2 = { x: p2.x, y: p2.y - h };
-          const t3 = { x: p3.x, y: p3.y - h };
-          const allP = [p0, p1, p2, p3, t0, t1, t2, t3];
-          const minX = Math.min(...allP.map(q => q.x));
-          const maxX = Math.max(...allP.map(q => q.x));
-          const minY = Math.min(...allP.map(q => q.y));
-          const maxY = Math.max(...allP.map(q => q.y));
-          const pad = (maxY - minY) * 0.12;
+          const allP = [p0, p1, p2, p3];
+          const minX = Math.max(0, Math.floor(Math.min(...allP.map(q => q.x))));
+          const maxX = Math.min(W, Math.ceil(Math.max(...allP.map(q => q.x))));
+          const minY = Math.max(0, Math.floor(Math.min(...allP.map(q => q.y)) - (BUILD[ent.kind] && BUILD[ent.kind].hLevel || 2) * 34 * (cam?.zoom || 1)));
+          const maxY = Math.min(H, Math.ceil(Math.max(...allP.map(q => q.y))));
+          const rw = Math.max(1, maxX - minX);
+          const rh = Math.max(1, maxY - minY);
           const zFire = (cam && typeof cam.zoom === "number") ? cam.zoom : 1;
           const zw = (ent.tw || 1) * ISO_X * zFire;
           const zh = (ent.th || 1) * ISO_Y * zFire;
           const flicker = 0.85 + Math.sin(state.t * 12) * 0.15;
-          if (flameFromJson && flameFromJson.canvas) {
+          if (flameFromJson && flameFromJson.canvas && rw <= W && rh <= H) {
             const fc = flameFromJson.canvas;
+            const src = ctx.getImageData(minX, minY, rw, rh);
+            const fd = src.data;
+            let tmp = drawMain._flameTmp;
+            if (!tmp || tmp.width < rw || tmp.height < rh) {
+              tmp = document.createElement("canvas");
+              tmp.width = rw;
+              tmp.height = rh;
+              drawMain._flameTmp = tmp;
+            }
+            const tctx = tmp.getContext("2d");
+            tctx.clearRect(0, 0, rw, rh);
+            tctx.drawImage(fc, 0, 0, fc.width * 0.4, fc.height * 0.4, 0, 0, rw, rh);
+            const flameImg = tctx.getImageData(0, 0, rw, rh);
+            const fd2 = flameImg.data;
+            for (let i = 0; i < fd.length; i += 4) {
+              const ba = fd[i + 3];
+              if (ba < 12) continue;
+              const mul = flicker * 0.55 * (ba / 255);
+              fd[i] = Math.min(255, fd[i] + fd2[i] * mul);
+              fd[i + 1] = Math.min(255, fd[i + 1] + fd2[i + 1] * mul);
+              fd[i + 2] = Math.min(255, fd[i + 2] + fd2[i + 2] * mul);
+            }
+            ctx.putImageData(src, minX, minY);
+          } else if (!flameFromJson || !flameFromJson.canvas) {
             ctx.save();
-            ctx.beginPath();
-            ctx.moveTo(p3.x, p3.y);
-            ctx.lineTo(t3.x, t3.y);
-            ctx.lineTo(t2.x, t2.y);
-            ctx.lineTo(p2.x, p2.y);
-            ctx.lineTo(p1.x, p1.y);
-            ctx.lineTo(t1.x, t1.y);
-            ctx.lineTo(t0.x, t0.y);
-            ctx.lineTo(p0.x, p0.y);
-            ctx.closePath();
-            ctx.clip();
-            ctx.globalCompositeOperation = "lighter";
-            ctx.globalAlpha = flicker * 0.5;
-            ctx.drawImage(fc, 0, 0, fc.width, fc.height, minX - pad, minY - pad, (maxX - minX) + pad * 2, (maxY - minY) + pad * 2);
-            ctx.restore();
-          } else {
-            ctx.save();
-            ctx.beginPath();
-            ctx.moveTo(p3.x, p3.y);
-            ctx.lineTo(t3.x, t3.y);
-            ctx.lineTo(t2.x, t2.y);
-            ctx.lineTo(p2.x, p2.y);
-            ctx.lineTo(p1.x, p1.y);
-            ctx.lineTo(t1.x, t1.y);
-            ctx.lineTo(t0.x, t0.y);
-            ctx.lineTo(p0.x, p0.y);
-            ctx.closePath();
-            ctx.clip();
             const gx = (minX + maxX) / 2;
             const gy = (minY + maxY) / 2;
             const grad = ctx.createRadialGradient(gx, gy - zh * 0.3, 0, gx, gy, Math.max(zw, zh) * 1.2);
@@ -3478,7 +3468,7 @@
             grad.addColorStop(0.5, "rgba(255, 100, 20, " + (0.14 * flicker) + ")");
             grad.addColorStop(1, "rgba(255, 50, 0, 0)");
             ctx.fillStyle = grad;
-            ctx.globalCompositeOperation = "lighter";
+            ctx.globalCompositeOperation = "source-atop";
             ctx.globalAlpha = flicker;
             ctx.fillRect(minX - zw, minY - zh, zw * 3, zh * 3);
             ctx.restore();
