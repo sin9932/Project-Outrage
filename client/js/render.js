@@ -3210,6 +3210,22 @@
           drawFootprintPrism(ent, fill, stroke);
         }
 
+        if (ent.attackable !== false && ent.hpMax > 0 && ent.hp / ent.hpMax < 0.30) {
+          const fp = worldToScreen(rX, rY);
+          const zFire = (cam && typeof cam.zoom==="number") ? cam.zoom : 1;
+          const zw = (ent.tw || 1) * ISO_X * zFire * 0.9;
+          const zh = (ent.th || 1) * ISO_Y * zFire * 0.7;
+          const flicker = 0.85 + Math.sin(state.t * 12) * 0.15;
+          const grad = ctx.createRadialGradient(fp.x, fp.y - zh*0.3, 0, fp.x, fp.y - zh*0.3, Math.max(zw, zh));
+          grad.addColorStop(0, "rgba(255, 200, 80, " + (0.25 * flicker) + ")");
+          grad.addColorStop(0.5, "rgba(255, 100, 20, " + (0.12 * flicker) + ")");
+          grad.addColorStop(1, "rgba(255, 50, 0, 0)");
+          ctx.fillStyle = grad;
+          ctx.beginPath();
+          ctx.ellipse(fp.x, fp.y - zh*0.2, zw*0.8, zh, 0, 0, Math.PI*2);
+          ctx.fill();
+        }
+
         if (ent.kind==="turret" && POWER && POWER.turretUse>0 && isUnderPower(ent.team)){
           const blink = (Math.floor(state.t*6)%2)===0;
           if (blink){
@@ -3680,12 +3696,17 @@
       const p = worldToScreen(f.x, f.y);
       const a = clamp(f.life/0.6, 0, 1);
       const z = (typeof cam !== "undefined" && cam && typeof cam.zoom==="number") ? cam.zoom : 1;
+      const r = (6 + f.rise*0.15) * z;
+      const grad = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, r);
+      grad.addColorStop(0, "rgba(255, 220, 100, " + (a*0.95) + ")");
+      grad.addColorStop(0.4, "rgba(255, 140, 40, " + (a*0.7) + ")");
+      grad.addColorStop(0.7, "rgba(255, 80, 10, " + (a*0.35) + ")");
+      grad.addColorStop(1, "rgba(255, 40, 0, 0)");
       ctx.globalAlpha = a;
-      const h = (16 + f.rise*0.6) * z;
-      ctx.fillStyle = "rgba(255, 120, 20, 0.95)";
-      ctx.fillRect(p.x-1.6*z, p.y-h, 3.2*z, h);
-      ctx.fillStyle = "rgba(255, 200, 80, 0.95)";
-      ctx.fillRect(p.x-0.9*z, p.y-h*0.72, 1.8*z, h*0.72);
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.ellipse(p.x, p.y - r*0.3, r*0.6, r, 0, 0, Math.PI*2);
+      ctx.fill();
       ctx.globalAlpha = 1;
     }
 
