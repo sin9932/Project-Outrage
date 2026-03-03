@@ -322,11 +322,12 @@
   let flameFromJson = null;
 
   function createFlameRendererFromJson(json) {
-    const res = Math.min(json.resolution || 512, 128);
+    const res = json.resolution || 256;
     const layers = (json.layers || []).filter(l => (l.type === "Fire" || l.type === "AbsNoise" || l.type === "SimplexNoise"));
     const animate = json.animate === true;
     const animSpeed = Number(json.animSpeed) || 1;
     const baseTime = Number(json.time) || 0;
+    const post = json.postEffects || {};
     const canvas = document.createElement("canvas");
     canvas.width = res;
     canvas.height = res;
@@ -399,7 +400,7 @@
     function layerFire(layer, timeOff) {
       const p = layer.typeParams || [];
       const s = (p[0] || 1.1) * 0.04;
-      const octaves = Math.min(3, Math.max(1, (p[1] || 1) | 0));
+      const octaves = Math.min(4, Math.max(2, Math.round(p[1] || 2)));
       const detail = (p[2] || 2) | 0;
       const imgData = ctx.createImageData(res, res);
       const data = imgData.data;
@@ -428,6 +429,42 @@
       return imgData;
     }
 
+    function applySwirl(srcData, dstData) {
+      const sw = post.swirlEnabled && post.swirlStrength !== 0;
+      if (!sw) { for (let i = 0; i < srcData.data.length; i++) dstData.data[i] = srcData.data[i]; return; }
+      const strength = (post.swirlStrength || -1) * Math.PI;
+      const radius = (post.swirlRadius ?? 0.5) * res;
+      const cx = res * 0.5, cy = res * 0.5;
+      const src = srcData.data;
+      const dst = dstData.data;
+      for (let y = 0; y < res; y++) {
+        for (let x = 0; x < res; x++) {
+          const dx = x - cx, dy = y - cy;
+          const r = Math.hypot(dx, dy);
+          let sx = x, sy = y;
+          if (r > 0 && r < radius) {
+            const t = 1 - r / radius;
+            const a = Math.atan2(dy, dx) - strength * t;
+            sx = cx + r * Math.cos(a);
+            sy = cy + r * Math.sin(a);
+          }
+          const x0 = Math.max(0, Math.min(res - 1, Math.floor(sx)));
+          const y0 = Math.max(0, Math.min(res - 1, Math.floor(sy)));
+          const xi = Math.min(res - 1, x0 + 1);
+          const yi = Math.min(res - 1, y0 + 1);
+          const fx = sx - x0, fy = sy - y0;
+          const i00 = (y0 * res + x0) * 4, i10 = (y0 * res + xi) * 4;
+          const i01 = (yi * res + x0) * 4, i11 = (yi * res + xi) * 4;
+          const oi = (y * res + x) * 4;
+          for (let c = 0; c < 4; c++) {
+            const v = src[i00 + c] * (1 - fx) * (1 - fy) + src[i10 + c] * fx * (1 - fy) +
+              src[i01 + c] * (1 - fx) * fy + src[i11 + c] * fx * fy;
+            dst[oi + c] = Math.max(0, Math.min(255, v | 0));
+          }
+        }
+      }
+    }
+
     function render(time) {
       const timeOff = animate ? baseTime + time * animSpeed : 0;
       ctx.fillStyle = "#000";
@@ -442,6 +479,12 @@
       }
       ctx.globalAlpha = 1;
       ctx.globalCompositeOperation = "source-over";
+      if (post.swirlEnabled) {
+        const srcData = ctx.getImageData(0, 0, res, res);
+        const dstData = ctx.createImageData(res, res);
+        applySwirl(srcData, dstData);
+        ctx.putImageData(dstData, 0, 0);
+      }
     }
 
     render(0);
@@ -459,11 +502,12 @@
   })();
 
   function createCloudRendererFromJson(json) {
-    const res = json.resolution || 512;
+    const res = Math.min(json.resolution || 512, 256);
     const layers = json.layers || [];
     const animate = json.animate === true;
     const animSpeed = Number(json.animSpeed) || 1;
     const baseTime = Number(json.time) || 0;
+    let lastRenderTime = -999;
     const canvas = document.createElement("canvas");
     canvas.width = res;
     canvas.height = res;
@@ -474,6 +518,7 @@
     const tctx = tmp.getContext("2d");
     if (!ctx || !tctx || !layers.length) return null;
 
+    const layerBuffers = layers.map(() => ctx.createImageData(res, res));
     const perm = new Uint8Array(512);
     let seed = 12345;
     function rnd() { seed = (seed * 9301 + 49297) % 233280; return seed / 233280; }
@@ -507,12 +552,11 @@
       return 70 * (n0 + n1 + n2);
     }
 
-    function layerNoise(layer, scale, timeOff) {
+    function layerNoise(layer, scale, timeOff, imgData) {
       const p = layer.typeParams || [];
       const s = (p[0] || 3) * (scale || 1) * 0.02;
       const octaves = Math.max(1, (p[1] || 1) | 0);
       const detail = (p[2] || 2) | 0;
-      const imgData = ctx.createImageData(res, res);
       const data = imgData.data;
       for (let y = 0; y < res; y++) {
         for (let x = 0; x < res; x++) {
@@ -534,13 +578,15 @@
     }
 
     function render(time) {
+      if (animate && (time - lastRenderTime) < 0.06) return;
+      if (animate) lastRenderTime = time;
       const timeOff = animate ? baseTime + time * animSpeed : 0;
       ctx.fillStyle = "#fff";
       ctx.fillRect(0, 0, res, res);
       for (let i = 0; i < layers.length; i++) {
         const layer = layers[i];
-        const img = layerNoise(layer, 1, timeOff);
-        tctx.putImageData(img, 0, 0);
+        layerNoise(layer, 1, timeOff, layerBuffers[i]);
+        tctx.putImageData(layerBuffers[i], 0, 0);
         ctx.globalAlpha = layer.opacity ?? 1;
         ctx.globalCompositeOperation = i === 0 ? "source-over" : "multiply";
         ctx.drawImage(tmp, 0, 0);
@@ -3193,7 +3239,7 @@
     }
 
     if (flameFromJson && flameFromJson.animate && typeof state.t === "number") {
-      flameFromJson.render(state.t * 0.04);
+      flameFromJson.render(state.t * 0.12);
     }
     const cloudSrc = cloudsFromJson ? cloudsFromJson.canvas : cloudsImage;
     if (cloudSrc && typeof worldToScreen === "function" && TILE) {
@@ -3371,11 +3417,14 @@
           const flicker = 0.85 + Math.sin(state.t * 12) * 0.15;
           if (flameFromJson && flameFromJson.canvas) {
             const fc = flameFromJson.canvas;
+            ctx.save();
+            ctx.beginPath();
+            ctx.ellipse(fp.x, fp.y - zh * 0.2, zw * 0.85, zh * 1.1, 0, 0, Math.PI * 2);
+            ctx.clip();
             ctx.globalCompositeOperation = "lighter";
-            ctx.globalAlpha = flicker * 0.45;
-            ctx.drawImage(fc, 0, 0, fc.width, fc.height, fp.x - zw*0.8, fp.y - zh*1.1, zw*1.6, zh*1.4);
-            ctx.globalAlpha = 1;
-            ctx.globalCompositeOperation = "source-over";
+            ctx.globalAlpha = flicker * 0.5;
+            ctx.drawImage(fc, 0, 0, fc.width, fc.height, fp.x - zw * 1.1, fp.y - zh * 1.4, zw * 2.2, zh * 2.2);
+            ctx.restore();
           } else {
             const grad = ctx.createRadialGradient(fp.x, fp.y - zh*0.3, 0, fp.x, fp.y - zh*0.3, Math.max(zw, zh));
             grad.addColorStop(0, "rgba(255, 200, 80, " + (0.25 * flicker) + ")");
