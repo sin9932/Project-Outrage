@@ -2638,11 +2638,12 @@ function showUnitPathFx(u){ /* no-op: path FX disabled for perf */ }
 
 
 
-function draw(){
+function draw(now){
     const gameOverFadeAlpha = (state.gameOverFade && state.gameOverFade.dur > 0)
       ? Math.min(1, state.gameOverFade.t / state.gameOverFade.dur) : 0;
     if (window.OURender && typeof window.OURender.draw === "function"){
       window.OURender.draw({
+        renderTime: (typeof now === "number" ? now / 1000 : (performance.now && performance.now() / 1000) || 0),
         canvas, ctx, cam, state, TEAM, MAP_W, MAP_H, TILE, ISO_X, ISO_Y,
         terrain, ore, explored, visible, BUILD, DEFENSE, NAME_KO, ORE_VALUE, ORE_MAX,
         treeHp,
@@ -3204,7 +3205,7 @@ function sanityCheck(){
       }
     }
 
-    draw();
+    draw(last);
 
     fpsAcc += 1/dt; fpsN++; fpsT += dt;
     if (fpsT>=0.5){

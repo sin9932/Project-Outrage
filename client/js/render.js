@@ -3238,13 +3238,15 @@
       ctx.restore();
     }
 
-    if (flameFromJson && flameFromJson.animate && typeof state.t === "number") {
-      flameFromJson.render(state.t * 0.12);
+    const visualTime = (typeof env.renderTime === "number" ? env.renderTime : state.t) || 0;
+    if (flameFromJson && flameFromJson.animate) {
+      flameFromJson.render(visualTime * 0.12);
     }
     const cloudSrc = cloudsFromJson ? cloudsFromJson.canvas : cloudsImage;
     if (cloudSrc && typeof worldToScreen === "function" && TILE) {
-      if (cloudsFromJson && cloudsFromJson.animate && typeof state.t === "number") {
-        cloudsFromJson.render(state.t * 0.02);
+      const cloudTime = (typeof env.renderTime === "number" ? env.renderTime : state.t) || 0;
+      if (cloudsFromJson && cloudsFromJson.animate) {
+        cloudsFromJson.render(cloudTime * 0.02);
       }
       ctx.save();
       ctx.filter = "invert(1)";
