@@ -59,7 +59,7 @@
     const s = 96; // small buffer, scaled up
     if (!drawMiniNoise._canvas){
       drawMiniNoise._canvas = document.createElement("canvas");
-      drawMiniNoise._ctx = drawMiniNoise._canvas.getContext("2d", { willReadFrequently: true });
+      drawMiniNoise._ctx = drawMiniNoise._canvas.getContext("2d");
     }
     const c = drawMiniNoise._canvas;
     const cctx = drawMiniNoise._ctx;
@@ -327,11 +327,11 @@
     const canvas = document.createElement("canvas");
     canvas.width = res;
     canvas.height = res;
-    const ctx = canvas.getContext("2d", { willReadFrequently: true });
+    const ctx = canvas.getContext("2d");
     const tmp = document.createElement("canvas");
     tmp.width = res;
     tmp.height = res;
-    const tctx = tmp.getContext("2d", { willReadFrequently: true });
+    const tctx = tmp.getContext("2d");
     if (!ctx || !tctx || !layers.length) return null;
 
     const layerBuffers = layers.map(() => ctx.createImageData(res, res));
@@ -609,7 +609,7 @@
     const c = document.createElement('canvas');
     c.width = srcImg.naturalWidth;
     c.height = srcImg.naturalHeight;
-    const cctx = c.getContext('2d', { willReadFrequently:true });
+    const cctx = c.getContext('2d');
     cctx.drawImage(srcImg, 0, 0);
 
     const imgd = cctx.getImageData(0,0,c.width,c.height);
@@ -741,7 +741,7 @@
     const excludeRects = opts.excludeRects || null; // [{x,y,w,h}] in image pixel coords
     const w=img.width, h=img.height;
     const c=document.createElement('canvas'); c.width=w; c.height=h;
-    const ctx=c.getContext('2d', {willReadFrequently:true});
+    const ctx=c.getContext('2d');
     ctx.drawImage(img,0,0);
     const id=ctx.getImageData(0,0,w,h);
     const d=id.data;
@@ -813,7 +813,7 @@
     const cvs = document.createElement("canvas");
     cvs.width = crop.w;
     cvs.height = crop.h;
-    const c = cvs.getContext("2d", { willReadFrequently: true });
+    const c = cvs.getContext("2d");
     try{
       c.clearRect(0, 0, crop.w, crop.h);
       c.drawImage(img, crop.x, crop.y, crop.w, crop.h, 0, 0, crop.w, crop.h);
@@ -1420,7 +1420,7 @@
 
     const c = document.createElement("canvas");
     c.width=W; c.height=H;
-    const cctx=c.getContext("2d",{willReadFrequently:true});
+    const cctx=c.getContext("2d");
     cctx.clearRect(0,0,W,H);
     cctx.drawImage(img,0,0);
 
@@ -2930,7 +2930,7 @@
         fogCanvas.height = H;
         drawMain._fogCanvas = fogCanvas;
       }
-      const fctx = fogCanvas.getContext("2d", { willReadFrequently: true });
+      const fctx = fogCanvas.getContext("2d");
       fctx.fillStyle = "rgba(0,0,0,1)";
       fctx.fillRect(0, 0, W, H);
       fctx.globalCompositeOperation = "destination-out";

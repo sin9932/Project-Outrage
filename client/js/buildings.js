@@ -593,7 +593,7 @@
       return drawFrameTeam(ent.kind, "build", stKind.atlases.build, ctx, stKind.frames.build[clamped], sx, sy, team, scale, state);
     }
 
-    // Build -> Idle: 애니 끝나면 즉시 idle로 전환 (정지/깜박임 없음)
+    // Build -> Idle: 애니 끝나면 마지막 빌드 프레임 1회 더 그린 뒤 다음 프레임부터 idle (깜박임 방지)
     const ek = cfg.entKey;
     if (ent[ek.buildT0] != null && !ent[ek.buildDone] && stKind.frames.build.length){
       const dt = Math.max(0, now - ent[ek.buildT0]);
@@ -602,6 +602,8 @@
         return drawFrameTeam(ent.kind, "build", stKind.atlases.build, ctx, stKind.frames.build[idx], sx, sy, team, scale, state);
       }
       ent[ek.buildDone] = true;
+      const lastFrame = stKind.frames.build[stKind.frames.build.length - 1];
+      return drawFrameTeam(ent.kind, "build", stKind.atlases.build, ctx, lastFrame, sx, sy, team, scale, state);
     }
 
     // Idle/Active: choose normal vs damaged variant based on HP ratio
