@@ -3096,7 +3096,7 @@ function sanityCheck(){
 
       if (DEBUG_MONEY && state && state.player) _m1 = state.player.money || 0;
 
-      if (isCallable(__ou_ui, "updateSidebarButtons")) {
+      if (isCallable(__ou_ui, "updateSidebarButtons") && (state._visionFrame < 2 || state._visionFrame % 4 === 1)) {
         try {
           __ou_ui.updateSidebarButtons({
             state,
@@ -3115,8 +3115,8 @@ function sanityCheck(){
 
       if (!state._visionFrame) state._visionFrame = 0;
       state._visionFrame++;
-      // tick에서만 시야 갱신 (첫 프레임 + 2프레임마다)
-      if (state._visionFrame === 1 || state._visionFrame % 2 === 0) updateVision();
+      // tick에서만 시야 갱신 (4프레임마다 - CPU 절감, 그래픽 품질 유지)
+      if (state._visionFrame === 1 || state._visionFrame % 4 === 0) updateVision();
       const _eco = tickEconomyPost(simDt);
       if (DEBUG_MONEY && state && state.player){
         _m2 = (_eco && _eco.m2 != null) ? _eco.m2 : (state.player.money || 0);

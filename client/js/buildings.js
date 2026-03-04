@@ -8,7 +8,7 @@
   const st = PO.buildings._barracks = PO.buildings._barracks || {};
 
   // PATCH VERSION: v3
-  st.version = "v11";
+  st.version = "v12";
 
 
   
@@ -593,28 +593,15 @@
       return drawFrameTeam(ent.kind, "build", stKind.atlases.build, ctx, stKind.frames.build[clamped], sx, sy, team, scale, state);
     }
 
-    // Build -> Idle
+    // Build -> Idle: 애니 끝나면 즉시 idle로 전환 (정지/깜박임 없음)
     const ek = cfg.entKey;
-    const buildHoldKey = ek.buildHoldUntil;
     if (ent[ek.buildT0] != null && !ent[ek.buildDone] && stKind.frames.build.length){
-      const lastIdx = stKind.frames.build.length - 1;
-      const lastFrame = stKind.frames.build[lastIdx];
-      if (buildHoldKey && ent[buildHoldKey] != null){
-        if (now < ent[buildHoldKey]){
-          return drawFrameTeam(ent.kind, "build", stKind.atlases.build, ctx, lastFrame, sx, sy, team, scale, state);
-        }
-        ent[buildHoldKey] = null;
-        ent[ek.buildDone] = true;
-        ent._idleTransitionT0 = now;
-        return drawFrameTeam(ent.kind, "build", stKind.atlases.build, ctx, lastFrame, sx, sy, team, scale, state);
-      }
       const dt = Math.max(0, now - ent[ek.buildT0]);
       const idx = Math.floor(dt * cfg.fps.build);
       if (idx < stKind.frames.build.length){
         return drawFrameTeam(ent.kind, "build", stKind.atlases.build, ctx, stKind.frames.build[idx], sx, sy, team, scale, state);
       }
-      ent[buildHoldKey] = now + 0.35;
-      return drawFrameTeam(ent.kind, "build", stKind.atlases.build, ctx, lastFrame, sx, sy, team, scale, state);
+      ent[ek.buildDone] = true;
     }
 
     // Idle/Active: choose normal vs damaged variant based on HP ratio
@@ -656,20 +643,11 @@
 
     if (!frames || !frames.length) return false;
 
-    let idx = 0;
-    if (frames.length > 1){
-      const t0 = ent._idleTransitionT0;
-      if (t0 != null){
-        if (now - t0 < 0.25) idx = 0;
-        else { ent._idleTransitionT0 = null; idx = (Math.floor(now * (cfg.fps.idle || 1)) % frames.length); }
-      } else {
-        idx = (Math.floor(now * (cfg.fps.idle || 1)) % frames.length);
-      }
-    }
+    const idx = (frames.length <= 1) ? 0 : (Math.floor(now * (cfg.fps.idle || 1)) % frames.length);
     return drawFrameTeam(ent.kind, "idle", stKind.atlases.idle, ctx, frames[idx], sx, sy, team, scale, state);
 };
 
-  console.log("[buildings] barracks+power pivot patch v11 loaded");
+  console.log("[buildings] barracks+power pivot patch v12 loaded");
   // Expose preload for boot-time asset warmup
   PO.buildings.preload = ensureAllKindsLoaded;
 

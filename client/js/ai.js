@@ -870,9 +870,9 @@
     }
 
     function aiTick() {
-      // Throttle: run less often to reduce CPU spikes (~0.6–0.9s between thinks).
+      // Throttle: run less often to reduce CPU spikes (~0.8–1.2s between thinks).
       if (state.t < ai.nextThink) return;
-      ai.nextThink = state.t + rnd(0.60, 0.90) / (ai.apmMul || 1);
+      ai.nextThink = state.t + rnd(0.80, 1.2) / (ai.apmMul || 1);
 
       const e = state.enemy;
 
