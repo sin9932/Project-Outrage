@@ -737,8 +737,8 @@ function drawBlood(ctx, w2s, cam){
       const ang = Math.random() * Math.PI * 2;
       const spd = (180 + Math.random()*220) * baseSize;
       const vz0 = (450 + Math.random()*400) * baseSize;
-      const w = (T*0.12 + Math.random()*T*0.18) * baseSize;
-      const h = (T*0.08 + Math.random()*T*0.12) * baseSize;
+      const w = (T*0.05 + Math.random()*T*0.08) * baseSize;
+      const h = (T*0.035 + Math.random()*T*0.05) * baseSize;
       debris.push({
         x: cx + (Math.random()*2-1)*T*0.2,
         y: cy + (Math.random()*2-1)*T*0.2,

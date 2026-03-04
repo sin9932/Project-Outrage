@@ -8,7 +8,7 @@
   const st = PO.buildings._barracks = PO.buildings._barracks || {};
 
   // PATCH VERSION: v3
-  st.version = "v10";
+  st.version = "v11";
 
 
   
@@ -605,6 +605,7 @@
         }
         ent[buildHoldKey] = null;
         ent[ek.buildDone] = true;
+        ent._idleTransitionT0 = now;
         return drawFrameTeam(ent.kind, "build", stKind.atlases.build, ctx, lastFrame, sx, sy, team, scale, state);
       }
       const dt = Math.max(0, now - ent[ek.buildT0]);
@@ -612,7 +613,7 @@
       if (idx < stKind.frames.build.length){
         return drawFrameTeam(ent.kind, "build", stKind.atlases.build, ctx, stKind.frames.build[idx], sx, sy, team, scale, state);
       }
-      ent[buildHoldKey] = now + 0.15;
+      ent[buildHoldKey] = now + 0.35;
       return drawFrameTeam(ent.kind, "build", stKind.atlases.build, ctx, lastFrame, sx, sy, team, scale, state);
     }
 
@@ -655,11 +656,20 @@
 
     if (!frames || !frames.length) return false;
 
-    const idx = (frames.length <= 1) ? 0 : (Math.floor(now * (cfg.fps.idle || 1)) % frames.length);
+    let idx = 0;
+    if (frames.length > 1){
+      const t0 = ent._idleTransitionT0;
+      if (t0 != null){
+        if (now - t0 < 0.25) idx = 0;
+        else { ent._idleTransitionT0 = null; idx = (Math.floor(now * (cfg.fps.idle || 1)) % frames.length); }
+      } else {
+        idx = (Math.floor(now * (cfg.fps.idle || 1)) % frames.length);
+      }
+    }
     return drawFrameTeam(ent.kind, "idle", stKind.atlases.idle, ctx, frames[idx], sx, sy, team, scale, state);
 };
 
-  console.log("[buildings] barracks+power pivot patch v10 loaded");
+  console.log("[buildings] barracks+power pivot patch v11 loaded");
   // Expose preload for boot-time asset warmup
   PO.buildings.preload = ensureAllKindsLoaded;
 

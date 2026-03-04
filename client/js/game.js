@@ -1045,7 +1045,7 @@ function tryUnloadIFV(ifv){ return __ou_commands && __ou_commands.tryUnloadIFV ?
     requestAnimationFrame(()=>{
       try{
         if (window.FX && window.FX.addBuildingExplosion) window.FX.addBuildingExplosion({x:bx, y:by, kind:bKind, w:bw, h:bh, tw:b.tw, th:b.th});
-        if (window.FX && window.FX.addDebris) window.FX.addDebris(bx, by, { minN:3, maxN:8, size: clamp(bSize, 0.8, 2.5) });
+        if (window.FX && window.FX.addDebris) window.FX.addDebris(bx, by, { minN:3, maxN:8, size: clamp(bSize, 0.5, 1.2) });
         if (window.FX && window.FX.addSmokeEmitter) window.FX.addSmokeEmitter(bx, by, _smkS);
         const puffN = Math.min(6, Math.floor(10 * _smkS));
         for (let i=0;i<puffN;i++){
