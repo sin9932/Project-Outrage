@@ -2379,7 +2379,7 @@
     if (!ent || !ent.alive) return;
     if (ent.hidden || ent.inTransport) return;
 
-    const name = NAME_KO[ent.kind] || ent.kind;
+    const name = (_L && typeof _L.unit === "function" ? _L.unit(ent.kind) : null) || (NAME_KO && NAME_KO[ent.kind]) || ent.kind;
     const W = canvas.width, H = canvas.height;
     const x = clamp(state.hover.px + 14, 10, W-10);
     const y = clamp(state.hover.py - 18, 10, H-10);
