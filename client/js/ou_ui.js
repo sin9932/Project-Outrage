@@ -786,10 +786,12 @@ function ensureBadge(btn){
         { kind: "turret",   laneKey: "def",  btn: r.btnTur },
       ];
 
+      const getName = (k)=> (e.NAME_KO && e.NAME_KO[k]) || (e.L && e.L.unit && e.L.unit(k)) || k;
+
       for (const it of buildBtns){
         const btn = it.btn;
         if (!btn || btn.style.display === "none") continue;
-        const ui = ensureBtnUI(btn, null);
+        const ui = ensureBtnUI(btn, getName(it.kind));
         if (!ui) continue;
 
         const prog = (state && typeof state.getBuildProgress === "function")
@@ -825,7 +827,7 @@ function ensureBadge(btn){
       for (const it of unitBtns){
         const btn = it.btn;
         if (!btn || btn.style.display === "none") continue;
-        const ui = ensureBtnUI(btn, null);
+        const ui = ensureBtnUI(btn, getName(it.kind));
         if (!ui) continue;
 
         const prog = (state && typeof state.getUnitProgress === "function")
