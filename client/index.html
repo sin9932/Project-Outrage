@@ -45,8 +45,9 @@
 </script>
 
 <script type="importmap">{"imports":{"three":"./vendor/three/three.module.js"}}</script>
-<script>window.OUTank3DReady = import('./js/tank3d.js').then(m => m.ready).catch(e => { console.error('[tank3d]', e); return false; });</script>
+<script src="./js/tank_config.js" defer></script>
 <script src="./js/tank_motion.js" defer></script>
+<script src="./js/tank_bootstrap.js" defer></script>
 <script src="./js/ou_deps.js?v=1" defer></script>
 <script src="./js/locale.js" defer></script>
 <script src="./js/fx_all.js" defer></script>

@@ -6,7 +6,8 @@ import { GLTFLoader } from '../vendor/three/addons/loaders/GLTFLoader.js';
 // No directional atlas, cached view frames, or animation image sequences.
 const api = window.OUTank3D = { status: 'loading', draws: 0, error: null };
 const enabled = new URLSearchParams(location.search).get('tank3d') !== '0';
-const span = 14;
+const config = window.OUTankConfig;
+const span = config.renderSpan;
 let renderer, scene, camera, model, hull, turret, barrel, barrelRest;
 let wheels = [], materials = [], currentColor = null;
 const poseByUnit = new Map();
@@ -16,16 +17,16 @@ const v = new THREE.Vector3();
 
 function pose(u, time) {
   const m = window.OUTankMotion;
-  m.ensure(u);
-  model.rotation.y = Math.PI / 2 - u.bodyYaw;
-  turret.rotation.y = u.bodyYaw - u.turretYaw;
+  const {bodyYaw,turretYaw} = m.readPose(u);
+  model.rotation.y = Math.PI / 2 - bodyYaw;
+  turret.rotation.y = bodyYaw - turretYaw;
   barrel.position.copy(barrelRest);
   barrel.position.z -= m.recoil(u, time);
   let rec = poseByUnit.get(u.id);
   if (!rec || rec.unit !== u) rec = { unit:u, x:u.x, y:u.y, wheel:0, seen:time };
   const dx = u.x - rec.x, dy = u.y - rec.y;
-  const forward = dx * Math.cos(u.bodyYaw) + dy * Math.sin(u.bodyYaw);
-  if (Math.hypot(dx,dy) < 200) rec.wheel += forward / (m.SCALE * .427);
+  const forward = dx * Math.cos(bodyYaw) + dy * Math.sin(bodyYaw);
+  if (Math.hypot(dx,dy) < 200) rec.wheel += forward / (m.SCALE * config.wheelRadius);
   rec.x = u.x; rec.y = u.y; rec.seen = time;
   poseByUnit.set(u.id,rec);
   for (const w of wheels) w.rotation.x = rec.wheel;
@@ -65,10 +66,16 @@ export const ready = (async () => {
     key.position.set(-4,8,3); scene.add(key);
     const fill = new THREE.DirectionalLight(0xd7e3ff,1.0);
     fill.position.set(5,3,-4); scene.add(fill);
-    const gltf = await new GLTFLoader().loadAsync(new URL('../asset/model/lite_tank/light_tank.glb',import.meta.url).href);
+    const gltf = await new GLTFLoader().loadAsync(new URL(config.modelUrl,import.meta.url).href);
     model = gltf.scene;
     hull = model.getObjectByName('Hull'); turret = model.getObjectByName('Turret'); barrel = model.getObjectByName('Barrel');
     if (!hull || !turret || !barrel || !model.getObjectByName('Muzzle')) throw Error('Tank hierarchy is incomplete');
+    model.updateMatrixWorld(true);
+    const tip=model.getObjectByName('Muzzle').getWorldPosition(new THREE.Vector3());
+    const pivot=turret.getWorldPosition(new THREE.Vector3());
+    const c=config;
+    if (Math.abs(pivot.z-c.turretForward)>.001 || Math.abs(tip.z-pivot.z-c.muzzleForward)>.001 || Math.abs(tip.y-c.muzzleHeight)>.001)
+      throw Error('GLB attachment points do not match tank_config.js');
     barrelRest = barrel.position.clone();
     model.traverse(o => {
       if (/^Wheel_[LR]_\d$/.test(o.name)) wheels.push(o);

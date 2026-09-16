@@ -13,7 +13,11 @@ Normal index.html matches retain their original starting economy; the three
 bonus tanks require both debug=1 and tankdemo=1.
 
 ## Architecture
+- tank_config.js is the immutable model/kinematics contract.
 - tank_motion.js owns continuous world-space hull/turret yaw and muzzle geometry.
+- Rendering and picking read poses without modifying simulation state.
+- tank_bootstrap.js explicitly loads the renderer after configuration and motion.
+- GLB attachment positions are validated against configuration at load.
 - tank3d.js uses Three.js 0.180.0 and GLTFLoader, vendored with the MIT license.
 - The live WebGL result is composited at the tank's existing painter-sort position.
   Terrain, buildings, fog, selection markers and most effects remain in Canvas2D.
@@ -47,3 +51,7 @@ The test currently uses the standard Windows Chrome installation.
 debug=1 validation was repaired to use hpMax, buildOcc and typed occupancy arrays.
 
 The original main worktree is preserved. This work lives on codex/realtime-tank-3d.
+
+Refactoring regression: node client/tests/tank-motion.cjs checks read-only pose
+access, immutable configuration, angle wrap and frame-rate independent turning.
+Development policy is recorded in AGENTS.md.
