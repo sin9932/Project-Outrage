@@ -39,7 +39,7 @@ function pose(u, time) {
   if(u.kind==='factory'){
     const F=window.OUFactory,a=assets.get('factory');
     a.buildAction.time=F.progress(u,time)*a.buildClip.duration;a.buildMixer.update(0);
-    model.rotation.set(0,Math.PI/2-F.heading,0);hull.scale.setScalar(1);
+    model.rotation.set(0,F.modelYaw,0);hull.scale.setScalar(1);
     const roof=F.roof(u,time)*1.22;
     model.getObjectByName('RoofL').rotation.z=roof;model.getObjectByName('RoofR').rotation.z=-roof;
     model.getObjectByName('Door').scale.y=1-.98*F.door(u,time);
@@ -259,6 +259,8 @@ export const ready = (async () => {
     if(extraParts.some(n=>!n))throw Error('Sentry assembly nodes missing');
     mergeRigidParts();model.updateMatrixWorld(true);buildCrowdDetail();scene.add(model);remember('turret');Object.assign(assets.get('turret'),{buildClip,buildMixer,buildAction});selectAsset('tank');
     api.sentryReady=true;
+    const fc=await fetch(new URL('../asset/model/factory/contract.json?v=2',import.meta.url)).then(r=>{if(!r.ok)throw Error('Factory contract unavailable');return r.json();});
+    if(fc.revision!==2||fc.modelYaw!==window.OUFactory.modelYaw||fc.exitHeading!==window.OUFactory.heading||fc.worldUnitsPerMetre!==window.OUFactory.scale)throw Error('Factory exit axis contract mismatch');
     const fg=await new GLTFLoader().loadAsync(new URL(window.OUFactory.modelUrl,import.meta.url).href);
     config=window.OUFactory;model=fg.scene;hull=model.getObjectByName('Hull');turret=null;barrel=null;barrelRest=null;
     wheels=[];materials=[];detailMeshes=[];crowdMeshes=[];
@@ -275,8 +277,8 @@ export const ready = (async () => {
     const marker=new THREE.Mesh(new THREE.CircleGeometry(1.3,24),markerMat);marker.quaternion.copy(camera.quaternion);hull.add(marker);materials=[markerMat];scene.add(model);remember('ifv');
     selectAsset('tank');api.factoryReady=true;
     const mg=await new GLTFLoader().loadAsync(new URL(window.OUMCV.modelUrl,import.meta.url).href);
-    const contract=await fetch(new URL('../asset/model/mcv/contract.json?v=6',import.meta.url)).then(r=>{if(!r.ok)throw Error('MCV contract unavailable');return r.json();});
-    if(contract.revision!==6||contract.runtimeSeconds!==window.OUMCV.seconds||contract.worldUnitsPerMetre!==window.OUMCV.scale||contract.modelScale!==window.OUMCV.modelScale||contract.up!=='+Y'||contract.heading!=='+Z')throw Error('MCV model dimensions/timing contract mismatch');
+    const contract=await fetch(new URL('../asset/model/mcv/contract.json?v=7',import.meta.url)).then(r=>{if(!r.ok)throw Error('MCV contract unavailable');return r.json();});
+    if(contract.revision!==7||contract.runtimeSeconds!==window.OUMCV.seconds||contract.worldUnitsPerMetre!==window.OUMCV.scale||contract.modelScale!==window.OUMCV.modelScale||contract.up!=='+Y'||contract.heading!=='+Z')throw Error('MCV model dimensions/timing contract mismatch');
     const mc=mg.animations.find(c=>c.name==='Deploy');if(!mc||Math.abs(mc.duration-3)>.02||mc.tracks.some(t=>t.name.endsWith('.scale')))throw Error('Rigid MCV Deploy clip contract mismatch');
     const work=mg.animations.find(c=>c.name==='Work');
     if(contract.workClip!=='Work'||contract.workSeconds!==window.OUHQWork.seconds||!work||Math.abs(work.duration-contract.workSeconds)>.02||work.tracks.some(t=>t.name.endsWith('.scale')))throw Error('Rigid construction-yard Work clip contract mismatch');

@@ -1,0 +1,17 @@
+{
+  "revision": 2,
+  "worldUnitsPerMetre": 20,
+  "footprint": [
+    3,
+    4
+  ],
+  "modelYaw": 0,
+  "exitHeading": 0,
+  "exitLocal": [
+    7.25,
+    0,
+    2.75
+  ],
+  "laneOffsetTiles": 0.5,
+  "buildSeconds": 1.6
+}

@@ -1,0 +1,27 @@
+{
+  "timing": {
+    "started": 1.3312000000000008,
+    "phase": "deploy",
+    "operational": true,
+    "repackRejected": true,
+    "queueStartedDuringDeploy": true,
+    "duration": 0.8145999999999995
+  },
+  "immediateBuild": true,
+  "blocked": [
+    false,
+    false,
+    false
+  ],
+  "reverseMatches": true,
+  "hpPreserved": true,
+  "optionGate": true,
+  "noRepackRefund": true,
+  "production": true,
+  "deathNoRespawn": true,
+  "saleDistinct": true,
+  "enemyDeploy": true,
+  "doubleClick": true,
+  "groundMoveRepack": true,
+  "errors": []
+}

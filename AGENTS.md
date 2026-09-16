@@ -16,3 +16,7 @@ The owner requires refactoring alongside feature development. This policy applie
 - Keep implementation, fixtures and developer-only scenarios separate.
 - Work on an isolated branch/worktree; preserve the owner's uncommitted work.
 - Explain GitHub publication before pushing when no publication authorization exists.
+
+- Use Red Alert 2 as the default reference for this project’s fixed isometric presentation, controls and unit/building behavior.
+- Direction requests refer to the player’s screen. Keep entrances visible; do not rotate a whole building merely to change its exit side.
+- Treat supplied deployment references as choreography and motion-weight references as well as design references: stagger connected mechanisms, ease acceleration/braking, and use restrained settling.

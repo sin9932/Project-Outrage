@@ -224,7 +224,7 @@ for s in (-1,1):
     parent='Hull'
     for k in range(3):
         n=f'Deck_{s}_{k}'
-        joint(n,parent,closed=(s*(.06 if k else .10),0,.11 if k else .44),opened=(s*(2.18 if k else 2.22),0,-.04 if k else .29),start=3+k*3,end=28+k*4)
+        joint(n,parent,closed=(s*(.06 if k else .10),0,.11 if k else .44),opened=(s*(1.78 if k else 2.22),0,-.04 if k else .29),start=3+k*3,end=28+k*4)
         box('Nested armored floor',(0,0,0),(2.32,8.18,.13),roofmat,n,.025)
         for y in (-3.48,3.48):box('Sliding box rail',(-s*.35,y,-.13),(2.6,.26,.22),steel,n,.025)
         for y in (-2.6,0,2.6):panel_details(0,y,.08,1.93,2.22,n)
@@ -235,7 +235,7 @@ for s in (-1,1):
     for stage in range(3):
       for sy in (-1,1):
         n=f'Apron_{s}_{stage}_{sy}'
-        joint(n,f'Deck_{s}_{stage}',closed=(0,sy*1.62,-.08),opened=(0,sy*5.45,-.08),start=17,end=43)
+        joint(n,f'Deck_{s}_{stage}',closed=(0,sy*1.62,-.08),opened=(0,sy*4.70,-.08),start=17,end=43)
         box('Apron cassette',(0,0,0),(2.32,3.0,.13),roofmat,n,.025)
         for x in (-.85,.85):box('Apron guide',(x,-sy*1.55,-.1),(.16,3.4,.16),steel,n,.01)
         for i in (-.65,.65):panel_details(0,i,.08,1.95,1.15,n)
@@ -310,12 +310,12 @@ for sx in (-1,1):
 # Apron middle telescopes lengthwise out of the original chassis.
 for sy in (-1,1):
     n=f'CenterApron_{sy}'
-    joint(n,closed=(0,sy*1.55,.28),opened=(0,sy*5.42,.12),start=12,end=43)
+    joint(n,closed=(0,sy*1.55,.28),opened=(0,sy*4.66,.12),start=12,end=43)
     box('Center entry apron',(0,0,0),(2.75,3.12,.15),roofmat,n,.035)
     panel_details(0,0,.09,2.30,2.5,n)
 # Central rising platform: short nested leaves provide an unbroken roof around
 # the column while the perimeter leaves lock over its outer edge.
-joint('RoofLift',closed=(0,0,.96),opened=(0,0,2.32),start=28,end=63)
+joint('RoofLift',closed=(0,0,.96),opened=(0,0,2.90),start=28,end=63)
 box('Core roof',(0,0,0),(2.7,8.75,.20),roofmat,'RoofLift',.05)
 for s in (-1,1):
     for j in range(2):
@@ -333,7 +333,7 @@ box('Entry lintel',(0,-.07,1.69),(1.94,.40,.23),trim,'EntryGate',.05)
 for x in (-.39,0,.39):box('Door reinforcement',(x,-.075,.80),(.09,.075,1.48),steel,'EntryGate',.01)
 box('Entry faction lamp',(0,-.29,1.70),(.77,.03,.08),team,'EntryGate',.015)
 joint('EntryHood','EntryRail',closed=(0,2.4,1.85),opened=(0,0,1.57),rotation=(-math.pi/2,0,0),turn=(0,0,0),start=42,end=65)
-loft('Entry armored hood',[[(-1.04,y,z),(1.04,y,z),(1.04,y+.18,z),(-1.04,y+.18,z)] for y,z in ((0,.03),(1.57,.35))],concrete,'EntryHood',.035)
+loft('Entry armored hood',[[(-1.04,y,z),(1.04,y,z),(1.04,y+.18,z),(-1.04,y+.18,z)] for y,z in ((0,.03),(1.57,.93))],concrete,'EntryHood',.035)
 box('Door upper fascia',(0,.06,.11),(1.68,.11,.20),team,'EntryHood',.025)
 # Rear central service wall closes the back; it nests inside the front gate cassette.
 joint('RearCenterRail',closed=(0,2.65,1.8),opened=(0,5.58,.39),start=12,end=40)
@@ -341,7 +341,7 @@ joint('RearCenterWall','RearCenterRail',rotation=(math.pi/2,0,0),turn=(0,0,0),st
 loft('Rear central bulkhead',[[(-1.03,y,z),(1.03,y,z),(1.03,y-.18,z),(-1.03,y-.18,z)] for y,z in ((0,0),(-.08,1.0),(-1.25,3.13))],concrete,'RearCenterWall',.035)
 # TELESCOPIC COLUMN: hollow outer sleeve, nested lattice, head, yaw and boom.
 # All four children physically inherit the lift instead of separately flying up.
-joint('TowerSleeve',closed=(0,.15,1.02),opened=(-2.25,-1.65,2.45),start=32,end=62)
+joint('TowerSleeve',closed=(0,.15,1.02),opened=(-2.25,-1.65,3.03),start=32,end=62)
 # The sleeve lies along the cargo capsule when packed, then rotates around its
 # permanent carriage before the mast extends. A vertical packed collar pierced
 # the curved skin even though it fit a rectangular vehicle bounding box.
@@ -396,7 +396,7 @@ beam('Hook end',(.12,0,-.30),(.23,0,-.17),.038,steel,'Hook')
 
 # The low perimeter is a chassis plinth, leaving the vaulted production hall
 # to define the building silhouette. Static dimensions are baked into meshes.
-PLINTH_HEIGHT_RATIO=.62
+PLINTH_HEIGHT_RATIO=.80
 for group,objs in parts.items():
     if group.startswith(('ArmorWing_','EndLeaf_','SideBridge_')) or group=='RearCenterWall':
         for obj in objs:
@@ -431,6 +431,31 @@ work_facilities=build_work_equipment(SimpleNamespace(
     materials=SimpleNamespace(armor=armor,edge=edge,panel=panel,steel=steel,
                               black=black,team=team,yellow=yellow)))
 
+# The main hall fills the foundation instead of sitting like a small shed.
+# Bake its 12% wider / 16% taller architecture into rigid meshes, then retune
+# only the packed hinge offsets; the model never grows via animated scale.
+hall_scale=Vector((1.12,1.06,1.16))
+def is_hall(name):
+    while name and name!='Hull':
+        if name=='Workshop':return True
+        name=rig[name]['parent']
+    return False
+for group,objs in parts.items():
+    if not is_hall(group):continue
+    for obj in objs:
+        transform=obj.matrix_world.copy()
+        for vertex in obj.data.vertices:
+            v=transform @ vertex.co
+            vertex.co=Vector(tuple(v[i]*hall_scale[i] for i in range(3)))
+        obj.matrix_world=Matrix.Identity(4);obj.data.update()
+for name,data in rig.items():
+    if name!='Workshop' and is_hall(name):
+        data['opened']=tuple(data['opened'][i]*hall_scale[i] for i in range(3))
+    if name.startswith('WorkshopSide_'):
+        data['closed']=(math.copysign(.30,data['closed'][0]),data['closed'][1],data['closed'][2])
+from yard_motion import configure, fraction
+configure(rig)
+
 # Bake each joint as a rigid transform. No animated scale or mesh visibility.
 for group,objs in list(parts.items()):
     for o in objs:
@@ -450,7 +475,7 @@ for group,objs in list(parts.items()):
 for name,d in rig.items():
     o=nodes[name]
     for f in range(91):
-        t=max(0,min(1,(f-d['start'])/max(1,d['end']-d['start'])));t=t*t*(3-2*t)
+        t=max(0,min(1,(f-d['start'])/max(1,d['end']-d['start'])));t=fraction(t,d['motion'])
         o.location=Vector(d['closed']).lerp(Vector(d['opened']),t)
         o.rotation_euler=tuple(a+(b-a)*t for a,b in zip(d['rotation'],d['turn']))
         if name!='Hull':
@@ -477,7 +502,7 @@ bpy.ops.object.select_all(action='SELECT');bpy.context.view_layer.objects.active
 bpy.ops.export_scene.gltf(filepath=str(OUT/'mcv.glb'),export_format='GLB',use_selection=True,export_yup=True,export_animations=True,export_animation_mode='NLA_TRACKS',export_force_sampling=True,export_apply=True)
 from yard_clip_contract import normalize_yard_clips
 normalize_yard_clips(OUT/'mcv.glb')
-(OUT/'contract.json').write_text(json.dumps({'revision':6,'workClip':'Work','workSeconds':3.2,'workFacilities':work_facilities,'facilities':facilities,'plinthHeightMetres':2.32,'design':'vaulted production hall with integrated power and control modules','clip':'Deploy','authoringSeconds':3,'runtimeSeconds':.8,'worldUnitsPerMetre':20,'modelScale':1.65,'heading':'+Z','up':'+Y','constantScale':True,'settledYard':'cached exact Deploy endpoint','rig':rig,'assembly':'rigid joints with nested hidden cassettes'},indent=2))
+(OUT/'contract.json').write_text(json.dumps({'revision':7,'motion':'weighted staggered joints with hydraulic braking and restrained settling','hallRigidDimensionsScale':[1.12,1.06,1.16],'workClip':'Work','workSeconds':3.2,'workFacilities':work_facilities,'facilities':facilities,'plinthHeightMetres':2.90,'design':'vaulted production hall with integrated power and control modules','clip':'Deploy','authoringSeconds':3,'runtimeSeconds':.8,'worldUnitsPerMetre':20,'modelScale':1.65,'heading':'+Z','up':'+Y','constantScale':True,'settledYard':'cached exact Deploy endpoint','rig':rig,'assembly':'rigid joints with nested hidden cassettes'},indent=2))
 # The editable .blend opens on Deploy. Export above includes both named NLA
 # clips; muting Work here only selects the authoring/review view.
 for o in nodes.values():

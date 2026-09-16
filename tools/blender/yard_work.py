@@ -11,9 +11,9 @@ import math
 
 WORK_FRAMES = 96
 WORK_SECONDS = 3.2
-PICK = (-.65, -5.15, 2.965)
-LAND = (2.05, -2.10, 2.965)
-CRANE_BASE = (-2.25, -1.65, 6.54)
+PICK = (-.65, -5.15, 3.545)
+LAND = (2.05, -2.10, 3.545)
+CRANE_BASE = (-2.25, -1.65, 7.12)
 SECTION_LENGTH = 1.70
 GRIP_OFFSET = .635
 REQUIRED_NODES = ('WorkGimbal', 'WorkGripper', 'WorkJaw_-1', 'WorkJaw_1',
@@ -120,7 +120,7 @@ def work_pose(frame, rig):
     for course in range(2):
         name = f'WarehouseShutter_{course}'
         x, y, z = rig[name]['opened']
-        overrides[name] = {'location': (x, y, z+door*(1.50-.75*course))}
+        overrides[name] = {'location': (x, y, z+door*(1.50-.75*course)*1.16)}
     return overrides
 
 

@@ -82,7 +82,10 @@ def loft(name,rings,mat,group,rad=.035):
     return mesh(name,verts,faces,mat,group,rad)
 
 
-# Contract: 3x4 tiles, scale=20, Blender -Y is the vehicle exit.
+# Contract: unchanged 3x4 footprint and roof orientation; +X cargo exit.
+# Screen-right means world +X. Move the portal, never turn the whole building.
+EXIT_Y=-2.75  # aligns with access tile ty+2 at TILE=110 and scale=20
+PORTAL_SHIFT_X=-1.90
 # Reference: battered olive armor, projecting portal, paired ribbed roof leaves.
 import numpy as np
 concrete=material('Concrete | weathered olive',(.145,.14,.105),.05,.87)
@@ -124,8 +127,8 @@ def weather(mat,seed):
  mat.node_tree.links.new(tex.outputs['Color'],mat.node_tree.nodes.get('Principled BSDF').inputs['Base Color'])
 for i,m in enumerate([concrete,trim,roofmat,dirt]):weather(m,71+i)
 box('Foundation',(0,0,.1),(16.2,21.6,.2),dirt,'Hull',.1)
-box('Interior floor',(0,0,.25),(12.2,19,.3),steel,'Floor',.03)
-for x in (-3.,3.):box('Floor guide',(x,-1,.42),(.09,16,.025),yellow,'Floor',0)
+box('Interior floor',(0,0,.25),(14.0,19,.3),steel,'Floor',.03)
+for y in (EXIT_Y-3,EXIT_Y+3):box('Floor guide',(0,y,.42),(14,.09,.025),yellow,'Floor',0)
 def side_section(name,side,y0,y1,z0,z1,outer0,outer1,inner,mat,group):
  v=[(side*x,y,z) for z,outer in [(z0,outer0),(z1,outer1)] for x,y in [(inner,y0),(outer,y0),(outer,y1),(inner,y1)]]
  faces=[(0,3,2,1),(4,5,6,7),(0,1,5,4),(1,2,6,5),(2,3,7,6),(3,0,4,7)]
@@ -133,10 +136,14 @@ def side_section(name,side,y0,y1,z0,z1,outer0,outer1,inner,mat,group):
  return mesh(name,v,faces,mat,group,.07)
 for side in (-1,1):
  group='WallL' if side<0 else 'WallR'
- side_section('Sloped armored wall',side,-9.3,10,.2,6.25,7.95,6.65,6.15,concrete,group)
- side_section('Weathered wall foot',side,-9.31,10.01,.22,.85,7.97,7.84,7.45,dirt,group)
- side_section('Faction wall belt',side,-9.33,10.03,2.05,2.6,7.57,7.45,7.35,team,group)
+ spans=[(-9.3,10)] if side<0 else [(-9.3,EXIT_Y-4.25),(EXIT_Y+4.25,10)]
+ for y0,y1 in spans:
+  side_section('Sloped armored wall',side,y0,y1,.2,6.25,7.95,6.65,6.15,concrete,group)
+  side_section('Weathered wall foot',side,y0,y1,.22,.85,7.97,7.84,7.45,dirt,group)
+  side_section('Faction wall belt',side,y0,y1,2.05,2.6,7.57,7.45,7.35,team,group)
+ if side>0:side_section('Cargo opening structural header',side,EXIT_Y-4.25,EXIT_Y+4.25,5.2,6.25,6.88,6.65,6.15,concrete,group)
  for y in (-8,-4,0,4,8):
+  if side>0 and -7<y<4.5:continue
   levels=[(.22,7.65,.88,.92),(1.05,7.65,.88,.92),(1.48,7.55,.73,.85),(4.95,7.02,.66,.80),(5.82,6.88,.66,.80),(6.04,6.88,.50,.67)]
   rings=[[(px+side*cx,py+y,pz) for px,py,pz in rect_ring(wx,-wy,wy,.11,z)] for z,cx,wx,wy in levels]
   loft('Battered stepped buttress',rings,trim,group,.025)
@@ -149,6 +156,7 @@ for side in (-1,1):
   for yy in (y-.65,y+.65):
    cylinder('Buttress anchor',(side*8.56,yy,.56),.055,.04,edge,group,axis='X',vertices=6,rad=0)
  for y in (-6,-2,2,6):
+  if side>0 and y<4.5:continue
   box('Wall panel seam',(side*7.16,y,4.65),(.035,.045,1.7),panel,group,0)
   cylinder('Utility pipe',(side*7.76,y,1.60),.095,2.6,edge,group,axis='Y',vertices=12)
   box('Wall light',(side*7.89,y,1.67),(.07,1.75,.12),light,group,.02)
@@ -252,7 +260,7 @@ def pallet(x,y,group):
 
 # Asymmetric clusters, kept clear of the central exit and door animation.
 for x,y,i in [(-6.05,-11.55,0),(-7.1,-11.60,1),(-6.55,-12.48,2),(6.15,-11.65,1),(7.16,-11.45,2)]:oil_drum(x,y,variant=i)
-for side,cy in [(-1,-2.15),(1,2.2)]:
+for side,cy in [(-1,-2.15)]:
  group='WallL' if side<0 else 'WallR';cx=side*8.4
  pallet(cx,cy,group);supply_crate(cx,cy,.40,group);supply_crate(cx+.12,cy+.10,1.61,group,size=(1.40,1.1,.9))
  supply_crate(cx,cy+1.75,.08,group,size=(1.6,1.15,.85))
@@ -275,9 +283,23 @@ for x in (-5.5,5.5):
    coords.append((x+px*math.cos(a)-pz*math.sin(a),-10.51,3.6+px*math.sin(a)+pz*math.cos(a)))
   mesh('Faction insignia prong',coords,[(0,1,2,3)],team,'Front')
 for x in (-4.8,4.8):
- for y in (-4,1,6):
+ for y in (4,7):
   box('Interior work station',(x,y,1.0),(1.3,2.5,1.4),panel,'Floor',.06)
   box('Interior instrument panel',(x,y-1.28,1.35),(.8,.045,.3),light,'Floor',.02)
+# Relocate only the entire portal assembly, shutter and ramp into the right wall.
+# Roof, foundation, equipment and footprint retain their authored orientation.
+portal_matrix=Matrix.Translation((PORTAL_SHIFT_X,EXIT_Y,0)) @ Matrix.Rotation(math.pi/2,4,'Z')
+for group in ('Front','Door','Ramp'):
+ for o in parts[group]:o.matrix_world=portal_matrix @ o.matrix_world
+# Close the former front entrance with a finished industrial facade.
+box('Front facade armor',(0,-9.38,3.2),(13.5,1.25,6),concrete,'WallL',.16)
+box('Front facade faction belt',(0,-10.03,2.3),(12.6,.08,.55),team,'WallL',.02)
+for x in (-5.2,0,5.2):box('Front facade structural pier',(x,-10.06,3.15),(.55,.32,5.9),trim,'WallL',.055)
+for x in (-2.8,2.8):
+ box('Front facade recessed ventilation',(x,-10.025,4.1),(3.15,.08,1.12),black,'WallL',.045)
+ for z in (3.70,3.88,4.06,4.24,4.42):box('Front facade vent louvre',(x,-10.11,z),(3.0,.13,.075),steel,'WallL',.015)
+ box('Front facade service panel',(x,-10.06,1.14),(2.65,.12,1.2),panel,'WallL',.04)
+for y in (8.0,9.2):oil_drum(8.4,y,group='WallR')
 # Consistent object-space box projection, including custom sloped wall meshes.
 for objs in parts.values():
  for o in objs:
@@ -338,7 +360,7 @@ for m,out,original,target,ao,emit in restore:
 for o in meshes:o.data.uv_layers.active_index=0
 print('CONTACT_OCCLUSION_COMPLETE',flush=True)
 nodes={}
-origins=[('Hull',(0,0,0)),('Floor',(0,0,0)),('WallL',(0,0,0)),('WallR',(0,0,0)),('Rear',(0,0,0)),('Front',(0,0,0)),('Ramp',(0,0,0)),('RoofFrame',(0,0,0)),('RoofL',(-6.2,0,6.4)),('RoofR',(6.2,0,6.4)),('Door',(0,-9.15,5.2)),('Equipment',(0,0,0))]
+origins=[('Hull',(0,0,0)),('Floor',(0,0,0)),('WallL',(0,0,0)),('WallR',(0,0,0)),('Rear',(0,0,0)),('Front',(0,0,0)),('Ramp',(0,0,0)),('RoofFrame',(0,0,0)),('RoofL',(-6.2,0,6.4)),('RoofR',(6.2,0,6.4)),('Door',(9.15+PORTAL_SHIFT_X,EXIT_Y,5.2)),('Equipment',(0,0,0))]
 for name,origin in origins:
  o=bpy.data.objects.new(name,None);scene.collection.objects.link(o);o.location=origin;nodes[name]=o
 bpy.context.view_layer.update()
@@ -371,6 +393,7 @@ asset=list(scene.objects);bpy.ops.object.select_all(action='DESELECT')
 for o in asset:o.select_set(True)
 bpy.context.view_layer.objects.active=nodes['Hull']
 bpy.ops.export_scene.gltf(filepath=str(OUT/'factory.glb'),export_format='GLB',use_selection=True,export_yup=True,export_animations=True,export_animation_mode='NLA_TRACKS',export_force_sampling=True,export_apply=True)
+(OUT/'contract.json').write_text(json.dumps({'revision':2,'worldUnitsPerMetre':20,'footprint':[3,4],'modelYaw':0,'exitHeading':0,'exitLocal':[7.25,0,2.75],'laneOffsetTiles':.5,'buildSeconds':1.6},indent=2))
 def aim(o,p):o.rotation_euler=(Vector(p)-o.location).to_track_quat('-Z','Y').to_euler()
 for name,loc,power,size in [('Key',(-12,-18,30),8500,18),('Fill',(18,-5,20),4500,16),('Rim',(0,20,25),6500,12)]:
  d=bpy.data.lights.new(name,'AREA');d.energy=power;d.size=size;o=bpy.data.objects.new(name,d);scene.collection.objects.link(o);o.location=loc;aim(o,(0,0,3))
