@@ -30,12 +30,12 @@ const middle=await p.evaluate(()=>({alive:gun.alive,occupied:OUTankTest.buildOcc
 assert(middle.alive&&middle.occupied===1&&middle.progress>0&&middle.progress<1);
 await p.waitForFunction(()=>!gun.alive,null,{timeout:7000});
 const sold=await p.evaluate(()=>({money:OUTankTest.state.player.money,occupied:OUTankTest.buildOcc[gun.ty*OUTankTest.MAP_W+gun.tx],duration:gun._sentrySellFinalizeAt-gun._sentrySellT0,records,shots:gun.shotSerial||0}));
-assert.equal(sold.money-before.money,250);assert.equal(sold.occupied,0);assert(Math.abs(sold.duration-3.2)<1e-6);assert.equal(sold.shots,before.shots);assert(sold.records.filter(r=>r.alive&&r.selling).every(r=>r.occupied===1));
+assert.equal(sold.money-before.money,250);assert.equal(sold.occupied,0);assert(Math.abs(sold.duration-1.2)<1e-6);assert.equal(sold.shots,before.shots);assert(sold.records.filter(r=>r.alive&&r.selling).every(r=>r.occupied===1));
 await p.locator('#btnSellMode').click();
-await p.evaluate(()=>{const g=OUTankTest;gun=g.addBuilding(0,'turret',15,15);gun._placedAt=g.state.t-1.2;records=[];});
+await p.evaluate(()=>{const g=OUTankTest;gun=g.addBuilding(0,'turret',15,15);gun._placedAt=g.state.t-OUSentry.buildSeconds*.25;records=[];});
 await p.locator('#btnSellMode').click();await p.mouse.move(box.x+pt.x,box.y+pt.y-25);await p.waitForTimeout(150);await p.mouse.click(box.x+pt.x,box.y+pt.y-25);await p.waitForFunction(()=>gun._sentrySelling,null,{timeout:5000});
 const partial=await p.evaluate(()=>({from:gun._sentrySellFrom,duration:gun._sentrySellFinalizeAt-gun._sentrySellT0}));
-assert(partial.from>0&&partial.from<.8);assert(Math.abs(partial.duration-partial.from*3.2)<1e-6);await p.waitForFunction(()=>!gun.alive);
+assert(partial.from>0&&partial.from<.8);assert(Math.abs(partial.duration-partial.from*1.2)<1e-6);await p.waitForFunction(()=>!gun.alive);
 const legacy=[];
 for(const [kind,flag,cost] of [['barracks','_barrackSelling',500],['power','_powerSelling',600],['refinery','_refinerySelling',2000]]){
  await p.evaluate(kind=>{const g=OUTankTest;gun=g.addBuilding(0,kind,15,15);gun._freeHarvesterPending=false;g.centerCameraOn(gun.x,gun.y);},kind);

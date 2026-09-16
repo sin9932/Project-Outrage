@@ -6,7 +6,7 @@ Visible order: foundation, staggered outrigger extension, telescoping pedestal, 
 
 Unassembled geometry starts below ground. Per-instance ground clipping subtracts the atlas-cell offset before comparing against the ground plane, so below-ground parts are hidden without whole-object visibility pops. Completed models retain their normal geometry and live yaw/barrel movement.
 
-Construction and selling sample the exact same clip. Selling starts at the current construction progress and runs backward at the same rate. A complete sale takes 3.2 simulation seconds; an interrupted build takes its elapsed portion. Selling disables sentry firing and clears its targeting. The building remains alive and its tile occupied until the reverse animation finishes. Repeated clicks cannot issue a second refund.
+Construction and selling sample the exact same clip. Selling starts at the current construction progress and runs backward at the same rate. A complete sale takes 1.2 simulation seconds; an interrupted build takes its elapsed portion. Selling disables sentry firing and clears its targeting. The building remains alive and its tile occupied until the reverse animation finishes. Repeated clicks cannot issue a second refund.
 
 The sell animation descriptors and finalization loop are shared with the existing barracks/power/refinery paths; their sprite reverse playback remains intact. No explosion is triggered by sale.
 
@@ -29,3 +29,5 @@ The GIF is a deterministic preview of the shared clip, not a recording of UI cli
 Reload with Ctrl+F5 and start a fresh game. Main remains unmerged.
 
 Follow-up: removed the opposing receiver/hinge rotations and rearward barrel slide that swept barrels through the box. Front and rear game-rendered intermediate frames were inspected. The completed geometry and muzzle transform are unchanged. Chrome and Firefox full/partial sale and the combat/refinery regression passed again.
+
+Playback pacing: the source clip remains 96 frames, but the shared sentry contract plays construction and reverse sale in 1.2 simulation seconds (previously 3.2). Assembly ordering is unchanged; readiness, targeting and sale finalization use this same clock.
