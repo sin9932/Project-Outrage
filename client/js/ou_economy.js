@@ -350,10 +350,11 @@
     // Unit production queue
     // -------------------------
     function kindToProducer(kind){
-      return (kind==="tank" || kind==="harvester" || kind==="ifv") ? "factory" : "barracks";
+      return global.OUTech.producer(kind);
     }
 
     function queueUnit(kind){
+      if(!global.OUTech.canUnit(buildings,TEAM.PLAYER,kind,state.t)){toast("생산 조건이 부족합니다");return;}
       if (prodTotal[kind] >= QCAP) return;
 
       const need = kindToProducer(kind);
@@ -506,6 +507,7 @@
           if (b.kind==="hq") speed *= 3;
 
           const q=b.buildQ[0];
+          if(q.kind==='mcv'&&!global.OUTech.canUnit(buildings,b.team,'mcv',state.t))continue;
 
           const debugFastProd = !!(state.debug && state.debug.fastProd && b.team===TEAM.PLAYER);
 
@@ -630,7 +632,7 @@
         const calc=(team)=>{
           let prod=0,use=0;
           for (const b of buildings){
-            if (!b.alive||b.team!==team||b.civ) continue;
+            if (!global.OUTech.operational(b)||b.team!==team) continue;
             if (b.kind==="hq") prod+=POWER.hqProd;
             if (b.kind==="power") prod+=POWER.powerPlant;
             if (b.kind==="refinery") use+=POWER.refineryUse;
@@ -649,12 +651,9 @@
     function validateTechQueues(){
         // If tech prerequisites are lost, remove invalid reservations/queues so they don't soft-lock construction.
         function hasP(team, kind){
-          return buildings.some(b=>b.alive && !b.civ && b.team===team && b.kind===kind);
+          return buildings.some(b=>global.OUTech.operational(b) && b.team===team && b.kind===kind);
         }
-        const tech = {
-          buildPrereq: { power:["hq"], refinery:["hq","power"], barracks:["hq","power"], factory:["hq","barracks"], radar:["hq","factory","refinery"], turret:["hq","barracks"] },
-          unitPrereq: { infantry:["barracks"], engineer:["barracks"], sniper:["barracks","radar"], tank:["factory"], ifv:["factory"], harvester:["factory"] }
-        };
+        const tech = global.OUTech;
         function prereqOk(team, kind, map){
           const req = map[kind];
           if (!req || !req.length) return true;

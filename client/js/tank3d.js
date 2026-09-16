@@ -4,7 +4,7 @@ import { mergeGeometries } from '../vendor/three/addons/utils/BufferGeometryUtil
 
 // Hybrid isometric renderer: rasterize actual geometry at its current arbitrary
 // pose every frame, then composite at the existing world depth-sort position.
-// No directional atlas, cached view frames, or animation image sequences.
+// Units use continuous poses; settled construction yards cache their completed pose.
 const api = window.OUTank3D = { status: 'loading', draws: 0, error: null };
 const enabled = new URLSearchParams(location.search).get('tank3d') !== '0';
 let config = window.OUTankConfig;
@@ -15,12 +15,24 @@ const assets=new Map();
 const poseByUnit = new Map();
 const frameSlots = new Map();
 const framePages = [];
+const yardFrames=new Map();
 let detailMeshes=[], crowdMeshes=[];
 const ray = new THREE.Raycaster();
 const pointer = new THREE.Vector2();
 const v = new THREE.Vector3();
 
 function pose(u, time) {
+  if(u.kind==='mcv'||u.kind==='hq'){
+    const a=assets.get(u.kind),M=window.OUMCV;
+    a.buildAction.time=M.progress(u,time)*a.buildClip.duration;a.buildMixer.update(0);
+    model.rotation.set(0,u.kind==='mcv'?Math.PI/2-window.OUTankMotion.readPose(u).bodyYaw:0,0);
+    model.position.y=u._mcvSelling?-Math.max(0,time-u._mcvSellT0-M.seconds)*20:0;
+    if(u.kind==='mcv')animateWheels(u,time,window.OUTankMotion.readPose(u).bodyYaw);
+    model.updateMatrixWorld(true);return;
+  }
+  if(u.kind==='repair'){
+    model.position.y=-3*(1-Math.max(0,Math.min(1,(time-u._placedAt)/window.OUTech.assemblySeconds('repair'))));model.updateMatrixWorld(true);return;
+  }
   if(u.kind==='factory'){
     const F=window.OUFactory,a=assets.get('factory');
     a.buildAction.time=F.progress(u,time)*a.buildClip.duration;a.buildMixer.update(0);
@@ -55,16 +67,20 @@ function pose(u, time) {
     cargo.visible=u.carry>0;cargo.scale.y=Math.max(.05,Math.min(1,u.carry/Math.max(1,u.carryMax)));
     model.getObjectByName('Rotor').rotation.x=(u.harvestUntil||0)>time?time*9:0;
   }
+  animateWheels(u,time,bodyYaw);
+  model.updateMatrixWorld(true);
+}
+
+function animateWheels(u,time,bodyYaw){
   let rec = poseByUnit.get(u.id);
   if (!rec || rec.unit !== u) rec = { unit:u, x:u.x, y:u.y, wheel:0, seen:time };
   const dx = u.x - rec.x, dy = u.y - rec.y;
   const forward = dx * Math.cos(bodyYaw) + dy * Math.sin(bodyYaw);
-  if (Math.hypot(dx,dy) < 200) rec.wheel += forward / (m.SCALE * config.wheelRadius);
-  if(u._factoryDistance!=null)rec.wheel=u._factoryDistance/(m.SCALE*config.wheelRadius);
+  if (Math.hypot(dx,dy) < 200) rec.wheel += forward / (window.OUTankMotion.SCALE * config.wheelRadius * (config.modelScale||1));
+  if(u._factoryDistance!=null)rec.wheel=u._factoryDistance/(window.OUTankMotion.SCALE*config.wheelRadius*(config.modelScale||1));
   rec.x = u.x; rec.y = u.y; rec.seen = time;
   poseByUnit.set(u.id,rec);
   for (const w of wheels) w.rotation.x = rec.wheel;
-  model.updateMatrixWorld(true);
 }
 
 function teamColor(color) {
@@ -255,6 +271,30 @@ export const ready = (async () => {
     const markerMat=new THREE.MeshBasicMaterial({color:0xffffff});markerMat.name='TeamColor | IFV placeholder';
     const marker=new THREE.Mesh(new THREE.CircleGeometry(1.3,24),markerMat);marker.quaternion.copy(camera.quaternion);hull.add(marker);materials=[markerMat];scene.add(model);remember('ifv');
     selectAsset('tank');api.factoryReady=true;
+    const mg=await new GLTFLoader().loadAsync(new URL(window.OUMCV.modelUrl,import.meta.url).href);
+    const mc=mg.animations.find(c=>c.name==='Deploy');if(!mc||Math.abs(mc.duration-3)>.02)throw Error('MCV Deploy clip contract mismatch');
+    for(const kind of ['mcv','hq']){
+      config={...window.OUMCV,renderSpan:kind==='hq'?window.OUMCV.hqSpan:window.OUMCV.renderSpan};
+      model=mg.scene.clone(true);hull=model.getObjectByName('Hull');turret=barrel=barrelRest=null;
+      wheels=[];materials=[];extraParts=[];detailMeshes=[];crowdMeshes=[];
+      hull?.scale.setScalar(window.OUMCV.modelScale);
+      if(!hull||!model.getObjectByName('Head')||!model.getObjectByName('Tower_3'))throw Error('MCV hierarchy incomplete');
+      model.traverse(o=>{if(!o.isMesh)extraParts.push(o);if(/^Wheel_[LR]_\d$/.test(o.name))wheels.push(o);if(o.isMesh)for(const mat of Array.isArray(o.material)?o.material:[o.material])if(/TeamColor/.test(mat.name)&&!materials.includes(mat))materials.push(mat);});
+      const mx=new THREE.AnimationMixer(model),ac=mx.clipAction(mc);ac.setLoop(THREE.LoopOnce,1);ac.clampWhenFinished=true;ac.play();ac.paused=true;ac.time=kind==='hq'?mc.duration:0;mx.update(0);
+      mergeRigidParts();model.updateMatrixWorld(true);buildCrowdDetail();scene.add(model);remember(kind);Object.assign(assets.get(kind),{buildClip:mc,buildMixer:mx,buildAction:ac});
+    }
+    // Dedicated service depot: armored workshop with a maintenance gantry.
+    config={scale:20,renderSpan:38};model=new THREE.Group();hull=new THREE.Group();model.add(hull);
+    turret=barrel=barrelRest=null;wheels=[];extraParts=[];detailMeshes=[];crowdMeshes=[];materials=[];
+    const rm=new THREE.MeshStandardMaterial({color:0x626663,metalness:.4,roughness:.8}),dk=new THREE.MeshStandardMaterial({color:0x202a2b,metalness:.5,roughness:.7}),tm=new THREE.MeshStandardMaterial({color:0xffffff,roughness:.6});tm.name='TeamColor | depot';materials=[tm];
+    const rb=(x,y,z,w,h,d,mat)=>{const o=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat);o.position.set(x,y,z);hull.add(o);};
+    rb(0,.15,0,15,.3,15,dk);rb(0,.45,0,13,.3,13,rm);
+    for(const x of [-5.5,5.5]){rb(x,1.4,0,1.8,2,11,rm);rb(x,2.45,0,1.85,.15,9,tm);rb(x,3.4,-4,1,5,1,rm);}
+    rb(0,5.5,-4,12,1,1.3,rm);rb(0,5.5,-4.68,10,.3,.06,tm);rb(0,3.8,-4,.3,3,.3,dk);rb(0,2.4,-4,1.2,.35,.7,rm);
+    for(const z of [-4,-2,0,2,4]){rb(-3.2,.64,z,.18,.04,1.4,tm);rb(3.2,.64,z,.18,.04,1.4,tm);}
+    mergeRigidParts();model.updateMatrixWorld(true);buildCrowdDetail();scene.add(model);remember('repair');
+    selectAsset('tank');api.mcvReady=true;
+
     return true;
   } catch (error) {
     if(assets.has('tank')){selectAsset('tank');api.status='ready';api.assetError=String(error);console.error('[vehicle3d asset]',error);return true;}
@@ -293,7 +333,7 @@ function appendPose(u,time,cellX,cellY,capacity,tint,viewSpan=span,localOffset=n
       const team=/TeamColor|Lamp/.test(src.material.name),mat=src.material.clone();
       if(team){mat.color.set(0xffffff);if(mat.emissive)mat.emissive.set(0);}
       let geometry=src.geometry,ground=null;
-      if(u.kind==='turret'||u.kind==='factory'){
+      if(['turret','factory','hq','repair'].includes(u.kind)){
         // Each atlas cell has a different camera-plane offset. Remove that offset
         // before clipping the underground assembly against the real ground plane.
         geometry=src.geometry.clone();ground=new THREE.InstancedBufferAttribute(new Float32Array(capacity),1);
@@ -332,7 +372,12 @@ api.beginFrame = function(units,time,view) {
     return p.x+size/2>=0&&p.y+size/2>=0&&p.x-size/2<=viewWidth&&p.y-size/2<=ctx.canvas.height;
   });
   const groups=new Map();
-  for(const u of visible){const key=assets.get(u.kind).config.renderSpan;if(!groups.has(key))groups.set(key,[]);groups.get(key).push(u);}
+  for(const u of visible){
+    if(u.kind==='hq'&&!u._mcvPhase&&!u._mcvSelling){
+      const size=window.OUMCV.hqSpan*20/Math.sqrt(2)*zoom,res=Math.max(64,Math.min(768,Math.ceil(size))),key=color(u)+':'+res,slot=yardFrames.get(key);
+      if(slot){frameSlots.set(u.id,{...slot,size});continue;}
+    }
+    const key=assets.get(u.kind).config.renderSpan;if(!groups.has(key))groups.set(key,[]);groups.get(key).push(u);}
   const res=Math.max(64,Math.min(768,Math.ceil(span*window.OUTankConfig.scale/Math.sqrt(2)*zoom)));
   const crowd=res<=160 || visible.length>=48;
   for(const a of assets.values()){for(const m of a.detailMeshes)m.visible=!crowd;for(const m of a.crowdMeshes)m.visible=crowd;}
@@ -369,6 +414,10 @@ api.beginFrame = function(units,time,view) {
     api.gpuDrawCalls=renderer.info.render.calls;
     const copy=canvas.getContext('2d');copy.clearRect(0,0,width,height);
     copy.drawImage(renderer.domElement,0,0);
+    for(const u of chunk)if(u.kind==='hq'&&!u._mcvPhase&&!u._mcvSelling){
+      const slot=frameSlots.get(u.id),key=color(u)+':'+slot.res;
+      if(!yardFrames.has(key)){const cached=document.createElement('canvas');cached.width=cached.height=slot.res;cached.getContext('2d').drawImage(canvas,slot.x,slot.y,slot.res,slot.res,0,0,slot.res,slot.res);yardFrames.set(key,{canvas:cached,x:0,y:0,res:slot.res});if(yardFrames.size>24)yardFrames.delete(yardFrames.keys().next().value);}
+    }
     pageCount++;
   }
   }
@@ -390,9 +439,11 @@ api.draw = function(ctx,u,p,zoom,color,time) {
 
 api.hitTest = function(u,screen,origin,zoom,time) {
   if(api.status!=='ready'||!assets.has(u.kind)) return false;
-  const size=span*window.OUTankMotion.SCALE/Math.sqrt(2)*zoom;
+  const pickSpan=assets.get(u.kind).config.renderSpan;
+  const size=pickSpan*window.OUTankMotion.SCALE/Math.sqrt(2)*zoom;
   pointer.set((screen.x-origin.x)*2/size,-(screen.y-origin.y)*2/size);
   if(Math.abs(pointer.x)>1 || Math.abs(pointer.y)>1) return false;
+  camera.left=-pickSpan/2;camera.right=pickSpan/2;camera.top=pickSpan/2;camera.bottom=-pickSpan/2;camera.updateProjectionMatrix();
   selectAsset(u.kind);pose(u,time); ray.setFromCamera(pointer,camera);
   return ray.intersectObject(model,true).some(h=>h.object.material?.opacity!==.2);
 };
@@ -428,3 +479,5 @@ const factoryGhosts=[];
 api.onFactoryDestroyed=(b,time)=>factoryGhosts.push({...b,id:-b.id,alive:true,_factoryDeath:time,_factoryDispatch:null});
 api.factoryGhosts=time=>{for(let i=factoryGhosts.length-1;i>=0;i--)if(time<factoryGhosts[i]._factoryDeath||time-factoryGhosts[i]._factoryDeath>window.OUFactory.deathSeconds)factoryGhosts.splice(i,1);return factoryGhosts;};
 api.factoryPose=(u,time)=>{if(!assets.has('factory'))return null;selectAsset('factory');pose(u,time);return Object.fromEntries(extraParts.map(n=>[n.name,{position:n.position.toArray(),quaternion:n.quaternion.toArray(),scale:n.scale.toArray()}]));};
+
+api.mcvPose=(u,t)=>{if(!assets.has(u.kind))return null;selectAsset(u.kind);pose(u,t);return Object.fromEntries(extraParts.map(n=>[n.name,{position:n.position.toArray(),quaternion:n.quaternion.toArray(),scale:n.scale.toArray()}]));};

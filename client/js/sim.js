@@ -142,7 +142,7 @@
         state.stats.kills[team] = (state.stats.kills[team] || 0) + 1;
         const m = state.stats.mvp;
         if (m && opts) {
-          const isVeh = opts.targetKind && ["tank", "ifv", "harvester"].includes(opts.targetKind);
+          const isVeh = opts.targetKind && ["tank", "ifv", "harvester", "mcv"].includes(opts.targetKind);
           const isInf = opts.targetCls === "inf" || (opts.targetKind && ["infantry", "engineer", "sniper"].includes(opts.targetKind));
           if (isVeh) m.vehicleKills[team] = (m.vehicleKills[team] || 0) + 1;
           if (isInf && opts.sniperKill) m.sniperInfantryKills[team] = (m.sniperInfantryKills[team] || 0) + 1;
@@ -299,7 +299,7 @@
     }
 
     function canCrushInf(u){
-      return !!u && (u.kind==="tank" || u.kind==="harvester");
+      return !!u && (u.kind==="tank" || u.kind==="harvester" || u.kind==="mcv");
     }
 
     function isEnemyInf(e){
@@ -1000,7 +1000,7 @@
         // Apply accumulated separation with damping + steering blend (떨림·벽 뚫림 방지)
         // 보병은 bothInf 스킵으로 다른 보병에게서는 _sepAx 없음. 차량에 밀릴 때만 적용.
         for (const uu of alive){
-          if (uu.kind==="tank" || uu.kind==="harvester") { uu._sepAx=0; uu._sepAy=0; continue; }
+          if (uu.kind==="tank" || uu.kind==="harvester" || uu.kind==="mcv") { uu._sepAx=0; uu._sepAy=0; continue; }
           let ax = uu._sepAx || 0;
           let ay = uu._sepAy || 0;
           if (ax===0 && ay===0){ uu._sepAx = 0; uu._sepAy = 0; continue; }
@@ -1773,7 +1773,7 @@
       }
       let ax=dx/(d||1), ay=dy/(d||1);
       // RA2 style: 보병은 회피 없이 목표로 직진 (위글+렉 근본 해결)
-      if (u.cls!=="inf" && u.kind!=="tank" && u.kind!=="harvester"){
+      if (u.cls!=="inf" && u.kind!=="tank" && u.kind!=="harvester" && u.kind!=="mcv"){
         let avoidX=0, avoidY=0;
         for (let j=0;j<units.length;j++){
           const o=units[j];
@@ -1803,13 +1803,13 @@
       }
 
       const movingDir = (Math.abs(ax) + Math.abs(ay)) > 1e-4;
-      if ((u.kind==="tank" || u.kind==="harvester") && movingDir){
-        if (!(u.kind==="harvester"?globalThis.OUHarvester:globalThis.OUTankMotion).drive(u,ax,ay,dt,worldVecToDir8)){
+      if ((u.kind==="tank" || u.kind==="harvester" || u.kind==="mcv") && movingDir){
+        if (!(u.kind==="mcv"?globalThis.OUMCV:u.kind==="harvester"?globalThis.OUHarvester:globalThis.OUTankMotion).drive(u,ax,ay,dt,worldVecToDir8)){
           u.turningToPath=true; u.vx=0; u.vy=0; u._vehCurSpeed=0; return true;
         }
       } else if ((u.fireHoldT||0) > 0 && u.fireDir!=null){
         u.faceDir = u.fireDir;
-        if (u.kind !== "tank" && u.kind !== "harvester"){
+        if (u.kind !== "tank" && u.kind !== "harvester" && u.kind !== "mcv"){
           u.dir = u.fireDir;
         } else {
           if (u.bodyDir==null) u.bodyDir = (u.dir!=null ? u.dir : 6);
@@ -1870,7 +1870,7 @@
         }
       }
       if (isBlockedWorldPoint(u, nx, ny)){
-        if (u.kind==="tank" || u.kind==="harvester") { u.vx=0; u.vy=0; u.repathCd=0; return false; }
+        if (u.kind==="tank" || u.kind==="harvester" || u.kind==="mcv") { u.vx=0; u.vy=0; u.repathCd=0; return false; }
         const px = -ay, py = ax;
         for (const sgn of [1,-1]){
           const sx = u.x + px*step*sgn;
@@ -1961,7 +1961,7 @@
         const goal = (u.path && u.path.length) ? u.path[u.path.length-1] : null;
         u.stuckT = 0;
         clearReservation(u);
-        if (goal && (u.kind==="tank" || u.kind==="harvester" || (u.cls==="veh"))){
+        if (goal && (u.kind==="tank" || u.kind==="harvester" || u.kind==="mcv" || (u.cls==="veh"))){
           setPathTo(u, (goal.tx+0.5)*TILE, (goal.ty+0.5)*TILE);
           u.yieldCd = Math.max(u.yieldCd||0, 0.15);
           return true;
@@ -2248,7 +2248,7 @@
     }
     const flow = OUFlowField.getFlowAt(field, u.x, u.y, TILE, tileOfX, tileOfY);
     if (!flow || (flow.dx === 0 && flow.dy === 0)) return false;
-    if ((u.kind==="tank" || u.kind==="harvester") && !(u.kind==="harvester"?globalThis.OUHarvester:globalThis.OUTankMotion).drive(u,flow.dx,flow.dy,dt,worldVecToDir8)){
+    if ((u.kind==="tank" || u.kind==="harvester" || u.kind==="mcv") && !(u.kind==="mcv"?globalThis.OUMCV:u.kind==="harvester"?globalThis.OUHarvester:globalThis.OUTankMotion).drive(u,flow.dx,flow.dy,dt,worldVecToDir8)){
       u.turningToPath=true; u.vx=0; u.vy=0; u._vehCurSpeed=0; return true;
     }
     const maxSpeed = getMoveSpeed(u) || 80;
@@ -2616,7 +2616,7 @@
       const iterUnits = (list)=>{
         for (const u of list){
           if (!u.alive || u.team!==enemyTeam || u.inTransport || u.hidden) continue;
-          if (attackerKind==="sniper" && (u.kind==="tank" || u.kind==="harvester")) continue;
+          if (attackerKind==="sniper" && (u.kind==="tank" || u.kind==="harvester" || u.kind==="mcv")) continue;
           if (enemySniper && (UNIT[u.kind]?.cls!=="inf")) continue;
           const d2=dist2(wx,wy,u.x,u.y);
           if (d2<=r2 && d2<bestD){ best=u; bestD=d2; }

@@ -14,12 +14,13 @@
     // NOTE: game.js uses kind==="tank" but shows name "경전차"
     tank:     { r:25, hp:400, speed:360, range:360, dmg:34, rof:0.90, vision:  680, hitscan:false, cls:"veh", spriteScale:2.0 },
     ifv:      { r:24, hp:200, speed:480, range:360, dmg:25, rof:0.85, vision: 520, hitscan:false, cls:"veh", transport:1 },
+    mcv: {r:50,hp:3000,speed:210,range:0,dmg:0,rof:0,vision:700,cls:"veh"},
     harvester:{ r:28, hp:1000, speed:250, range:0,   dmg:0,  rof:0,    vision: 520, carryMax:1000, cls:"veh", spriteScale:3.0, spriteScaleX:3.0, spriteScaleY:2.1 }
   };
 
   const DEFAULT_NAME_KO = {
     hq:"건설소(HQ)", power:"발전소", refinery:"정제소", barracks:"막사",
-    factory:"군수공장", radar:"레이더", turret:"센트리건",
+    mcv:"MCV", repair:"수리소", factory:"군수공장", radar:"레이더", turret:"센트리건",
     infantry:"보병", engineer:"엔지니어", sniper:"저격병", tank:"경전차", ifv:"IFV", harvester:"굴착기"
   };
 

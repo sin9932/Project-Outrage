@@ -13,8 +13,8 @@
  // Aircraft are not in the current roster; their launch uses this simulation hook.
  F.beginAirLaunch=(b,t)=>{if(F.complete(b,t))b._factoryAirAt=t;};
  F.roof=(b,t)=>{const age=t-(b._factoryAirAt??-100);return age<0?0:age<.6?clamp(age/.6):age<2?1:clamp(1-(age-2)/.6);};
- F.vehicle=(b,t,T)=>{const d=b._factoryDispatch;if(!d)return null;const p=clamp((t-d.started-F.doorSeconds)/F.driveSeconds),end=F.exit(b,T);
-  return{id:-100000-b.id,kind:d.kind,alive:true,team:b.team,x:b.x,y:b.y+T*.5+(end.y-b.y-T*.5)*p,bodyYaw:Math.PI/2,turretYaw:Math.PI/2,carry:0,carryMax:1000,_factoryDistance:(end.y-b.y-T*.5)*p};};
+ F.vehicle=(b,t,T)=>{const d=b._factoryDispatch;if(!d)return null;const p=clamp((t-d.started-F.doorSeconds)/F.driveSeconds),end=F.exit(b,T),start=b.y+(d.kind==='mcv'?-.5:.5)*T;
+  return{id:-100000-b.id,kind:d.kind,alive:true,team:b.team,x:b.x,y:start+(end.y-start)*p,bodyYaw:Math.PI/2,turretYaw:Math.PI/2,carry:0,carryMax:1000,_factoryDistance:(end.y-start)*p};};
  // A completed queue item stays the dispatch ticket until its unit exits.
  F.dispatch=(b,q,owner,t,T,canExit)=>{
   if(!F.complete(b,t)||b._factorySelling)return null;

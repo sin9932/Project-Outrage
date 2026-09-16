@@ -254,7 +254,7 @@
     }
 
     function aiEnemyHas(kind) {
-      return buildings.some(b => b.alive && !b.civ && b.team === TEAM.ENEMY && b.kind === kind);
+      return buildings.some(b => global.OUTech.operational(b) && b.team === TEAM.ENEMY && b.kind === kind);
     }
     function aiEnemyCount(kind) {
       let n = 0;
@@ -323,22 +323,8 @@
       return ai._playerTurrets.length >= 6;
     }
 
-    const BUILD_PREREQ = {
-      power: ["hq"],
-      refinery: ["hq", "power"],
-      barracks: ["hq", "power"],
-      factory: ["hq", "barracks"],
-      radar: ["hq", "factory", "refinery"],
-      turret: ["hq", "barracks"]
-    };
-    const UNIT_PREREQ = {
-      infantry: ["barracks"],
-      engineer: ["barracks"],
-      sniper: ["barracks", "radar"],
-      tank: ["factory"],
-      ifv: ["factory"],
-      harvester: ["factory"]
-    };
+    const BUILD_PREREQ = window.OUTech.buildPrereq;
+    const UNIT_PREREQ = window.OUTech.unitPrereq;
     function aiPrereqOk(kind, map) {
       const req = map[kind];
       if (!req || !req.length) return true;
@@ -625,6 +611,7 @@
       // refinery/factory 먼저 (테크 핵심)
       if (!hasRef) { aiTryStartBuild("refinery"); return true; }
       if (!hasFac) { aiTryStartBuild("factory"); return true; }
+      if(!aiEnemyHas("repair") && e.money>1800){aiTryStartBuild("repair");return true;}
 
       // 그 다음 터렛
       const tur = aiEnemyCount("turret");
@@ -926,7 +913,7 @@
       ai._playerUnits.length = 0; ai._playerCombat.length = 0;
       let playerInfCount = 0, enemyInfCount = 0, tankCount = 0, playerSniperCount = 0, playerSniperIFVCount = 0;
       for (const u of units) {
-        if (!u.alive) continue;
+        if (!u.alive || (u.team === TEAM.ENEMY && u.kind === "mcv")) continue;
         if (u.team === TEAM.ENEMY) {
           ai._eUnits.push(u);
           if (!u.inTransport && !u.hidden) { ai._eUnitsAll.push(u); if (u.kind === "infantry") ai._infFromEUnitsAll.push(u); }
@@ -939,7 +926,7 @@
           if (u.kind === "infantry") { ai._enemyInf.push(u); enemyInfCount++; }
         } else if (u.team === TEAM.PLAYER && !u.inTransport && !u.hidden) {
           ai._playerUnits.push(u);
-          if (u.kind !== "harvester" && u.kind !== "engineer") ai._playerCombat.push(u);
+          if (u.kind !== "harvester" && u.kind !== "engineer" && u.kind !== "mcv") ai._playerCombat.push(u);
           if (u.kind === "sniper") playerSniperCount++;
           if (u.kind === "ifv" && u.passengerId && u.passKind === "sniper") playerSniperIFVCount++;
           if (UNIT[u.kind] && UNIT[u.kind].cls === "inf") { ai._playerInf.push(u); playerInfCount++; }

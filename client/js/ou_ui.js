@@ -67,6 +67,7 @@ r.btnPow = r.btnPow || document.getElementById("bPow");
 r.btnRef = r.btnRef || document.getElementById("bRef");
 r.btnBar = r.btnBar || document.getElementById("bBar");
 r.btnFac = r.btnFac || document.getElementById("bFac");
+r.btnRepair = r.btnRepair || document.getElementById("bRepair");
 r.btnRad = r.btnRad || document.getElementById("bRad");
 r.btnTur = r.btnTur || document.getElementById("bTur");
 
@@ -76,6 +77,7 @@ r.btnEng = r.btnEng || document.getElementById("pEng");
 r.btnSnp = r.btnSnp || document.getElementById("pSnp");
 r.btnTnk = r.btnTnk || document.getElementById("pTnk");
 r.btnHar = r.btnHar || document.getElementById("pHar");
+r.btnMCV = r.btnMCV || document.getElementById("pMCV");
 r.btnIFV = r.btnIFV || document.getElementById("pIFV");
 
 // HUD misc
@@ -401,6 +403,7 @@ function ensureBadge(btn){
       set(r.btnSnp, "sniper");
       set(r.btnTnk, "tank");
       set(r.btnHar, "harvester");
+      set(r.btnMCV, "mcv");
       set(r.btnIFV, "ifv");
     }
 
@@ -528,7 +531,7 @@ function ensureBadge(btn){
       };
 
       function alivePlayerBuilding(b){
-        return !!(b && b.alive && !b.civ && b.team === playerTeam);
+        return !!(globalThis.OUTech.operational(b) && b.team === playerTeam);
       }
 
       function hasP(kind){
@@ -544,25 +547,7 @@ function ensureBadge(btn){
         return false;
       }
 
-      const tech = {
-        // Keep in sync with validateTechQueues() in game.js
-        buildPrereq: {
-          power:    ["hq"],
-          refinery: ["hq","power"],
-          barracks: ["hq","power"],
-          factory:  ["hq","barracks"],
-          radar:    ["hq","factory","refinery"],
-          turret:   ["hq","barracks"]
-        },
-        unitPrereq: {
-          infantry:  ["barracks"],
-          engineer:  ["barracks"],
-          sniper:    ["barracks","radar"],
-          tank:      ["factory"],
-          ifv:       ["factory"],
-          harvester: ["factory"]
-        }
-      };
+      const tech = globalThis.OUTech;
 
       function prereqOk(kind, map){
         const req = map[kind];
@@ -632,6 +617,7 @@ function ensureBadge(btn){
         applyTechGateBtn(r.btnRef, prereqOk("refinery", tech.buildPrereq));
         applyTechGateBtn(r.btnBar, prereqOk("barracks", tech.buildPrereq));
         applyTechGateBtn(r.btnFac, prereqOk("factory", tech.buildPrereq));
+        applyTechGateBtn(r.btnRepair, prereqOk("repair", tech.buildPrereq));
         applyTechGateBtn(r.btnRad, prereqOk("radar", tech.buildPrereq));
         applyTechGateBtn(r.btnTur, prereqOk("turret", tech.buildPrereq));
 
@@ -642,6 +628,7 @@ function ensureBadge(btn){
         applyTechGateBtn(r.btnTnk, prereqOk("tank", tech.unitPrereq));
         applyTechGateBtn(r.btnIFV, prereqOk("ifv", tech.unitPrereq));
         applyTechGateBtn(r.btnHar, prereqOk("harvester", tech.unitPrereq));
+        applyTechGateBtn(r.btnMCV, global.OUTech.canUnit(buildings,TEAM.PLAYER,"mcv",state.t));
       }
 
       function applyEnabledState(){
@@ -650,6 +637,7 @@ function ensureBadge(btn){
         applyEnabledBtn(r.btnRef, prereqOk("refinery", tech.buildPrereq));
         applyEnabledBtn(r.btnBar, prereqOk("barracks", tech.buildPrereq));
         applyEnabledBtn(r.btnFac, prereqOk("factory", tech.buildPrereq));
+        applyEnabledBtn(r.btnRepair, prereqOk("repair", tech.buildPrereq));
         applyEnabledBtn(r.btnRad, prereqOk("radar", tech.buildPrereq));
         applyEnabledBtn(r.btnTur, prereqOk("turret", tech.buildPrereq));
 
@@ -660,6 +648,7 @@ function ensureBadge(btn){
         applyEnabledBtn(r.btnTnk, prereqOk("tank", tech.unitPrereq));
         applyEnabledBtn(r.btnIFV, prereqOk("ifv", tech.unitPrereq));
         applyEnabledBtn(r.btnHar, prereqOk("harvester", tech.unitPrereq));
+        applyEnabledBtn(r.btnMCV, global.OUTech.canUnit(buildings,TEAM.PLAYER,"mcv",state.t));
       }
 
       function applyProgressOverlays(){
@@ -782,6 +771,7 @@ function ensureBadge(btn){
         { kind: "refinery", laneKey: "main", btn: r.btnRef },
         { kind: "barracks", laneKey: "main", btn: r.btnBar },
         { kind: "factory",  laneKey: "main", btn: r.btnFac },
+        { kind: "repair",  laneKey: "main", btn: r.btnRepair },
         { kind: "radar",    laneKey: "main", btn: r.btnRad },
         { kind: "turret",   laneKey: "def",  btn: r.btnTur },
       ];
@@ -821,6 +811,7 @@ function ensureBadge(btn){
 
         { kind: "tank",      btn: r.btnTnk, producer: "factory"  },
         { kind: "harvester", btn: r.btnHar, producer: "factory"  },
+        { kind: "mcv", btn: r.btnMCV, producer: "factory"  },
         { kind: "ifv",       btn: r.btnIFV, producer: "factory"  },
       ];
 
@@ -1058,6 +1049,8 @@ function ensureBadge(btn){
       setUnit("bRef", "refinery");
       setUnit("bBar", "barracks");
       setUnit("bFac", "factory");
+      setUnit("bRepair", "repair");
+      set("lblMCVRedeploy", "pregame.mcvRedeploy");
       setUnit("bRad", "radar");
       setUnit("bTur", "turret");
       setUnit("pInf", "infantry");
@@ -1065,6 +1058,7 @@ function ensureBadge(btn){
       setUnit("pSnp", "sniper");
       setUnit("pTnk", "tank");
       setUnit("pHar", "harvester");
+      setUnit("pMCV", "mcv");
       setUnit("pIFV", "ifv");
       set("uiSelInfoTitle", "ui.selectionInfo");
       set("pmTitle", "ui.options");
@@ -1706,6 +1700,7 @@ function ensureBadge(btn){
       r.btnRef = r.btnRef || document.getElementById("bRef");
       r.btnBar = r.btnBar || document.getElementById("bBar");
       r.btnFac = r.btnFac || document.getElementById("bFac");
+      r.btnRepair = r.btnRepair || document.getElementById("bRepair");
       r.btnRad = r.btnRad || document.getElementById("bRad");
       r.btnTur = r.btnTur || document.getElementById("bTur");
       r.btnPat = r.btnPat || document.getElementById("bPat");
@@ -1715,12 +1710,14 @@ function ensureBadge(btn){
       r.btnSnp = r.btnSnp || document.getElementById("pSnp");
       r.btnTnk = r.btnTnk || document.getElementById("pTnk");
       r.btnHar = r.btnHar || document.getElementById("pHar");
+      r.btnMCV = r.btnMCV || document.getElementById("pMCV");
       r.btnIFV = r.btnIFV || document.getElementById("pIFV");
 
       bind(r.btnPow, "power");
       bind(r.btnRef, "refinery");
       bind(r.btnBar, "barracks");
       bind(r.btnFac, "factory");
+      bind(r.btnRepair, "repair");
       bind(r.btnRad, "radar");
       bind(r.btnTur, "turret");
 
@@ -1729,6 +1726,7 @@ function ensureBadge(btn){
       bind(r.btnSnp, "sniper");
       bind(r.btnTnk, "tank");
       bind(r.btnHar, "harvester");
+      bind(r.btnMCV, "mcv");
       bind(r.btnIFV, "ifv");
     }
 
@@ -1767,6 +1765,7 @@ function ensureBadge(btn){
       const btnPow = $("bPow");
       const btnBar = $("bBar");
       const btnFac = $("bFac");
+      const btnDepot = $("bRepair");
       const btnTur = $("bTur");
       const btnRad = $("bRad");
       const btnCan = $("bCan");
@@ -1778,6 +1777,7 @@ function ensureBadge(btn){
       const btnSnp = $("pSnp");
       const btnTnk = $("pTnk");
       const btnHar = $("pHar");
+      const btnMCV = $("pMCV");
       const btnIFV = $("pIFV");
 
       const btnRepair = $("repair");
@@ -1796,6 +1796,7 @@ function ensureBadge(btn){
       bindOnce(btnPow, "click", "setBuild:power", ()=>onSetBuild && onSetBuild("power"));
       bindOnce(btnBar, "click", "setBuild:barracks", ()=>onSetBuild && onSetBuild("barracks"));
       bindOnce(btnFac, "click", "setBuild:factory", ()=>onSetBuild && onSetBuild("factory"));
+      bindOnce(btnDepot, "click", "setBuild:repair", ()=>onSetBuild && onSetBuild("repair"));
       bindOnce(btnTur, "click", "setBuild:turret", ()=>onSetBuild && onSetBuild("turret"));
       bindOnce(btnRad, "click", "setBuild:radar", ()=>onRadarBuild ? onRadarBuild() : (onSetBuild && onSetBuild("radar")));
 
@@ -1803,6 +1804,7 @@ function ensureBadge(btn){
       bindOnce(btnRef, "contextmenu", "laneRClick:refinery", (ev)=>{ ev.preventDefault(); onLaneRClick && onLaneRClick("main", "refinery"); });
       bindOnce(btnBar, "contextmenu", "laneRClick:barracks", (ev)=>{ ev.preventDefault(); onLaneRClick && onLaneRClick("main", "barracks"); });
       bindOnce(btnFac, "contextmenu", "laneRClick:factory", (ev)=>{ ev.preventDefault(); onLaneRClick && onLaneRClick("main", "factory"); });
+      bindOnce(btnDepot, "contextmenu", "laneRClick:repair", (ev)=>{ ev.preventDefault(); onLaneRClick && onLaneRClick("main", "repair"); });
       bindOnce(btnRad, "contextmenu", "laneRClick:radar", (ev)=>{ ev.preventDefault(); onLaneRClick && onLaneRClick("main", "radar"); });
       bindOnce(btnTur, "contextmenu", "laneRClick:turret", (ev)=>{ ev.preventDefault(); onLaneRClick && onLaneRClick("def", "turret"); });
 
@@ -1815,6 +1817,7 @@ function ensureBadge(btn){
       bindOnce(btnSnp, "click", "queueUnit:sniper", ()=>onQueueUnit && onQueueUnit("sniper"));
       bindOnce(btnTnk, "click", "queueUnit:tank", ()=>onQueueUnit && onQueueUnit("tank"));
       bindOnce(btnHar, "click", "queueUnit:harvester", ()=>onQueueUnit && onQueueUnit("harvester"));
+      bindOnce(btnMCV, "click", "queueUnit:mcv", ()=>onQueueUnit && onQueueUnit("mcv"));
       bindOnce(btnIFV, "click", "queueUnit:ifv", ()=>onQueueUnit && onQueueUnit("ifv"));
 
       bindOnce(btnInf, "contextmenu", "unitRClick:infantry", (ev)=>{ ev.preventDefault(); onUnitRClick && onUnitRClick("infantry"); });
@@ -1822,6 +1825,7 @@ function ensureBadge(btn){
       bindOnce(btnSnp, "contextmenu", "unitRClick:sniper", (ev)=>{ ev.preventDefault(); onUnitRClick && onUnitRClick("sniper"); });
       bindOnce(btnTnk, "contextmenu", "unitRClick:tank", (ev)=>{ ev.preventDefault(); onUnitRClick && onUnitRClick("tank"); });
       bindOnce(btnHar, "contextmenu", "unitRClick:harvester", (ev)=>{ ev.preventDefault(); onUnitRClick && onUnitRClick("harvester"); });
+      bindOnce(btnMCV, "contextmenu", "unitRClick:mcv", (ev)=>{ ev.preventDefault(); onUnitRClick && onUnitRClick("mcv"); });
       bindOnce(btnIFV, "contextmenu", "unitRClick:ifv", (ev)=>{ ev.preventDefault(); onUnitRClick && onUnitRClick("ifv"); });
 
       bindOnce(btnCancelSel, "click", "cancelSel", ()=>onCancelSel && onCancelSel());
@@ -1862,7 +1866,8 @@ function ensureBadge(btn){
           enemyColor: eColorInput ? eColorInput.value : null,
           fogOff: !!(fogOffChk && fogOffChk.checked),
           fastProd: !!(fastProdChk && fastProdChk.checked),
-          shortGame: !!(shortGameChk && shortGameChk.checked)
+          shortGame: !!(shortGameChk && shortGameChk.checked),
+          mcvRedeploy: !!document.getElementById("mcvRedeploy")?.checked
         };
         try{
           await onStart(payload);

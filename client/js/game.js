@@ -325,7 +325,7 @@
   const COST = {
     power:600, refinery:2000, barracks:500, factory:2000, radar:1000, turret:500,
     infantry:100, engineer:875, sniper:600, tank:900, ifv:600,
-    harvester:2450, hq:0
+    harvester:2450, mcv:3000, repair:800, hq:3000
   };
 
   // Price tooltip is handled in ou_ui.js
@@ -371,6 +371,7 @@ function getBaseBuildTime(kind){
   const BUILD = {
     // height levels: 0 = flat, 1 = low, 2 = medium, 3 = tall
     // vision: world units
+    repair: {hLevel:1,tw:3,th:3,hp:1000,vision:650,provideR:4*TILE},
     hq:       { hLevel:3, tw:5, th:5, hp:3000, vision:1100, provideR: 10 * TILE },
     power:    { hLevel:2, tw:2, th:2, hp:750,  vision:680,  provideR: 4 * TILE },
     refinery: { hLevel:2, tw:4, th:3, hp:1000, vision:820,  provideR: 5.5 * TILE },
@@ -426,7 +427,9 @@ function getBaseBuildTime(kind){
 
   const UNIT = (window.G && window.G.Units && window.G.Units.UNIT) ? window.G.Units.UNIT : DEFAULT_UNIT;
 
+  UNIT.mcv = {...UNIT.mcv,hp:BUILD.hq.hp};
   const DEFAULT_NAME_KO = {
+    mcv:"MCV", repair:"수리소",
     hq:"건설소(HQ)", power:"발전소", refinery:"정제소", barracks:"막사",
     factory:"군수공장", radar:"레이더", turret:"센트리건",
     infantry:"보병", engineer:"엔지니어", sniper:"저격병", tank:"경전차", ifv:"IFV", harvester:"굴착기"
@@ -596,7 +599,7 @@ const buildingWorldFromTileOrigin = __tileHelpers ? __tileHelpers.buildingWorldF
     else { for (let ty=b.ty; ty<b.ty+b.th; ty++) for (let tx=b.tx; tx<b.tx+b.tw; tx++) if (inMap(tx,ty)) buildOcc[idx(tx,ty)] = v; }
   }
 
-  function addBuilding(team, kind, tx, ty){
+  function addBuilding(team, kind, tx, ty, opts){
     const spec=BUILD[kind];
     const tw=spec.tw, th=spec.th;
     const wpos = buildingWorldFromTileOrigin(tx,ty,tw,th);
@@ -631,7 +634,7 @@ const buildingWorldFromTileOrigin = __tileHelpers ? __tileHelpers.buildingWorldF
     }
     setBuildingOcc(b, 1);
     recomputePower();
-    if (!state._placeStartPhase && !spec.civ && __ou_sim && __ou_sim.recordConstruction) __ou_sim.recordConstruction(team, kind);
+    if (!(opts && opts.skipMvp) && !state._placeStartPhase && !spec.civ && __ou_sim && __ou_sim.recordConstruction) __ou_sim.recordConstruction(team, kind);
     if (__ou_econ && __ou_econ.onBuildingPlaced) __ou_econ.onBuildingPlaced(b);
     try{ if (window.PO && PO.buildings && PO.buildings.onPlaced) PO.buildings.onPlaced(b, state); }catch(_e){}
     return b;
@@ -640,7 +643,7 @@ const buildingWorldFromTileOrigin = __tileHelpers ? __tileHelpers.buildingWorldF
   
 function hasBuilding(team, kind){
   for (const b of buildings){
-    if (b.alive && !b.civ && b.team===team && b.kind===kind) return true;
+    if (window.OUTech.operational(b) && b.team===team && b.kind===kind) return true;
   }
   return false;
 }
@@ -701,6 +704,7 @@ function addUnit(team, kind, x, y, opts){
       turretTurn:null
     };
 
+    if (kind === "mcv"){u.bodyYaw=Math.PI/2;u.bodyDir=6;u._mcvAIOrigin={x,y};}
     if (kind === "tank"){
       u.bodyDir = 6;
       u.turretDir = 6;
@@ -745,7 +749,7 @@ function addUnit(team, kind, x, y, opts){
 
 
   function inBuildRadius(team, wx, wy){
-    if (!buildings.some(b=>b.alive && !b.civ && b.team===team && b.kind==='hq')) return false;
+    if (!buildings.some(b=>window.OUTech.operational(b) && b.team===team && b.kind==='hq')) return false;
 
     for (const b of buildings){
       if (!b.alive) continue;
@@ -1111,7 +1115,7 @@ function tryUnloadIFV(ifv){ return __ou_commands && __ou_commands.tryUnloadIFV ?
 
     if (state.shortGame){
       const enemyHasBuildings = buildings.some(b=>b.alive && !b.civ && b.team===TEAM.ENEMY);
-      if (!enemyHasBuildings){
+      if (!enemyHasBuildings && !units.some(u=>u.alive&&u.team===TEAM.ENEMY&&u.kind==='mcv')){
         for (const u of units){ if (u.alive && u.team===TEAM.ENEMY) handleEntityDeath(u, null, null); }
         state.gameOverPending = { victory: true, endT: state.t + GAMEOVER_WINDDOWN, endGameTime: state.t };
         return;
@@ -1130,7 +1134,7 @@ function tryUnloadIFV(ifv){ return __ou_commands && __ou_commands.tryUnloadIFV ?
 
 // Player production request queues (FIFO per factory type).
 const prodFIFO = { barracks: [], factory: [] };
-const prodTotal = { infantry:0, engineer:0, sniper:0, tank:0, harvester:0, ifv:0 };
+const prodTotal = { mcv:0, infantry:0, engineer:0, sniper:0, tank:0, harvester:0, ifv:0 };
 // 유닛별 '멈춤' 플래그: 우클릭 취소 시 true → feedProducers가 prodFIFO에서 해당 유닛을 더 채우지 않음
 const prodFeedStopped = {};
 const QCAP = 30;
@@ -1405,7 +1409,7 @@ function resolveUnitOverlaps(){ _sim("resolveUnitOverlaps")(); }
     function calc(team){
       let prod = 0, use = 0;
       for (const b of buildings){
-        if (!b || !b.alive || b.team !== team || b.civ) continue;
+        if (!window.OUTech.operational(b) || b.team !== team) continue;
         if (b.kind === "hq")      prod += (POWER.hqProd || 0);
         if (b.kind === "power")   prod += (POWER.powerPlant || 0);
         if (b.kind === "refinery")use  += (POWER.refineryUse || 0);
@@ -1602,6 +1606,7 @@ function findSpawnPointNear(b, unitKind, opts){
   }
 
 const SELL_ANIMATION=Object.freeze({
+  hq:{selling:"_mcvSelling",finalizeAt:"_mcvSellFinalizeAt",t0:"_mcvSellT0"},
   barracks:{selling:'_barrackSelling',finalizeAt:'_barrackSellFinalizeAt',t0:'_barrackSellT0'},
   power:{selling:'_powerSelling',finalizeAt:'_powerSellFinalizeAt',t0:'_powerSellT0'},
   refinery:{selling:'_refinerySelling',finalizeAt:'_refinerySellFinalizeAt',t0:'_refinerySellT0'},
@@ -1609,7 +1614,7 @@ const SELL_ANIMATION=Object.freeze({
   turret:{selling:'_sentrySelling',finalizeAt:'_sentrySellFinalizeAt',t0:'_sentrySellT0'}
 });
 function sellBuilding(b){
-    if (!b || !b.alive || b.civ) return;
+    if (!b || !b.alive || b.civ || b._mcvPhase) return;
 
     // Prevent double-sell spam while animation is running
     const sellConfig=SELL_ANIMATION[b.kind];
@@ -1640,7 +1645,8 @@ const refund = Math.floor((COST[b.kind]||0) * 0.5);
 
     // Keep the footprint until the shared construction timeline has reversed.
     if(sellConfig){
-      if(b.kind==='factory')window.OUFactory.beginSell(b,state.t);
+      if(b.kind==='hq')window.OUMCV.beginSell(b,state.t);
+      else if(b.kind==='factory')window.OUFactory.beginSell(b,state.t);
       else if(b.kind==='turret')window.OUSentry.beginSell(b,state.t);
       else {
         try{window.PO?.buildings?.onSold?.(b,state);}catch(_e){}
@@ -1692,7 +1698,7 @@ const refund = Math.floor((COST[b.kind]||0) * 0.5);
   const stampCmd = __cmdThrottle ? __cmdThrottle.stampCmd : () => {};
   const buildFormationOffsets = (window.OU && window.OU.buildFormationOffsets) ? window.OU.buildFormationOffsets : (maxN) => Array.from({ length: Math.min(maxN, 1) }, (_, i) => ({ dx: 0, dy: 0 }));
 
-  function issueMoveAll(x,y){ if (__ou_commands) return __ou_commands.issueMoveAll(x,y); }
+  function issueMoveAll(x,y){ __ou_mcv.repackSelected(x,y); if (__ou_commands) return __ou_commands.issueMoveAll(x,y); }
   function issueMoveCombatOnly(x,y){ if (__ou_commands) return __ou_commands.issueMoveCombatOnly(x,y); }
   function issueAttackMove(x,y){ if (__ou_commands) return __ou_commands.issueAttackMove(x,y); }
   function issueGuard(){ if (__ou_commands) return __ou_commands.issueGuard(); }
@@ -1755,7 +1761,10 @@ function crushInfantry(mover){
 
   function issueForceMoveAll(x,y){ if (__ou_commands) return __ou_commands.issueForceMoveAll(x,y); }
 
-const keys=new Set();
+const __ou_mcv=window.OUMCV.create({state,units,buildings,TEAM,BUILD,UNIT,COST,TILE,MAP_W,MAP_H,terrain,ore,treeHp,buildOcc,
+ addBuilding,addUnit,setBuildingOcc,recomputePower,checkElimination,setPathTo,clearReservation,
+ worldVecToDir8,footprint:__ou_footprint,getEntityById,toast,getBaseBuildTime:kind=>__ou_econ.getBaseBuildTime(kind)});
+  const keys=new Set();
   // DEBUG: Delete key toggles building-destruction click mode (any team)
   let DEBUG_KILL_BUILDINGS = false;
   const _ou_onKeyDown = (e)=>{
@@ -1812,6 +1821,7 @@ const keys=new Set();
 
     // IFV unload: press D
     if (k==="d"){
+      if(!e.repeat)__ou_mcv.deploySelected();
       for (const id of state.selection){
         const e2=getEntityById(id);
         if (e2 && e2.alive && e2.team===TEAM.PLAYER && e2.kind==="ifv"){
@@ -2032,6 +2042,9 @@ const keys=new Set();
     }
 
     const picked = pickEntityAtWorld(w.x,w.y);
+    if(picked?.kind==='mcv'&&picked.team===TEAM.PLAYER&&!e.ctrlKey&&!e.altKey&&state.lastClick.id===picked.id&&state.t-state.lastClick.t<.35){
+      __ou_mcv.requestDeploy(picked);state.lastClick.id=null;state.drag.on=false;return;
+    }
     // Double-left-click on a production building sets it as PRIMARY spawn building.
     if (picked && picked.alive && BUILD[picked.kind] && picked.team===TEAM.PLAYER && (picked.kind==="barracks" || picked.kind==="factory")){
       const now = state.t;
@@ -2182,6 +2195,7 @@ if (picked && picked.alive && picked.team===TEAM.PLAYER && !BUILD[picked.kind] &
       const b=getEntityById(id);
       if (b && b.alive && BUILD[b.kind] && !b.civ && b.team===TEAM.PLAYER &&
           (b.kind==="barracks" || b.kind==="factory" || b.kind==="hq")){
+        if(b.kind==="hq"){__ou_mcv.requestRepack(b,sp.x,sp.y);state.drag.on=false;return;}
         b.rally = { x:sp.x, y:sp.y };
         state.drag.on=false;
         return;
@@ -2536,6 +2550,7 @@ if (state.selection.size>0 && inMap(tx,ty) && ore[idx(tx,ty)]>0){
 
       // Units: clear orders/paths/targets.
       if (!BUILD[e.kind]){
+        e._mcvPending=null;
         e.order={type:"idle", x:e.x,y:e.y, tx:null,ty:null};
         clearReservation(e);
         e.target=null;
@@ -2845,6 +2860,7 @@ if (isCallable(__ou_ui, "bindPregameStart")){
     state.debug = state.debug || {};
     state.debug.fastProd = !!(payload && payload.fastProd);
     state.shortGame = !!(payload && payload.shortGame);
+    state.mcvRedeploy = !!payload?.mcvRedeploy;
 
     START_MONEY = Math.floor(Number(startMoney) || 10000);
     state.player.money = START_MONEY;
@@ -2922,7 +2938,7 @@ if (isCallable(__ou_ui, "bindPregameStart")){
   if (DEV_VALIDATE) window.OUTankTest = {
     state, units, buildings, cam, TEAM, terrain, ore, isGem, treeHp, buildOcc, TILE, MAP_W, MAP_H,
     addUnit, getEntityById, worldToScreen, screenToWorld, centerCameraOn,
-    commands:__ou_commands, sim:__ou_sim, ai:__ou_ai, camera:__ou_cam, addBuilding, destroyBuilding,
+    mcv:__ou_mcv, BUILD, UNIT, COST, commands:__ou_commands, sim:__ou_sim, ai:__ou_ai, camera:__ou_cam, addBuilding, destroyBuilding,
     footprint:__ou_footprint, applyDamage, economy:__ou_econ, sellBuilding,
     get running(){return running;},
     setFog(value){fogEnabled=!!value;},
@@ -3171,6 +3187,7 @@ function sanityCheck(){
           console.log(`[money] build:${dBuild.toFixed(2)} prod:${dProd.toFixed(2)} repair:${dRep.toFixed(2)} t=${state.t.toFixed(2)} money=${(state.player.money||0).toFixed(2)}`);
         }
       }
+      __ou_mcv.tick(simDt);
       rebuildEntityByIdCache();
       if (isCallable(__ou_sim, "tickSim")){
         __ou_sim.tickSim(simDt);

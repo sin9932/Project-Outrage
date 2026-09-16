@@ -185,11 +185,11 @@
       }
       return false;
     }
-    function isBlockedFootprint(tx, ty, tw, th, kind) {
-      if(footprintBlockedMask(tx,ty,tw,th,kind).blocked)return true;
+    function isBlockedFootprint(tx, ty, tw, th, kind, ignoreUnit=null) {
+      if(footprintBlockedMask(tx,ty,tw,th,kind,ignoreUnit).blocked)return true;
       const wpos = buildingWorldFromTileOrigin(tx, ty, tw, th);
       for (const u of units) {
-        if (!u.alive || u.inTransport || u.hidden) continue;
+        if (!u.alive || u.inTransport || u.hidden || u===ignoreUnit) continue;
         const rr = (u.r || 18) + 2;
         if (dist2PointToRect(u.x, u.y, wpos.cx, wpos.cy, wpos.w, wpos.h) <= rr * rr) return true;
       }
@@ -209,7 +209,7 @@
       return false;
     }
 
-    function footprintBlockedMask(tx, ty, tw, th, kind) {
+    function footprintBlockedMask(tx, ty, tw, th, kind, ignoreUnit=null) {
       const mask = new Uint8Array(tw * th);
       let any = false;
       if (tx < 0 || ty < 0 || tx + tw > MAP_W || ty + th > MAP_H) {
@@ -227,7 +227,7 @@
             else if (terrain[ti] !== 0) b = true;
             else if (ore[ti] > 0) b = true;
             else if (treeHp[ti] > 0) b = true;
-            else if ((occAll[ti] || 0) > 0) b = true;
+            else if (!ignoreUnit && (occAll[ti] || 0) > 0) b = true;
           }
           mask[k++] = b ? 1 : 0;
           if (b) any = true;

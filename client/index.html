@@ -47,6 +47,8 @@
 <script type="importmap">{"imports":{"three":"./vendor/three/three.module.js"}}</script>
 <script src="./js/sentry.js" defer></script>
 <script src="./js/factory.js" defer></script>
+<script src="./js/tech.js" defer></script>
+<script src="./js/mcv.js" defer></script>
 <script src="./js/harvester.js" defer></script>
 <script src="./js/tank_config.js" defer></script>
 <script src="./js/tank_motion.js" defer></script>
@@ -121,6 +123,7 @@
 <div id="lblMoneyHint" class="small" style="margin-top:10px;">선택한 금액으로 아군/적군 둘 다 시작</div>
 </div>
 <div style="margin-top:14px;">
+<label style="display:flex; gap:10px; margin-bottom:10px"><input id="mcvRedeploy" type="checkbox"/> <span id="lblMCVRedeploy">MCV 재배치 가능</span></label>
 <label style="display:flex; align-items:center; gap:10px; user-select:none;">
 <input id="fogOff" style="width:18px;height:18px; accent-color:#ffdf8a;" type="checkbox"/>
 <span id="lblFogOff">디버깅용 전장안개 OFF (전맵 밝힘)</span>
@@ -193,6 +196,7 @@
 <button id="bPow">발전소</button>
 <button id="bRef">정제소</button>
 <button id="bBar">막사<span class="badge" id="badgeBar">주요</span></button>
+<button id="bRepair">수리소</button>
 <button id="bFac">군수공장<span class="badge" id="badgeFac">주요</span></button>
 <button id="bRad">레이더</button>
 </div>
@@ -209,6 +213,7 @@
 </div>
 <div class="grid" id="panelVeh" style="margin-top:10px; display:none">
       <button class="unitBtn" id="pTnk">경전차</button>
+<button class="unitBtn" id="pMCV">MCV</button>
 <button class="unitBtn" id="pHar">굴착기</button>
 <button class="unitBtn" id="pIFV">IFV</button>
 </div>

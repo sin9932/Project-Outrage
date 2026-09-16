@@ -3236,7 +3236,7 @@
     updateExp1Fxs();
 
     const sentryGhosts=[...(window.OUTank3D?.sentryGhosts?.(state.t)||[]),...(window.OUTank3D?.factoryGhosts?.(state.t)||[])];
-    if (window.OUTank3D) window.OUTank3D.beginFrame([...units,...buildings.filter(b=>b.kind==="turret"||b.kind==="factory"),...sentryGhosts], state.t, {ctx,width:cam.viewWidth||ctx.canvas.width,project:worldToScreen,zoom:cam.zoom||1,color:u=>u.team===TEAM.PLAYER?state.colors.player:state.colors.enemy});
+    if (window.OUTank3D) window.OUTank3D.beginFrame([...units,...buildings.filter(b=>["turret","factory","hq","repair"].includes(b.kind)),...sentryGhosts], state.t, {ctx,width:cam.viewWidth||ctx.canvas.width,project:worldToScreen,zoom:cam.zoom||1,color:u=>u.team===TEAM.PLAYER?state.colors.player:state.colors.enemy});
     const drawables=[...sentryGhosts];
     for (const b of buildings) if (b.alive) drawables.push(b);
     for (const u of units) if (u.alive) drawables.push(u);
@@ -3328,7 +3328,7 @@
         if (ent.team===TEAM.PLAYER){ fill="rgba(10,40,70,0.9)"; stroke=state.colors.player; }
         if (ent.team===TEAM.ENEMY){  fill="rgba(70,10,10,0.9)"; stroke=state.colors.enemy; }
 
-        if((ent.kind==='turret'&&window.OUTank3D?.sentryReady)||(ent.kind==='factory'&&window.OUTank3D?.factoryReady)){
+        if((ent.kind==='turret'&&window.OUTank3D?.sentryReady)||(ent.kind==='factory'&&window.OUTank3D?.factoryReady)||(['hq','repair'].includes(ent.kind)&&window.OUTank3D?.mcvReady)){
           drawBuildingShadow(ent);
           window.OUTank3D.draw(ctx,ent,screenPos,cam.zoom,ent.team===TEAM.PLAYER?state.colors.player:state.colors.enemy,state.t);
         } else if (buildSprite && buildSprite[ent.kind]){
@@ -3409,6 +3409,8 @@
           if (ent.kind==="tank"){
             drewSprite = window.OUTank3D?.draw(ctx, ent, p, cam.zoom || 1, c, state.t) || false;
             if (!drewSprite) drewSprite = drawLiteTankSprite(ent, p);
+          } else if (ent.kind==="mcv"){
+            drewSprite=window.OUTank3D?.draw(ctx,ent,p,cam.zoom||1,c,state.t)||false;
           } else if (ent.kind==="harvester"){
             drewSprite = window.OUTank3D?.draw(ctx,ent,p,cam.zoom||1,c,state.t)||drawHarvesterSprite(ent,p);
             drawHarvesterOre(ctx,ent);

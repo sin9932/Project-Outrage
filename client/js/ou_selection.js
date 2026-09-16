@@ -186,7 +186,7 @@
           p=worldToScreen(u.x,u.y);
         }
         if (u.hidden || u.selectable===false) continue;
-        if ((u.kind === "tank" || (u.kind === "harvester" && global.OUTank3D?.harvesterReady)) && global.OUTank3D?.status === "ready") {
+        if ((u.kind === "tank" || (u.kind === "mcv" && global.OUTank3D?.mcvReady) || (u.kind === "harvester" && global.OUTank3D?.harvesterReady)) && global.OUTank3D?.status === "ready") {
           if (global.OUTank3D.hitTest(u,m,p,cam.zoom||1,state.t)) return u;
           continue;
         }
