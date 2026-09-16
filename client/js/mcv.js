@@ -4,7 +4,7 @@
 (function(g){
  'use strict';
  const clamp=v=>Math.max(0,Math.min(1,v));
- const M={modelUrl:'../asset/model/mcv/mcv.glb',scale:20,modelScale:1.65,renderSpan:30,hqSpan:64,wheelRadius:.65,turnRate:4.8,seconds:3,heading:Math.PI/2};
+ const M={modelUrl:'../asset/model/mcv/mcv.glb?v=2',scale:20,modelScale:1.65,renderSpan:30,hqSpan:76,wheelRadius:.65,turnRate:7.5,deployTurnRate:20,seconds:.8,heading:Math.PI/2};
  M.progress=(b,t)=>b._mcvSelling?clamp(1-(t-b._mcvSellT0)/M.seconds):b._mcvPhase==='deploy'?clamp((t-b._mcvT0)/M.seconds):b._mcvPhase==='pack'?clamp(1-(t-b._mcvT0)/M.seconds):b.kind==='hq'?1:0;
  M.beginSell=(b,t)=>{b._mcvSelling=true;b._mcvSellT0=t;b._mcvSellFinalizeAt=t+M.seconds+.25;};
  M.drive=(u,dx,dy,dt,dir8)=>{const m=g.OUTankMotion,target=Math.atan2(dy,dx);u.bodyYaw=m.toward(m.readPose(u).bodyYaw,target,M.turnRate,dt);u.bodyDir=u.dir=dir8(Math.cos(u.bodyYaw),Math.sin(u.bodyYaw));u.bodyTurn=null;if(Math.abs(m.wrap(target-u.bodyYaw))>.04){u.travelPhase='hull';return false;}u.bodyYaw=target;u.travelPhase='drive';return true;};
@@ -24,7 +24,7 @@
    u.order={type:'move',x,y};u._mcvPending={...p,x,y,order:u.order};setPathTo(u,x,y);return true;
   }
   function requestRepack(b,x,y){
-   if(!b?.alive||b.kind!=='hq'||!operational(b))return false;
+   if(!b?.alive||b.kind!=='hq'||!operational(b)||b._mcvPhase)return false;
    if(!state.mcvRedeploy){tell(b,'게임 시작 옵션에서 MCV 재배치를 켜야 합니다.');return false;}
    b._mcvPhase='pack';b._mcvT0=state.t;b._mcvDestination={x,y};b.repairOn=false;recomputePower();return true;
   }
@@ -39,7 +39,9 @@
     if(!arrived)continue;
     if(!valid(u,p)){u._mcvPending=null;stop(u);tell(u,'전개 공간이 막혔습니다.');continue;}
     stop(u);p.order=u.order;
-    if(!M.drive(u,0,1,dt,c.worldVecToDir8))continue;
+    u.bodyYaw=g.OUTankMotion.toward(g.OUTankMotion.readPose(u).bodyYaw,M.heading,M.deployTurnRate,dt);
+    u.bodyDir=u.dir=c.worldVecToDir8(Math.cos(u.bodyYaw),Math.sin(u.bodyYaw));
+    if(Math.abs(g.OUTankMotion.wrap(M.heading-u.bodyYaw))>.04)continue;
     // Atomic replacement: no death effects, refund, crew, or healing. Occupancy starts immediately.
     const selected=state.selection.has(u.id);u.alive=false;u._mcvPending=null;
     const b=addBuilding(u.team,'hq',p.tx,p.ty,{skipMvp:true});b.hp=Math.min(b.hpMax,u.hp);b._mcvPhase='deploy';b._mcvT0=state.t;b._mcvOriginId=u.id;

@@ -10,7 +10,9 @@
   infantry:['barracks'],engineer:['barracks'],sniper:['barracks','radar'],
   tank:['factory'],ifv:['factory'],harvester:['factory'],mcv:['factory','repair']
  };
- const operational=b=>!!(b&&b.alive&&!b.civ&&!b._mcvPhase&&!b._mcvSelling&&
+ // Deployment reserves the yard immediately and enables construction in the same tick.
+ // Packing/selling withdraw availability; animation completion is not an extra tech gate.
+ const operational=b=>!!(b&&b.alive&&!b.civ&&b._mcvPhase!=='pack'&&!b._mcvSelling&&
   !b._factorySelling&&!b._sentrySelling&&!b._powerSelling&&!b._refinerySelling&&!b._barrackSelling);
  const assemblySeconds=kind=>kind==='factory'?g.OUFactory.buildSeconds:kind==='repair'?1.6:0;
  const has=(buildings,team,kind)=>buildings.some(b=>operational(b)&&b.team===team&&b.kind===kind);

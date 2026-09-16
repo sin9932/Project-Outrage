@@ -4,7 +4,7 @@ import { mergeGeometries } from '../vendor/three/addons/utils/BufferGeometryUtil
 
 // Hybrid isometric renderer: rasterize actual geometry at its current arbitrary
 // pose every frame, then composite at the existing world depth-sort position.
-// Units use continuous poses; settled construction yards cache their completed pose.
+// Units use continuous poses; completed yards use the original detailed 2D artwork.
 const api = window.OUTank3D = { status: 'loading', draws: 0, error: null };
 const enabled = new URLSearchParams(location.search).get('tank3d') !== '0';
 let config = window.OUTankConfig;
@@ -15,7 +15,6 @@ const assets=new Map();
 const poseByUnit = new Map();
 const frameSlots = new Map();
 const framePages = [];
-const yardFrames=new Map();
 let detailMeshes=[], crowdMeshes=[];
 const ray = new THREE.Raycaster();
 const pointer = new THREE.Vector2();
@@ -278,7 +277,7 @@ export const ready = (async () => {
       model=mg.scene.clone(true);hull=model.getObjectByName('Hull');turret=barrel=barrelRest=null;
       wheels=[];materials=[];extraParts=[];detailMeshes=[];crowdMeshes=[];
       hull?.scale.setScalar(window.OUMCV.modelScale);
-      if(!hull||!model.getObjectByName('Head')||!model.getObjectByName('Tower_3'))throw Error('MCV hierarchy incomplete');
+      if(!hull||!model.getObjectByName('Cab')||!model.getObjectByName('Container_1'))throw Error('MCV hierarchy incomplete');
       model.traverse(o=>{if(!o.isMesh)extraParts.push(o);if(/^Wheel_[LR]_\d$/.test(o.name))wheels.push(o);if(o.isMesh)for(const mat of Array.isArray(o.material)?o.material:[o.material])if(/TeamColor/.test(mat.name)&&!materials.includes(mat))materials.push(mat);});
       const mx=new THREE.AnimationMixer(model),ac=mx.clipAction(mc);ac.setLoop(THREE.LoopOnce,1);ac.clampWhenFinished=true;ac.play();ac.paused=true;ac.time=kind==='hq'?mc.duration:0;mx.update(0);
       mergeRigidParts();model.updateMatrixWorld(true);buildCrowdDetail();scene.add(model);remember(kind);Object.assign(assets.get(kind),{buildClip:mc,buildMixer:mx,buildAction:ac});
@@ -333,7 +332,7 @@ function appendPose(u,time,cellX,cellY,capacity,tint,viewSpan=span,localOffset=n
       const team=/TeamColor|Lamp/.test(src.material.name),mat=src.material.clone();
       if(team){mat.color.set(0xffffff);if(mat.emissive)mat.emissive.set(0);}
       let geometry=src.geometry,ground=null;
-      if(['turret','factory','hq','repair'].includes(u.kind)){
+      if(['turret','factory','hq','repair','mcv'].includes(u.kind)){
         // Each atlas cell has a different camera-plane offset. Remove that offset
         // before clipping the underground assembly against the real ground plane.
         geometry=src.geometry.clone();ground=new THREE.InstancedBufferAttribute(new Float32Array(capacity),1);
@@ -368,15 +367,12 @@ api.beginFrame = function(units,time,view) {
   const viewWidth=view.width||ctx.canvas.width;
   const visible=units.filter(u=>{
     if(!u.alive||!assets.has(u.kind)||u.kind==='ifv'||u.hidden||u.inTransport)return false;
+    if(u.kind==='hq'&&!u._mcvPhase&&!u._mcvSelling)return false;
     const size=assets.get(u.kind).config.renderSpan*assets.get(u.kind).config.scale/Math.sqrt(2)*zoom,p=project(u.x,u.y);
     return p.x+size/2>=0&&p.y+size/2>=0&&p.x-size/2<=viewWidth&&p.y-size/2<=ctx.canvas.height;
   });
   const groups=new Map();
   for(const u of visible){
-    if(u.kind==='hq'&&!u._mcvPhase&&!u._mcvSelling){
-      const size=window.OUMCV.hqSpan*20/Math.sqrt(2)*zoom,res=Math.max(64,Math.min(768,Math.ceil(size))),key=color(u)+':'+res,slot=yardFrames.get(key);
-      if(slot){frameSlots.set(u.id,{...slot,size});continue;}
-    }
     const key=assets.get(u.kind).config.renderSpan;if(!groups.has(key))groups.set(key,[]);groups.get(key).push(u);}
   const res=Math.max(64,Math.min(768,Math.ceil(span*window.OUTankConfig.scale/Math.sqrt(2)*zoom)));
   const crowd=res<=160 || visible.length>=48;
@@ -414,10 +410,6 @@ api.beginFrame = function(units,time,view) {
     api.gpuDrawCalls=renderer.info.render.calls;
     const copy=canvas.getContext('2d');copy.clearRect(0,0,width,height);
     copy.drawImage(renderer.domElement,0,0);
-    for(const u of chunk)if(u.kind==='hq'&&!u._mcvPhase&&!u._mcvSelling){
-      const slot=frameSlots.get(u.id),key=color(u)+':'+slot.res;
-      if(!yardFrames.has(key)){const cached=document.createElement('canvas');cached.width=cached.height=slot.res;cached.getContext('2d').drawImage(canvas,slot.x,slot.y,slot.res,slot.res,0,0,slot.res,slot.res);yardFrames.set(key,{canvas:cached,x:0,y:0,res:slot.res});if(yardFrames.size>24)yardFrames.delete(yardFrames.keys().next().value);}
-    }
     pageCount++;
   }
   }

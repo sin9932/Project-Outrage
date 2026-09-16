@@ -9,19 +9,28 @@ const engine=process.env.OUTRAGE_BROWSER||'chromium',bt=require(process.env.OUTR
  await p.evaluate(()=>{window.g=OUTankTest;window.originalAITick=g.ai.tick;g.ai.tick=()=>{};g.state.enemy.money=0;g.state.player.money=100000;for(const u of g.units)u.alive=false;
   for(let y=7;y<37;y++)for(let x=7;x<37;x++){const i=y*g.MAP_W+x;g.terrain[i]=g.treeHp[i]=g.ore[i]=0;}
   for(const b of g.buildings)if(b.tx<36&&b.ty<36&&b.tx>6&&b.ty>6){b.alive=false;g.footprint.setBuildingOcc(b,0);}
+  for(const b of g.buildings)if(b.alive&&b.team===0&&b.kind==='hq'){b.alive=false;g.footprint.setBuildingOcc(b,0);}
   g.cam.zoom=1.4;window.u=g.addUnit(0,'mcv',20.5*g.TILE,20.5*g.TILE);g.centerCameraOn(u.x,u.y);g.state.selection=new Set([u.id]);u.hp=2345;
  });
  const blocked=await p.evaluate(()=>{const s=g.mcv.site(u),i=(s.ty+1)*g.MAP_W+s.tx+1;g.ore[i]=100;const a=g.mcv.requestDeploy(u);g.ore[i]=0;g.terrain[i]=1;const c=g.mcv.requestDeploy(u);g.terrain[i]=0;const blocker=g.addUnit(0,'tank',u.x+g.TILE,u.y);const d=g.mcv.requestDeploy(u);blocker.alive=false;return[a,c,d]});assert.deepEqual(blocked,[false,false,false]);
  await p.screenshot({path:process.argv[2]+'-mobile.png'});
+ await p.evaluate(()=>{window.deployObservation=null;const watch=()=>{const b=g.buildings.find(b=>b.alive&&b._mcvOriginId===u.id);if(!b){requestAnimationFrame(watch);return;}
+  g.economy.enqueueEcon({type:'setBuild',kind:'power'});
+  const started=g.state.t;window.deployObservation={started,phase:b._mcvPhase,operational:OUTech.operational(b),repackRejected:!g.mcv.requestRepack(b,b.x+100,b.y)};
+  const done=()=>{if(b._mcvPhase){if(g.state.buildLane.main.queue?.t>0)deployObservation.queueStartedDuringDeploy=true;requestAnimationFrame(done);return;}deployObservation.duration=g.state.t-b._mcvT0;};requestAnimationFrame(done);
+ };requestAnimationFrame(watch);});
  await p.keyboard.press('d');await p.waitForFunction(()=>g.buildings.some(b=>b.alive&&b._mcvOriginId===u.id),null,{timeout:12000});
  await p.evaluate(()=>{window.yard=g.buildings.find(b=>b.alive&&b._mcvOriginId===u.id)});assert.equal(await p.evaluate(()=>yard.hp),2345);
  await p.screenshot({path:process.argv[2]+'-deploy.png'});
  await p.waitForFunction(()=>!yard._mcvPhase,null,{timeout:10000});
- const curves=await p.evaluate(()=>[0,.2,.4,.6,.8,1].map(v=>({v,a:OUTank3D.mcvPose({...yard,_mcvPhase:'deploy',_mcvT0:10-v*3},10),b:OUTank3D.mcvPose({...yard,_mcvPhase:'pack',_mcvT0:10-(1-v)*3},10)})));
+ const curves=await p.evaluate(()=>[0,.2,.4,.6,.8,1].map(v=>({v,a:OUTank3D.mcvPose({...yard,_mcvPhase:'deploy',_mcvT0:10-v*OUMCV.seconds},10),b:OUTank3D.mcvPose({...yard,_mcvPhase:'pack',_mcvT0:10-(1-v)*OUMCV.seconds},10)})));
  for(const c of curves)for(const n in c.a)for(const key of ['position','quaternion','scale'])c.a[n][key].forEach((v,i)=>assert(Math.abs(v-c.b[n][key][i])<1e-5));
+ const timing=await p.evaluate(()=>deployObservation);assert.equal(timing.phase,'deploy');assert(timing.operational&&timing.repackRejected&&timing.queueStartedDuringDeploy,JSON.stringify(timing));assert(timing.duration>=.8&&timing.duration<.95,JSON.stringify(timing));
+ // The existing construction lane must make progress before the animation ends.
+ const immediate=await p.evaluate(()=>{const only={...yard,_mcvPhase:'deploy',_mcvT0:g.state.t};return OUTech.has([only],0,'hq')&&!OUTech.has([{...only,_mcvPhase:'pack'}],0,'hq');});assert(immediate);
  await p.screenshot({path:process.argv[2]+'-yard.png'});
  assert(await p.evaluate(()=>{g.state.mcvRedeploy=false;return !g.mcv.requestRepack(yard,yard.x+100,yard.y)}));
- const before=await p.evaluate(()=>{g.state.mcvRedeploy=true;window.money=g.state.player.money;window.beforeUnits=g.units.length;g.mcv.requestRepack(yard,yard.x+g.TILE*4,yard.y);return {money,units:beforeUnits}});
+ const before=await p.evaluate(()=>{g.state.buildLane.main={queue:null,ready:null,fifo:[]};g.state.mcvRedeploy=true;window.money=g.state.player.money;window.beforeUnits=g.units.length;g.mcv.requestRepack(yard,yard.x+g.TILE*4,yard.y);return {money,units:beforeUnits}});
  await p.waitForFunction(()=>!yard.alive,null,{timeout:10000});
  assert.equal(await p.evaluate(()=>g.state.player.money),before.money);
  assert.equal(await p.evaluate(()=>g.units.length),before.units+1);
@@ -51,5 +60,5 @@ const engine=process.env.OUTRAGE_BROWSER||'chromium',bt=require(process.env.OUTR
  await p.evaluate(()=>{window.clickYard=g.buildings.find(b=>b.alive&&b._mcvOriginId===clickMCV.id)});await p.waitForFunction(()=>!clickYard._mcvPhase,null,{timeout:10000});
  const dest=await p.evaluate(()=>{g.state.selection=new Set([clickYard.id]);const c=document.querySelector('canvas'),r=c.getBoundingClientRect(),v=g.worldToScreen(clickYard.x+4*g.TILE,clickYard.y);return{x:r.left+v.x*r.width/c.width,y:r.top+v.y*r.height/c.height}});
  await p.mouse.click(dest.x,dest.y);await p.waitForFunction(()=>clickYard._mcvPhase==='pack',null,{timeout:5000});
- assert.equal(errors.length,0,errors.join('\n'));fs.writeFileSync(process.argv[2]+'.json',JSON.stringify({blocked,reverseMatches:true,hpPreserved:true,optionGate:true,noRepackRefund:true,production:true,deathNoRespawn:true,saleDistinct:true,enemyDeploy:true,doubleClick:true,groundMoveRepack:true,errors},null,2));console.log('MCV_PASS');
+ assert.equal(errors.length,0,errors.join('\n'));fs.writeFileSync(process.argv[2]+'.json',JSON.stringify({timing,immediateBuild:immediate,blocked,reverseMatches:true,hpPreserved:true,optionGate:true,noRepackRefund:true,production:true,deathNoRespawn:true,saleDistinct:true,enemyDeploy:true,doubleClick:true,groundMoveRepack:true,errors},null,2));console.log('MCV_PASS');
  }finally{await b.close();}})().catch(e=>{console.error(e);process.exitCode=1});

@@ -536,9 +536,9 @@
   const SPRITE_TUNE = {
     hq: {
       anchor: "center",
-      scaleMul: 1.20,
+      scaleMul: 1.00,
       pivotNudge: { x: 0, y: 0 },
-      offsetNudge:{ x: 94, y: -26 }
+      offsetNudge:{ x: 0, y: 0 }
     }
   };
 
@@ -570,13 +570,10 @@
   const BUILD_SPRITE_LOCAL = {
     hq: {
       img: CON_YARD_IMG,
-      // We draw ONLY the non-transparent bbox (crop), so all numbers below are bbox-relative.
-      // Measured from con_yard_n.png:
-      //  bbox: x=256, y=130, w=1536, h=1251
-      //  south-tip pivot (full image): x??016.5, y=1380
-      //  pivot in bbox-space: x??60.5, y=1250
-      crop:  { x: 256, y: 130, w: 1536, h: 1251 },
-      pivot: null, // pivot is controlled via SPRITE_TUNE (see below)
+      // Original 1644x1256 PNG; alpha bounds and ground-plane center measured
+      // from this asset. The obsolete 2048px crop clipped the finished yard.
+      crop: window.OUHQAssembly.source.crop,
+      pivot: window.OUHQAssembly.source.pivot,
       teamColor: true // apply team palette to accent pixels
     }
   };
@@ -1749,7 +1746,7 @@
     return drawSniperSprite(ctx, px, py, dir, alpha, teamId);
   }
 
-  function drawBuildingSpriteLocal(ent){
+  function drawBuildingSpriteLocal(ent, assemblyProgress=null){
     const cfg = BUILD_SPRITE[ent.kind];
     if (!cfg) return false;
     const img = cfg.img;
@@ -1805,11 +1802,9 @@
       }
     }
 
-    ctx.drawImage(
-      srcImg,
-      sx, sy, sw, sh,
-      dx, dy, dw, dh
-    );
+    if(ent.kind==='hq'&&assemblyProgress!=null&&assemblyProgress<1&&srcImg!==img){
+      window.OUHQAssembly.draw(ctx,srcImg,{x:dx,y:dy,w:dw,h:dh},assemblyProgress);
+    } else ctx.drawImage(srcImg,sx,sy,sw,sh,dx,dy,dw,dh);
     ctx.restore();
     return true;
   }
@@ -3328,7 +3323,12 @@
         if (ent.team===TEAM.PLAYER){ fill="rgba(10,40,70,0.9)"; stroke=state.colors.player; }
         if (ent.team===TEAM.ENEMY){  fill="rgba(70,10,10,0.9)"; stroke=state.colors.enemy; }
 
-        if((ent.kind==='turret'&&window.OUTank3D?.sentryReady)||(ent.kind==='factory'&&window.OUTank3D?.factoryReady)||(['hq','repair'].includes(ent.kind)&&window.OUTank3D?.mcvReady)){
+        if(ent.kind==='hq'){
+          drawBuildingShadow(ent);
+          const M=window.OUMCV,animated=!!(ent._mcvPhase||ent._mcvSelling),progress=animated?M.progress(ent,state.t):1;
+          if(animated&&window.OUTank3D?.mcvReady)window.OUTank3D.draw(ctx,ent,screenPos,cam.zoom,ent.team===TEAM.PLAYER?state.colors.player:state.colors.enemy,state.t);
+          drawBuildingSpriteLocal(ent,progress);
+        } else if((ent.kind==='turret'&&window.OUTank3D?.sentryReady)||(ent.kind==='factory'&&window.OUTank3D?.factoryReady)||(ent.kind==='repair'&&window.OUTank3D?.mcvReady)){
           drawBuildingShadow(ent);
           window.OUTank3D.draw(ctx,ent,screenPos,cam.zoom,ent.team===TEAM.PLAYER?state.colors.player:state.colors.enemy,state.t);
         } else if (buildSprite && buildSprite[ent.kind]){

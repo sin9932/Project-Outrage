@@ -1,37 +1,37 @@
 # MCV / deployable construction yard
 
-Added on the isolated `codex/realtime-tank-3d` branch. Main is not merged.
+Work lives on `codex/realtime-tank-3d`. Main is not merged.
 
-## Player controls
+## Player controls and timing
 
-- Build a war factory and service depot. Both must finish their assembly before MCV production becomes available in the vehicle tab.
-- MCV costs 3,000 credits, has 3,000 HP (derived from the HQ spec), is unarmed, and uses vehicle navigation with heading-before-translation.
-- Select it and press **D**, or double-click it, to deploy on an unobstructed 5×5 flat footprint. Trees, ore, buildings, reserved factory/refinery entrances and other units block deployment.
-- Enable **MCV redeployment** before starting the game. Select a completed construction yard and click a ground destination: it folds back into an MCV and drives there. Deploy again as often as needed.
-- Redeployment preserves current HP and group number. It does not give credits, spawn crew, or increment production/construction scores. Selling is separate: refund and existing evacuation rules, reversed assembly followed by removal, no MCV unit.
-- The new service depot repairs one nearby stationary vehicle each second (30 HP for 5 credits). Its footprint is a solid workshop; vehicles park beside it.
+- Build a completed war factory and service depot to produce an MCV at the factory. Cost: 3,000 credits. HP: 3,000, derived from the existing HQ spec. It is unarmed and uses vehicle navigation.
+- Select the MCV and press **D**, or double-click, to deploy on an unobstructed 5×5 flat footprint. Trees, ore, buildings, reserved factory/refinery entrances and other units block deployment.
+- Deployment and packing each take **0.8 simulation seconds**. The HQ reserves its footprint and enables building prerequisites as soon as deployment starts. There is no additional construction lockout after the animation.
+- Enable **MCV redeployment** before starting the match. A ground movement order to a completed selected HQ folds it into an MCV, then drives to that destination. Repacking and selling are blocked during deployment to prevent overlapping conversions.
+- Repeated deployment preserves current HP, selection and group. No repacking refund, crew spawn or production score increment. Selling retains the separate refund/evacuation rules and never creates a controllable MCV.
+- Service depots repair one nearby stationary vehicle per second: 30 HP for 5 credits.
 
-## Ownership and consistency
+## Shared ownership
 
-`client/js/tech.js` owns the prerequisite tables previously duplicated in UI, AI and economy. The same MCV prerequisite predicate gates the button, queue API and active production. Losing a prerequisite pauses an active MCV ticket; rebuilding resumes it. Existing FIFO cancellation behavior remains in the economy module.
+`tech.js` owns prerequisite tables and operational availability for the UI, economy and AI. An HQ in `deploy` is operational; `pack` and selling are not. MCV production requires both completed prerequisites; losing one pauses the current ticket and rebuilding resumes it.
 
-`client/js/mcv.js` owns deployment, packing, validity checks, conversion and strategic MCV AI. It reuses the footprint helper, occupancy, pathfinding, addUnit/addBuilding, selection and economy interfaces. Deployment reserves the whole yard footprint at animation start. Packing holds that footprint until animation completion. Replacement is atomic within one simulation tick, with one live entity throughout. Death during either transition cannot produce another vehicle.
+`mcv.js` owns site validation, fixed-heading alignment, deployment/repacking timing, atomic entity conversion and strategic MCV AI. Existing footprint, occupancy, pathfinding, selection and economy interfaces remain authoritative. Occupancy starts at deployment and stays reserved until packing finishes. Destruction during conversion cannot produce another vehicle.
 
-Enemy MCVs are excluded from assault groups. When the enemy has lost its HQ and retains a completed factory/depot and sufficient money, it prioritizes one MCV. Site search processes at most 24 candidates per 0.8-second think, avoids nearby armed opponents, and uses existing budgeted paths. This is a project-specific RA2-style recovery policy, not a claim to reproduce the original game's AI source.
+AI excludes MCVs from assault groups. Without an HQ, a completed factory/depot and sufficient funds allow one replacement MCV. Site search examines at most 24 candidates per 0.8-second think and uses existing path budgets.
 
-## Art contract
+## Art and rendering
 
-`tools/blender/build_mcv.py` creates `client/asset/model/mcv/mcv.blend`, `mcv.glb` and `contract.json`.
+The completed construction yard uses the **existing** `asset/sprite/const/normal/con_yard_n.png`. Its original broad armored base, corner supports, fans, vents, octagonal pedestal, lattice mast, crane, drums and crates are preserved. The stale crop for a different image size was replaced with the actual alpha bounds of the 1644×1256 source and a ground-plane pivot.
 
-Blender: metres, Z up. glTF: Y up, +Z forward. Runtime scale: 20 world units/metre. Mobile silhouette: eight wheels, split purple cab, silver container quarters. A fixed 1.65 model scale is applied equally to mobile, transforming and deployed geometry. The resulting vehicle is roughly 2.5× the existing light tank’s length, with a 50-world-unit navigation radius; it starts deeper inside the factory bay. There is no animated size inflation.
+`hq_assembly.js` owns the source-space articulation masks and projected panel hinges. It partitions the original artwork into platform, body, armor, roof collar, pedestal, mast and crane parts. Overlapping outlines have explicit priority so each source pixel belongs to only one part. Platforms extend before walls unfold, the pedestal/mast lift, then the crane locks into place. Forward and reverse sample the same progress. The endpoint draws the same original sprite directly; there is no whole-building crossfade to an unrelated model.
 
-One three-second **Deploy** clip animates rigid translations and hinges. No animated object scales, mesh swaps or directional sprite sheets: chassis rails and deck leaves telescope, suspension/container pods spread, cab halves fold into the front supports, roof and end-wall leaves unfold, nested tower stages lift, and the crane boom extends. The same clip sampled backwards gives packing. All articulated empty nodes survive renderer batching.
+`tools/blender/build_mcv.py` creates the real-time eight-wheel truck and its chassis, hinged cab, rear-shell hinges, hydraulic stabilizers and outriggers. The silhouette follows the supplied single-cab, rounded-container reference. Blender uses metres/Z-up; glTF uses Y-up/+Z-forward. The fixed model multiplier is 1.65 at 20 world units/metre. The authored three-second `Deploy` clip is sampled over the 0.8-second gameplay interval. No animated object scales are used in the vehicle asset.
 
-The final yard is reconstructed to share its physical components with the vehicle; it is not the old yard image pasted over the final frame. Reference artwork informs the design, but its proportions and mechanical layout are not an exact reproduction.
+This is a hybrid construction effect: real-time vehicle geometry plus articulated original building artwork. It does not simulate every building panel as a rigid-body 3D object. Completed yards use the existing palette cache and do not enter the WebGL assembly atlas. No new smoke or shadow simulation was added.
 
-Completed yards are rendered once per team color/resolution into a bounded 24-entry image cache. Moving MCVs and transformations use the existing shared instanced 3D atlas. Existing destruction effects are retained; no new smoke simulation or shadow subsystem is introduced.
+Animation-order references: [Allied MCV cinematic](https://www.youtube.com/watch?v=I-JU-bAOiao), viewed as sampled frames across the downloaded 37.4-second video; and [AVSP Allied MCV deployment](https://www.moddb.com/mods/avsp/images/allied-mcv-deployanim), inspected across its 81 frames. The source remains reference material, not a shipped game asset. The requested 0.8-second speed is project tuning, not a claim about original RA2 frame timing.
 
-Regenerate:
+Regenerate the vehicle asset:
 
 ```powershell
 & 'C:/Program Files/Blender Foundation/Blender 5.1/blender.exe' --background --factory-startup --python tools/blender/build_mcv.py -- client/asset/model/mcv
@@ -39,8 +39,8 @@ Regenerate:
 
 ## Validation
 
-`client/tests/mcv.browser.cjs` runs against the actual game at port 8765 with the existing Playwright tooling. Chromium and Firefox passed: prerequisite loss/restoration and production exit, invalid ore/terrain/occupied footprints, D deployment, double-click deployment, ground-click repacking, option gate, HP conservation, exact forward/reverse pose equality, no repack refund/extra crew, no respawn after transition destruction, distinct sale, and enemy autonomous deployment. Browser page errors: zero.
+Chromium and Firefox passed the real-game regression with zero page errors. Chromium measured 0.8063 seconds for deployment; both browsers verified that a real construction ticket advanced while deployment was still active.
 
-The existing `factory.browser.cjs` Chromium regression also passed: sequential dispatch, blocked-exit waiting, harvester exit, cancelled tickets, fully paid production with zero balance, primary-factory switching, roof opening, and reverse sale.
+`client/tests/mcv.browser.cjs` exercises the actual game: invalid terrain/ore/occupied footprints, D/double-click deployment, measured fast transition, construction-lane progress during deployment, blocked overlapping repack, HP conservation, reverse pose equality, option gate, factory/depot loss and recovery, factory dispatch, transition destruction, sale and enemy recovery AI. Art is reviewed separately at 25 poses in the actual renderer.
 
-For local testing use the existing `Outrage_3D_Game.cmd` launcher, refresh with Ctrl+F5, and start a new game to apply the redeployment option.
+Launch with `Outrage_3D_Game.cmd`, refresh with Ctrl+F5, and start a new match to apply the redeployment option.
