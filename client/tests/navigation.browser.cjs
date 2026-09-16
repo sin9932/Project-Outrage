@@ -1,7 +1,7 @@
 const {chromium}=require(process.env.OUTRAGE_PLAYWRIGHT),fs=require('fs'),assert=require('node:assert/strict'),path=require('path');
 (async()=>{const b=await chromium.launch({headless:true,executablePath:'C:/Program Files/Google/Chrome/Application/chrome.exe'});
 try{const p=await b.newPage({viewport:{width:1440,height:900}});const errors=[];p.on('pageerror',e=>errors.push(e.stack));
-await p.goto('http://127.0.0.1:8765/index.html?debug=1&tankdemo=1');await p.waitForFunction(()=>window.OUTankTest&&window.OUTank3D?.status==='ready');
+await p.goto(process.env.OUTRAGE_URL||'http://127.0.0.1:8765/index.html?debug=1&tankdemo=1');await p.waitForFunction(()=>window.OUTankTest&&window.OUTank3D?.status==='ready');
 await p.locator('#fogOff').check();await p.locator('#startBtn').click();await p.waitForFunction(()=>OUTankTest.running);
 const camera=await p.evaluate(()=>{const g=OUTankTest,c=document.getElementById('c'),out=[];g.ai.tick=()=>{};
 for(const z of [.6,1,1.8]){g.cam.zoom=z;for(const [x,y]of[[0,0],[g.MAP_W*g.TILE,0],[0,g.MAP_H*g.TILE],[g.MAP_W*g.TILE,g.MAP_H*g.TILE]]){

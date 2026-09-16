@@ -1,0 +1,1301 @@
+{
+  "pass": true,
+  "browser": "chromium",
+  "deterministicSimulationHz": 60,
+  "directions": [
+    {
+      "kind": "tank",
+      "dx": 1,
+      "dy": 0,
+      "expectedDir": 7,
+      "maxStep": 5.070485556932908,
+      "jumps": 0,
+      "turnSlides": 0,
+      "turnFrames": 37,
+      "movingFrames": 36,
+      "maxYawError": 0,
+      "maxGridError": 0,
+      "seconds": 1.2166666666666666,
+      "changedGoal": false,
+      "arrived": [
+        {
+          "id": 4,
+          "kind": "tank",
+          "order": "idle",
+          "error": 0,
+          "x": 2365,
+          "y": 2255,
+          "dir": 7,
+          "bodyYaw": 0,
+          "flow": null,
+          "blocked": 0,
+          "stuck": 0
+        }
+      ]
+    },
+    {
+      "kind": "tank",
+      "dx": 1,
+      "dy": 1,
+      "expectedDir": 6,
+      "maxStep": 5.7163446446662185,
+      "jumps": 0,
+      "turnSlides": 0,
+      "turnFrames": 37,
+      "movingFrames": 45,
+      "maxYawError": 0,
+      "maxGridError": 0,
+      "seconds": 1.3666666666666667,
+      "changedGoal": false,
+      "arrived": [
+        {
+          "id": 5,
+          "kind": "tank",
+          "order": "idle",
+          "error": 0,
+          "x": 2365,
+          "y": 2365,
+          "dir": 6,
+          "bodyYaw": 0.7853981633974483,
+          "flow": null,
+          "blocked": 0,
+          "stuck": 0
+        }
+      ]
+    },
+    {
+      "kind": "tank",
+      "dx": 0,
+      "dy": 1,
+      "expectedDir": 5,
+      "maxStep": 5.070485556932908,
+      "jumps": 0,
+      "turnSlides": 0,
+      "turnFrames": 37,
+      "movingFrames": 36,
+      "maxYawError": 0,
+      "maxGridError": 0,
+      "seconds": 1.2166666666666666,
+      "changedGoal": false,
+      "arrived": [
+        {
+          "id": 6,
+          "kind": "tank",
+          "order": "idle",
+          "error": 0,
+          "x": 2255,
+          "y": 2365,
+          "dir": 5,
+          "bodyYaw": 1.5707963267948966,
+          "flow": null,
+          "blocked": 0,
+          "stuck": 0
+        }
+      ]
+    },
+    {
+      "kind": "tank",
+      "dx": -1,
+      "dy": 1,
+      "expectedDir": 4,
+      "maxStep": 5.7163446446662185,
+      "jumps": 0,
+      "turnSlides": 0,
+      "turnFrames": 37,
+      "movingFrames": 45,
+      "maxYawError": 0,
+      "maxGridError": 0,
+      "seconds": 1.3666666666666667,
+      "changedGoal": false,
+      "arrived": [
+        {
+          "id": 7,
+          "kind": "tank",
+          "order": "idle",
+          "error": 0,
+          "x": 2145,
+          "y": 2365,
+          "dir": 4,
+          "bodyYaw": 2.356194490192345,
+          "flow": null,
+          "blocked": 0,
+          "stuck": 0
+        }
+      ]
+    },
+    {
+      "kind": "tank",
+      "dx": -1,
+      "dy": 0,
+      "expectedDir": 3,
+      "maxStep": 5.070485556932908,
+      "jumps": 0,
+      "turnSlides": 0,
+      "turnFrames": 37,
+      "movingFrames": 36,
+      "maxYawError": 0,
+      "maxGridError": 0,
+      "seconds": 1.2166666666666666,
+      "changedGoal": false,
+      "arrived": [
+        {
+          "id": 8,
+          "kind": "tank",
+          "order": "idle",
+          "error": 0,
+          "x": 2145,
+          "y": 2255,
+          "dir": 3,
+          "bodyYaw": 3.141592653589793,
+          "flow": null,
+          "blocked": 0,
+          "stuck": 0
+        }
+      ]
+    },
+    {
+      "kind": "tank",
+      "dx": -1,
+      "dy": -1,
+      "expectedDir": 2,
+      "maxStep": 5.7163446446662185,
+      "jumps": 0,
+      "turnSlides": 0,
+      "turnFrames": 37,
+      "movingFrames": 45,
+      "maxYawError": 0,
+      "maxGridError": 0,
+      "seconds": 1.3666666666666667,
+      "changedGoal": false,
+      "arrived": [
+        {
+          "id": 9,
+          "kind": "tank",
+          "order": "idle",
+          "error": 0,
+          "x": 2145,
+          "y": 2145,
+          "dir": 2,
+          "bodyYaw": -2.356194490192345,
+          "flow": null,
+          "blocked": 0,
+          "stuck": 0
+        }
+      ]
+    },
+    {
+      "kind": "tank",
+      "dx": 0,
+      "dy": -1,
+      "expectedDir": 1,
+      "maxStep": 5.070485556932908,
+      "jumps": 0,
+      "turnSlides": 0,
+      "turnFrames": 37,
+      "movingFrames": 36,
+      "maxYawError": 0,
+      "maxGridError": 0,
+      "seconds": 1.2166666666666666,
+      "changedGoal": false,
+      "arrived": [
+        {
+          "id": 10,
+          "kind": "tank",
+          "order": "idle",
+          "error": 0,
+          "x": 2255,
+          "y": 2145,
+          "dir": 1,
+          "bodyYaw": -1.5707963267948966,
+          "flow": null,
+          "blocked": 0,
+          "stuck": 0
+        }
+      ]
+    },
+    {
+      "kind": "tank",
+      "dx": 1,
+      "dy": -1,
+      "expectedDir": 0,
+      "maxStep": 5.7163446446662185,
+      "jumps": 0,
+      "turnSlides": 0,
+      "turnFrames": 37,
+      "movingFrames": 45,
+      "maxYawError": 0,
+      "maxGridError": 0,
+      "seconds": 1.3666666666666667,
+      "changedGoal": false,
+      "arrived": [
+        {
+          "id": 11,
+          "kind": "tank",
+          "order": "idle",
+          "error": 0,
+          "x": 2365,
+          "y": 2145,
+          "dir": 0,
+          "bodyYaw": -0.7853981633974483,
+          "flow": null,
+          "blocked": 0,
+          "stuck": 0
+        }
+      ]
+    },
+    {
+      "kind": "ifv",
+      "dx": 1,
+      "dy": 0,
+      "expectedDir": 7,
+      "maxStep": 6.171675538697855,
+      "jumps": 0,
+      "turnSlides": 0,
+      "turnFrames": 0,
+      "movingFrames": 30,
+      "maxYawError": 0,
+      "maxGridError": 0,
+      "seconds": 0.5166666666666666,
+      "changedGoal": false,
+      "arrived": [
+        {
+          "id": 12,
+          "kind": "ifv",
+          "order": "idle",
+          "error": 0,
+          "x": 2365,
+          "y": 2255,
+          "dir": 7,
+          "bodyYaw": 0,
+          "flow": null,
+          "blocked": 0,
+          "stuck": 0
+        }
+      ]
+    },
+    {
+      "kind": "ifv",
+      "dx": 1,
+      "dy": 1,
+      "expectedDir": 6,
+      "maxStep": 6.868206533292742,
+      "jumps": 0,
+      "turnSlides": 0,
+      "turnFrames": 0,
+      "movingFrames": 36,
+      "maxYawError": 0,
+      "maxGridError": 0,
+      "seconds": 0.6166666666666667,
+      "changedGoal": false,
+      "arrived": [
+        {
+          "id": 13,
+          "kind": "ifv",
+          "order": "idle",
+          "error": 0,
+          "x": 2365,
+          "y": 2365,
+          "dir": 6,
+          "bodyYaw": 0.7853981633974483,
+          "flow": null,
+          "blocked": 0,
+          "stuck": 0
+        }
+      ]
+    },
+    {
+      "kind": "ifv",
+      "dx": 0,
+      "dy": 1,
+      "expectedDir": 5,
+      "maxStep": 6.171675538697855,
+      "jumps": 0,
+      "turnSlides": 0,
+      "turnFrames": 0,
+      "movingFrames": 30,
+      "maxYawError": 0,
+      "maxGridError": 0,
+      "seconds": 0.5166666666666666,
+      "changedGoal": false,
+      "arrived": [
+        {
+          "id": 14,
+          "kind": "ifv",
+          "order": "idle",
+          "error": 0,
+          "x": 2255,
+          "y": 2365,
+          "dir": 5,
+          "bodyYaw": 1.5707963267948966,
+          "flow": null,
+          "blocked": 0,
+          "stuck": 0
+        }
+      ]
+    },
+    {
+      "kind": "ifv",
+      "dx": -1,
+      "dy": 1,
+      "expectedDir": 4,
+      "maxStep": 6.868206533292742,
+      "jumps": 0,
+      "turnSlides": 0,
+      "turnFrames": 0,
+      "movingFrames": 36,
+      "maxYawError": 0,
+      "maxGridError": 0,
+      "seconds": 0.6166666666666667,
+      "changedGoal": false,
+      "arrived": [
+        {
+          "id": 15,
+          "kind": "ifv",
+          "order": "idle",
+          "error": 0,
+          "x": 2145,
+          "y": 2365,
+          "dir": 4,
+          "bodyYaw": 2.356194490192345,
+          "flow": null,
+          "blocked": 0,
+          "stuck": 0
+        }
+      ]
+    },
+    {
+      "kind": "ifv",
+      "dx": -1,
+      "dy": 0,
+      "expectedDir": 3,
+      "maxStep": 6.171675538697855,
+      "jumps": 0,
+      "turnSlides": 0,
+      "turnFrames": 0,
+      "movingFrames": 30,
+      "maxYawError": 0,
+      "maxGridError": 0,
+      "seconds": 0.5166666666666666,
+      "changedGoal": false,
+      "arrived": [
+        {
+          "id": 16,
+          "kind": "ifv",
+          "order": "idle",
+          "error": 0,
+          "x": 2145,
+          "y": 2255,
+          "dir": 3,
+          "bodyYaw": 3.141592653589793,
+          "flow": null,
+          "blocked": 0,
+          "stuck": 0
+        }
+      ]
+    },
+    {
+      "kind": "ifv",
+      "dx": -1,
+      "dy": -1,
+      "expectedDir": 2,
+      "maxStep": 6.868206533292742,
+      "jumps": 0,
+      "turnSlides": 0,
+      "turnFrames": 0,
+      "movingFrames": 36,
+      "maxYawError": 0,
+      "maxGridError": 0,
+      "seconds": 0.6166666666666667,
+      "changedGoal": false,
+      "arrived": [
+        {
+          "id": 17,
+          "kind": "ifv",
+          "order": "idle",
+          "error": 0,
+          "x": 2145,
+          "y": 2145,
+          "dir": 2,
+          "bodyYaw": -2.356194490192345,
+          "flow": null,
+          "blocked": 0,
+          "stuck": 0
+        }
+      ]
+    },
+    {
+      "kind": "ifv",
+      "dx": 0,
+      "dy": -1,
+      "expectedDir": 1,
+      "maxStep": 6.171675538697855,
+      "jumps": 0,
+      "turnSlides": 0,
+      "turnFrames": 0,
+      "movingFrames": 30,
+      "maxYawError": 0,
+      "maxGridError": 0,
+      "seconds": 0.5166666666666666,
+      "changedGoal": false,
+      "arrived": [
+        {
+          "id": 18,
+          "kind": "ifv",
+          "order": "idle",
+          "error": 0,
+          "x": 2255,
+          "y": 2145,
+          "dir": 1,
+          "bodyYaw": -1.5707963267948966,
+          "flow": null,
+          "blocked": 0,
+          "stuck": 0
+        }
+      ]
+    },
+    {
+      "kind": "ifv",
+      "dx": 1,
+      "dy": -1,
+      "expectedDir": 0,
+      "maxStep": 6.868206533292742,
+      "jumps": 0,
+      "turnSlides": 0,
+      "turnFrames": 0,
+      "movingFrames": 36,
+      "maxYawError": 0,
+      "maxGridError": 0,
+      "seconds": 0.6166666666666667,
+      "changedGoal": false,
+      "arrived": [
+        {
+          "id": 19,
+          "kind": "ifv",
+          "order": "idle",
+          "error": 0,
+          "x": 2365,
+          "y": 2145,
+          "dir": 0,
+          "bodyYaw": -0.7853981633974483,
+          "flow": null,
+          "blocked": 0,
+          "stuck": 0
+        }
+      ]
+    },
+    {
+      "kind": "mcv",
+      "dx": 1,
+      "dy": 0,
+      "expectedDir": 7,
+      "maxStep": 3.503839042400614,
+      "jumps": 0,
+      "turnSlides": 0,
+      "turnFrames": 24,
+      "movingFrames": 50,
+      "maxYawError": 0,
+      "maxGridError": 0,
+      "seconds": 1.2333333333333334,
+      "changedGoal": false,
+      "arrived": [
+        {
+          "id": 20,
+          "kind": "mcv",
+          "order": "idle",
+          "error": 0,
+          "x": 2365,
+          "y": 2255,
+          "dir": 7,
+          "bodyYaw": 0,
+          "flow": null,
+          "blocked": 0,
+          "stuck": 0
+        }
+      ]
+    },
+    {
+      "kind": "mcv",
+      "dx": 1,
+      "dy": 1,
+      "expectedDir": 6,
+      "maxStep": 3.820118266622829,
+      "jumps": 0,
+      "turnSlides": 0,
+      "turnFrames": 24,
+      "movingFrames": 62,
+      "maxYawError": 0,
+      "maxGridError": 0,
+      "seconds": 1.4333333333333333,
+      "changedGoal": false,
+      "arrived": [
+        {
+          "id": 21,
+          "kind": "mcv",
+          "order": "idle",
+          "error": 0,
+          "x": 2365,
+          "y": 2365,
+          "dir": 6,
+          "bodyYaw": 0.7853981633974483,
+          "flow": null,
+          "blocked": 0,
+          "stuck": 0
+        }
+      ]
+    },
+    {
+      "kind": "mcv",
+      "dx": 0,
+      "dy": 1,
+      "expectedDir": 5,
+      "maxStep": 3.503839042400614,
+      "jumps": 0,
+      "turnSlides": 0,
+      "turnFrames": 24,
+      "movingFrames": 50,
+      "maxYawError": 0,
+      "maxGridError": 0,
+      "seconds": 1.2333333333333334,
+      "changedGoal": false,
+      "arrived": [
+        {
+          "id": 22,
+          "kind": "mcv",
+          "order": "idle",
+          "error": 0,
+          "x": 2255,
+          "y": 2365,
+          "dir": 5,
+          "bodyYaw": 1.5707963267948966,
+          "flow": null,
+          "blocked": 0,
+          "stuck": 0
+        }
+      ]
+    },
+    {
+      "kind": "mcv",
+      "dx": -1,
+      "dy": 1,
+      "expectedDir": 4,
+      "maxStep": 3.820118266622829,
+      "jumps": 0,
+      "turnSlides": 0,
+      "turnFrames": 24,
+      "movingFrames": 62,
+      "maxYawError": 0,
+      "maxGridError": 0,
+      "seconds": 1.4333333333333333,
+      "changedGoal": false,
+      "arrived": [
+        {
+          "id": 23,
+          "kind": "mcv",
+          "order": "idle",
+          "error": 0,
+          "x": 2145,
+          "y": 2365,
+          "dir": 4,
+          "bodyYaw": 2.356194490192345,
+          "flow": null,
+          "blocked": 0,
+          "stuck": 0
+        }
+      ]
+    },
+    {
+      "kind": "mcv",
+      "dx": -1,
+      "dy": 0,
+      "expectedDir": 3,
+      "maxStep": 3.503839042400614,
+      "jumps": 0,
+      "turnSlides": 0,
+      "turnFrames": 24,
+      "movingFrames": 50,
+      "maxYawError": 0,
+      "maxGridError": 0,
+      "seconds": 1.2333333333333334,
+      "changedGoal": false,
+      "arrived": [
+        {
+          "id": 24,
+          "kind": "mcv",
+          "order": "idle",
+          "error": 0,
+          "x": 2145,
+          "y": 2255,
+          "dir": 3,
+          "bodyYaw": 3.141592653589793,
+          "flow": null,
+          "blocked": 0,
+          "stuck": 0
+        }
+      ]
+    },
+    {
+      "kind": "mcv",
+      "dx": -1,
+      "dy": -1,
+      "expectedDir": 2,
+      "maxStep": 3.820118266622829,
+      "jumps": 0,
+      "turnSlides": 0,
+      "turnFrames": 24,
+      "movingFrames": 62,
+      "maxYawError": 0,
+      "maxGridError": 0,
+      "seconds": 1.4333333333333333,
+      "changedGoal": false,
+      "arrived": [
+        {
+          "id": 25,
+          "kind": "mcv",
+          "order": "idle",
+          "error": 0,
+          "x": 2145,
+          "y": 2145,
+          "dir": 2,
+          "bodyYaw": -2.356194490192345,
+          "flow": null,
+          "blocked": 0,
+          "stuck": 0
+        }
+      ]
+    },
+    {
+      "kind": "mcv",
+      "dx": 0,
+      "dy": -1,
+      "expectedDir": 1,
+      "maxStep": 3.503839042400614,
+      "jumps": 0,
+      "turnSlides": 0,
+      "turnFrames": 24,
+      "movingFrames": 50,
+      "maxYawError": 0,
+      "maxGridError": 0,
+      "seconds": 1.2333333333333334,
+      "changedGoal": false,
+      "arrived": [
+        {
+          "id": 26,
+          "kind": "mcv",
+          "order": "idle",
+          "error": 0,
+          "x": 2255,
+          "y": 2145,
+          "dir": 1,
+          "bodyYaw": -1.5707963267948966,
+          "flow": null,
+          "blocked": 0,
+          "stuck": 0
+        }
+      ]
+    },
+    {
+      "kind": "mcv",
+      "dx": 1,
+      "dy": -1,
+      "expectedDir": 0,
+      "maxStep": 3.820118266622829,
+      "jumps": 0,
+      "turnSlides": 0,
+      "turnFrames": 24,
+      "movingFrames": 62,
+      "maxYawError": 0,
+      "maxGridError": 0,
+      "seconds": 1.4333333333333333,
+      "changedGoal": false,
+      "arrived": [
+        {
+          "id": 27,
+          "kind": "mcv",
+          "order": "idle",
+          "error": 0,
+          "x": 2365,
+          "y": 2145,
+          "dir": 0,
+          "bodyYaw": -0.7853981633974483,
+          "flow": null,
+          "blocked": 0,
+          "stuck": 0
+        }
+      ]
+    },
+    {
+      "kind": "harvester",
+      "dx": 1,
+      "dy": 0,
+      "expectedDir": 7,
+      "maxStep": 3.969683781018375,
+      "jumps": 0,
+      "turnSlides": 0,
+      "turnFrames": 71,
+      "movingFrames": 45,
+      "maxYawError": 0,
+      "maxGridError": 0,
+      "seconds": 1.9333333333333333,
+      "changedGoal": false,
+      "arrived": [
+        {
+          "id": 28,
+          "kind": "harvester",
+          "order": "idle",
+          "error": 0,
+          "x": 2365,
+          "y": 2255,
+          "dir": 7,
+          "bodyYaw": 0,
+          "flow": null,
+          "blocked": 0,
+          "stuck": 0
+        }
+      ]
+    },
+    {
+      "kind": "harvester",
+      "dx": 1,
+      "dy": 1,
+      "expectedDir": 6,
+      "maxStep": 4.37639632830456,
+      "jumps": 0,
+      "turnSlides": 0,
+      "turnFrames": 71,
+      "movingFrames": 56,
+      "maxYawError": 0,
+      "maxGridError": 0,
+      "seconds": 2.1166666666666667,
+      "changedGoal": false,
+      "arrived": [
+        {
+          "id": 29,
+          "kind": "harvester",
+          "order": "idle",
+          "error": 0,
+          "x": 2365,
+          "y": 2365,
+          "dir": 6,
+          "bodyYaw": 0.7853981633974483,
+          "flow": null,
+          "blocked": 0,
+          "stuck": 0
+        }
+      ]
+    },
+    {
+      "kind": "harvester",
+      "dx": 0,
+      "dy": 1,
+      "expectedDir": 5,
+      "maxStep": 3.969683781018375,
+      "jumps": 0,
+      "turnSlides": 0,
+      "turnFrames": 71,
+      "movingFrames": 45,
+      "maxYawError": 0,
+      "maxGridError": 0,
+      "seconds": 1.9333333333333333,
+      "changedGoal": false,
+      "arrived": [
+        {
+          "id": 30,
+          "kind": "harvester",
+          "order": "idle",
+          "error": 0,
+          "x": 2255,
+          "y": 2365,
+          "dir": 5,
+          "bodyYaw": 1.5707963267948966,
+          "flow": null,
+          "blocked": 0,
+          "stuck": 0
+        }
+      ]
+    },
+    {
+      "kind": "harvester",
+      "dx": -1,
+      "dy": 1,
+      "expectedDir": 4,
+      "maxStep": 4.37639632830456,
+      "jumps": 0,
+      "turnSlides": 0,
+      "turnFrames": 71,
+      "movingFrames": 56,
+      "maxYawError": 0,
+      "maxGridError": 0,
+      "seconds": 2.1166666666666667,
+      "changedGoal": false,
+      "arrived": [
+        {
+          "id": 31,
+          "kind": "harvester",
+          "order": "idle",
+          "error": 0,
+          "x": 2145,
+          "y": 2365,
+          "dir": 4,
+          "bodyYaw": 2.356194490192345,
+          "flow": null,
+          "blocked": 0,
+          "stuck": 0
+        }
+      ]
+    },
+    {
+      "kind": "harvester",
+      "dx": -1,
+      "dy": 0,
+      "expectedDir": 3,
+      "maxStep": 3.969683781018375,
+      "jumps": 0,
+      "turnSlides": 0,
+      "turnFrames": 71,
+      "movingFrames": 45,
+      "maxYawError": 0,
+      "maxGridError": 0,
+      "seconds": 1.9333333333333333,
+      "changedGoal": false,
+      "arrived": [
+        {
+          "id": 32,
+          "kind": "harvester",
+          "order": "idle",
+          "error": 0,
+          "x": 2145,
+          "y": 2255,
+          "dir": 3,
+          "bodyYaw": 3.141592653589793,
+          "flow": null,
+          "blocked": 0,
+          "stuck": 0
+        }
+      ]
+    },
+    {
+      "kind": "harvester",
+      "dx": -1,
+      "dy": -1,
+      "expectedDir": 2,
+      "maxStep": 4.37639632830456,
+      "jumps": 0,
+      "turnSlides": 0,
+      "turnFrames": 71,
+      "movingFrames": 56,
+      "maxYawError": 0,
+      "maxGridError": 0,
+      "seconds": 2.1166666666666667,
+      "changedGoal": false,
+      "arrived": [
+        {
+          "id": 33,
+          "kind": "harvester",
+          "order": "idle",
+          "error": 0,
+          "x": 2145,
+          "y": 2145,
+          "dir": 2,
+          "bodyYaw": -2.356194490192345,
+          "flow": null,
+          "blocked": 0,
+          "stuck": 0
+        }
+      ]
+    },
+    {
+      "kind": "harvester",
+      "dx": 0,
+      "dy": -1,
+      "expectedDir": 1,
+      "maxStep": 3.969683781018375,
+      "jumps": 0,
+      "turnSlides": 0,
+      "turnFrames": 71,
+      "movingFrames": 45,
+      "maxYawError": 0,
+      "maxGridError": 0,
+      "seconds": 1.9333333333333333,
+      "changedGoal": false,
+      "arrived": [
+        {
+          "id": 34,
+          "kind": "harvester",
+          "order": "idle",
+          "error": 0,
+          "x": 2255,
+          "y": 2145,
+          "dir": 1,
+          "bodyYaw": -1.5707963267948966,
+          "flow": null,
+          "blocked": 0,
+          "stuck": 0
+        }
+      ]
+    },
+    {
+      "kind": "harvester",
+      "dx": 1,
+      "dy": -1,
+      "expectedDir": 0,
+      "maxStep": 4.37639632830456,
+      "jumps": 0,
+      "turnSlides": 0,
+      "turnFrames": 71,
+      "movingFrames": 56,
+      "maxYawError": 0,
+      "maxGridError": 0,
+      "seconds": 2.1166666666666667,
+      "changedGoal": false,
+      "arrived": [
+        {
+          "id": 35,
+          "kind": "harvester",
+          "order": "idle",
+          "error": 0,
+          "x": 2365,
+          "y": 2145,
+          "dir": 0,
+          "bodyYaw": -0.7853981633974483,
+          "flow": null,
+          "blocked": 0,
+          "stuck": 0
+        }
+      ]
+    }
+  ],
+  "longHarvesterTurnSeconds": 1.1833333333333333,
+  "formation": {
+    "goals": [
+      {
+        "id": 36,
+        "x": 2695,
+        "y": 2365,
+        "tx": 24,
+        "ty": 21
+      },
+      {
+        "id": 37,
+        "x": 2585,
+        "y": 2365,
+        "tx": 23,
+        "ty": 21
+      },
+      {
+        "id": 38,
+        "x": 2695,
+        "y": 2475,
+        "tx": 24,
+        "ty": 22
+      },
+      {
+        "id": 39,
+        "x": 2695,
+        "y": 2255,
+        "tx": 24,
+        "ty": 20
+      },
+      {
+        "id": 40,
+        "x": 2805,
+        "y": 2365,
+        "tx": 25,
+        "ty": 21
+      },
+      {
+        "id": 41,
+        "x": 2585,
+        "y": 2475,
+        "tx": 23,
+        "ty": 22
+      },
+      {
+        "id": 42,
+        "x": 2585,
+        "y": 2255,
+        "tx": 23,
+        "ty": 20
+      },
+      {
+        "id": 43,
+        "x": 2805,
+        "y": 2475,
+        "tx": 25,
+        "ty": 22
+      }
+    ],
+    "maxStep": 9.882214488974114,
+    "jumps": 0,
+    "turnSlides": 0,
+    "turnFrames": 546,
+    "movingFrames": 2890,
+    "maxYawError": 1.195599175218831e-12,
+    "maxGridError": 2.495337270147502e-12,
+    "seconds": 10.783333333333333,
+    "changedGoal": false,
+    "arrived": [
+      {
+        "id": 36,
+        "kind": "tank",
+        "order": "idle",
+        "error": 0,
+        "x": 2695,
+        "y": 2365,
+        "dir": 6,
+        "bodyYaw": 0.7853981633974483,
+        "flow": null,
+        "blocked": 0,
+        "stuck": 0
+      },
+      {
+        "id": 37,
+        "kind": "ifv",
+        "order": "idle",
+        "error": 0,
+        "x": 2585,
+        "y": 2365,
+        "dir": 0,
+        "bodyYaw": -0.7853981633974483,
+        "flow": null,
+        "blocked": 0,
+        "stuck": 0
+      },
+      {
+        "id": 38,
+        "kind": "mcv",
+        "order": "idle",
+        "error": 0,
+        "x": 2695,
+        "y": 2475,
+        "dir": 6,
+        "bodyYaw": 0.7853981633974483,
+        "flow": null,
+        "blocked": 0,
+        "stuck": 0
+      },
+      {
+        "id": 39,
+        "kind": "harvester",
+        "order": "idle",
+        "error": 0,
+        "x": 2695,
+        "y": 2255,
+        "dir": 6,
+        "bodyYaw": 0.7853981633974483,
+        "flow": null,
+        "blocked": 0,
+        "stuck": 0
+      },
+      {
+        "id": 40,
+        "kind": "tank",
+        "order": "idle",
+        "error": 0,
+        "x": 2805,
+        "y": 2365,
+        "dir": 5,
+        "bodyYaw": 1.5707963267948966,
+        "flow": null,
+        "blocked": 0,
+        "stuck": 0
+      },
+      {
+        "id": 41,
+        "kind": "ifv",
+        "order": "idle",
+        "error": 0,
+        "x": 2585,
+        "y": 2475,
+        "dir": 7,
+        "bodyYaw": 0,
+        "flow": null,
+        "blocked": 0,
+        "stuck": 0
+      },
+      {
+        "id": 42,
+        "kind": "mcv",
+        "order": "idle",
+        "error": 0,
+        "x": 2585,
+        "y": 2255,
+        "dir": 6,
+        "bodyYaw": 0.7853981633974483,
+        "flow": null,
+        "blocked": 0,
+        "stuck": 0
+      },
+      {
+        "id": 43,
+        "kind": "harvester",
+        "order": "idle",
+        "error": 0,
+        "x": 2805,
+        "y": 2475,
+        "dir": 0,
+        "bodyYaw": -0.7853981633974483,
+        "flow": null,
+        "blocked": 0,
+        "stuck": 0
+      }
+    ]
+  },
+  "retarget": {
+    "offset": 0.3048517376903952,
+    "maxStep": 7.291289540588785,
+    "jumps": 0,
+    "turnSlides": 0,
+    "turnFrames": 65,
+    "movingFrames": 110,
+    "maxYawError": 6.974421040695233e-13,
+    "maxGridError": 0,
+    "seconds": 2.9166666666666665,
+    "changedGoal": false,
+    "arrived": [
+      {
+        "id": 44,
+        "kind": "tank",
+        "order": "idle",
+        "error": 0,
+        "x": 2145,
+        "y": 2585,
+        "dir": 0,
+        "bodyYaw": -0.7853981633974483,
+        "flow": null,
+        "blocked": 0,
+        "stuck": 0
+      }
+    ]
+  },
+  "headOnSwap": {
+    "goals": [
+      {
+        "id": 45,
+        "x": 2365,
+        "y": 2255,
+        "tx": 21,
+        "ty": 20
+      },
+      {
+        "id": 46,
+        "x": 2255,
+        "y": 2255,
+        "tx": 20,
+        "ty": 20
+      }
+    ],
+    "maxStep": 5.7163446446662185,
+    "jumps": 0,
+    "turnSlides": 0,
+    "turnFrames": 46,
+    "movingFrames": 117,
+    "maxYawError": 0,
+    "maxGridError": 0,
+    "seconds": 2.65,
+    "changedGoal": false,
+    "arrived": [
+      {
+        "id": 45,
+        "kind": "tank",
+        "order": "idle",
+        "error": 0,
+        "x": 2365,
+        "y": 2255,
+        "dir": 7,
+        "bodyYaw": 0,
+        "flow": null,
+        "blocked": 0,
+        "stuck": 0
+      },
+      {
+        "id": 46,
+        "kind": "tank",
+        "order": "idle",
+        "error": 0,
+        "x": 2255,
+        "y": 2255,
+        "dir": 2,
+        "bodyYaw": -2.356194490192345,
+        "flow": null,
+        "blocked": 0,
+        "stuck": 0
+      }
+    ]
+  },
+  "midYieldRetarget": {
+    "yielded": true,
+    "clearedImmediately": true,
+    "originalGoal": {
+      "x": 2255,
+      "y": 2255
+    },
+    "goals": [
+      {
+        "id": 48,
+        "x": 2695,
+        "y": 2585,
+        "tx": 24,
+        "ty": 23
+      }
+    ],
+    "stayedAtNewGoal": true,
+    "maxStep": 7.291289540588785,
+    "jumps": 0,
+    "turnSlides": 0,
+    "turnFrames": 28,
+    "movingFrames": 92,
+    "maxYawError": 0,
+    "maxGridError": 0,
+    "seconds": 2,
+    "changedGoal": false,
+    "arrived": [
+      {
+        "id": 48,
+        "kind": "tank",
+        "order": "idle",
+        "error": 0,
+        "x": 2695,
+        "y": 2585,
+        "dir": 6,
+        "bodyYaw": 0.7853981633974483,
+        "flow": null,
+        "blocked": 0,
+        "stuck": 0
+      }
+    ]
+  },
+  "temporaryBlock": {
+    "waiting": {
+      "order": "move",
+      "x": 1815,
+      "y": 2255,
+      "goalError": 0,
+      "distanceToBlocker": 220
+    },
+    "maxStep": 7.705189609026547,
+    "jumps": 0,
+    "turnSlides": 0,
+    "turnFrames": 0,
+    "movingFrames": 148,
+    "maxYawError": 0,
+    "maxGridError": 0,
+    "seconds": 2.4833333333333334,
+    "changedGoal": false,
+    "arrived": [
+      {
+        "id": 49,
+        "kind": "tank",
+        "order": "idle",
+        "error": 0,
+        "x": 2695,
+        "y": 2255,
+        "dir": 7,
+        "bodyYaw": 0,
+        "flow": null,
+        "blocked": 0,
+        "stuck": 0
+      }
+    ]
+  },
+  "errors": []
+}

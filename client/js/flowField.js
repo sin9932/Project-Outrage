@@ -75,6 +75,9 @@
           const dx = DIRS[di][0], dy = DIRS[di][1];
           const nx = tx + dx, ny = ty + dy;
           if (!inMap(nx, ny)) continue;
+          if (!isWalkableTile(nx, ny)) continue;
+          if (dx !== 0 && dy !== 0 &&
+              (!isWalkableTile(tx + dx, ty) || !isWalkableTile(tx, ty + dy))) continue;
           const ni = ny * MAP_W + nx;
           if (cost[ni] < bestCost) {
             bestCost = cost[ni];
@@ -86,6 +89,17 @@
     }
 
     return { cost, flow, gTx, gTy, MAP_W, MAP_H };
+  };
+
+  // A flow field supplies neighbouring cells, not unrestricted steering vectors.
+  // The ordinary vehicle follower then handles centring, turns and occupancy.
+  OUFlowField.nextTile = function nextTile(field, tx, ty) {
+    if (!field || tx < 0 || ty < 0 || tx >= field.MAP_W || ty >= field.MAP_H) return null;
+    if (tx === field.gTx && ty === field.gTy) return null;
+    const di = field.flow[ty * field.MAP_W + tx];
+    if (di < 0) return null;
+    const d = DIRS[di];
+    return {tx: tx + d[0], ty: ty + d[1]};
   };
 
   /**
@@ -103,7 +117,11 @@
     const tx = tileOfX(wx);
     const ty = tileOfY(wy);
     if (tx < 0 || ty < 0 || tx >= field.MAP_W || ty >= field.MAP_H) return null;
-    if (tx === field.gTx && ty === field.gTy) return { dx: 0, dy: 0 };
+    if (tx === field.gTx && ty === field.gTy) {
+      const dx = (tx + .5) * TILE - wx, dy = (ty + .5) * TILE - wy;
+      const length = Math.hypot(dx, dy);
+      return length < .001 ? {dx: 0, dy: 0} : {dx: dx / length, dy: dy / length};
+    }
     const i = ty * field.MAP_W + tx;
     const di = field.flow[i];
     if (di < 0) return null;

@@ -1,5 +1,39 @@
 {
-  "revision": 5,
+  "revision": 6,
+  "workClip": "Work",
+  "workSeconds": 3.2,
+  "workFacilities": {
+    "clip": "Work",
+    "seconds": 3.2,
+    "frames": 96,
+    "nodes": [
+      "WorkGimbal",
+      "WorkGripper",
+      "WorkJaw_-1",
+      "WorkJaw_1",
+      "WorkContainer",
+      "WarehouseShutter_0",
+      "WarehouseShutter_1"
+    ],
+    "containerMetres": [
+      0.95,
+      1.1,
+      0.75
+    ],
+    "pickup": [
+      -0.65,
+      -5.15,
+      2.965
+    ],
+    "warehouseReceivingPoint": [
+      2.05,
+      -2.1,
+      2.965
+    ],
+    "sequence": "approach, lower, grip, hoist, slew, set down, conveyor intake, return",
+    "reset": "occluded chassis replenishment lift",
+    "animatedScale": false
+  },
   "facilities": [
     "Workshop",
     "ControlCabin",
@@ -2531,18 +2565,18 @@
       ],
       "opened": [
         -1.45,
-        0,
-        -0.7
+        0.0,
+        0.0
       ],
       "rotation": [
-        1.5707963267948966,
-        0,
-        0
+        0.0,
+        0.0,
+        0.0
       ],
       "turn": [
-        0,
-        0,
-        0
+        0.0,
+        0.0,
+        0.0
       ],
       "start": 84,
       "end": 90
@@ -3472,6 +3506,81 @@
       "start": 59,
       "end": 82
     },
+    "WarehouseShutter_0": {
+      "parent": "WorkshopEnd_-1",
+      "closed": [
+        0,
+        -0.17,
+        0.1
+      ],
+      "opened": [
+        -0.75,
+        -0.17,
+        0.39
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "turn": [
+        0,
+        0,
+        0
+      ],
+      "start": 53,
+      "end": 80
+    },
+    "WarehouseShutter_1": {
+      "parent": "WorkshopEnd_-1",
+      "closed": [
+        0,
+        -0.17,
+        0.15000000000000002
+      ],
+      "opened": [
+        -0.75,
+        -0.17,
+        1.1400000000000001
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "turn": [
+        0,
+        0,
+        0
+      ],
+      "start": 56,
+      "end": 82
+    },
+    "WarehousePortal": {
+      "parent": "WorkshopEnd_-1",
+      "closed": [
+        0,
+        -0.19,
+        0.1
+      ],
+      "opened": [
+        -0.75,
+        -0.19,
+        0.02
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "turn": [
+        0,
+        0,
+        0
+      ],
+      "start": 50,
+      "end": 79
+    },
     "ControlCabin": {
       "parent": "RoofSlide_1_0",
       "closed": [
@@ -3480,8 +3589,8 @@
         0.1
       ],
       "opened": [
-        0.75,
-        -2.45,
+        1.8,
+        -3.1,
         0.08
       ],
       "rotation": [
@@ -3525,12 +3634,12 @@
     "ControlCabinRight": {
       "parent": "ControlCabin",
       "closed": [
-        1.15,
+        0.9,
         0,
         0.13
       ],
       "opened": [
-        1.15,
+        0.9,
         0,
         0.13
       ],
@@ -3575,12 +3684,12 @@
     "ControlCabinLeft": {
       "parent": "ControlCabin",
       "closed": [
-        -1.15,
+        -0.9,
         0,
         0.13
       ],
       "opened": [
-        -1.15,
+        -0.9,
         0,
         0.13
       ],
@@ -4021,6 +4130,306 @@
       ],
       "start": 58,
       "end": 83
+    },
+    "WorkGimbal": {
+      "parent": "Hook",
+      "closed": [
+        0,
+        0,
+        0
+      ],
+      "opened": [
+        0,
+        0,
+        0
+      ],
+      "rotation": [
+        0.0,
+        -1.5707963267948966,
+        0.0
+      ],
+      "turn": [
+        0.0,
+        -0.17,
+        0.0
+      ],
+      "start": 79,
+      "end": 90
+    },
+    "WorkCable_0": {
+      "parent": "WorkGimbal",
+      "closed": [
+        0,
+        0,
+        0
+      ],
+      "opened": [
+        0,
+        0,
+        0
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "turn": [
+        0,
+        0,
+        0
+      ],
+      "start": 0,
+      "end": 90
+    },
+    "WorkCable_1": {
+      "parent": "WorkCable_0",
+      "closed": [
+        0,
+        0,
+        0
+      ],
+      "opened": [
+        0,
+        0,
+        0
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "turn": [
+        0,
+        0,
+        0
+      ],
+      "start": 0,
+      "end": 90
+    },
+    "WorkCable_2": {
+      "parent": "WorkCable_1",
+      "closed": [
+        0,
+        0,
+        0
+      ],
+      "opened": [
+        0,
+        0,
+        0
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "turn": [
+        0,
+        0,
+        0
+      ],
+      "start": 0,
+      "end": 90
+    },
+    "WorkCable_3": {
+      "parent": "WorkCable_2",
+      "closed": [
+        0,
+        0,
+        0
+      ],
+      "opened": [
+        0,
+        0,
+        0
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "turn": [
+        0,
+        0,
+        0
+      ],
+      "start": 0,
+      "end": 90
+    },
+    "WorkGripper": {
+      "parent": "WorkCable_3",
+      "closed": [
+        0,
+        0,
+        -1.7
+      ],
+      "opened": [
+        0,
+        0,
+        -1.7
+      ],
+      "rotation": [
+        0,
+        1.5707963267948966,
+        0
+      ],
+      "turn": [
+        0,
+        0,
+        -1.5707963267948966
+      ],
+      "start": 79,
+      "end": 90
+    },
+    "WorkJaw_-1": {
+      "parent": "WorkGripper",
+      "closed": [
+        -0.7,
+        0,
+        -0.08
+      ],
+      "opened": [
+        -0.7,
+        0,
+        -0.08
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "turn": [
+        0,
+        0,
+        0
+      ],
+      "start": 0,
+      "end": 90
+    },
+    "WorkJaw_1": {
+      "parent": "WorkGripper",
+      "closed": [
+        0.7,
+        0,
+        -0.08
+      ],
+      "opened": [
+        0.7,
+        0,
+        -0.08
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "turn": [
+        0,
+        0,
+        0
+      ],
+      "start": 0,
+      "end": 90
+    },
+    "WorkSupplyBay": {
+      "parent": "RoofLift",
+      "closed": [
+        0,
+        1.1,
+        -0.05
+      ],
+      "opened": [
+        -0.65,
+        -5.15,
+        0.15
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "turn": [
+        0,
+        0,
+        0
+      ],
+      "start": 42,
+      "end": 75
+    },
+    "WorkSupplyLid": {
+      "parent": "WorkSupplyBay",
+      "closed": [
+        0,
+        0,
+        0.16
+      ],
+      "opened": [
+        0,
+        1.35,
+        0.16
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "turn": [
+        0,
+        0,
+        0
+      ],
+      "start": 76,
+      "end": 89
+    },
+    "WorkContainer": {
+      "parent": "Hull",
+      "closed": [
+        -0.3,
+        2.0,
+        1.65
+      ],
+      "opened": [
+        -0.65,
+        -5.15,
+        2.965
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "turn": [
+        0,
+        0,
+        0
+      ],
+      "start": 46,
+      "end": 78
+    },
+    "WarehouseConveyor": {
+      "parent": "Workshop",
+      "closed": [
+        0,
+        0,
+        0.55
+      ],
+      "opened": [
+        -0.75,
+        -2.2,
+        0.1
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "turn": [
+        0,
+        0,
+        0
+      ],
+      "start": 48,
+      "end": 76
     }
   },
   "assembly": "rigid joints with nested hidden cassettes"

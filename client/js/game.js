@@ -637,6 +637,7 @@ const buildingWorldFromTileOrigin = __tileHelpers ? __tileHelpers.buildingWorldF
     if (!(opts && opts.skipMvp) && !state._placeStartPhase && !spec.civ && __ou_sim && __ou_sim.recordConstruction) __ou_sim.recordConstruction(team, kind);
     if (__ou_econ && __ou_econ.onBuildingPlaced) __ou_econ.onBuildingPlaced(b);
     try{ if (window.PO && PO.buildings && PO.buildings.onPlaced) PO.buildings.onPlaced(b, state); }catch(_e){}
+    if (!state._placeStartPhase && !spec.civ) __ou_hqWork.placed(b);
     return b;
   }
 
@@ -1161,7 +1162,7 @@ const __ou_econ = (window.OUEconomy && typeof window.OUEconomy.create==="functio
         return !units.some(u=>u.alive&&!u.hidden&&!u.inTransport&&dist2(x,y,u.x,u.y)<(r+(u.r||18)+6)**2);
       },
       // spawn helpers (used by production completion)
-      addUnit,
+      addUnit, worldVecToDir8,
       setPathTo,
       findSpawnPointNear,
       findNearestFreePoint,
@@ -1761,6 +1762,7 @@ function crushInfantry(mover){
 
   function issueForceMoveAll(x,y){ if (__ou_commands) return __ou_commands.issueForceMoveAll(x,y); }
 
+const __ou_hqWork=window.OUHQWork.create({state,buildings});
 const __ou_mcv=window.OUMCV.create({state,units,buildings,TEAM,BUILD,UNIT,COST,TILE,MAP_W,MAP_H,terrain,ore,treeHp,buildOcc,
  addBuilding,addUnit,setBuildingOcc,recomputePower,checkElimination,setPathTo,clearReservation,
  worldVecToDir8,footprint:__ou_footprint,getEntityById,toast,getBaseBuildTime:kind=>__ou_econ.getBaseBuildTime(kind)});
@@ -2741,6 +2743,7 @@ function draw(now){
   }
 
   function clearWorld(){
+    __ou_hqWork.reset();
     units.length=0; buildings.length=0; bullets.length=0; traces.length=0; missileTrailFades.length=0;
     explosions.length=0; debris.length=0; debrisTrail.length=0; exp1Fxs.length=0;
     if (window.FX){
@@ -2916,7 +2919,7 @@ if (isCallable(__ou_ui, "bindPregameStart")){
   if (DEV_VALIDATE) window.OUTankTest = {
     state, units, buildings, cam, TEAM, terrain, ore, isGem, treeHp, buildOcc, TILE, MAP_W, MAP_H,
     addUnit, getEntityById, worldToScreen, screenToWorld, centerCameraOn,
-    mcv:__ou_mcv, BUILD, UNIT, COST, commands:__ou_commands, sim:__ou_sim, ai:__ou_ai, camera:__ou_cam, addBuilding, destroyBuilding,
+    mcv:__ou_mcv, hqWork:__ou_hqWork, BUILD, UNIT, COST, commands:__ou_commands, sim:__ou_sim, ai:__ou_ai, camera:__ou_cam, addBuilding, destroyBuilding,
     footprint:__ou_footprint, applyDamage, economy:__ou_econ, sellBuilding, setup:__ou_setup,
     get running(){return running;},
     setFog(value){fogEnabled=!!value;},
@@ -3166,6 +3169,7 @@ function sanityCheck(){
         }
       }
       __ou_mcv.tick(simDt);
+      __ou_hqWork.tick();
       rebuildEntityByIdCache();
       if (isCallable(__ou_sim, "tickSim")){
         __ou_sim.tickSim(simDt);

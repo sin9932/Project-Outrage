@@ -1,8 +1,12 @@
 const {chromium}=require(process.env.OUTRAGE_PLAYWRIGHT),fs=require('fs'),assert=require('assert');
 (async()=>{const b=await chromium.launch({headless:true,executablePath:'C:/Program Files/Google/Chrome/Application/chrome.exe'});try{
 const p=await b.newPage({viewport:{width:1440,height:900}}),errors=[];p.on('pageerror',e=>errors.push(String(e)));
-await p.goto('http://127.0.0.1:8765/index.html?debug=1');await p.waitForFunction(()=>window.OUTankTest&&window.OUTank3D?.harvesterReady);
+await p.goto(process.env.OUTRAGE_URL||'http://127.0.0.1:8765/index.html?debug=1');await p.waitForFunction(()=>window.OUTankTest&&window.OUTank3D?.harvesterReady);
 await p.locator('#fogOff').check();await p.locator('#startBtn').click();await p.waitForFunction(()=>OUTankTest.running);
+await p.waitForFunction(()=>OUTankTest.buildings.some(b=>b.alive&&b.team===OUTankTest.TEAM.ENEMY&&b.kind==='hq'),null,{timeout:15000});
+// Keep both teams viable when replacing their starting MCV units for this fixture.
+await p.evaluate(()=>{const g=OUTankTest,m=g.units.find(u=>u.alive&&u.team===g.TEAM.PLAYER&&u.kind==='mcv');
+if(m&&!g.buildings.some(b=>b.alive&&b.team===g.TEAM.PLAYER&&b.kind==='hq'))g.addBuilding(g.TEAM.PLAYER,'hq',Math.floor(m.x/g.TILE)-2,Math.floor(m.y/g.TILE)-2);});
 await p.evaluate(()=>{const g=OUTankTest,T=g.TILE;g.ai.tick=()=>{};for(const u of g.units)u.alive=false;
 const x=Math.floor(g.MAP_W/2),y=Math.floor(g.MAP_H/2);
 for(let ty=y-8;ty<y+15;ty++)for(let tx=x-8;tx<x+18;tx++){const i=ty*g.MAP_W+tx;g.terrain[i]=0;g.treeHp[i]=0;g.ore[i]=0;}

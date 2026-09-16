@@ -91,6 +91,11 @@ def build_yard_equipment(a):
                 joint(n,leaf,closed=(0,0,course*.045),opened=(0,0,zbase),start=50+course*3,end=76+course*2)
                 extent=halfwidth if zbase<=sideheight else halfwidth*math.sqrt(max(0,1-((zbase-sideheight)/rise)**2))
                 g0,g1=(0,extent) if sx>0 else (-extent,0)
+                # The front lower courses frame a real cargo opening. The
+                # shutter below closes this aperture instead of covering a wall.
+                if sy==-1 and course<2:
+                    if sx<0:g1=-1.65
+                    else:g0=.15
                 xs=[g0+(g1-g0)*i/12-sx*halfwidth/2 for i in range(13)]
                 upper=[];lower=[]
                 for x in xs:
@@ -115,16 +120,36 @@ def build_yard_equipment(a):
                         if zz<usable:
                             global_z=zbase+zz+.07
                             limit=halfwidth if global_z<=sideheight else halfwidth*math.sqrt(max(0,1-((global_z-sideheight)/rise)**2))
-                            width=max(.08,limit-.18);center=sx*(limit/2-halfwidth/2)
+                            if course<2:
+                                width=max(.08,g1-g0-.14);center=(g0+g1)/2-sx*halfwidth/2
+                            else:
+                                width=max(.08,limit-.18);center=sx*(limit/2-halfwidth/2)
                             box('Machinery hall shutter louvre',(center,-.095,zz),(width,.075,.11),m.edge,n,.018)
-                    if course==0:box('Hall shutter threshold',(0,-.12,.08),(1.99,.15,.14),m.armor,n,.018)
+                    if course==0:box('Hall front sill',((g0+g1)/2-sx*halfwidth/2,-.12,.08),(g1-g0,.15,.14),m.edge,n,.018)
                 elif course<2:
                     for x in (-.72,.72):box('Rear service rib',(x,sy*.115,.35),(.12,.09,.62),m.edge,n,.02)
 
+    # Two rigid shutter courses telescope into the header during cargo work.
+    # Their independent Deploy joints still stow inside the MCV capsule.
+    for course in range(2):
+        n=f'WarehouseShutter_{course}'
+        joint(n,'WorkshopEnd_-1',closed=(0,-.17,.10+course*.05),
+              opened=(-.75,-.17,.39+course*.75),start=53+course*3,end=80+course*2)
+        box('Warehouse rolling shutter',(0,0,0),(1.80,.12,.78),m.panel,n,.015)
+        for z in (-.25,0,.25):box('Shutter horizontal rib',(0,-.074,z),(1.74,.06,.045),m.edge,n,.008)
+        if course==0:box('Cargo shutter lower rail',(0,-.07,-.35),(1.79,.08,.09),m.edge,n,.012)
+    n='WarehousePortal'
+    joint(n,'WorkshopEnd_-1',closed=(0,-.19,.10),opened=(-.75,-.19,.02),start=50,end=79)
+    for x in (-.98,.98):
+        box('Cargo door structural jamb',(x,0,.79),(.13,.23,1.68),m.edge,n,.025)
+        box('Cargo door recessed marker',(x,-.125,1.02),(.045,.03,.44),cyan,n,.008)
+    box('Cargo door recessed header',(0,0,1.65),(2.10,.30,.20),m.edge,n,.03)
+    box('Cargo threshold',(0,-.025,.025),(1.92,.37,.07),m.steel,n,.012)
+
     # FRONT COMMAND WEDGE. Its dark band and armored brow continue around the
     # front/right corners. Inclined faces fold flat and nest under a rising cap.
-    name='ControlCabin';w=2.30;length=2.45;h=1.42
-    joint(name,'RoofSlide_1_0',closed=(0,1.4,.10),opened=(.75,-2.45,.08),start=38,end=68)
+    name='ControlCabin';w=1.80;length=2.45;h=1.42
+    joint(name,'RoofSlide_1_0',closed=(0,1.4,.10),opened=(1.80,-3.10,.08),start=38,end=68)
     slab('Command armored foundation',w+.16,length+.16,-.06,.13,m.edge,name,.23)
     for sx in (-1,1):
         box('Command foundation skid',(sx*.72,0,-.11),(.19,2.11,.20),m.steel,name,.02)
@@ -159,8 +184,8 @@ def build_yard_equipment(a):
         for sx in (-1,1):
             for sy in (-1,1):box('Command roof piston',(sx*.75,sy*.86,.31),(.11-step*.025,.11-step*.025,.64),m.edge,n,.015)
     joint('ControlCabinRoof','CommandRoofRiser_1',closed=(0,0,.65))
-    slab('Command continuous armor cap',1.99,2.19,-.015,.18,m.armor,'ControlCabinRoof',.23)
-    slab('Command roof inset',1.50,1.69,.185,.23,m.panel,'ControlCabinRoof',.20)
+    slab('Command continuous armor cap',1.52,2.19,-.015,.18,m.armor,'ControlCabinRoof',.23)
+    slab('Command roof inset',1.23,1.69,.185,.23,m.panel,'ControlCabinRoof',.20)
     for x in (-.45,.45):box('Command cooling fin',(x,.35,.265),(.18,.61,.055),m.edge,'ControlCabinRoof',.012)
 
     # LEFT REAR POWER SPINE: paired telescopic cylinders, armored lower housings

@@ -104,9 +104,7 @@
     const buildOcc = r.buildOcc;
     const tileToWorldSubslot = r.tileToWorldSubslot;
     const snapWorldToTileCenter = r.snapWorldToTileCenter;
-    const findBypassStep = r.findBypassStep || (() => null);
     const getMoveSpeed = r.getMoveSpeed || (u => u.speed || 80);
-    const _tankUpdateHull = r._tankUpdateHull || (() => {});
 
     function isBlockedWorldPoint(u, x, y) {
       const tx = tileOfX(x), ty = tileOfY(y);
@@ -1000,7 +998,7 @@
         // Apply accumulated separation with damping + steering blend (떨림·벽 뚫림 방지)
         // 보병은 bothInf 스킵으로 다른 보병에게서는 _sepAx 없음. 차량에 밀릴 때만 적용.
         for (const uu of alive){
-          if (uu.kind==="tank" || uu.kind==="harvester" || uu.kind==="mcv") { uu._sepAx=0; uu._sepAy=0; continue; }
+          if (clsOf(uu)==="veh") { uu._sepAx=0; uu._sepAy=0; continue; }
           let ax = uu._sepAx || 0;
           let ay = uu._sepAy || 0;
           if (ax===0 && ay===0){ uu._sepAx = 0; uu._sepAy = 0; continue; }
@@ -1280,6 +1278,7 @@
       const i = idx(tx,ty);
       const rid = occResId[i]|0;
       if (rid===0 || rid===u.id){
+        if(u.resTx!==tx||u.resTy!==ty)clearReservation(u);
         occResId[i]=u.id;
         u.resTx = tx; u.resTy = ty;
         return true;
@@ -1383,41 +1382,24 @@
       return (occTeam[i]===0);
     }
 
-    function canEnterTile(u, tx, ty){
-      if (!inMap(tx,ty)) return false;
-      if (!isWalkableTile(tx,ty)) return false;
-      if (isSqueezedTile(tx,ty)) return false;
-      {
-        const c = tileToWorldCenter(tx,ty);
-        if (isBlockedWorldPoint(u, c.x, c.y)) return false;
-      }
-      if (u.kind==="harvester"){
-        const i = idx(tx,ty);
-        if (isReservedByOther(u, tx, ty)) return false;
-        if (canCrushInf(u)){
-          if (occInf[i] > 0 && occTeam[i] === u.team) return false;
-          const other = (occAll[i]||0) - (occInf[i]||0);
-          return (occVeh[i] <= 0) && (other < 1);
+    function canEnterTile(u,tx,ty){
+      if(!inMap(tx,ty)||!isWalkableTile(tx,ty)||isReservedByOther(u,tx,ty))return false;
+      const cls=UNIT[u.kind]?.cls||'',c=tileToWorldCenter(tx,ty);
+      if((cls!=='veh'&&isSqueezedTile(tx,ty))||isBlockedWorldPoint(u,c.x,c.y))return false;
+      const i=idx(tx,ty),self=u.alive&&Number.isFinite(u.id)&&tileOfX(u.x)===tx&&tileOfY(u.y)===ty?1:0;
+      if(cls==='veh'){
+        if(canCrushInf(u)){
+          if(occInf[i]>0&&occTeam[i]===u.team)return false;
+          return Math.max(0,occVeh[i]-self)===0&&Math.max(0,occAll[i]-occInf[i]-self)===0;
         }
-        return occAll[i] < 1;
+        return Math.max(0,occAll[i]-self)===0;
       }
-      if (isReservedByOther(u, tx, ty)) return false;
-      const i = idx(tx,ty);
-      const cls = (UNIT[u.kind] && UNIT[u.kind].cls) ? UNIT[u.kind].cls : "";
-      if (cls==="veh"){
-        if (canCrushInf(u)){
-          if (occInf[i] > 0 && occTeam[i] === u.team) return false;
-          const other = (occAll[i]||0) - (occInf[i]||0);
-          return (occVeh[i] <= 0) && (other < 1);
-        }
-        return occAll[i] < 1;
+      if(cls==='inf'){
+        if(occVeh[i]>0)return false;
+        if(occAll[i]>0&&occTeam[i]!==u.team)return false;
+        return occInf[i]-self<INF_SLOT_MAX;
       }
-      if (cls==="inf") {
-        if (occVeh[i] > 0) return false;
-        if (occTeam[i]!==0 && occTeam[i]!==u.team) return false;
-        return occInf[i] < INF_SLOT_MAX;
-      }
-      return occAll[i] < 2;
+      return occAll[i]-self<2;
     }
 
     function followPathInfantry(u, dt){
@@ -1576,410 +1558,116 @@
       return true;
     }
 
-    function followPath(u, dt){
-      u.turningToPath = false;
-      const ucls = (UNIT[u.kind] && UNIT[u.kind].cls) ? UNIT[u.kind].cls : "";
-      if (ucls==="inf") return followPathInfantry(u, dt);
-      if (u.flowGoal && ucls==="veh") return followFlowPath(u, dt);
-      if (u && u.order && (u.order.type==="idle" || u.order.type==="guard") && u.target==null){
-        if (u.path){ u.path = null; u.pathI = 0; }
-        u.flowGoal = null;
-        u.stuckT = 0; u.yieldCd = 0;
-        return false;
+    // Vehicles travel between cell centres. A route owns both the next-cell
+    // reservation and movement heading; avoidance never pushes a hull sideways.
+    function finishVehicleRoute(u){
+      const ot=u.order?.type,trafficGoal=u._trafficGoal;
+      u._trafficGoal=null;
+      u.path=null;u.pathI=0;u.flowGoal=null;
+      u.vx=u.vy=0;u._vehCurSpeed=0;u.blockT=0;u.stuckTime=0;
+      u.waitingForTile=false;clearReservation(u);
+      if(trafficGoal){setPathTo(u,(trafficGoal.tx+.5)*TILE,(trafficGoal.ty+.5)*TILE);return;}
+      if(ot==='attackmove'){
+        u.guard={x0:u.x,y0:u.y};u.order={type:'guard',x:u.x,y:u.y,tx:null,ty:null};
+      }else if(ot==='move'||ot==='guard_return'){
+        u.order={type:'idle',x:u.x,y:u.y,tx:null,ty:null};
       }
-      if (!u.path || u.pathI >= u.path.length){
-        const ot = (u.order && u.order.type) ? u.order.type : null;
-        if (ot==="move" || ot==="guard_return" || ot==="attackmove"){
-          const gx = (u.order && u.order.x!=null) ? u.order.x : u.x;
-          const gy = (u.order && u.order.y!=null) ? u.order.y : u.y;
-          const d2 = dist2(u.x,u.y,gx,gy);
-          if (d2 < 16*16){
-            u.x = gx; u.y = gy;
-            u.vx = 0; u.vy = 0;
-            u.path = null; u.pathI = 0;
-            clearReservation(u);
-            if (ot==="attackmove"){
-              u.guard = {x0:u.x, y0:u.y};
-              u.order = {type:"guard", x:u.x, y:u.y, tx:null, ty:null};
-            } else {
-              u.order = {type:"idle", x:u.x, y:u.y, tx:null, ty:null};
-            }
-            return false;
-          }
-        }
-        return false;
+    }
+
+    function yieldVehicleRoute(u){
+      const next=u.path?.[u.pathI];
+      if(!next||u._trafficGoal||!inMap(next.tx,next.ty))return false;
+      const other=getEntityById(occAnyId[idx(next.tx,next.ty)]);
+      if(!other?.alive||other.team!==u.team||other.id>=u.id||!other.path)return false;
+      const tx=tileOfX(u.x),ty=tileOfY(u.y),ox=tileOfX(other.x),oy=tileOfY(other.y);
+      const approach=other.path.slice(other.pathI).find(p=>p.tx!==ox||p.ty!==oy);
+      if(!approach||approach.tx!==tx||approach.ty!==ty)return false;
+      const goal=u.navGoal||u.path[u.path.length-1],dx=next.tx-tx,dy=next.ty-ty;
+      // One stable id priority resolves head-on cell swaps. Prefer a side cell;
+      // back up if necessary. The user's final destination stays unchanged.
+      const choices=[[1,0],[-1,0],[0,1],[0,-1]].map(([x,y])=>({tx:tx+x,ty:ty+y,
+        score:Math.abs(x*dx+y*dy)+(x*dx+y*dy>0?10:0)})).sort((a,b)=>a.score-b.score);
+      for(const side of choices){
+        if(!canEnterTile(u,side.tx,side.ty)||!reserveTile(u,side.tx,side.ty))continue;
+        u._trafficGoal={tx:goal.tx,ty:goal.ty};u.flowGoal=null;
+        u.path=[{tx,ty},{tx:side.tx,ty:side.ty}];
+        u.pathI=Math.hypot(u.x-(tx+.5)*TILE,u.y-(ty+.5)*TILE)<.001?1:0;
+        u.blockT=0;return true;
       }
-      if (u.yieldCd && u.yieldCd>0){ u.yieldCd -= dt; if (u.yieldCd>0) return false; u.yieldCd=0; }
+      return false;
+    }
 
-      const p = u.path[u.pathI];
-      let wx = (p.tx+0.5)*TILE, wy=(p.ty+0.5)*TILE;
-
-      const curTx = tileOfX(u.x), curTy = tileOfY(u.y);
-      if (!(p.tx===curTx && p.ty===curTy)){
-        const _tGoal = (u && u.target!=null) ? getEntityById(u.target) : null;
-        const _combatOrder = (u && u.order && (u.order.type==="attack" || u.order.type==="attackmove"));
-        const _canEnter = (_combatOrder && _tGoal && BUILD[_tGoal.kind]) ? canEnterTileGoal(u, p.tx, p.ty, _tGoal) : canEnterTile(u, p.tx, p.ty);
-        if (!_canEnter || !reserveTile(u, p.tx, p.ty)) {
-          if (u.pathI >= (u.path.length-1)) {
-            u.finalBlockT = (u.finalBlockT||0) + dt;
-            const goalWx = (p.tx+0.5)*TILE, goalWy = (p.ty+0.5)*TILE;
-            const distToGoal2 = (u.x - goalWx)**2 + (u.y - goalWy)**2;
-            if (distToGoal2 < 75*75 && (u.order?.type==="move" || u.order?.type==="guard_return")) {
-              u.order = {type:"idle", x:u.x, y:u.y, tx:null, ty:null};
-              u.path = null; u.pathI = 0;
-              clearReservation(u);
-              u.finalBlockT = 0;
-              return false;
-            }
-            if (u.finalBlockT > 0.18 && (u.lastRetargetT==null || (state.t - u.lastRetargetT) > 0.50)) {
-              const spot = findNearestFreePoint(goalWx, goalWy, u, 4);
-              const nTx = tileOfX(spot.x), nTy = tileOfY(spot.y);
-              if ((nTx!==p.tx || nTy!==p.ty) && canEnterTile(u, nTx, nTy) && reserveTile(u, nTx, nTy)) {
-                const wp2 = tileToWorldCenter(nTx, nTy);
-                u.order = {type:(u.order && u.order.type) ? u.order.type : "move", x:wp2.x, y:wp2.y, tx:nTx, ty:nTy};
-                setPathTo(u, wp2.x, wp2.y);
-                u.lastRetargetT = state.t;
-                u.finalBlockT = 0;
-                return true;
-              }
-            }
-          }
-          const step = (u.cls!=="inf") ? findBypassStep(u, curTx, curTy, p.tx, p.ty) : null;
-          if (step && reserveTile(u, step.tx, step.ty)){
-            u.path = [{tx:step.tx, ty:step.ty}, ...u.path.slice(u.pathI)];
-            u.pathI = 0;
-            return true;
-          }
-          u.blockT = (u.blockT||0) + dt;
-          if (u.blockT > 0.48){
-            const pi = idx(p.tx, p.ty);
-            const blockedByEnemy = (occTeam[pi]!==0 && occTeam[pi]!==u.team);
-            const blockerId = blockedByEnemy ? (occAnyId[pi]|0) : 0;
-            const blocker = blockerId ? getEntityById(blockerId) : null;
-            const canEngageBlocker = blocker && blocker.alive && blocker.attackable!==false &&
-              (u.dmg||0)>0 && (u.range||0)>0 && u.kind!=="engineer" && u.kind!=="harvester" &&
-              dist2(u.x, u.y, blocker.x, blocker.y) <= ((u.range||0)*(u.range||0));
-            if (blockedByEnemy && canEngageBlocker){
-              u.target = blocker.id;
-              u.order = {type:"attack", x:u.x, y:u.y, tx:null, ty:null, manual:!!(u.team===TEAM.ENEMY), allowAuto:!(u.team===TEAM.ENEMY), lockTarget:!!(u.team===TEAM.ENEMY)};
-              setPathTo(u, blocker.x, blocker.y);
-              u.pathI = 0;
-              clearReservation(u);
-              u.blockT = 0;
-              u.repathCd = 0.15;
-              u.combatGoalT = 0;
-              return true;
-            }
-            const cwx=(curTx+0.5)*TILE, cwy=(curTy+0.5)*TILE;
-            u.x=cwx; u.y=cwy;
-            const _combatLocked = (u.target!=null && u.order && (u.order.type==="attack" || u.order.type==="attackmove"));
-            if (_combatLocked){
-              u.path=null; u.pathI=0;
-              clearReservation(u);
-              u.yieldCd=0;
-              u.blockT=0;
-              u.repathCd = 0;
-              u.combatGoalT = 0;
-              return false;
-            }
-            u.order = {type:"idle", x:u.x, y:u.y, tx:null, ty:null};
-            u.path=null; u.pathI=0;
-            clearReservation(u);
-            u.yieldCd=0;
-            u.blockT=0;
-            return false;
-          }
-          u.yieldCd = 0.10;
-          return false;
-        }
-      }
-
-      const dx=wx-u.x, dy=wy-u.y;
-      const d=Math.hypot(dx,dy);
-
-      if (u.stuckT==null){ u.stuckT=0; u.lastX=u.x; u.lastY=u.y; }
-
-      if (d < 2 || (u.pathI >= (u.path.length-1) && d < 12)){
-        if (u.pathI >= (u.path.length-1)){
-          const sx = (p.tx+0.5)*TILE, sy = (p.ty+0.5)*TILE;
-          u.x = sx; u.y = sy;
-        }
-        u.holdPos = false;
-        u.pathI++;
+    function waitVehicleRoute(u,dt){
+      u.vx=u.vy=0;u._vehCurSpeed=0;u.waitingForTile=true;
+      u.blockT=(u.blockT||0)+dt;
+      // A stopped vehicle may be yielding to a turn/traffic. Keep the order and
+      // re-plan a validated route, without random nudges or position warps.
+      if(u.blockT>=.35 && (u.repathCd||0)<=0){
+        if(yieldVehicleRoute(u))return true;
+        const goal=u.navGoal || (u.path?.length ? u.path[u.path.length-1] : null);
         clearReservation(u);
-        if (u.pathI >= u.path.length){
-          const ot2 = (u.order && u.order.type) ? u.order.type : null;
-          u.vx = 0; u.vy = 0;
-          if (ucls === "veh") u._vehCurSpeed = 0;
-          u.path = null; u.pathI = 0;
-          clearReservation(u);
-          if (ot2==="attackmove"){
-            u.guard = {x0:u.x, y0:u.y};
-            u.order = {type:"guard", x:u.x, y:u.y, tx:null, ty:null};
-          } else if (ot2==="move" || ot2==="guard_return"){
-            u.order = {type:"idle", x:u.x, y:u.y, tx:null, ty:null};
-          }
-        }
-        u.blockT = 0;
-        u.stuckT = 0;
+        if(goal)setPathTo(u,(goal.tx+.5)*TILE,(goal.ty+.5)*TILE);
+        u.repathCd=.3+(u.id%5)*.035;u.blockT=0;
+      }
+      return false;
+    }
+
+    function followVehiclePath(u,dt){
+      u.turningToPath=false;u.waitingForTile=false;
+      const ot=u.order?.type;
+      if((ot==='idle'||ot==='guard')&&u.target==null){finishVehicleRoute(u);return false;}
+      if(!u.path||u.pathI>=u.path.length){u.vx=u.vy=0;return false;}
+      const p=u.path[u.pathI],wx=(p.tx+.5)*TILE,wy=(p.ty+.5)*TILE;
+      const dx=wx-u.x,dy=wy-u.y,d=Math.hypot(dx,dy);
+      if(d<.001){
+        u.x=wx;u.y=wy;u.pathI++;clearReservation(u);
+        if(u.pathI>=u.path.length)finishVehicleRoute(u);
         return true;
       }
-
-      const curTileTx=tileOfX(u.x), curTileTy=tileOfY(u.y);
-      if (u.pathI>0){
-        const nextTile = u.path[u.pathI];
-        if (!(nextTile.tx===curTileTx && nextTile.ty===curTileTy)){
-          if (!reserveTile(u, nextTile.tx, nextTile.ty) || isReservedByOther(u, nextTile.tx, nextTile.ty)){
-            const bp = (u.cls!=="inf") ? findBypassStep(u, curTileTx, curTileTy, nextTile.tx, nextTile.ty) : null;
-            if (bp){
-              u.path.splice(u.pathI, 0, {tx:bp.tx, ty:bp.ty});
-              return true;
-            }
-          }
-          if (!canEnterTile(u, nextTile.tx, nextTile.ty)){
-            if (u.order && (u.order.type==="move" || u.order.type==="attackmove") && u.pathI >= (u.path.length-1)){
-              const dd = dist2(u.x,u.y,u.order.x,u.order.y);
-              if (dd < 75*75){
-                u.order = {type:"idle", x:u.x, y:u.y, tx:null, ty:null};
-                u.path = null; u.pathI = 0;
-                clearReservation(u);
-                u.stuckTime = 0;
-                return false;
-              }
-            }
-            if ((u.avoidCd||0) <= 0 && u.cls!=="inf"){
-              const bypass = findBypassStep(u, curTileTx, curTileTy, nextTile.tx, nextTile.ty);
-              if (bypass){
-                u.path.splice(u.pathI, 0, bypass);
-                u.avoidCd = 0.45;
-              } else {
-                u.avoidCd = 0.25;
-              }
-            }
-            return true;
-          }
-        }
+      const tx=tileOfX(u.x),ty=tileOfY(u.y);
+      const leaving=p.tx!==tx||p.ty!==ty;
+      if(leaving){
+        // A* uses adjacent cells. Reject stale routes and diagonal corner cuts.
+        const sx=Math.sign(p.tx-tx),sy=Math.sign(p.ty-ty);
+        const adjacent=Math.abs(p.tx-tx)<=1&&Math.abs(p.ty-ty)<=1;
+        const corner=sx&&sy&&(!isWalkableTile(tx+sx,ty)||!isWalkableTile(tx,ty+sy));
+        if(!adjacent||corner||!canEnterTile(u,p.tx,p.ty)||!reserveTile(u,p.tx,p.ty))
+          return waitVehicleRoute(u,dt);
       }
-
-      // RA2 style: 기갑(veh) 가속/감속 (AccelerationFactor 0.03)
-      const maxSpeed = getMoveSpeed(u);
-      let step = maxSpeed * dt;
-      if (ucls === "veh") {
-        if (u._vehCurSpeed == null) u._vehCurSpeed = 0;
-        u._vehCurSpeed += (maxSpeed - u._vehCurSpeed) * (1-Math.exp(-1.8*dt));
-        step = Math.min(u._vehCurSpeed * dt, d);
-      } else {
-        step = Math.min(step, d);
+      const ax=dx/d,ay=dy/d;
+      const motion=u.kind==='mcv'?globalThis.OUMCV:u.kind==='harvester'?globalThis.OUHarvester:
+        u.kind==='tank'?globalThis.OUTankMotion:null;
+      if(motion&&!motion.drive(u,ax,ay,dt,worldVecToDir8)){
+        u.turningToPath=true;u.vx=u.vy=0;u._vehCurSpeed=0;
+        u.stuckTime=0;u.blockT=0;return true;
       }
-      let ax=dx/(d||1), ay=dy/(d||1);
-      // RA2 style: 보병은 회피 없이 목표로 직진 (위글+렉 근본 해결)
-      if (u.cls!=="inf" && u.kind!=="tank" && u.kind!=="harvester" && u.kind!=="mcv"){
-        let avoidX=0, avoidY=0;
-        for (let j=0;j<units.length;j++){
-          const o=units[j];
-          if (!o.alive || o.id===u.id) continue;
-          const same = (o.team===u.team);
-          const rr = (u.r+o.r) + (same?14:4);
-          const dx2=u.x-o.x, dy2=u.y-o.y;
-          const dd=dx2*dx2+dy2*dy2;
-          if (dd<=0.0001 || dd>rr*rr) continue;
-          const inv = 1/Math.sqrt(dd);
-          const push = (rr - Math.sqrt(dd)) * (same?1.15:0.35);
-          avoidX += dx2*inv*push;
-          avoidY += dy2*inv*push;
-        }
-        const alen = Math.hypot(avoidX,avoidY);
-        if (alen>0.0001){
-          const isLastWp = (u.pathI >= (u.path.length-1));
-          const ot = u.order && u.order.type;
-          const nearGoal = isLastWp && (ot==="move" || ot==="guard_return") && d < 72;
-          const mix = nearGoal ? 0.22 : 0.55;
-          const nx = avoidX/alen, ny = avoidY/alen;
-          ax = ax*(1-mix) + nx*mix;
-          ay = ay*(1-mix) + ny*mix;
-          const nlen = Math.hypot(ax,ay)||1;
-          ax/=nlen; ay/=nlen;
-        }
+      if(!motion){
+        u.bodyYaw=Math.atan2(ay,ax);u.bodyDir=u.dir=worldVecToDir8(ax,ay);
+        u.faceDir=u.dir;u.travelPhase='drive';
       }
-
-      const movingDir = (Math.abs(ax) + Math.abs(ay)) > 1e-4;
-      if ((u.kind==="tank" || u.kind==="harvester" || u.kind==="mcv") && movingDir){
-        if (!(u.kind==="mcv"?globalThis.OUMCV:u.kind==="harvester"?globalThis.OUHarvester:globalThis.OUTankMotion).drive(u,ax,ay,dt,worldVecToDir8)){
-          u.turningToPath=true; u.vx=0; u.vy=0; u._vehCurSpeed=0; return true;
-        }
-      } else if ((u.fireHoldT||0) > 0 && u.fireDir!=null){
-        u.faceDir = u.fireDir;
-        if (u.kind !== "tank" && u.kind !== "harvester" && u.kind !== "mcv"){
-          u.dir = u.fireDir;
-        } else {
-          if (u.bodyDir==null) u.bodyDir = (u.dir!=null ? u.dir : 6);
-          u.dir = u.bodyDir;
-        }
-      } else if (movingDir){
-        const fd = worldVecToDir8(ax, ay);
-        if (u.kind === "tank" && globalThis.OUTankMotion){
-          if (!globalThis.OUTankMotion.hull(u, ax, ay, dt, worldVecToDir8)) {
-            u.turningToPath = true;
-            u.vx = 0; u.vy = 0;
-            return true;
-          }
-          u.faceDir = u.fireDir ?? u.turretDir ?? u.bodyDir;
-        } else if (u.kind === "tank" || u.kind === "harvester"){
-          if (u.bodyDir == null) u.bodyDir = (u.dir!=null ? u.dir : 6);
-          if (fd !== u.bodyDir){
-            if (u._vehCurSpeed != null) u._vehCurSpeed *= (1 - 0.12);
-            _tankUpdateHull(u, fd, dt);
-            u.dir = u.bodyDir;
-            u.faceDir = (u.fireDir!=null ? u.fireDir : (u.turretDir!=null ? u.turretDir : u.bodyDir));
-            return true;
-          }
-          u.bodyTurn = null;
-          u.bodyDir = fd;
-          u.dir = fd;
-          u.faceDir = (u.fireDir!=null ? u.fireDir : fd);
-        } else {
-          u.faceDir = fd;
-          u.dir = fd;
-        }
-      } else {
-        if (u.faceDir==null) u.faceDir = 6;
-        if (u.dir==null) u.dir = u.faceDir;
-      }
-
-      const nx=u.x+ax*step, ny=u.y+ay*step;
-      const ntx=tileOfX(nx), nty=tileOfY(ny);
-      if (!isWalkableTile(ntx,nty)){ return false; }
-      if (!(ntx===curTx && nty===curTy)){
-        const blockedNext = (!canEnterTile(u, ntx, nty) || isReservedByOther(u, ntx, nty));
-        if (blockedNext){
-          u.blockT = (u.blockT||0) + dt;
-          if ((u.avoidCd||0) <= 0 && u.cls!=="inf"){
-            const bypass = findBypassStep(u, curTx, curTy, ntx, nty);
-            if (bypass){
-              u.path.splice(u.pathI, 0, bypass);
-              u.avoidCd = 0.45;
-            } else {
-              const g = (u.path && u.path.length) ? u.path[u.path.length-1] : {tx:ntx,ty:nty};
-              const gp = findNearestFreePoint((g.tx+0.5)*TILE,(g.ty+0.5)*TILE,u,5);
-              setPathTo(u, gp.x, gp.y);
-              u.avoidCd = 0.35;
-            }
-          }
-          u.yieldCd = Math.max(u.yieldCd||0, 0.10);
-          return false;
-        }
-      }
-      if (isBlockedWorldPoint(u, nx, ny)){
-        if (u.kind==="tank" || u.kind==="harvester" || u.kind==="mcv") { u.vx=0; u.vy=0; u.repathCd=0; return false; }
-        const px = -ay, py = ax;
-        for (const sgn of [1,-1]){
-          const sx = u.x + px*step*sgn;
-          const sy = u.y + py*step*sgn;
-          const stx = tileOfX(sx), sty = tileOfY(sy);
-          if (isWalkableTile(stx, sty) && canEnterTile(u, stx, sty) && !isBlockedWorldPoint(u, sx, sy)){
-            u.x = clamp(sx,0,WORLD_W);
-            u.y = clamp(sy,0,WORLD_H);
-            u.blockT = 0;
-            return true;
-          }
-        }
-        const sx1 = u.x + ax*step;
-        const sy1 = u.y;
-        const stx1 = tileOfX(sx1), sty1 = tileOfY(sy1);
-        if (isWalkableTile(stx1, sty1) && canEnterTile(u, stx1, sty1) && !isBlockedWorldPoint(u, sx1, sy1)){
-          u.x = clamp(sx1,0,WORLD_W);
-          u.y = clamp(sy1,0,WORLD_H);
-          u.blockT = 0;
-          return true;
-        }
-        const sx2 = u.x;
-        const sy2 = u.y + ay*step;
-        const stx2 = tileOfX(sx2), sty2 = tileOfY(sy2);
-        if (isWalkableTile(stx2, sty2) && canEnterTile(u, stx2, sty2) && !isBlockedWorldPoint(u, sx2, sy2)){
-          u.x = clamp(sx2,0,WORLD_W);
-          u.y = clamp(sy2,0,WORLD_H);
-          u.blockT = 0;
-          return true;
-        }
-        u.blockT = (u.blockT||0) + dt;
-        if (u.path && u.path.length && u.pathI < u.path.length){
-          const goal = u.path[u.path.length-1];
-          const curTx2 = tileOfX(u.x), curTy2 = tileOfY(u.y);
-          let best=null, bestScore=1e18;
-          for (let dy=-1; dy<=1; dy++){
-            for (let dx=-1; dx<=1; dx++){
-              if (dx===0 && dy===0) continue;
-              const tx = curTx2+dx, ty = curTy2+dy;
-              if (!inMap(tx,ty)) continue;
-              if (!isWalkableTile(tx,ty)) continue;
-              if (!canEnterTile(u, tx, ty)) continue;
-              const c = tileToWorldCenter(tx,ty);
-              if (isBlockedWorldPoint(u, c.x, c.y)) continue;
-              const h = (tx-goal.tx)*(tx-goal.tx) + (ty-goal.ty)*(ty-goal.ty);
-              const turn = (dx*dx+dy*dy===2) ? 0.15 : 0.0;
-              const score = h + turn;
-              if (score < bestScore){ bestScore=score; best={tx,ty}; }
-            }
-          }
-          if (best){
-            u.path[u.pathI] = {tx:best.tx, ty:best.ty};
-            reserveTile(u, best.tx, best.ty);
-            u.blockT = 0;
-            u.yieldCd = Math.max(u.yieldCd||0, 0.12);
-            return false;
-          }
-        }
-        if ((u.avoidCd||0) <= 0){
-          const gx0 = (u.order && u.order.tx!=null) ? (u.order.tx+0.5)*TILE : wx;
-          const gy0 = (u.order && u.order.ty!=null) ? (u.order.ty+0.5)*TILE : wy;
-          const spot = findNearestFreePoint(gx0, gy0, u, 5);
-          const gx = spot && spot.found ? spot.x : gx0;
-          const gy = spot && spot.found ? spot.y : gy0;
-          setPathTo(u, gx, gy);
-          u.avoidCd = 0.45;
-        }
-        if (u.blockT > 0.95){
-          const cwx=(tileOfX(u.x)+0.5)*TILE, cwy=(tileOfY(u.y)+0.5)*TILE;
-          u.x=cwx; u.y=cwy;
-          u.order = {type:"idle", x:u.x, y:u.y, tx:null, ty:null};
-          u.path=null; u.pathI=0;
-          clearReservation(u);
-          u.blockT=0;
-          return false;
-        }
-        u.yieldCd = Math.max(u.yieldCd||0, 0.12);
-        return false;
-      }
-      u.x=clamp(nx,0,WORLD_W);
-      u.y=clamp(ny,0,WORLD_H);
-
-      const moved = Math.hypot(u.x-(u.lastX||u.x), u.y-(u.lastY||u.y));
-      u.lastX=u.x; u.lastY=u.y;
-      if (moved < 0.25 && d > 6) u.stuckT += dt; else u.stuckT = Math.max(0, u.stuckT - dt*0.5);
-
-      if (u.stuckT > 0.75){
-        const goal = (u.path && u.path.length) ? u.path[u.path.length-1] : null;
-        u.stuckT = 0;
-        clearReservation(u);
-        if (goal && (u.kind==="tank" || u.kind==="harvester" || u.kind==="mcv" || (u.cls==="veh"))){
-          setPathTo(u, (goal.tx+0.5)*TILE, (goal.ty+0.5)*TILE);
-          u.yieldCd = Math.max(u.yieldCd||0, 0.15);
-          return true;
-        } else if (goal){
-          const b = (u.cls!=="inf") ? findBypassStep(u, curTx, curTy, goal.tx, goal.ty) : null;
-          if (b){ u.path.splice(u.pathI, 0, b); }
-          else { setPathTo(u, (goal.tx+0.5)*TILE, (goal.ty+0.5)*TILE); }
-          u.yieldCd = Math.max(u.yieldCd||0, 0.12);
-          return true;
-        } else {
-          const cwx=(curTx+0.5)*TILE, cwy=(curTy+0.5)*TILE;
-          u.x=cwx; u.y=cwy;
-          u.order={type:"idle", x:u.x, y:u.y, tx:null, ty:null};
-          u.path=null; u.pathI=0;
-          return false;
-        }
+      const speed=getMoveSpeed(u);
+      u._vehCurSpeed=(u._vehCurSpeed||0)+(speed-(u._vehCurSpeed||0))*(1-Math.exp(-1.8*dt));
+      const step=Math.min(d,u._vehCurSpeed*dt);
+      const nx=u.x+ax*step,ny=u.y+ay*step,ntx=tileOfX(nx),nty=tileOfY(ny);
+      if(!isWalkableTile(ntx,nty)||isBlockedWorldPoint(u,nx,ny))return waitVehicleRoute(u,dt);
+      if((ntx!==tx||nty!==ty)&&(!canEnterTile(u,ntx,nty)||isReservedByOther(u,ntx,nty)))
+        return waitVehicleRoute(u,dt);
+      u.x=nx;u.y=ny;u.vx=ax*step/Math.max(dt,.001);u.vy=ay*step/Math.max(dt,.001);
+      u.blockT=0;u.stuckT=0;u.holdPos=false;
+      if(step>=d-1e-7){
+        // Exact centres keep every following grid segment at one of 8 headings.
+        u.x=wx;u.y=wy;u.pathI++;clearReservation(u);
+        if(u.pathI>=u.path.length)finishVehicleRoute(u);
       }
       return true;
+    }
+
+    function followPath(u,dt){
+      u.turningToPath=false;
+      const cls=UNIT[u.kind]?.cls;
+      if(cls==='inf')return followPathInfantry(u,dt);
+      if(u.flowGoal&&cls==='veh')return followFlowPath(u,dt);
+      return followVehiclePath(u,dt);
     }
 
     function heuristic(ax,ay,bx,by){
@@ -2092,7 +1780,7 @@
       const fScore = new Float32Array(N);
       for (let i=0;i<N;i++){ came[i]=-1; gScore[i]=1e9; fScore[i]=1e9; }
 
-      function h(x,y, tx,ty){ return Math.abs(x-tx)+Math.abs(y-ty); }
+      function h(x,y,tx,ty){const dx=Math.abs(x-tx),dy=Math.abs(y-ty);return Math.max(dx,dy)+.42*Math.min(dx,dy);}
 
       open[0]=s; inOpen[s]=1;
       gScore[s]=0; fScore[s]=h(sx,sy,gx,gy);
@@ -2224,75 +1912,37 @@
     }
   }
 
-  function followFlowPath(u, dt) {
-    const fg = u.flowGoal;
-    if (!fg || !OUFlowField || !OUFlowField.getFlowAt) return false;
-    let entry = _flowFieldCache.get(fg.key);
-    if (!entry) { u.flowGoal = null; return false; }
-    const field = entry.field;
-    const gx = (fg.gTx + 0.5) * TILE, gy = (fg.gTy + 0.5) * TILE;
-    const d2 = dist2(u.x, u.y, gx, gy);
-    if (d2 < 14 * 14) {
-      u.x = gx; u.y = gy;
-      u.vx = 0; u.vy = 0;
-      if ((UNIT[u.kind] && UNIT[u.kind].cls) === "veh") u._vehCurSpeed = 0;
-      u.flowGoal = null;
-      const ot = (u.order && u.order.type) ? u.order.type : null;
-      if (ot === "attackmove") {
-        u.guard = { x0: u.x, y0: u.y };
-        u.order = { type: "guard", x: u.x, y: u.y, tx: null, ty: null };
-      } else {
-        u.order = { type: "idle", x: u.x, y: u.y, tx: null, ty: null };
+  function followFlowPath(u,dt){
+    const fg=u.flowGoal,entry=fg&&_flowFieldCache.get(fg.key);
+    if(!entry){u.flowGoal=null;return false;}
+    if(!u.path||u.pathI>=u.path.length){
+      const field=entry.field,path=[];
+      let tx=tileOfX(u.x),ty=tileOfY(u.y);
+      for(let n=0;n<MAP_W*MAP_H;n++){
+        path.push({tx,ty});
+        if(tx===fg.gTx&&ty===fg.gTy)break;
+        const next=OUFlowField.nextTile(field,tx,ty);
+        if(!next){u.flowGoal=null;return false;}
+        tx=next.tx;ty=next.ty;
       }
-      return false;
+      u.path=path;u.pathI=0;
+      if(path.length>1&&Math.hypot(u.x-(path[0].tx+.5)*TILE,u.y-(path[0].ty+.5)*TILE)<.001)u.pathI=1;
+      u.navGoal={tx:fg.gTx,ty:fg.gTy};
     }
-    const flow = OUFlowField.getFlowAt(field, u.x, u.y, TILE, tileOfX, tileOfY);
-    if (!flow || (flow.dx === 0 && flow.dy === 0)) return false;
-    if ((u.kind==="tank" || u.kind==="harvester" || u.kind==="mcv") && !(u.kind==="mcv"?globalThis.OUMCV:u.kind==="harvester"?globalThis.OUHarvester:globalThis.OUTankMotion).drive(u,flow.dx,flow.dy,dt,worldVecToDir8)){
-      u.turningToPath=true; u.vx=0; u.vy=0; u._vehCurSpeed=0; return true;
-    }
-    const maxSpeed = getMoveSpeed(u) || 80;
-    const ucls = (UNIT[u.kind] && UNIT[u.kind].cls) || "";
-    let step = maxSpeed * dt;
-    if (ucls === "veh") {
-      if (u._vehCurSpeed == null) u._vehCurSpeed = 0;
-      u._vehCurSpeed += (maxSpeed - u._vehCurSpeed) * (1-Math.exp(-1.8*dt));
-      step = u._vehCurSpeed * dt;
-    }
-    const nx = u.x + flow.dx * step;
-    const ny = u.y + flow.dy * step;
-    const ntx = tileOfX(nx), nty = tileOfY(ny);
-    if (!inMap(ntx, nty) || !isWalkableTile(ntx, nty)) return false;
-    if (isBlockedWorldPoint(u, nx, ny)) return false;
-    const entering=ntx!==tileOfX(u.x)||nty!==tileOfY(u.y);
-    if(entering && (!canEnterTile(u,ntx,nty)||isReservedByOther(u,ntx,nty))){
-      u.vx=0;u.vy=0;u.blockT=(u.blockT||0)+dt;
-      if(u.blockT>.4){
-        u.flowGoal=null;u.flowRetryAfter=state.t+1.2;
-        setPathTo(u,gx,gy);u.blockT=0;
-      }
-      return false;
-    }
-    if(entering)reserveTile(u,ntx,nty);
-    u.blockT=0;
-    u.x = clamp(nx, 0, WORLD_W);
-    u.y = clamp(ny, 0, WORLD_H);
-    const curSpd = (ucls === "veh" && u._vehCurSpeed != null) ? u._vehCurSpeed : maxSpeed;
-    u.vx = flow.dx * curSpd;
-    u.vy = flow.dy * curSpd;
-    u.faceDir = worldVecToDir8(flow.dx, flow.dy);
-    u.dir = u.faceDir;
-    return true;
+    return followVehiclePath(u,dt);
   }
 
   // Path setter (moved from game.js)
   function setPathTo(u, goalX, goalY){
+    u._trafficGoal=null; // A new route request supersedes a temporary traffic yield.
     if(!inSimTick){
       externalPaths.set(u.id,{u,order:u.order,target:u.target,x:goalX,y:goalY});
       return true; // Command accepted; route is validated during the next tick.
     }
     if (_pathFindBudget <= 0 || performance.now() >= _pathDeadline) {
-      // Deferred work must not erase an already validated route.
+      // Keep a deferred request even if a temporary yield just reached its end.
+      // The next tick retries it without erasing any still-valid current route.
+      externalPaths.set(u.id,{u,order:u.order,target:u.target,x:goalX,y:goalY});
       return false;
     }
     _pathFindBudget--;
@@ -2318,7 +1968,7 @@
     // If the goal tile is crowded, we only "snap" to a nearby free tile for non-combat move orders.
     // For combat orders we intentionally keep the goal stable and allow compression; otherwise backliners can "dance".
     const _combatOrder = (u && u.order && (u.order.type==="attack" || u.order.type==="attackmove"));
-    if (!_combatOrder){
+    if (!_combatOrder && !u.order?.manual){
       if (!canEnterTile(u, gTx, gTy)){
         let best=null, bestD=1e9;
         for (let r=1;r<=6;r++){
@@ -2349,13 +1999,13 @@
     u.flowGoal = null;
     u.path=path;
     u.pathI=0;
-    // Avoid the classic 'backstep' when a new order is issued.
-    // If the path begins with our current tile, skip it so we immediately head toward the next tile
-    // instead of re-centering on the current tile first.
+    // Infantry can redirect freely; vehicles pivot from the cell centre so
+    // subsequent route segments retain the exact eight world-grid headings.
     u.holdPos = false;
     if (u.path && u.path.length>1){
       const p0 = u.path[0];
-      if (p0 && p0.tx===sTx && p0.ty===sTy) u.pathI = 1;
+      if(p0&&p0.tx===sTx&&p0.ty===sTy&&(UNIT[u.kind]?.cls!=='veh'||
+        Math.hypot(u.x-(sTx+.5)*TILE,u.y-(sTy+.5)*TILE)<.001))u.pathI=1;
     }
     u.lastGoalTx=gTx; u.lastGoalTy=gTy;
     return !!path;
@@ -2368,28 +2018,6 @@
         if (b.alive && b.team===team && b.kind==="refinery") return true;
       }
       return false;
-    }
-
-    function findNearestFreePoint(wx, wy, u, r=3){
-      const cx=tileOfX(wx), cy=tileOfY(wy);
-      let bestX=wx, bestY=wy, bestD=1e18, found=false;
-      for (let dy=-r; dy<=r; dy++){
-        for (let dx=-r; dx<=r; dx++){
-          const tx=cx+dx, ty=cy+dy;
-          if (!isWalkableTile(tx,ty)) continue;
-          const curTx=tileOfX(u.x), curTy=tileOfY(u.y);
-          if (!(tx===curTx && ty===curTy) && !canEnterTile(u,tx,ty)) continue;
-          const pTile=tileToWorldCenter(tx,ty);
-          const px=pTile.x, py=pTile.y;
-          const dd=dist2(wx,wy,px,py);
-          if (dd<bestD){ bestD=dd; bestX=px; bestY=py; found=true; }
-        }
-      }
-      return {x:bestX,y:bestY,found};
-    }
-
-    function clearReservation(u){
-      u.resTx = null; u.resTy = null;
     }
 
     function getClosestPointOnBuilding(b, u){
@@ -2457,29 +2085,23 @@
       return best;
     }
 
-    function findNearestFreePoint(wx, wy, u, r=3){
-      let best=null, bestD=1e9;
-      for (let dy=-r; dy<=r; dy++){
-        for (let dx=-r; dx<=r; dx++){
-          const tx = ((wx/TILE)|0) + dx;
-          const ty = ((wy/TILE)|0) + dy;
-          if (!inMap(tx,ty)) continue;
-          if (!isWalkableTile(tx,ty)) continue;
-          if (isSqueezedTile(tx,ty)) continue;
-          if (isReservedByOther(u, tx, ty)) continue;
-          const i=idx(tx,ty);
-          if (occAll[i]!==0) continue;
-          const c = tileToWorldCenter(tx,ty);
-          if (isBlockedWorldPoint && isBlockedWorldPoint(u, c.x, c.y)) continue;
-          const d = dx*dx + dy*dy;
-          if (d < bestD){ bestD=d; best={x:c.x, y:c.y}; }
-        }
+    function findNearestFreePoint(wx,wy,u,r=3){
+      let best=null,bestD=Infinity;
+      const cx=tileOfX(wx),cy=tileOfY(wy);
+      for(let dy=-r;dy<=r;dy++)for(let dx=-r;dx<=r;dx++){
+        const tx=cx+dx,ty=cy+dy;
+        if(!canEnterTile(u,tx,ty))continue;
+        const c=tileToWorldCenter(tx,ty),d=dist2(wx,wy,c.x,c.y);
+        if(d<bestD){bestD=d;best={x:c.x,y:c.y,found:true};}
       }
       return best;
     }
 
     function clearReservation(u){
-      u.resTx = null; u.resTy = null;
+      if(u.resTx!=null&&u.resTy!=null&&inMap(u.resTx,u.resTy)){
+        const i=idx(u.resTx,u.resTy);if(occResId[i]===u.id)occResId[i]=0;
+      }
+      u.resTx=null;u.resTy=null;
     }
 
     function settleInfantryToSubslot(u, dt){
@@ -3062,6 +2684,7 @@
             u.restX = u.x; u.restY = u.y;
             u.path = null; u.pathI = 0;
             u.flowGoal = null;
+            clearReservation(u);
             u.vx = 0; u.vy = 0;
             u.stuckT = 0; u.stuckTime = 0; u.yieldCd = 0; u.avoidCd = 0;
             u.x = u.restX; u.y = u.restY;
@@ -3336,7 +2959,7 @@
       }
     const moved=Math.hypot(u.x-u.lastPosX, u.y-u.lastPosY);
     const tryingToMove = (u.order && (u.order.type==="move" || u.order.type==="attackmove" || u.order.type==="attack") && !u.holdAttack);
-          if (tryingToMove){
+          if (tryingToMove && !u.turningToPath && !u.waitingForTile){
             if (moved<0.55) u.stuckTime += dt;
             else { u.stuckTime=0; u.lastPosX=u.x; u.lastPosY=u.y; }
           } else {
@@ -3344,8 +2967,12 @@
             u.lastPosX=u.x; u.lastPosY=u.y;
           }
     
-          // Strong de-jam: repath early, warp sooner if needed. Goal: never permanent jams.
-          if (u.stuckTime>0.45 && u.repathCd<=0){
+          // Vehicle traffic preserves its command and position while re-planning.
+          if(UNIT[u.kind]?.cls==='veh'&&u.stuckTime>.6&&u.repathCd<=0){
+            if(u.order&&Number.isFinite(u.order.x)&&Number.isFinite(u.order.y))setPathTo(u,u.order.x,u.order.y);
+            u.stuckTime=0;u.repathCd=.35;
+          }
+          if (UNIT[u.kind]?.cls!=='veh' && u.stuckTime>0.45 && u.repathCd<=0){
             if (u.order && u.order.type==="move"){
               const dd = dist2(u.x,u.y,u.order.x,u.order.y);
               if (dd < 18*18){
@@ -3362,7 +2989,7 @@
     
                 if (u.stuckTime > 1.05){
                   const fp = findNearestFreePoint(u.x, u.y, u, 28);
-                  u.x = fp.x; u.y = fp.y;
+                  if(fp?.found){u.x=fp.x;u.y=fp.y;}
                   u.path = null; u.pathI = 0;
                   u.repathCd = 0.45;
                   u.stuckTime = 0;
@@ -3967,7 +3594,7 @@
             followPath(u,dt);
             crushInfantry(u);
     
-            const hasPath = (u.path && u.pathI < u.path.length);
+            const hasPath = u.flowGoal || (u.path && u.pathI < u.path.length);
             if (!hasPath && u.order && u.order.type==="move"){
               const d2 = dist2(u.x, u.y, u.order.x, u.order.y);
               if (d2 < 16*16){
@@ -4232,6 +3859,7 @@
         // Tank post-FX: turret idle tracking + dust trail + damage smoke
         for (const u of units){
           if (!u.alive || u.inTransport) continue;
+          if((!u.path||u.pathI>=u.path.length)&&!u.flowGoal)clearReservation(u);
     
           // Dust trail for vehicles (tank/ifv/etc) while moving
           const _uDef = (typeof UNIT!=="undefined" && UNIT) ? UNIT[u.kind] : null;

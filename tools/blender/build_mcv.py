@@ -216,6 +216,8 @@ for s in (-1,1):
                 beam('Capsule strengthening hoop',(-s*(1.45-1.48*math.sin(a)),y,.30+1.51*math.cos(a)),(-s*(1.45-1.48*math.sin(b)),y,.30+1.51*math.cos(b)),.042,edge,n)
     box('Capsule faction belt',(s*.035,.82,.65),(.045,4.1,.26),team,n,.018)
     for y in (-.7,2.8):cylinder('Shell hinge',(0,y,.02),.16,.45,steel,n,'Y',16,0)
+# The foundation uses low-contrast graphite throughout: seams remain mechanical
+# joints without outlining every floor cassette as a bright white grid.
 # Six overlapping floor leaves slide along permanent telescopic chassis rails.
 # Narrow plates are genuinely narrow when packed; none changes scale.
 for s in (-1,1):
@@ -223,7 +225,7 @@ for s in (-1,1):
     for k in range(3):
         n=f'Deck_{s}_{k}'
         joint(n,parent,closed=(s*(.06 if k else .10),0,.11 if k else .44),opened=(s*(2.18 if k else 2.22),0,-.04 if k else .29),start=3+k*3,end=28+k*4)
-        box('Nested armored floor',(0,0,0),(2.32,8.18,.13),armor,n,.025)
+        box('Nested armored floor',(0,0,0),(2.32,8.18,.13),roofmat,n,.025)
         for y in (-3.48,3.48):box('Sliding box rail',(-s*.35,y,-.13),(2.6,.26,.22),steel,n,.025)
         for y in (-2.6,0,2.6):panel_details(0,y,.08,1.93,2.22,n)
         for y in (-3.75,3.75):
@@ -234,7 +236,7 @@ for s in (-1,1):
       for sy in (-1,1):
         n=f'Apron_{s}_{stage}_{sy}'
         joint(n,f'Deck_{s}_{stage}',closed=(0,sy*1.62,-.08),opened=(0,sy*5.45,-.08),start=17,end=43)
-        box('Apron cassette',(0,0,0),(2.32,3.0,.13),armor,n,.025)
+        box('Apron cassette',(0,0,0),(2.32,3.0,.13),roofmat,n,.025)
         for x in (-.85,.85):box('Apron guide',(x,-sy*1.55,-.1),(.16,3.4,.16),steel,n,.01)
         for i in (-.65,.65):panel_details(0,i,.08,1.95,1.15,n)
     # Four front/rear stabilizers are attached to the outer deck; they do not fly.
@@ -309,7 +311,7 @@ for sx in (-1,1):
 for sy in (-1,1):
     n=f'CenterApron_{sy}'
     joint(n,closed=(0,sy*1.55,.28),opened=(0,sy*5.42,.12),start=12,end=43)
-    box('Center entry apron',(0,0,0),(2.75,3.12,.15),armor,n,.035)
+    box('Center entry apron',(0,0,0),(2.75,3.12,.15),roofmat,n,.035)
     panel_details(0,0,.09,2.30,2.5,n)
 # Central rising platform: short nested leaves provide an unbroken roof around
 # the column while the perimeter leaves lock over its outer edge.
@@ -419,6 +421,16 @@ facilities=build_yard_equipment(SimpleNamespace(
     materials=SimpleNamespace(armor=armor,edge=edge,panel=panel,steel=steel,
                               black=black,team=team,yellow=yellow)))
 
+# Independent work cycle uses the same rig at its deployed endpoint. The cargo
+# remains a solid attached assembly through the grip/carry/release choreography.
+from yard_work import build_work_equipment, work_pose
+work_facilities=build_work_equipment(SimpleNamespace(
+    joint=joint,box=box,cylinder=cylinder,beam=beam,mesh=mesh,fan=fan,loft=loft,rect_ring=rect_ring,
+    material=material,weather=weather,rig=rig,nodes=nodes,parts=parts,
+    remove_object=lambda obj:bpy.data.objects.remove(obj,do_unlink=True),
+    materials=SimpleNamespace(armor=armor,edge=edge,panel=panel,steel=steel,
+                              black=black,team=team,yellow=yellow)))
+
 # Bake each joint as a rigid transform. No animated scale or mesh visibility.
 for group,objs in list(parts.items()):
     for o in objs:
@@ -446,10 +458,32 @@ for name,d in rig.items():
     if name!='Hull':
         a=o.animation_data.action;a.name='Deploy_'+name;o.animation_data.action=None
         tr=o.animation_data.nla_tracks.new();tr.name='Deploy';tr.strips.new('Deploy',0,a)
-scene.frame_start=0;scene.frame_end=90;scene.frame_set(0)
+# Full-pose Work tracks make switching from/to Deploy deterministic; no
+# renderer-driven mutation, scale animation or endpoint replacement is needed.
+work_poses=[work_pose(f,rig) for f in range(97)]
+for name,d in rig.items():
+    if name=='Hull':continue
+    o=nodes[name]
+    for f in range(97):
+        override=work_poses[f].get(name,{})
+        o.location=override.get('location',d['opened'])
+        o.rotation_euler=override.get('rotation',d['turn'])
+        o.keyframe_insert(data_path='location',frame=f)
+        o.keyframe_insert(data_path='rotation_euler',frame=f)
+    a=o.animation_data.action;a.name='Work_'+name;o.animation_data.action=None
+    tr=o.animation_data.nla_tracks.new();tr.name='Work';tr.strips.new('Work',0,a)
+scene.frame_start=0;scene.frame_end=96;scene.frame_set(0)
 bpy.ops.object.select_all(action='SELECT');bpy.context.view_layer.objects.active=nodes['Hull']
 bpy.ops.export_scene.gltf(filepath=str(OUT/'mcv.glb'),export_format='GLB',use_selection=True,export_yup=True,export_animations=True,export_animation_mode='NLA_TRACKS',export_force_sampling=True,export_apply=True)
-(OUT/'contract.json').write_text(json.dumps({'revision':5,'facilities':facilities,'plinthHeightMetres':2.32,'design':'vaulted production hall with integrated power and control modules','clip':'Deploy','authoringSeconds':3,'runtimeSeconds':.8,'worldUnitsPerMetre':20,'modelScale':1.65,'heading':'+Z','up':'+Y','constantScale':True,'settledYard':'cached exact Deploy endpoint','rig':rig,'assembly':'rigid joints with nested hidden cassettes'},indent=2))
+from yard_clip_contract import normalize_yard_clips
+normalize_yard_clips(OUT/'mcv.glb')
+(OUT/'contract.json').write_text(json.dumps({'revision':6,'workClip':'Work','workSeconds':3.2,'workFacilities':work_facilities,'facilities':facilities,'plinthHeightMetres':2.32,'design':'vaulted production hall with integrated power and control modules','clip':'Deploy','authoringSeconds':3,'runtimeSeconds':.8,'worldUnitsPerMetre':20,'modelScale':1.65,'heading':'+Z','up':'+Y','constantScale':True,'settledYard':'cached exact Deploy endpoint','rig':rig,'assembly':'rigid joints with nested hidden cassettes'},indent=2))
+# The editable .blend opens on Deploy. Export above includes both named NLA
+# clips; muting Work here only selects the authoring/review view.
+for o in nodes.values():
+    if o.animation_data:
+        for tr in o.animation_data.nla_tracks:tr.mute=tr.name=='Work'
+scene.frame_end=90;scene.frame_set(0)
 def aim(o,p):o.rotation_euler=(Vector(p)-o.location).to_track_quat('-Z','Y').to_euler()
 for name,loc,power,size in [('Key',(-8,-12,23),5500,12),('Fill',(12,-3,17),1800,10),('Rim',(0,10,20),2200,10)]:
     d=bpy.data.lights.new(name,'AREA');d.energy=power;d.size=size;o=bpy.data.objects.new(name,d);scene.collection.objects.link(o);o.location=loc;aim(o,(0,0,3))

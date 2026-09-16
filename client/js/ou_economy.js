@@ -596,7 +596,12 @@
               continue;
             }
             const u = addUnit(spawnB.team, q.kind, sp.x, sp.y);
-            if(spawnB.kind==='factory'){u.bodyYaw=u.turretYaw=Math.PI/2;u._factoryBornFrom=spawnB.id;}
+            if(spawnB.kind==='factory'){
+              u.bodyYaw=u.turretYaw=global.OUFactory.heading;
+              u.dir=u.faceDir=u.bodyDir=u.turretDir=ctx.worldVecToDir8(Math.cos(u.bodyYaw),Math.sin(u.bodyYaw));
+              u.bodyTurn=u.turretTurn=null;
+              u._factoryBornFrom=spawnB.id;
+            }
 
             // Harvester: start idle so sim assigns harvest order next tick (avoids "idle harvester" bug for enemy).
             if (q.kind === "harvester" && spawnB.kind!=="factory"){
@@ -608,7 +613,8 @@
               setPathTo(u, spawnB.rally.x, spawnB.rally.y);
               u.repathCd = 0.25;
             } else {
-              const fp = findNearestFreePoint(u.x, u.y+(spawnB.kind==="factory"?TILE*2:0), u, 6);
+              const clear = spawnB.kind==='factory' ? global.OUFactory.clearance(spawnB,TILE) : u;
+              const fp = findNearestFreePoint(clear.x, clear.y, u, 6);
               if (fp){
                 u.order = { type:"move", x:fp.x, y:fp.y, tx:null, ty:null };
                 u.target = null;
