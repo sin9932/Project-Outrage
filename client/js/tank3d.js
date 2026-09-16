@@ -271,15 +271,15 @@ export const ready = (async () => {
     const marker=new THREE.Mesh(new THREE.CircleGeometry(1.3,24),markerMat);marker.quaternion.copy(camera.quaternion);hull.add(marker);materials=[markerMat];scene.add(model);remember('ifv');
     selectAsset('tank');api.factoryReady=true;
     const mg=await new GLTFLoader().loadAsync(new URL(window.OUMCV.modelUrl,import.meta.url).href);
-    const contract=await fetch(new URL('../asset/model/mcv/contract.json?v=3',import.meta.url)).then(r=>{if(!r.ok)throw Error('MCV contract unavailable');return r.json();});
-    if(contract.revision!==3||contract.runtimeSeconds!==window.OUMCV.seconds||contract.worldUnitsPerMetre!==window.OUMCV.scale||contract.modelScale!==window.OUMCV.modelScale||contract.up!=='+Y'||contract.heading!=='+Z')throw Error('MCV model dimensions/timing contract mismatch');
+    const contract=await fetch(new URL('../asset/model/mcv/contract.json?v=4',import.meta.url)).then(r=>{if(!r.ok)throw Error('MCV contract unavailable');return r.json();});
+    if(contract.revision!==4||contract.runtimeSeconds!==window.OUMCV.seconds||contract.worldUnitsPerMetre!==window.OUMCV.scale||contract.modelScale!==window.OUMCV.modelScale||contract.up!=='+Y'||contract.heading!=='+Z')throw Error('MCV model dimensions/timing contract mismatch');
     const mc=mg.animations.find(c=>c.name==='Deploy');if(!mc||Math.abs(mc.duration-3)>.02||mc.tracks.some(t=>t.name.endsWith('.scale')))throw Error('Rigid MCV Deploy clip contract mismatch');
     for(const kind of ['mcv','hq']){
       config={...window.OUMCV,renderSpan:kind==='hq'?window.OUMCV.hqSpan:window.OUMCV.renderSpan};
       model=mg.scene.clone(true);hull=model.getObjectByName('Hull');turret=barrel=barrelRest=null;
       wheels=[];materials=[];extraParts=[];detailMeshes=[];crowdMeshes=[];
       hull?.scale.setScalar(window.OUMCV.modelScale);
-      if(!hull||['Cab','Container_1','ArmorWing_1_1','TowerSleeve','Mast_1','BoomHinge','BoomExtension'].some(n=>!model.getObjectByName(n)))throw Error('Mechanical MCV hierarchy incomplete');
+      if(!hull||['Cab','Container_1','ArmorWing_1_1','TowerSleeve','Mast_1','BoomHinge','BoomExtension','Workshop','ControlCabin','RadarDish','UtilityPlant'].some(n=>!model.getObjectByName(n)))throw Error('Mechanical MCV hierarchy incomplete');
       model.traverse(o=>{if(!o.isMesh)extraParts.push(o);if(/^Wheel_[LR]_\d$/.test(o.name))wheels.push(o);if(o.isMesh)for(const mat of Array.isArray(o.material)?o.material:[o.material])if(/TeamColor/.test(mat.name)&&!materials.includes(mat))materials.push(mat);});
       const mx=new THREE.AnimationMixer(model),ac=mx.clipAction(mc);ac.setLoop(THREE.LoopOnce,1);ac.clampWhenFinished=true;ac.play();ac.paused=true;ac.time=kind==='hq'?mc.duration:0;mx.update(0);
       mergeRigidParts();model.updateMatrixWorld(true);buildCrowdDetail();scene.add(model);remember(kind);Object.assign(assets.get(kind),{buildClip:mc,buildMixer:mx,buildAction:ac});

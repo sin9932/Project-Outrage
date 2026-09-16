@@ -1,7 +1,7 @@
 # MCV / mechanical construction yard
 
 The game branch is `codex/realtime-tank-3d`; development is isolated in
-`codex/mcv-mechanical`. No main merge.
+`codex/yard-facilities`. No main merge.
 
 ## Player behavior
 
@@ -16,7 +16,7 @@ The game branch is `codex/realtime-tank-3d`; development is isolated in
 - Existing prerequisite, occupancy, pathfinding, damage, AI and factory dispatch
   owners remain unchanged by this art revision.
 
-## Mechanical model, revision 3
+## Mechanical model, revision 4
 
 The previous source-image masks and affine stretches are removed. Every visible
 transformation comes from the same Blender rigid-joint hierarchy:
@@ -49,6 +49,26 @@ complete parent hierarchy, local packed/deployed transforms and joint timings.
 `mcv.js` owns simulation state and timing. `tank3d.js` reads state and poses the GLB.
 `hq_assembly.js` now owns only a bounded renderer cache, plus the old static sprite's
 fallback coordinates. No old image partitioning code remains.
+
+## Operational yard facilities
+
+`tools/blender/yard_equipment.py` builds the architectural equipment through the
+same rigid-joint helpers as the chassis. It has no gameplay or renderer state.
+
+- Rear-left corrugated workshop with double service doors and roof lifting eyes.
+- Front-right glazed control cabin with a separate door, step and roof air unit.
+- Rear-right concave radar dish on a telescoping mast and folding yoke.
+- Front-left generator/cooling plant with fans, louvers, switchgear and pipes.
+- Roof service walkways, folding guardrails, two folding worklight masts and a
+  front access ladder.
+- Ground-apron pallets, strapped crates, structural beam stock and service drums.
+
+The two cabin shells unfold from horizontal wall leaves; roofs travel on nested
+posts. The equipment rides the existing roof carriages. Radar deployment follows
+lateral clearance and mast extension. Ground supplies inherit their apron motion.
+The central mast and the crane corridor stay open. There are no new scale tracks,
+opacity reveals or separate endpoint images. The asset contract revision and URL
+are versioned together so a browser cannot mix the previous GLB with this rig.
 
 ## Settled rendering
 
@@ -84,4 +104,6 @@ Validation results are recorded beside the captured previews after execution.
 
 ## Verified in the game
 
-Chromium and Firefox both passed the complete MCV integration test with zero page errors. Measured deploy durations were 0.8000 s and 0.8180 s respectively (one frame of observation granularity). Construction advanced before deployment finished. Art validation passed all 49 poses; the completed cached raster had zero differing pixel channels from the final animated raster. Six settled yards shared one 624,100-byte image with zero new WebGL pages after warm-up.
+Revision 4 passed the full Chromium MCV integration test with zero page errors. Measured deployment was 0.8000 seconds; construction advanced before it finished. Production, HP preservation, blocked placement, option gating, double-click, movement-command repacking, reverse pose equality, death, selling and enemy deployment passed.
+
+Art validation captured 49 poses. The final model raster and completed cached image had zero differing pixel channels. Six settled yards shared one 624,100-byte image and submitted zero new WebGL pages after warm-up. Both the packed vehicle and intermediate/final equipment poses were visually reviewed. Revision 4 was tested in Chromium; Firefox coverage belongs to the preceding mechanical revision.

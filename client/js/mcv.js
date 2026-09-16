@@ -4,7 +4,7 @@
 (function(g){
  'use strict';
  const clamp=v=>Math.max(0,Math.min(1,v));
- const M={modelUrl:'../asset/model/mcv/mcv.glb?v=3',scale:20,modelScale:1.65,renderSpan:30,hqSpan:62,wheelRadius:.65,turnRate:7.5,deployTurnRate:20,seconds:.8,heading:Math.PI/2};
+ const M={modelUrl:'../asset/model/mcv/mcv.glb?v=4',scale:20,modelScale:1.65,renderSpan:30,hqSpan:62,wheelRadius:.65,turnRate:7.5,deployTurnRate:20,seconds:.8,heading:Math.PI/2};
  M.progress=(b,t)=>b._mcvSelling?clamp(1-(t-b._mcvSellT0)/M.seconds):b._mcvPhase==='deploy'?clamp((t-b._mcvT0)/M.seconds):b._mcvPhase==='pack'?clamp(1-(t-b._mcvT0)/M.seconds):b.kind==='hq'?1:0;
  M.beginSell=(b,t)=>{b._mcvSelling=true;b._mcvSellT0=t;b._mcvSellFinalizeAt=t+M.seconds+.25;};
  M.drive=(u,dx,dy,dt,dir8)=>{const m=g.OUTankMotion,target=Math.atan2(dy,dx);u.bodyYaw=m.toward(m.readPose(u).bodyYaw,target,M.turnRate,dt);u.bodyDir=u.dir=dir8(Math.cos(u.bodyYaw),Math.sin(u.bodyYaw));u.bodyTurn=null;if(Math.abs(m.wrap(target-u.bodyYaw))>.04){u.travelPhase='hull';return false;}u.bodyYaw=target;u.travelPhase='drive';return true;};

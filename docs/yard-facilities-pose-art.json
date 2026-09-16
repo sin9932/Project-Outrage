@@ -1,0 +1,29 @@
+{
+  "endpointPixelDifferences": 0,
+  "cacheBefore": {
+    "entries": 1,
+    "bytes": 2226064,
+    "hits": 2123,
+    "builds": 3,
+    "limit": 33554432
+  },
+  "cacheAfter": {
+    "entries": 1,
+    "bytes": 2226064,
+    "hits": 2247,
+    "builds": 3,
+    "limit": 33554432
+  },
+  "six": {
+    "cache": {
+      "entries": 1,
+      "bytes": 624100,
+      "hits": 2507,
+      "builds": 4,
+      "limit": 33554432
+    },
+    "pages": 0,
+    "draws": 6
+  },
+  "errors": []
+}

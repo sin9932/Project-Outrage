@@ -1,5 +1,5 @@
 // Deferred after tank_config and tank_motion; game startup awaits this promise.
-window.OUTank3DReady = import('./tank3d.js').then(m => m.ready).catch(error => {
+window.OUTank3DReady = import('./tank3d.js?v=4').then(m => m.ready).catch(error => {
   console.error('[tank3d] bootstrap failed', error);
   return false;
 });

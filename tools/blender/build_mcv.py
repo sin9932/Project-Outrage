@@ -395,6 +395,16 @@ cylinder('Hook block',(0,0,-.05),.14,.22,yellow,'Hook',vertices=8,rad=0)
 beam('Hook bent lower',(0,0,-.15),(.12,0,-.30),.038,steel,'Hook')
 beam('Hook end',(.12,0,-.30),(.23,0,-.17),.038,steel,'Hook')
 
+# Separate architectural equipment module keeps the mechanical chassis rig small.
+from types import SimpleNamespace
+sys.path.insert(0,str(Path(__file__).resolve().parent))
+from yard_equipment import build_yard_equipment
+facilities=build_yard_equipment(SimpleNamespace(
+    joint=joint,box=box,cylinder=cylinder,beam=beam,mesh=mesh,fan=fan,
+    material=material,weather=weather,
+    materials=SimpleNamespace(armor=armor,edge=edge,panel=panel,steel=steel,
+                              black=black,team=team,yellow=yellow)))
+
 # Bake each joint as a rigid transform. No animated scale or mesh visibility.
 for group,objs in list(parts.items()):
     for o in objs:
@@ -425,7 +435,7 @@ for name,d in rig.items():
 scene.frame_start=0;scene.frame_end=90;scene.frame_set(0)
 bpy.ops.object.select_all(action='SELECT');bpy.context.view_layer.objects.active=nodes['Hull']
 bpy.ops.export_scene.gltf(filepath=str(OUT/'mcv.glb'),export_format='GLB',use_selection=True,export_yup=True,export_animations=True,export_animation_mode='NLA_TRACKS',export_force_sampling=True,export_apply=True)
-(OUT/'contract.json').write_text(json.dumps({'revision':3,'clip':'Deploy','authoringSeconds':3,'runtimeSeconds':.8,'worldUnitsPerMetre':20,'modelScale':1.65,'heading':'+Z','up':'+Y','constantScale':True,'settledYard':'cached exact Deploy endpoint','rig':rig,'assembly':'rigid joints with nested hidden cassettes'},indent=2))
+(OUT/'contract.json').write_text(json.dumps({'revision':4,'facilities':facilities,'clip':'Deploy','authoringSeconds':3,'runtimeSeconds':.8,'worldUnitsPerMetre':20,'modelScale':1.65,'heading':'+Z','up':'+Y','constantScale':True,'settledYard':'cached exact Deploy endpoint','rig':rig,'assembly':'rigid joints with nested hidden cassettes'},indent=2))
 def aim(o,p):o.rotation_euler=(Vector(p)-o.location).to_track_quat('-Z','Y').to_euler()
 for name,loc,power,size in [('Key',(-8,-12,23),5500,12),('Fill',(12,-3,17),1800,10),('Rim',(0,10,20),2200,10)]:
     d=bpy.data.lights.new(name,'AREA');d.energy=power;d.size=size;o=bpy.data.objects.new(name,d);scene.collection.objects.link(o);o.location=loc;aim(o,(0,0,3))
