@@ -2752,59 +2752,33 @@ function draw(now){
       if (window.FX.bloodStains) window.FX.bloodStains.length=0;
       if (window.FX.bloodPuffs) window.FX.bloodPuffs.length=0;
     }
-    buildOcc.fill(0);
+    for (const grid of [buildOcc, occInf, occVeh, occAll, occTeam, occAnyId, occResId]) grid.fill(0);
     explored[TEAM.PLAYER].fill(0);
     visible[TEAM.PLAYER].fill(0);
     explored[TEAM.ENEMY].fill(0);
     visible[TEAM.ENEMY].fill(0);
     nextId=1;
+    _entityByIdMap.clear();
     state.selection.clear();
     state.build.active=false; state.build.kind=null;
     if (state.stats){ state.stats.kills[0]=0; state.stats.kills[1]=0; state.stats.losses[0]=0; state.stats.losses[1]=0; state.stats.construction[0]=0; state.stats.construction[1]=0; state.stats.harvest[0]=0; state.stats.harvest[1]=0; }
     state.gameOverPending = null;
     state.gameOverFade = null;
     prodFIFO.barracks.length=0; prodFIFO.factory.length=0;
-    prodTotal.infantry=0; prodTotal.engineer=0; prodTotal.tank=0; prodTotal.harvester=0;
+    for (const kind of Object.keys(prodTotal)) prodTotal[kind] = 0;
     state.player.money = Math.floor(START_MONEY); state.enemy.money = Math.floor(START_MONEY);
     gameOver=false;
     state.lastSingleId=null; state.lastSingleKind=null;
   }
 
-  // [refactor] findFootprintSpotNear, placeStart -> ou_game_setup.js
+  // Setup places units; the normal MCV lifecycle creates the first HQ.
   const __ou_setup = (window.OUGameSetup && typeof window.OUGameSetup.create === "function")
     ? window.OUGameSetup.create({
-        clearWorld,
-        addBuilding,
-        isBlockedFootprint,
-        buildings,
-        BUILD,
-        TEAM,
-        clamp,
-        MAP_W,
-        MAP_H,
-        inMap,
-        idx,
-        explored,
-        visible,
-        recomputePower,
-        centerCameraOn,
-        updateSelectionUI,
-        getStartBeaconTiles: () => startBeaconTiles
+        clearWorld, addUnit, isBlockedFootprint, state, BUILD, TEAM, TILE,
+        MAP_W, MAP_H, updateVision, recomputePower, centerCameraOn,
+        updateSelectionUI, getStartBeaconTiles: () => startBeaconTiles
       })
     : null;
-  const findFootprintSpotNear = __ou_setup ? __ou_setup.findFootprintSpotNear : (kind, nearTx, nearTy, tries) => {
-    const spec = BUILD[kind];
-    for (let i = 0; i < (tries || 260); i++) {
-      const tx = nearTx + ((Math.random() * 18) | 0) - 9;
-      const ty = nearTy + ((Math.random() * 18) | 0) - 9;
-      if (!isBlockedFootprint(tx, ty, spec.tw, spec.th,kind)) return { tx, ty };
-    }
-    return { tx: clamp(nearTx, 0, MAP_W - spec.tw), ty: clamp(nearTy, 0, MAP_H - spec.th) };
-  };
-  const placeStart = __ou_setup ? __ou_setup.placeStart : (spawn) => {
-    clearWorld();
-    if (window.OUGameSetup) console.warn("[OUGameSetup] create failed - check refs");
-  };
 
   // ✅ 시작 버튼 이벤트 복구 (이게 빠지면 "아무 버튼도 안눌림"처럼 보임)
 
@@ -2826,8 +2800,7 @@ function draw(now){
 function spawnStartingUnits(){
   // Opt-in playable regression scenario; ordinary matches keep their economy.
   if (!DEV_VALIDATE || !new URLSearchParams(location.search).has('tankdemo')) return;
-  const hq = buildings.find(b=>b.alive && b.team===TEAM.PLAYER && b.kind==='hq');
-  if (!hq) return;
+  if (!units.some(u=>u.alive && u.team===TEAM.PLAYER && u.kind==='mcv')) return;
   const anchorTx=Math.floor(MAP_W/2), anchorTy=Math.floor(MAP_H/2);
   const spots=[], seenSpots=new Set();
   for (let radius=3;radius<14 && spots.length<5;radius++) {
@@ -2921,8 +2894,13 @@ if (isCallable(__ou_ui, "bindPregameStart")){
     visible[TEAM.PLAYER].fill(0);
     visible[TEAM.ENEMY].fill(0);
     state._placeStartPhase = true;
-    placeStart(spawnChoice);
+    const placed = __ou_setup?.placeStart(spawnChoice);
     state._placeStartPhase = false;
+    if (!placed) {
+      if (isCallable(__ou_ui, "setPregameLoading")) __ou_ui.setPregameLoading({ loading: false, forceEnable: true });
+      toast("MCV를 전개할 수 있는 시작 공간이 부족합니다.", 5);
+      return;
+    }
     if (window.OUTank3DReady) await window.OUTank3DReady;
     spawnStartingUnits();
     if (isCallable(__ou_ui, "hidePregame")){
@@ -2939,7 +2917,7 @@ if (isCallable(__ou_ui, "bindPregameStart")){
     state, units, buildings, cam, TEAM, terrain, ore, isGem, treeHp, buildOcc, TILE, MAP_W, MAP_H,
     addUnit, getEntityById, worldToScreen, screenToWorld, centerCameraOn,
     mcv:__ou_mcv, BUILD, UNIT, COST, commands:__ou_commands, sim:__ou_sim, ai:__ou_ai, camera:__ou_cam, addBuilding, destroyBuilding,
-    footprint:__ou_footprint, applyDamage, economy:__ou_econ, sellBuilding,
+    footprint:__ou_footprint, applyDamage, economy:__ou_econ, sellBuilding, setup:__ou_setup,
     get running(){return running;},
     setFog(value){fogEnabled=!!value;},
     get explored(){return explored;}, get visible(){return visible;}

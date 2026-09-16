@@ -1,140 +1,83 @@
-// ou_game_setup.js
-// [refactor] Game start placement logic extracted from game.js
-// - findFootprintSpotNear: find valid tile for building footprint
-// - placeStart: clear world, place HQ for both teams, reveal fog
-
+// Match placement owns start locations, while MCV deployment remains in mcv.js.
 (function (global) {
   "use strict";
 
   const OUGameSetup = global.OUGameSetup || (global.OUGameSetup = {});
 
-  /**
-   * create(refs) -> { placeStart, findFootprintSpotNear }
-   * refs: { clearWorld, addBuilding, isBlockedFootprint, buildings, BUILD, TEAM,
-   *         clamp, MAP_W, MAP_H, inMap, idx, explored, visible,
-   *         recomputePower, centerCameraOn, updateSelectionUI, getStartBeaconTiles }
-   */
-  OUGameSetup.create = function create(refs) {
-    const r = refs || {};
-    const clearWorld = r.clearWorld;
-    const addBuilding = r.addBuilding;
-    const isBlockedFootprint = r.isBlockedFootprint;
-    const buildings = r.buildings || [];
-    const BUILD = r.BUILD || {};
-    const TEAM = r.TEAM || {};
-    const clamp = r.clamp || ((v, a, b) => Math.max(a, Math.min(b, v)));
-    const MAP_W = r.MAP_W || 40;
-    const MAP_H = r.MAP_H || 40;
-    const inMap = r.inMap || (() => false);
-    const idx = r.idx || (() => 0);
-    const explored = r.explored || [];
-    const visible = r.visible || [];
-    const recomputePower = r.recomputePower || (() => {});
-    const centerCameraOn = r.centerCameraOn || (() => {});
-    const updateSelectionUI = r.updateSelectionUI || (() => {});
-    const getStartBeaconTiles = r.getStartBeaconTiles || (() => []);
+  OUGameSetup.create = function create(r) {
+    const { clearWorld, addUnit, isBlockedFootprint, state, BUILD, TEAM, TILE,
+      MAP_W, MAP_H, updateVision, recomputePower, centerCameraOn,
+      updateSelectionUI, getStartBeaconTiles } = r;
 
-    function findFootprintSpotNear(kind, nearTx, nearTy, tries) {
-      tries = tries || 260;
+    // Search nearest first, then every legal origin. Never return an unchecked
+    // fallback: a mobile start must be able to deploy without moving first.
+    function findFootprintSpotNear(kind, nearTx, nearTy, reserved = []) {
       const spec = BUILD[kind];
-      if (!spec) return { tx: clamp(nearTx, 0, MAP_W - 1), ty: clamp(nearTy, 0, MAP_H - 1) };
-      const tw = spec.tw || 1;
-      const th = spec.th || 1;
-      for (let i = 0; i < tries; i++) {
-        const tx = nearTx + ((Math.random() * 18) | 0) - 9;
-        const ty = nearTy + ((Math.random() * 18) | 0) - 9;
-        if (!isBlockedFootprint(tx, ty, tw, th,kind)) return { tx, ty };
+      if (!spec || spec.tw > MAP_W || spec.th > MAP_H) return null;
+      const maxTx = MAP_W - spec.tw, maxTy = MAP_H - spec.th;
+      const cx = Math.max(0, Math.min(maxTx, Math.floor(nearTx)));
+      const cy = Math.max(0, Math.min(maxTy, Math.floor(nearTy)));
+      function candidate(tx, ty) {
+        if (tx < 0 || ty < 0 || tx > maxTx || ty > maxTy) return null;
+        // Keep the two future HQ footprints separate before either MCV exists.
+        if (reserved.some(p => tx < p.tx + p.tw + 1 && tx + spec.tw + 1 > p.tx &&
+          ty < p.ty + p.th + 1 && ty + spec.th + 1 > p.ty)) return null;
+        return isBlockedFootprint(tx, ty, spec.tw, spec.th, kind) ? null : { tx, ty };
       }
-      return { tx: clamp(nearTx, 0, MAP_W - tw), ty: clamp(nearTy, 0, MAP_H - th) };
+      const center = candidate(cx, cy);
+      if (center) return center;
+      for (let radius = 1; radius <= Math.max(MAP_W, MAP_H); radius++) {
+        for (let dx = -radius; dx <= radius; dx++) {
+          const top = candidate(cx + dx, cy - radius);
+          if (top) return top;
+          const bottom = candidate(cx + dx, cy + radius);
+          if (bottom) return bottom;
+        }
+        for (let dy = -radius + 1; dy < radius; dy++) {
+          const left = candidate(cx - radius, cy + dy);
+          if (left) return left;
+          const right = candidate(cx + radius, cy + dy);
+          if (right) return right;
+        }
+      }
+      return null;
+    }
+
+    function startAnchors(spawn) {
+      const side = spawn === "random" ? (Math.random() < 0.5 ? "left" : "right") : spawn;
+      const beacons = getStartBeaconTiles();
+      if (beacons.length >= 2) {
+        // Tile index order and isometric screen left/right run in reverse.
+        return side === "left" ? [beacons[1], beacons[0]] : [beacons[0], beacons[1]];
+      }
+      return side === "left"
+        ? [{ tx: Math.floor(MAP_W * 0.22), ty: Math.floor(MAP_H * 0.62) },
+           { tx: Math.floor(MAP_W * 0.78), ty: Math.floor(MAP_H * 0.38) }]
+        : [{ tx: Math.floor(MAP_W * 0.86), ty: Math.floor(MAP_H * 0.72) },
+           { tx: Math.floor(MAP_W * 0.14), ty: Math.floor(MAP_H * 0.28) }];
     }
 
     function placeStart(spawn) {
-      if (typeof clearWorld === "function") clearWorld();
-
-      const startBeaconTiles = getStartBeaconTiles();
-      let a, b;
-
-      if (startBeaconTiles.length >= 2) {
-        // 썸네일 left=화면 왼쪽(거점1), right=화면 오른쪽(거점2). 타일 정렬(ty*W+tx)과 화면 좌우가 반대.
-        const idxForLeft = 1;
-        const idxForRight = 0;
-        if (spawn === "left") {
-          a = { tx: startBeaconTiles[idxForLeft].tx, ty: startBeaconTiles[idxForLeft].ty };
-          b = { tx: startBeaconTiles[idxForRight].tx, ty: startBeaconTiles[idxForRight].ty };
-        } else {
-          a = { tx: startBeaconTiles[idxForRight].tx, ty: startBeaconTiles[idxForRight].ty };
-          b = { tx: startBeaconTiles[idxForLeft].tx, ty: startBeaconTiles[idxForLeft].ty };
-        }
-      } else {
-        if (spawn === "left") {
-          a = { tx: Math.floor(MAP_W * 0.22), ty: Math.floor(MAP_H * 0.62) };
-          b = { tx: Math.floor(MAP_W * 0.78), ty: Math.floor(MAP_H * 0.38) };
-        } else {
-          a = { tx: Math.floor(MAP_W * 0.86), ty: Math.floor(MAP_H * 0.72) };
-          b = { tx: Math.floor(MAP_W * 0.14), ty: Math.floor(MAP_H * 0.28) };
-        }
+      clearWorld();
+      const spec = BUILD.hq;
+      if (!spec) return false;
+      const anchors = startAnchors(spawn), spots = [];
+      for (const anchor of anchors) {
+        const spot = findFootprintSpotNear("hq", anchor.tx - Math.floor(spec.tw / 2),
+          anchor.ty - Math.floor(spec.th / 2), spots);
+        if (!spot) return false;
+        spots.push({ ...spot, tw: spec.tw, th: spec.th });
       }
-
-      function safePlace(team, kind, nearTx, nearTy) {
-        const spot = findFootprintSpotNear(kind, nearTx, nearTy, 420);
-        if (!spot) return null;
-        const b = addBuilding(team, kind, spot.tx, spot.ty);
-        if (b && kind === "barracks") {
-          b._barrackNoBuildAnim = true;
-          b._barrackBuildT0 = null;
-          b._barrackBuildDone = true;
-        }
-        return b;
-      }
-
-      const hqSpec = BUILD.hq;
-      if (!hqSpec) return;
-
-      const hqCenterOffTx = (hqSpec.tw / 2) | 0;
-      const hqCenterOffTy = (hqSpec.th / 2) | 0;
-      const useBeacon = startBeaconTiles.length >= 2;
-      let pHQ = null;
-      let eHQ = null;
-
-      if (useBeacon) {
-        const playerHQtx = a.tx - hqCenterOffTx;
-        const playerHQty = a.ty - hqCenterOffTy;
-        if (!isBlockedFootprint(playerHQtx, playerHQty, hqSpec.tw, hqSpec.th)) {
-          pHQ = addBuilding(TEAM.PLAYER, "hq", playerHQtx, playerHQty);
-        } else {
-          pHQ = safePlace(TEAM.PLAYER, "hq", playerHQtx, playerHQty);
-        }
-        const enemyHQtx = b.tx - hqCenterOffTx;
-        const enemyHQty = b.ty - hqCenterOffTy;
-        if (!isBlockedFootprint(enemyHQtx, enemyHQty, hqSpec.tw, hqSpec.th)) {
-          eHQ = addBuilding(TEAM.ENEMY, "hq", enemyHQtx, enemyHQty);
-        } else {
-          eHQ = safePlace(TEAM.ENEMY, "hq", enemyHQtx, enemyHQty);
-        }
-      } else {
-        pHQ = safePlace(TEAM.PLAYER, "hq", a.tx - hqCenterOffTx, a.ty - hqCenterOffTy);
-        eHQ = safePlace(TEAM.ENEMY, "hq", b.tx - hqCenterOffTx, b.ty - hqCenterOffTy);
-      }
-
-      // Reveal HQ footprints immediately (avoid black tiles on first frame)
-      for (const b of buildings) {
-        if (!b || !b.alive || (b.team !== TEAM.PLAYER && b.team !== TEAM.ENEMY)) continue;
-        const tw = b.tw ?? (BUILD[b.kind] && BUILD[b.kind].tw) ?? 1;
-        const th = b.th ?? (BUILD[b.kind] && BUILD[b.kind].th) ?? 1;
-        for (let ty = b.ty; ty < b.ty + th; ty++) {
-          for (let tx = b.tx; tx < b.tx + tw; tx++) {
-            if (inMap(tx, ty)) {
-              const i = idx(tx, ty);
-              if (explored[b.team]) explored[b.team][i] = 1;
-              if (visible[b.team]) visible[b.team][i] = 1;
-            }
-          }
-        }
-      }
-
+      const mcvs = spots.map((spot, i) => addUnit(i === 0 ? TEAM.PLAYER : TEAM.ENEMY,
+        "mcv", (spot.tx + spec.tw / 2) * TILE, (spot.ty + spec.th / 2) * TILE,
+        { skipMvp: true }));
+      state.selection.add(mcvs[0].id);
+      // Use ordinary unit vision, including the fog-off option, on the first frame.
+      updateVision();
       recomputePower();
-      if (pHQ) centerCameraOn(pHQ.x, pHQ.y);
+      centerCameraOn(mcvs[0].x, mcvs[0].y);
       updateSelectionUI();
+      return true;
     }
 
     return { placeStart, findFootprintSpotNear };

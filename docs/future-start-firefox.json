@@ -1,0 +1,433 @@
+{
+  "initialMobile": true,
+  "selected": true,
+  "fog": true,
+  "validSites": true,
+  "shortGameNoPrematureEnd": true,
+  "keyboardDeploy": true,
+  "enemyDeployAndBuild": true,
+  "pauseMenuRestart": true,
+  "oppositeBeacon": true,
+  "doubleClickDeploy": true,
+  "blockedBeaconFallback": true,
+  "randomStart": true,
+  "left": {
+    "hqs": 0,
+    "hqHp": 3000,
+    "units": [
+      {
+        "id": 1,
+        "team": 0,
+        "x": 495,
+        "y": 3905,
+        "hp": 3000,
+        "hpMax": 3000,
+        "valid": true,
+        "site": {
+          "tx": 2,
+          "ty": 33
+        },
+        "explored": 1,
+        "visible": 1
+      },
+      {
+        "id": 2,
+        "team": 1,
+        "x": 3905,
+        "y": 495,
+        "hp": 3000,
+        "hpMax": 3000,
+        "valid": true,
+        "site": {
+          "tx": 33,
+          "ty": 2
+        },
+        "explored": 1,
+        "visible": 1
+      }
+    ],
+    "selection": [
+      1
+    ],
+    "money": [
+      10000,
+      10000
+    ],
+    "power": [
+      0,
+      0
+    ],
+    "occupied": 0,
+    "view": {
+      "x": 510,
+      "y": 450
+    },
+    "canvas": {
+      "w": 1440,
+      "h": 900
+    },
+    "seenTiles": 105,
+    "mapTiles": 1600,
+    "end": false
+  },
+  "right": {
+    "hqs": 0,
+    "hqHp": 3000,
+    "units": [
+      {
+        "id": 1,
+        "team": 0,
+        "x": 3905,
+        "y": 495,
+        "hp": 3000,
+        "hpMax": 3000,
+        "valid": true,
+        "site": {
+          "tx": 33,
+          "ty": 2
+        },
+        "explored": 1,
+        "visible": 1
+      },
+      {
+        "id": 2,
+        "team": 1,
+        "x": 495,
+        "y": 3905,
+        "hp": 3000,
+        "hpMax": 3000,
+        "valid": true,
+        "site": {
+          "tx": 2,
+          "ty": 33
+        },
+        "explored": 1,
+        "visible": 1
+      }
+    ],
+    "selection": [
+      1
+    ],
+    "money": [
+      10000,
+      10000
+    ],
+    "power": [
+      0,
+      0
+    ],
+    "occupied": 0,
+    "view": {
+      "x": 510,
+      "y": 450
+    },
+    "canvas": {
+      "w": 1440,
+      "h": 900
+    },
+    "seenTiles": 105,
+    "mapTiles": 1600,
+    "end": false
+  },
+  "fallback": {
+    "placed": true,
+    "blockedBeacon": {
+      "hqs": 0,
+      "hqHp": 3000,
+      "units": [
+        {
+          "id": 1,
+          "team": 0,
+          "x": 385,
+          "y": 4015,
+          "hp": 3000,
+          "hpMax": 3000,
+          "valid": true,
+          "site": {
+            "tx": 1,
+            "ty": 34
+          },
+          "explored": 1,
+          "visible": 1
+        },
+        {
+          "id": 2,
+          "team": 1,
+          "x": 3905,
+          "y": 495,
+          "hp": 3000,
+          "hpMax": 3000,
+          "valid": true,
+          "site": {
+            "tx": 33,
+            "ty": 2
+          },
+          "explored": 1,
+          "visible": 1
+        }
+      ],
+      "selection": [
+        1
+      ],
+      "money": [
+        10000,
+        10000
+      ],
+      "power": [
+        0,
+        0
+      ],
+      "occupied": 0,
+      "view": {
+        "x": 510,
+        "y": 450
+      },
+      "canvas": {
+        "w": 1440,
+        "h": 900
+      },
+      "seenTiles": 88,
+      "mapTiles": 1600,
+      "end": false
+    },
+    "random": [
+      {
+        "hqs": 0,
+        "hqHp": 3000,
+        "units": [
+          {
+            "id": 1,
+            "team": 0,
+            "x": 495,
+            "y": 3905,
+            "hp": 3000,
+            "hpMax": 3000,
+            "valid": true,
+            "site": {
+              "tx": 2,
+              "ty": 33
+            },
+            "explored": 1,
+            "visible": 1
+          },
+          {
+            "id": 2,
+            "team": 1,
+            "x": 3905,
+            "y": 495,
+            "hp": 3000,
+            "hpMax": 3000,
+            "valid": true,
+            "site": {
+              "tx": 33,
+              "ty": 2
+            },
+            "explored": 1,
+            "visible": 1
+          }
+        ],
+        "selection": [
+          1
+        ],
+        "money": [
+          10000,
+          10000
+        ],
+        "power": [
+          0,
+          0
+        ],
+        "occupied": 0,
+        "view": {
+          "x": 510,
+          "y": 450
+        },
+        "canvas": {
+          "w": 1440,
+          "h": 900
+        },
+        "seenTiles": 105,
+        "mapTiles": 1600,
+        "end": false
+      },
+      {
+        "hqs": 0,
+        "hqHp": 3000,
+        "units": [
+          {
+            "id": 1,
+            "team": 0,
+            "x": 495,
+            "y": 3905,
+            "hp": 3000,
+            "hpMax": 3000,
+            "valid": true,
+            "site": {
+              "tx": 2,
+              "ty": 33
+            },
+            "explored": 1,
+            "visible": 1
+          },
+          {
+            "id": 2,
+            "team": 1,
+            "x": 3905,
+            "y": 495,
+            "hp": 3000,
+            "hpMax": 3000,
+            "valid": true,
+            "site": {
+              "tx": 33,
+              "ty": 2
+            },
+            "explored": 1,
+            "visible": 1
+          }
+        ],
+        "selection": [
+          1
+        ],
+        "money": [
+          10000,
+          10000
+        ],
+        "power": [
+          0,
+          0
+        ],
+        "occupied": 0,
+        "view": {
+          "x": 510,
+          "y": 450
+        },
+        "canvas": {
+          "w": 1440,
+          "h": 900
+        },
+        "seenTiles": 105,
+        "mapTiles": 1600,
+        "end": false
+      },
+      {
+        "hqs": 0,
+        "hqHp": 3000,
+        "units": [
+          {
+            "id": 1,
+            "team": 0,
+            "x": 3905,
+            "y": 495,
+            "hp": 3000,
+            "hpMax": 3000,
+            "valid": true,
+            "site": {
+              "tx": 33,
+              "ty": 2
+            },
+            "explored": 1,
+            "visible": 1
+          },
+          {
+            "id": 2,
+            "team": 1,
+            "x": 495,
+            "y": 3905,
+            "hp": 3000,
+            "hpMax": 3000,
+            "valid": true,
+            "site": {
+              "tx": 2,
+              "ty": 33
+            },
+            "explored": 1,
+            "visible": 1
+          }
+        ],
+        "selection": [
+          1
+        ],
+        "money": [
+          10000,
+          10000
+        ],
+        "power": [
+          0,
+          0
+        ],
+        "occupied": 0,
+        "view": {
+          "x": 510,
+          "y": 450
+        },
+        "canvas": {
+          "w": 1440,
+          "h": 900
+        },
+        "seenTiles": 105,
+        "mapTiles": 1600,
+        "end": false
+      },
+      {
+        "hqs": 0,
+        "hqHp": 3000,
+        "units": [
+          {
+            "id": 1,
+            "team": 0,
+            "x": 495,
+            "y": 3905,
+            "hp": 3000,
+            "hpMax": 3000,
+            "valid": true,
+            "site": {
+              "tx": 2,
+              "ty": 33
+            },
+            "explored": 1,
+            "visible": 1
+          },
+          {
+            "id": 2,
+            "team": 1,
+            "x": 3905,
+            "y": 495,
+            "hp": 3000,
+            "hpMax": 3000,
+            "valid": true,
+            "site": {
+              "tx": 33,
+              "ty": 2
+            },
+            "explored": 1,
+            "visible": 1
+          }
+        ],
+        "selection": [
+          1
+        ],
+        "money": [
+          10000,
+          10000
+        ],
+        "power": [
+          0,
+          0
+        ],
+        "occupied": 0,
+        "view": {
+          "x": 510,
+          "y": 450
+        },
+        "canvas": {
+          "w": 1440,
+          "h": 900
+        },
+        "seenTiles": 105,
+        "mapTiles": 1600,
+        "end": false
+      }
+    ]
+  },
+  "errors": []
+}

@@ -271,8 +271,8 @@ export const ready = (async () => {
     const marker=new THREE.Mesh(new THREE.CircleGeometry(1.3,24),markerMat);marker.quaternion.copy(camera.quaternion);hull.add(marker);materials=[markerMat];scene.add(model);remember('ifv');
     selectAsset('tank');api.factoryReady=true;
     const mg=await new GLTFLoader().loadAsync(new URL(window.OUMCV.modelUrl,import.meta.url).href);
-    const contract=await fetch(new URL('../asset/model/mcv/contract.json?v=4',import.meta.url)).then(r=>{if(!r.ok)throw Error('MCV contract unavailable');return r.json();});
-    if(contract.revision!==4||contract.runtimeSeconds!==window.OUMCV.seconds||contract.worldUnitsPerMetre!==window.OUMCV.scale||contract.modelScale!==window.OUMCV.modelScale||contract.up!=='+Y'||contract.heading!=='+Z')throw Error('MCV model dimensions/timing contract mismatch');
+    const contract=await fetch(new URL('../asset/model/mcv/contract.json?v=5',import.meta.url)).then(r=>{if(!r.ok)throw Error('MCV contract unavailable');return r.json();});
+    if(contract.revision!==5||contract.runtimeSeconds!==window.OUMCV.seconds||contract.worldUnitsPerMetre!==window.OUMCV.scale||contract.modelScale!==window.OUMCV.modelScale||contract.up!=='+Y'||contract.heading!=='+Z')throw Error('MCV model dimensions/timing contract mismatch');
     const mc=mg.animations.find(c=>c.name==='Deploy');if(!mc||Math.abs(mc.duration-3)>.02||mc.tracks.some(t=>t.name.endsWith('.scale')))throw Error('Rigid MCV Deploy clip contract mismatch');
     for(const kind of ['mcv','hq']){
       config={...window.OUMCV,renderSpan:kind==='hq'?window.OUMCV.hqSpan:window.OUMCV.renderSpan};

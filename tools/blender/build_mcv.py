@@ -25,9 +25,9 @@ def material(name, color, metal=0.0, rough=.45):
     p.inputs['Roughness'].default_value = rough
     return m
 
-armor = material('Armor | silver', (.23,.255,.25), .48,.48)
-edge = material('Armor | machined edges', (.32,.31,.27), .62,.40)
-panel = material('Armor | recessed panels', (.19,.18,.15), .4,.46)
+armor = material('Armor | silver', (.47,.54,.60), .48,.34)
+edge = material('Armor | machined edges', (.105,.16,.215), .68,.32)
+panel = material('Armor | recessed panels', (.040,.075,.115), .55,.40)
 rubber = material('Tracks | charcoal rubber', (.018,.023,.025), .12,.62)
 steel = material('Tracks | dark steel', (.075,.085,.083), .68,.43)
 team = material('TeamColor | orchid', (.95,.25,.025), .25,.34)
@@ -83,10 +83,10 @@ def loft(name,rings,mat,group,rad=.035):
 
 
 import numpy as np
-concrete=material('Concrete | weathered olive',(.145,.14,.105),.05,.87)
-trim=material('Trim | worn concrete',(.22,.215,.165),.12,.76)
-roofmat=material('Roof | olive panels',(.175,.17,.125),.18,.73)
-dirt=material('Foundation | oxidized grime',(.105,.075,.041),.03,.95)
+concrete=material('Composite | blue graphite',(.105,.17,.235),.46,.42)
+trim=material('Trim | titanium ceramic',(.30,.38,.45),.5,.34)
+roofmat=material('Roof | graphite decking',(.055,.09,.13),.45,.43)
+dirt=material('Foundation | protected composite',(.075,.1,.13),.2,.65)
 yellow=material('Safety | amber',(.63,.40,.045),.12,.55)
 light=material('Interior | lamps',(.65,.78,.77),.1,.3)
 team.node_tree.nodes.get('Principled BSDF').inputs['Base Color'].default_value=(.46,.025,.32,1)
@@ -98,22 +98,12 @@ def weather(mat,seed):
  noise=np.zeros((n,n))
  # Isotropic filtered noise avoids the artificial crosshatch of sine products.
  fy=np.fft.fftfreq(n)[:,None];fx=np.fft.fftfreq(n)[None,:]
- for scale,amp in [(18,.04),(7,.025),(2,.012)]:
+ for scale,amp in [(18,.015),(7,.008),(2,.005)]:
   field=np.fft.ifft2(np.fft.fft2(rng.standard_normal((n,n)))*np.exp(-(fx*fx+fy*fy)*scale*scale*20)).real
   noise+=field/(field.std()+1e-6)*amp
- noise+=rng.uniform(-.018,.018,(n,n))
+ noise+=rng.uniform(-.004,.004,(n,n))
  base=np.array(mat.diffuse_color[:3]);rgba=np.ones((n,n,4),dtype=np.float32)
  rgba[:,:,:3]=np.clip(base[None,None,:]*(.88+noise[:,:,None]*2),0,1)
- # Vertical wall UVs are measured from ground: irregular splash dirt and runoff.
- if mat in (concrete,trim):
-  stripe=np.zeros((n,n))
-  for _ in range(40):
-   cx=rng.uniform(0,1);width=rng.uniform(.002,.012);height=rng.uniform(.08,.6)
-   stripe+=np.exp(-((xx-cx)/width)**2)*np.maximum(0,1-yy/height)*rng.uniform(.12,.4)
-  splash=np.clip((.18-yy+noise*.27)/.2,0,.85)
-  grime=np.clip(splash+stripe,0,.8)
-  rgba[:,:,:3]*=(1-grime[:,:,None]*.70)
-  rgba[:,:,:3]+=grime[:,:,None]*np.array([.025,.012,.004])
  # Store sRGB pixels: glTF color maps are decoded as sRGB by the game renderer.
  rgba[:,:,:3]=np.where(rgba[:,:,:3]<=.0031308,12.92*rgba[:,:,:3],1.055*np.power(rgba[:,:,:3],1/2.4)-.055)
  im=bpy.data.images.new(mat.name+' albedo',width=n,height=n)
@@ -190,7 +180,7 @@ for s in (-1,1):
             a=k*math.tau/20;box('Tire tread',(0,.63*math.sin(a),.63*math.cos(a)),(.46,.12,.04),rubber,name,0,rotation=(-a,0,0))
 joint('Cab',closed=(0,-2.1,1.25),opened=(0,-3.0,.34),turn=(math.pi/2,0,0),start=3,end=33)
 loft('Cab armored body',[rect_ring(1.53,-2.14,.02,.20,.04),rect_ring(1.39,-1.92,-.04,.27,1.40),rect_ring(1.28,-1.73,-.16,.30,1.53)],team,'Cab',.075)
-box('Cab steel belt',(0,-1.05,.15),(3.13,2.37,.35),armor,'Cab',.09)
+box('Cab steel belt',(0,-1.05,.15),(3.13,2.37,.35),panel,'Cab',.09)
 box('Windshield',(0,-1.98,.97),(2.50,.05,.62),glass,'Cab',.05,rotation=(math.radians(-9),0,0))
 box('Cab bumper',(0,-2.31,-.22),(3.25,.26,.24),edge,'Cab',.07)
 box('Radiator recess',(0,-2.235,.20),(1.55,.045,.38),black,'Cab',.02)
@@ -213,7 +203,7 @@ for s in (-1,1):
 for s in (-1,1):
     n=f'Container_{s}'
     joint(n,closed=(s*1.45,.7,1.22),opened=(s*1.5,.7,1.63),turn=(0,s*math.pi/2,0),start=0,end=38)
-    for iy,(y0,y1) in enumerate(((-1.4,.10),(.13,1.62),(1.65,3.05))):
+    for iy,(y0,y1) in enumerate(((-1.65,.10),(.13,1.62),(1.65,3.05))):
         cross=[]
         for k in range(11):
             a=k*math.pi/20;cross.append((-s*(1.45-1.45*math.sin(a)),.30+1.48*math.cos(a)))
@@ -270,21 +260,20 @@ for sx in (-1,1):
         # local x points outward; profile slopes inward toward the roof.
         profile=[(0,0),(-sx*.15,1.05),(-sx*1.70,3.05),(-sx*2.12,3.10),(-sx*.52,1.00),(-sx*.42,0)]
         loft('Sloping perimeter armor', [[(x,y,z) for x,z in profile] for y in (-2.36,2.36)],concrete,n,.045)
-        for y in (-1.96,1.96):
-            beam('Armor spine',(sx*.01,y,.18),(-sx*1.58,y,2.96),.15,trim,n)
-            beam('Faction inlay',(-sx*.05,y,.43),(-sx*1.42,y,2.76),.072,team,n)
-        for y in (-1.78,1.78):
-            box('Faction stripe surround',(-sx*.89,y,2.10),(2.62,.63,.10),edge,n,.028,rotation=(0,sx*.91,0))
-            box('Broad faction armor inlay',(-sx*.85,y,2.14),(2.35,.36,.11),team,n,.02,rotation=(0,sx*.91,0))
-        for y in (-.8,.8):
-            # Plates follow the slope instead of floating in front of it.
-            o=box('Removable sloped armor',(-sx*.96,y,2.05),(2.06,1.39,.10),armor,n,.025,rotation=(0,sx*.64,0))
+        for y in (-2.04,2.04):
+            beam('Recessed armor joint',(sx*.015,y,.24),(-sx*1.60,y,2.98),.09,steel,n)
+        for y in (-1.12,1.12):
+            box('Clipped ceramic armor',(-sx*.87,y,2.10),(2.42,1.93,.18),armor,n,.15,rotation=(0,sx*.912,0))
+            box('Graphite armor lower bevel',(-sx*.19,y,1.09),(.42,1.91,.20),panel,n,.08,rotation=(0,sx*.912,0))
+            box('Inset faction shoulder tile',(-sx*1.49,y,2.87),(.38,1.22,.19),team,n,.08,rotation=(0,sx*.912,0))
+            for k in (-.40,0,.40):
+                box('Inset cooling channel',(-sx*.02,y+k,.61),(.065,.28,.35),black,n,.025)
         for y in (-2.3,0,2.3):cylinder('Wing hinge',(0,y,.025),.14,.42,edge,n,'Y',16,0)
         # A roof lip folds inward on a second real hinge. It covers wall seams.
         roof=f'RoofWing_{sx}_{sy}'
         joint(roof,n,closed=(-sx*1.94,0,3.08),rotation=(0,-sx*math.pi/2,0),turn=(0,0,0),start=45,end=66)
-        box('Shoulder roof lip',(-sx*.70,0,.05),(1.57,4.75,.16),armor,roof,.04)
-        for y in (-1.35,1.35):fan(-sx*.65,y,.17,.43,roof)
+        box('Shoulder roof lip',(-sx*.70,0,.05),(1.57,4.75,.16),panel,roof,.04)
+        for y in (-1.35,1.35):fan(-sx*.65,y,.17,.33,roof)
 # Front/rear wall cassettes rise from their own longitudinal guides.
 for sy in (-1,1):
     for sx in (-1,1):
@@ -301,7 +290,9 @@ for sy in (-1,1):
             loft('End sloped bulkhead',rings,concrete,leaf,.045)
             beam('End wall brace',(0,-sy*.06,.22),(0,-sy*1.19,2.99),.13,trim,leaf)
             beam('End faction stripe',(0,-sy*.19,.52),(0,-sy*1.10,2.78),.065,team,leaf)
-            if sy<0:panel_details(0,-.48,1.5,.85,.66,leaf,True)
+            if sy<0:
+                box('Flush access inset',(0,.28,1.5),(1.43,.10,.73),panel,leaf,.06,rotation=(-.50,0,0))
+                for zz in (1.32,1.50,1.68):box('Integrated intake slit',(0,.08+(zz-1)*.549-.064,zz),(1.09,.035,.07),black,leaf,.014,rotation=(-.50,0,0))
 # Central side wall closes the gap between the corner armor wings.
 for sx in (-1,1):
     rail=f'SideBridgeRail_{sx}'
@@ -322,13 +313,13 @@ for sy in (-1,1):
     panel_details(0,0,.09,2.30,2.5,n)
 # Central rising platform: short nested leaves provide an unbroken roof around
 # the column while the perimeter leaves lock over its outer edge.
-joint('RoofLift',closed=(0,0,.96),opened=(0,0,3.51),start=28,end=63)
-box('Core roof',(0,0,0),(2.7,8.75,.20),armor,'RoofLift',.05)
+joint('RoofLift',closed=(0,0,.96),opened=(0,0,2.32),start=28,end=63)
+box('Core roof',(0,0,0),(2.7,8.75,.20),roofmat,'RoofLift',.05)
 for s in (-1,1):
     for j in range(2):
         n=f'RoofSlide_{s}_{j}'
         joint(n,'RoofLift',closed=(s*.12,0,-.12-j*.06),opened=(s*(2.05+j*1.85),0,-.04-j*.06),start=36+j*3,end=65+j*3)
-        box('Sliding upper deck',(0,0,0),(2.15,8.75,.17),armor,n,.04)
+        box('Sliding upper deck',(0,0,0),(2.15,8.75,.17),roofmat,n,.04)
         for y in (-2.8,0,2.8):panel_details(0,y,.10,1.87,2.24,n)
         for sy in (-1,1):box('Faction deck fascia',(0,sy*4.395,-.04),(1.66,.05,.19),team,n,.018)
 # Cab becomes the entry mechanism; this gate unfolds in front of the tucked cab.
@@ -339,8 +330,8 @@ for sx in (-1,1):box('Door jamb',(sx*.85,-.05,.82),(.26,.35,1.64),trim,'EntryGat
 box('Entry lintel',(0,-.07,1.69),(1.94,.40,.23),trim,'EntryGate',.05)
 for x in (-.39,0,.39):box('Door reinforcement',(x,-.075,.80),(.09,.075,1.48),steel,'EntryGate',.01)
 box('Entry faction lamp',(0,-.29,1.70),(.77,.03,.08),team,'EntryGate',.015)
-joint('EntryHood','EntryRail',closed=(0,0,1.62),rotation=(math.pi/2,0,0),turn=(0,0,0),start=42,end=65)
-loft('Entry armored hood',[[(-1.04,y,z),(1.04,y,z),(1.04,y+.18,z),(-1.04,y+.18,z)] for y,z in ((0,.03),(1.57,1.94))],concrete,'EntryHood',.035)
+joint('EntryHood','EntryRail',closed=(0,2.4,1.85),opened=(0,0,1.57),rotation=(-math.pi/2,0,0),turn=(0,0,0),start=42,end=65)
+loft('Entry armored hood',[[(-1.04,y,z),(1.04,y,z),(1.04,y+.18,z),(-1.04,y+.18,z)] for y,z in ((0,.03),(1.57,.35))],concrete,'EntryHood',.035)
 box('Door upper fascia',(0,.06,.11),(1.68,.11,.20),team,'EntryHood',.025)
 # Rear central service wall closes the back; it nests inside the front gate cassette.
 joint('RearCenterRail',closed=(0,2.65,1.8),opened=(0,5.58,.39),start=12,end=40)
@@ -348,59 +339,82 @@ joint('RearCenterWall','RearCenterRail',rotation=(math.pi/2,0,0),turn=(0,0,0),st
 loft('Rear central bulkhead',[[(-1.03,y,z),(1.03,y,z),(1.03,y-.18,z),(-1.03,y-.18,z)] for y,z in ((0,0),(-.08,1.0),(-1.25,3.13))],concrete,'RearCenterWall',.035)
 # TELESCOPIC COLUMN: hollow outer sleeve, nested lattice, head, yaw and boom.
 # All four children physically inherit the lift instead of separately flying up.
-joint('TowerSleeve',closed=(0,.15,1.02),opened=(0,.72,3.64),start=32,end=62)
-hollow('Octagonal lift sleeve',1.43,1.20,1.65,concrete,'TowerSleeve',8)
+joint('TowerSleeve',closed=(0,.15,1.02),opened=(-2.25,-1.65,2.45),start=32,end=62)
+# The sleeve lies along the cargo capsule when packed, then rotates around its
+# permanent carriage before the mast extends. A vertical packed collar pierced
+# the curved skin even though it fit a rectangular vehicle bounding box.
+joint('SleeveArmor','TowerSleeve',closed=(0,.85,.51),opened=(0,0,0),rotation=(math.pi/2,0,0),turn=(0,0,0),start=26,end=61)
+hollow('Octagonal lift sleeve',1.36,1.16,1.65,concrete,'SleeveArmor',8)
 for z in (.06,1.59):
-    cylinder('Sleeve rim',(0,0,z),1.52,.17,trim,'TowerSleeve',vertices=8,rad=.04)
+    cylinder('Sleeve rim',(0,0,z),1.41,.17,trim,'SleeveArmor',vertices=8,rad=.04)
 for i in range(8):
-    a=(i+.5)*math.tau/8;x,y=1.34*math.cos(a),1.34*math.sin(a)
-    box('Sleeve faction inset',(x,y,.79),(.47,.05,1.13),team,'TowerSleeve',.015,rotation=(0,0,a-math.pi/2))
-    box('Sleeve corner rib',(1.40*math.cos(i*math.tau/8),1.40*math.sin(i*math.tau/8),.83),(.13,.13,1.46),edge,'TowerSleeve',.015)
+    a=(i+.5)*math.tau/8;x,y=1.30*math.cos(a),1.30*math.sin(a)
+    box('Sleeve faction inset',(x,y,.79),(.47,.05,1.13),team,'SleeveArmor',.015,rotation=(0,0,a-math.pi/2))
+    box('Sleeve corner rib',(1.34*math.cos(i*math.tau/8),1.34*math.sin(i*math.tau/8),.83),(.13,.13,1.46),edge,'SleeveArmor',.015)
 for j in range(2):
     n=f'Mast_{j}';parent='TowerSleeve' if j==0 else 'Mast_0'
-    joint(n,parent,closed=(0,0,.08),opened=(0,0,1.39),start=43+j*7,end=69+j*7)
+    joint(n,parent,closed=(0,0,.08 if j else -.14),opened=(0,0,1.02),start=43+j*7,end=69+j*7)
     rr=.93-j*.18
     for x in (-rr,rr):
-        for y in (-rr,rr):box('Lift mast post',(x,y,.79),(.14,.14,1.66),edge,n,.015)
+        for y in (-rr,rr):box('Lift mast post',(x,y,.79),(.22,.22,1.66),edge,n,.03)
     for z in (.05,1.53):
         for s in (-1,1):
             box('Mast crossrail',(s*rr,0,z),(.14,rr*2+.12,.13),steel,n,.012)
             box('Mast crossrail',(0,s*rr,z),(rr*2+.12,.14,.13),steel,n,.012)
-    for s in (-1,1):
-        beam('Lattice diagonal',(-rr,s*rr,.14),(rr,s*rr,1.46),.06,edge,n)
-        beam('Lattice diagonal',(s*rr,-rr,.14),(s*rr,rr,1.46),.06,edge,n)
+    for sy in (-1,1):
+        box('Telescopic mast armored shroud',(0,sy*rr,.50),(rr*1.63,.17,.85),armor,n,.095)
+        box('Mast recessed central channel',(0,sy*(rr+.095),.53),(.24,.035,.57),panel,n,.018)
+    for sx in (-1,1):
+        cylinder('Exposed hydraulic lift',(sx*(rr-.24),0,.78),.105,1.24,trim,n,vertices=12,rad=.01)
     cylinder('Central lift piston',(0,0,.70),.15,.94,steel,n,vertices=12,rad=0)
-joint('CraneHead','Mast_1',closed=(0,0,.35),opened=(0,0,1.61),start=56,end=80)
-loft('Counterweight machinery',[rect_ring(1.25,-.99,1.08,.20,.00),rect_ring(1.25,-.99,1.08,.20,.82),rect_ring(1.03,-.82,.88,.20,1.04)],armor,'CraneHead',.055)
+joint('CraneHead','Mast_1',closed=(0,0,.35),opened=(0,0,1.15),start=56,end=80)
+loft('Counterweight machinery',[rect_ring(1.17,-.99,1.08,.20,.00),rect_ring(1.17,-.99,1.08,.20,.82),rect_ring(.98,-.82,.88,.20,1.04)],armor,'CraneHead',.055)
 for sx in (-1,1):
-    for y in (-.56,-.18,.20,.58):box('Head service vent',(sx*1.27,y,.44),(.04,.16,.49),black,'CraneHead',0)
-    box('Head faction panel',(sx*1.3,.0,.18),(.03,1.47,.13),team,'CraneHead',.01)
+    for y in (-.56,-.18,.20,.58):box('Head service vent',(sx*1.19,y,.44),(.04,.16,.49),black,'CraneHead',0)
+    box('Head faction panel',(sx*1.20,.0,.18),(.03,1.47,.13),team,'CraneHead',.01)
 fan(.27,.2,1.08,.48,'CraneHead')
 # Boom stays attached throughout its yaw; distal segment telescopes from inside.
-joint('BoomYaw','CraneHead',closed=(0,0,.78),rotation=(0,0,-math.pi/2),turn=(0,0,0),start=66,end=87)
+joint('BoomYaw','CraneHead',closed=(0,0,.78),rotation=(0,0,-math.pi/2),turn=(0,0,math.pi/2),start=66,end=87)
 box('Boom swivel',(0,0,0),(1.05,1.20,.56),steel,'BoomYaw',.07)
 joint('BoomHinge','BoomYaw',closed=(-.34,0,.12),rotation=(0,0,0),turn=(0,.17,0),start=71,end=90)
 loft('Main box boom',[[(-3.5,-.34,-.16),(-3.5,.34,-.16),(.17,.50,-.24),(.17,-.50,-.24)],[(-3.5,-.34,.44),(-3.5,.34,.44),(.17,.50,.46),(.17,-.50,.46)]],armor,'BoomHinge',.04)
 for x in (-.9,-1.85,-2.8):
     for s in (-1,1):box('Boom faction band',(x,s*.425,.13),(.24,.07,.48),team,'BoomHinge',.015)
-joint('BoomExtension','BoomHinge',closed=(-1.34,0,.10),opened=(-4.14,0,.10),start=76,end=90)
+joint('BoomExtension','BoomHinge',closed=(-1.34,0,.10),opened=(-3.05,0,.10),start=76,end=90)
 box('Telescopic crane tip',(-.40,0,.0),(2.58,.55,.40),panel,'BoomExtension',.045)
 box('Crane tip cap',(-1.71,0,0),(.18,.65,.51),edge,'BoomExtension',.04)
 box('Crane tip faction badge',(-1.82,0,0),(.04,.42,.30),team,'BoomExtension',.01)
 cylinder('Cable pulley',(-1.42,0,.24),.17,.40,steel,'BoomExtension','Y',16,0)
 # A folded lifting hook lowers only after the boom has cleared the roof.
-joint('Hook','BoomExtension',closed=(-1.45,0,.15),opened=(-1.45,0,-.70),start=84,end=90)
+joint('Hook','BoomExtension',closed=(-1.45,0,-.04),opened=(-1.45,0,-.70),rotation=(math.pi/2,0,0),turn=(0,0,0),start=84,end=90)
 beam('Hook cable',(0,0,0),(0,0,.9),.018,steel,'Hook')
 cylinder('Hook block',(0,0,-.05),.14,.22,yellow,'Hook',vertices=8,rad=0)
 beam('Hook bent lower',(0,0,-.15),(.12,0,-.30),.038,steel,'Hook')
 beam('Hook end',(.12,0,-.30),(.23,0,-.17),.038,steel,'Hook')
+
+# The low perimeter is a chassis plinth, leaving the vaulted production hall
+# to define the building silhouette. Static dimensions are baked into meshes.
+PLINTH_HEIGHT_RATIO=.62
+for group,objs in parts.items():
+    if group.startswith(('ArmorWing_','EndLeaf_','SideBridge_')) or group=='RearCenterWall':
+        for obj in objs:
+            transform=obj.matrix_world.copy()
+            for vertex in obj.data.vertices:
+                vertex.co=transform @ vertex.co
+                vertex.co.z*=PLINTH_HEIGHT_RATIO
+            obj.matrix_world=Matrix.Identity(4)
+            obj.data.update()
+for name,data in rig.items():
+    if name.startswith('RoofWing_'):
+        data['closed']=(data['closed'][0],data['closed'][1],3.08*PLINTH_HEIGHT_RATIO)
+        data['opened']=data['closed']
 
 # Separate architectural equipment module keeps the mechanical chassis rig small.
 from types import SimpleNamespace
 sys.path.insert(0,str(Path(__file__).resolve().parent))
 from yard_equipment import build_yard_equipment
 facilities=build_yard_equipment(SimpleNamespace(
-    joint=joint,box=box,cylinder=cylinder,beam=beam,mesh=mesh,fan=fan,
+    joint=joint,box=box,cylinder=cylinder,beam=beam,mesh=mesh,fan=fan,loft=loft,rect_ring=rect_ring,
     material=material,weather=weather,
     materials=SimpleNamespace(armor=armor,edge=edge,panel=panel,steel=steel,
                               black=black,team=team,yellow=yellow)))
@@ -435,7 +449,7 @@ for name,d in rig.items():
 scene.frame_start=0;scene.frame_end=90;scene.frame_set(0)
 bpy.ops.object.select_all(action='SELECT');bpy.context.view_layer.objects.active=nodes['Hull']
 bpy.ops.export_scene.gltf(filepath=str(OUT/'mcv.glb'),export_format='GLB',use_selection=True,export_yup=True,export_animations=True,export_animation_mode='NLA_TRACKS',export_force_sampling=True,export_apply=True)
-(OUT/'contract.json').write_text(json.dumps({'revision':4,'facilities':facilities,'clip':'Deploy','authoringSeconds':3,'runtimeSeconds':.8,'worldUnitsPerMetre':20,'modelScale':1.65,'heading':'+Z','up':'+Y','constantScale':True,'settledYard':'cached exact Deploy endpoint','rig':rig,'assembly':'rigid joints with nested hidden cassettes'},indent=2))
+(OUT/'contract.json').write_text(json.dumps({'revision':5,'facilities':facilities,'plinthHeightMetres':2.32,'design':'vaulted production hall with integrated power and control modules','clip':'Deploy','authoringSeconds':3,'runtimeSeconds':.8,'worldUnitsPerMetre':20,'modelScale':1.65,'heading':'+Z','up':'+Y','constantScale':True,'settledYard':'cached exact Deploy endpoint','rig':rig,'assembly':'rigid joints with nested hidden cassettes'},indent=2))
 def aim(o,p):o.rotation_euler=(Vector(p)-o.location).to_track_quat('-Z','Y').to_euler()
 for name,loc,power,size in [('Key',(-8,-12,23),5500,12),('Fill',(12,-3,17),1800,10),('Rim',(0,10,20),2200,10)]:
     d=bpy.data.lights.new(name,'AREA');d.energy=power;d.size=size;o=bpy.data.objects.new(name,d);scene.collection.objects.link(o);o.location=loc;aim(o,(0,0,3))
@@ -446,4 +460,11 @@ bpy.ops.wm.save_as_mainfile(filepath=str(OUT/'mcv.blend'))
 if '--review' in sys.argv:
     for f in (0,15,30,45,60,75,90):
         scene.frame_set(f);scene.render.filepath=str(OUT/f'mechanical-{f:02}.png');bpy.ops.render.render(write_still=True)
+    # Inspect the packed vehicle from all playable headings, not only HQ's view.
+    scene.frame_set(0);cam.location=(15,-15,13);aim(cam,(0,0,1.4));cam.data.ortho_scale=12
+    for heading in range(8):
+        nodes['Hull'].rotation_euler.z=heading*math.pi/4
+        scene.render.filepath=str(OUT/f'packed-{heading:02}.png');bpy.ops.render.render(write_still=True)
+    nodes['Hull'].rotation_euler.z=0
+
 print('MCV_MECHANICAL_COMPLETE',flush=True)

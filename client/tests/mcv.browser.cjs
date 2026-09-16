@@ -6,6 +6,8 @@ const engine=process.env.OUTRAGE_BROWSER||'chromium',bt=require(process.env.OUTR
  await p.locator('#fogOff').check();await p.locator('#mcvRedeploy').check();await p.locator('#startBtn').click();await p.waitForFunction(()=>OUTankTest.running);
  await p.waitForFunction(()=>OUTank3D.mcvReady||OUTank3D.assetError,null,{timeout:120000});assert(await p.evaluate(()=>OUTank3D.mcvReady),await p.evaluate(()=>OUTank3D.assetError));
  console.log('ASSETS_READY');assert(await p.evaluate(()=>OUTankTest.state.mcvRedeploy));
+ // The ordinary match now starts with two MCVs; keep the AI's deployed HQ alive in this isolated fixture.
+ await p.waitForFunction(()=>OUTankTest.buildings.some(b=>b.alive&&b.team===1&&b.kind==='hq'&&!b._mcvPhase),null,{timeout:15000});
  await p.evaluate(()=>{window.g=OUTankTest;window.originalAITick=g.ai.tick;g.ai.tick=()=>{};g.state.enemy.money=0;g.state.player.money=100000;for(const u of g.units)u.alive=false;
   for(let y=7;y<37;y++)for(let x=7;x<37;x++){const i=y*g.MAP_W+x;g.terrain[i]=g.treeHp[i]=g.ore[i]=0;}
   for(const b of g.buildings)if(b.tx<36&&b.ty<36&&b.tx>6&&b.ty>6){b.alive=false;g.footprint.setBuildingOcc(b,0);}

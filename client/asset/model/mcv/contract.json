@@ -1,5 +1,5 @@
 {
-  "revision": 4,
+  "revision": 5,
   "facilities": [
     "Workshop",
     "ControlCabin",
@@ -10,6 +10,8 @@
     "ServiceDrums",
     "WorklightMast_-1"
   ],
+  "plinthHeightMetres": 2.32,
+  "design": "vaulted production hall with integrated power and control modules",
   "clip": "Deploy",
   "authoringSeconds": 3,
   "runtimeSeconds": 0.8,
@@ -1050,12 +1052,12 @@
       "closed": [
         1.94,
         0,
-        3.08
+        1.9096
       ],
       "opened": [
         1.94,
         0,
-        3.08
+        1.9096
       ],
       "rotation": [
         0,
@@ -1200,12 +1202,12 @@
       "closed": [
         1.94,
         0,
-        3.08
+        1.9096
       ],
       "opened": [
         1.94,
         0,
-        3.08
+        1.9096
       ],
       "rotation": [
         0,
@@ -1350,12 +1352,12 @@
       "closed": [
         -1.94,
         0,
-        3.08
+        1.9096
       ],
       "opened": [
         -1.94,
         0,
-        3.08
+        1.9096
       ],
       "rotation": [
         0,
@@ -1500,12 +1502,12 @@
       "closed": [
         -1.94,
         0,
-        3.08
+        1.9096
       ],
       "opened": [
         -1.94,
         0,
-        3.08
+        1.9096
       ],
       "rotation": [
         0,
@@ -2080,7 +2082,7 @@
       "opened": [
         0,
         0,
-        3.51
+        2.32
       ],
       "rotation": [
         0,
@@ -2249,16 +2251,16 @@
       "parent": "EntryRail",
       "closed": [
         0,
-        0,
-        1.62
+        2.4,
+        1.85
       ],
       "opened": [
         0,
         0,
-        1.62
+        1.57
       ],
       "rotation": [
-        1.5707963267948966,
+        -1.5707963267948966,
         0,
         0
       ],
@@ -2328,9 +2330,9 @@
         1.02
       ],
       "opened": [
-        0,
-        0.72,
-        3.64
+        -2.25,
+        -1.65,
+        2.45
       ],
       "rotation": [
         0,
@@ -2345,17 +2347,42 @@
       "start": 32,
       "end": 62
     },
+    "SleeveArmor": {
+      "parent": "TowerSleeve",
+      "closed": [
+        0,
+        0.85,
+        0.51
+      ],
+      "opened": [
+        0,
+        0,
+        0
+      ],
+      "rotation": [
+        1.5707963267948966,
+        0,
+        0
+      ],
+      "turn": [
+        0,
+        0,
+        0
+      ],
+      "start": 26,
+      "end": 61
+    },
     "Mast_0": {
       "parent": "TowerSleeve",
       "closed": [
         0,
         0,
-        0.08
+        -0.14
       ],
       "opened": [
         0,
         0,
-        1.39
+        1.02
       ],
       "rotation": [
         0,
@@ -2380,7 +2407,7 @@
       "opened": [
         0,
         0,
-        1.39
+        1.02
       ],
       "rotation": [
         0,
@@ -2405,7 +2432,7 @@
       "opened": [
         0,
         0,
-        1.61
+        1.15
       ],
       "rotation": [
         0,
@@ -2440,7 +2467,7 @@
       "turn": [
         0,
         0,
-        0
+        1.5707963267948966
       ],
       "start": 66,
       "end": 87
@@ -2478,7 +2505,7 @@
         0.1
       ],
       "opened": [
-        -4.14,
+        -3.05,
         0,
         0.1
       ],
@@ -2500,7 +2527,7 @@
       "closed": [
         -1.45,
         0,
-        0.15
+        -0.04
       ],
       "opened": [
         -1.45,
@@ -2508,7 +2535,7 @@
         -0.7
       ],
       "rotation": [
-        0,
+        1.5707963267948966,
         0,
         0
       ],
@@ -2521,16 +2548,16 @@
       "end": 90
     },
     "Workshop": {
-      "parent": "RoofSlide_-1_0",
+      "parent": "RoofSlide_1_0",
       "closed": [
         0,
-        1.3,
-        0.18
+        1.4,
+        -0.55
       ],
       "opened": [
-        -0.86,
-        1.69,
-        0.21
+        0.75,
+        1.35,
+        0.07
       ],
       "rotation": [
         0,
@@ -2542,18 +2569,68 @@
         0,
         0
       ],
-      "start": 37,
+      "start": 35,
+      "end": 66
+    },
+    "WorkshopSegment_-1": {
+      "parent": "Workshop",
+      "closed": [
+        0,
+        0,
+        0
+      ],
+      "opened": [
+        0,
+        -1.325,
+        0
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "turn": [
+        0,
+        0,
+        0
+      ],
+      "start": 39,
+      "end": 69
+    },
+    "WorkshopFloor_-1_-1": {
+      "parent": "WorkshopSegment_-1",
+      "closed": [
+        -0.05,
+        0,
+        0.08
+      ],
+      "opened": [
+        -1.025,
+        0,
+        0.08
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "turn": [
+        0,
+        0,
+        0
+      ],
+      "start": 38,
       "end": 67
     },
-    "Workshop_Side_-1": {
-      "parent": "Workshop",
+    "WorkshopSide_-1_-1": {
+      "parent": "WorkshopSegment_-1",
       "closed": [
-        -1.075,
+        -0.6,
         0,
         0.12
       ],
       "opened": [
-        -1.075,
+        -2.05,
         0,
         0.12
       ],
@@ -2567,49 +2644,24 @@
         0,
         0
       ],
-      "start": 55,
-      "end": 78
+      "start": 42,
+      "end": 74
     },
-    "Workshop_Side_1": {
-      "parent": "Workshop",
-      "closed": [
-        1.075,
-        0,
-        0.12
-      ],
-      "opened": [
-        1.075,
-        0,
-        0.12
-      ],
-      "rotation": [
-        0,
-        -1.5707963267948966,
-        0
-      ],
-      "turn": [
-        0,
-        0,
-        0
-      ],
-      "start": 55,
-      "end": 78
-    },
-    "Workshop_End_-1": {
-      "parent": "Workshop",
+    "WorkshopVault_-1_-1": {
+      "parent": "WorkshopSide_-1_-1",
       "closed": [
         0,
-        -1.825,
-        0.15
+        0,
+        1.38
       ],
       "opened": [
         0,
-        -1.825,
-        0.15
+        0,
+        1.38
       ],
       "rotation": [
-        -1.5707963267948966,
         0,
+        -3.141592653589793,
         0
       ],
       "turn": [
@@ -2618,23 +2670,173 @@
         0
       ],
       "start": 57,
-      "end": 80
+      "end": 84
     },
-    "Workshop_End_1": {
-      "parent": "Workshop",
+    "WorkshopFloor_-1_1": {
+      "parent": "WorkshopSegment_-1",
+      "closed": [
+        0.05,
+        0,
+        0.08
+      ],
+      "opened": [
+        1.025,
+        0,
+        0.08
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "turn": [
+        0,
+        0,
+        0
+      ],
+      "start": 38,
+      "end": 67
+    },
+    "WorkshopSide_-1_1": {
+      "parent": "WorkshopSegment_-1",
+      "closed": [
+        0.6,
+        0,
+        0.12
+      ],
+      "opened": [
+        2.05,
+        0,
+        0.12
+      ],
+      "rotation": [
+        0,
+        -1.5707963267948966,
+        0
+      ],
+      "turn": [
+        0,
+        0,
+        0
+      ],
+      "start": 42,
+      "end": 74
+    },
+    "WorkshopVault_-1_1": {
+      "parent": "WorkshopSide_-1_1",
       "closed": [
         0,
-        1.825,
-        0.15
+        0,
+        1.38
       ],
       "opened": [
         0,
-        1.825,
-        0.15
+        0,
+        1.38
       ],
       "rotation": [
+        0,
+        3.141592653589793,
+        0
+      ],
+      "turn": [
+        0,
+        0,
+        0
+      ],
+      "start": 57,
+      "end": 84
+    },
+    "WorkshopSegment_1": {
+      "parent": "Workshop",
+      "closed": [
+        0,
+        0,
+        0
+      ],
+      "opened": [
+        0,
+        1.325,
+        0
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "turn": [
+        0,
+        0,
+        0
+      ],
+      "start": 39,
+      "end": 69
+    },
+    "WorkshopFloor_1_-1": {
+      "parent": "WorkshopSegment_1",
+      "closed": [
+        -0.05,
+        0,
+        0.08
+      ],
+      "opened": [
+        -1.025,
+        0,
+        0.08
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "turn": [
+        0,
+        0,
+        0
+      ],
+      "start": 38,
+      "end": 67
+    },
+    "WorkshopSide_1_-1": {
+      "parent": "WorkshopSegment_1",
+      "closed": [
+        -0.6,
+        0,
+        0.12
+      ],
+      "opened": [
+        -2.05,
+        0,
+        0.12
+      ],
+      "rotation": [
+        0,
         1.5707963267948966,
+        0
+      ],
+      "turn": [
         0,
+        0,
+        0
+      ],
+      "start": 42,
+      "end": 74
+    },
+    "WorkshopVault_1_-1": {
+      "parent": "WorkshopSide_1_-1",
+      "closed": [
+        0,
+        0,
+        1.38
+      ],
+      "opened": [
+        0,
+        0,
+        1.38
+      ],
+      "rotation": [
+        0,
+        -3.141592653589793,
         0
       ],
       "turn": [
@@ -2643,19 +2845,19 @@
         0
       ],
       "start": 57,
-      "end": 80
+      "end": 84
     },
-    "Workshop_RoofRiser_0": {
-      "parent": "Workshop",
+    "WorkshopFloor_1_1": {
+      "parent": "WorkshopSegment_1",
       "closed": [
+        0.05,
         0,
-        0,
-        0.02
+        0.08
       ],
       "opened": [
+        1.025,
         0,
-        0,
-        0.5549999999999999
+        0.08
       ],
       "rotation": [
         0,
@@ -2667,20 +2869,120 @@
         0,
         0
       ],
-      "start": 47,
-      "end": 70
+      "start": 38,
+      "end": 67
     },
-    "Workshop_RoofRiser_1": {
-      "parent": "Workshop_RoofRiser_0",
+    "WorkshopSide_1_1": {
+      "parent": "WorkshopSegment_1",
+      "closed": [
+        0.6,
+        0,
+        0.12
+      ],
+      "opened": [
+        2.05,
+        0,
+        0.12
+      ],
+      "rotation": [
+        0,
+        -1.5707963267948966,
+        0
+      ],
+      "turn": [
+        0,
+        0,
+        0
+      ],
+      "start": 42,
+      "end": 74
+    },
+    "WorkshopVault_1_1": {
+      "parent": "WorkshopSide_1_1",
       "closed": [
         0,
         0,
-        0.02
+        1.38
       ],
       "opened": [
         0,
         0,
-        0.5549999999999999
+        1.38
+      ],
+      "rotation": [
+        0,
+        3.141592653589793,
+        0
+      ],
+      "turn": [
+        0,
+        0,
+        0
+      ],
+      "start": 57,
+      "end": 84
+    },
+    "WorkshopEnd_-1": {
+      "parent": "Workshop",
+      "closed": [
+        0,
+        0,
+        0.1
+      ],
+      "opened": [
+        0,
+        -2.655,
+        0.12
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "turn": [
+        0,
+        0,
+        0
+      ],
+      "start": 42,
+      "end": 72
+    },
+    "WorkshopEndHalf_-1_-1": {
+      "parent": "WorkshopEnd_-1",
+      "closed": [
+        -0.05,
+        0,
+        0
+      ],
+      "opened": [
+        -1.025,
+        0,
+        0
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "turn": [
+        0,
+        0,
+        0
+      ],
+      "start": 44,
+      "end": 73
+    },
+    "WorkshopBulkhead_-1_-1_0": {
+      "parent": "WorkshopEndHalf_-1_-1",
+      "closed": [
+        0,
+        0,
+        0.0
+      ],
+      "opened": [
+        0,
+        0,
+        0.0
       ],
       "rotation": [
         0,
@@ -2693,19 +2995,19 @@
         0
       ],
       "start": 50,
-      "end": 73
+      "end": 76
     },
-    "Workshop_Roof": {
-      "parent": "Workshop_RoofRiser_1",
+    "WorkshopBulkhead_-1_-1_1": {
+      "parent": "WorkshopEndHalf_-1_-1",
       "closed": [
         0,
         0,
-        0.61
+        0.045
       ],
       "opened": [
         0,
         0,
-        0.61
+        0.75
       ],
       "rotation": [
         0,
@@ -2717,20 +3019,470 @@
         0,
         0
       ],
-      "start": 0,
-      "end": 90
+      "start": 53,
+      "end": 78
+    },
+    "WorkshopBulkhead_-1_-1_2": {
+      "parent": "WorkshopEndHalf_-1_-1",
+      "closed": [
+        0,
+        0,
+        0.09
+      ],
+      "opened": [
+        0,
+        0,
+        1.5
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "turn": [
+        0,
+        0,
+        0
+      ],
+      "start": 56,
+      "end": 80
+    },
+    "WorkshopBulkhead_-1_-1_3": {
+      "parent": "WorkshopEndHalf_-1_-1",
+      "closed": [
+        0,
+        0,
+        0.135
+      ],
+      "opened": [
+        0,
+        0,
+        2.25
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "turn": [
+        0,
+        0,
+        0
+      ],
+      "start": 59,
+      "end": 82
+    },
+    "WorkshopEndHalf_-1_1": {
+      "parent": "WorkshopEnd_-1",
+      "closed": [
+        0.05,
+        0,
+        0
+      ],
+      "opened": [
+        1.025,
+        0,
+        0
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "turn": [
+        0,
+        0,
+        0
+      ],
+      "start": 44,
+      "end": 73
+    },
+    "WorkshopBulkhead_-1_1_0": {
+      "parent": "WorkshopEndHalf_-1_1",
+      "closed": [
+        0,
+        0,
+        0.0
+      ],
+      "opened": [
+        0,
+        0,
+        0.0
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "turn": [
+        0,
+        0,
+        0
+      ],
+      "start": 50,
+      "end": 76
+    },
+    "WorkshopBulkhead_-1_1_1": {
+      "parent": "WorkshopEndHalf_-1_1",
+      "closed": [
+        0,
+        0,
+        0.045
+      ],
+      "opened": [
+        0,
+        0,
+        0.75
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "turn": [
+        0,
+        0,
+        0
+      ],
+      "start": 53,
+      "end": 78
+    },
+    "WorkshopBulkhead_-1_1_2": {
+      "parent": "WorkshopEndHalf_-1_1",
+      "closed": [
+        0,
+        0,
+        0.09
+      ],
+      "opened": [
+        0,
+        0,
+        1.5
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "turn": [
+        0,
+        0,
+        0
+      ],
+      "start": 56,
+      "end": 80
+    },
+    "WorkshopBulkhead_-1_1_3": {
+      "parent": "WorkshopEndHalf_-1_1",
+      "closed": [
+        0,
+        0,
+        0.135
+      ],
+      "opened": [
+        0,
+        0,
+        2.25
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "turn": [
+        0,
+        0,
+        0
+      ],
+      "start": 59,
+      "end": 82
+    },
+    "WorkshopEnd_1": {
+      "parent": "Workshop",
+      "closed": [
+        0,
+        0,
+        0.1
+      ],
+      "opened": [
+        0,
+        2.655,
+        0.12
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "turn": [
+        0,
+        0,
+        0
+      ],
+      "start": 42,
+      "end": 72
+    },
+    "WorkshopEndHalf_1_-1": {
+      "parent": "WorkshopEnd_1",
+      "closed": [
+        -0.05,
+        0,
+        0
+      ],
+      "opened": [
+        -1.025,
+        0,
+        0
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "turn": [
+        0,
+        0,
+        0
+      ],
+      "start": 44,
+      "end": 73
+    },
+    "WorkshopBulkhead_1_-1_0": {
+      "parent": "WorkshopEndHalf_1_-1",
+      "closed": [
+        0,
+        0,
+        0.0
+      ],
+      "opened": [
+        0,
+        0,
+        0.0
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "turn": [
+        0,
+        0,
+        0
+      ],
+      "start": 50,
+      "end": 76
+    },
+    "WorkshopBulkhead_1_-1_1": {
+      "parent": "WorkshopEndHalf_1_-1",
+      "closed": [
+        0,
+        0,
+        0.045
+      ],
+      "opened": [
+        0,
+        0,
+        0.75
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "turn": [
+        0,
+        0,
+        0
+      ],
+      "start": 53,
+      "end": 78
+    },
+    "WorkshopBulkhead_1_-1_2": {
+      "parent": "WorkshopEndHalf_1_-1",
+      "closed": [
+        0,
+        0,
+        0.09
+      ],
+      "opened": [
+        0,
+        0,
+        1.5
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "turn": [
+        0,
+        0,
+        0
+      ],
+      "start": 56,
+      "end": 80
+    },
+    "WorkshopBulkhead_1_-1_3": {
+      "parent": "WorkshopEndHalf_1_-1",
+      "closed": [
+        0,
+        0,
+        0.135
+      ],
+      "opened": [
+        0,
+        0,
+        2.25
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "turn": [
+        0,
+        0,
+        0
+      ],
+      "start": 59,
+      "end": 82
+    },
+    "WorkshopEndHalf_1_1": {
+      "parent": "WorkshopEnd_1",
+      "closed": [
+        0.05,
+        0,
+        0
+      ],
+      "opened": [
+        1.025,
+        0,
+        0
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "turn": [
+        0,
+        0,
+        0
+      ],
+      "start": 44,
+      "end": 73
+    },
+    "WorkshopBulkhead_1_1_0": {
+      "parent": "WorkshopEndHalf_1_1",
+      "closed": [
+        0,
+        0,
+        0.0
+      ],
+      "opened": [
+        0,
+        0,
+        0.0
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "turn": [
+        0,
+        0,
+        0
+      ],
+      "start": 50,
+      "end": 76
+    },
+    "WorkshopBulkhead_1_1_1": {
+      "parent": "WorkshopEndHalf_1_1",
+      "closed": [
+        0,
+        0,
+        0.045
+      ],
+      "opened": [
+        0,
+        0,
+        0.75
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "turn": [
+        0,
+        0,
+        0
+      ],
+      "start": 53,
+      "end": 78
+    },
+    "WorkshopBulkhead_1_1_2": {
+      "parent": "WorkshopEndHalf_1_1",
+      "closed": [
+        0,
+        0,
+        0.09
+      ],
+      "opened": [
+        0,
+        0,
+        1.5
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "turn": [
+        0,
+        0,
+        0
+      ],
+      "start": 56,
+      "end": 80
+    },
+    "WorkshopBulkhead_1_1_3": {
+      "parent": "WorkshopEndHalf_1_1",
+      "closed": [
+        0,
+        0,
+        0.135
+      ],
+      "opened": [
+        0,
+        0,
+        2.25
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "turn": [
+        0,
+        0,
+        0
+      ],
+      "start": 59,
+      "end": 82
     },
     "ControlCabin": {
       "parent": "RoofSlide_1_0",
       "closed": [
         0,
-        1.3,
-        0.18
+        1.4,
+        0.1
       ],
       "opened": [
-        0.84,
-        -2.15,
-        0.21
+        0.75,
+        -2.45,
+        0.08
       ],
       "rotation": [
         0,
@@ -2742,70 +3494,20 @@
         0,
         0
       ],
-      "start": 37,
-      "end": 67
+      "start": 38,
+      "end": 68
     },
-    "ControlCabin_Side_-1": {
-      "parent": "ControlCabin",
-      "closed": [
-        -1.07,
-        0,
-        0.12
-      ],
-      "opened": [
-        -1.07,
-        0,
-        0.12
-      ],
-      "rotation": [
-        0,
-        1.5707963267948966,
-        0
-      ],
-      "turn": [
-        0,
-        0,
-        0
-      ],
-      "start": 55,
-      "end": 78
-    },
-    "ControlCabin_Side_1": {
-      "parent": "ControlCabin",
-      "closed": [
-        1.07,
-        0,
-        0.12
-      ],
-      "opened": [
-        1.07,
-        0,
-        0.12
-      ],
-      "rotation": [
-        0,
-        -1.5707963267948966,
-        0
-      ],
-      "turn": [
-        0,
-        0,
-        0
-      ],
-      "start": 55,
-      "end": 78
-    },
-    "ControlCabin_End_-1": {
+    "ControlCabinFront": {
       "parent": "ControlCabin",
       "closed": [
         0,
-        -1.28,
-        0.15
+        -1.225,
+        0.13
       ],
       "opened": [
         0,
-        -1.28,
-        0.15
+        -1.225,
+        0.13
       ],
       "rotation": [
         -1.5707963267948966,
@@ -2817,20 +3519,45 @@
         0,
         0
       ],
-      "start": 57,
+      "start": 54,
       "end": 80
     },
-    "ControlCabin_End_1": {
+    "ControlCabinRight": {
+      "parent": "ControlCabin",
+      "closed": [
+        1.15,
+        0,
+        0.13
+      ],
+      "opened": [
+        1.15,
+        0,
+        0.13
+      ],
+      "rotation": [
+        0,
+        -1.5707963267948966,
+        0
+      ],
+      "turn": [
+        0,
+        0,
+        0
+      ],
+      "start": 54,
+      "end": 80
+    },
+    "ControlCabinRear": {
       "parent": "ControlCabin",
       "closed": [
         0,
-        1.28,
-        0.15
+        1.225,
+        0.13
       ],
       "opened": [
         0,
-        1.28,
-        0.15
+        1.225,
+        0.13
       ],
       "rotation": [
         1.5707963267948966,
@@ -2842,20 +3569,45 @@
         0,
         0
       ],
-      "start": 57,
+      "start": 54,
       "end": 80
     },
-    "ControlCabin_RoofRiser_0": {
+    "ControlCabinLeft": {
+      "parent": "ControlCabin",
+      "closed": [
+        -1.15,
+        0,
+        0.13
+      ],
+      "opened": [
+        -1.15,
+        0,
+        0.13
+      ],
+      "rotation": [
+        0,
+        1.5707963267948966,
+        0
+      ],
+      "turn": [
+        0,
+        0,
+        0
+      ],
+      "start": 54,
+      "end": 80
+    },
+    "CommandRoofRiser_0": {
       "parent": "ControlCabin",
       "closed": [
         0,
         0,
-        0.02
+        0.018
       ],
       "opened": [
         0,
         0,
-        0.38499999999999995
+        0.415
       ],
       "rotation": [
         0,
@@ -2867,20 +3619,20 @@
         0,
         0
       ],
-      "start": 47,
-      "end": 70
+      "start": 48,
+      "end": 72
     },
-    "ControlCabin_RoofRiser_1": {
-      "parent": "ControlCabin_RoofRiser_0",
+    "CommandRoofRiser_1": {
+      "parent": "CommandRoofRiser_0",
       "closed": [
         0,
         0,
-        0.02
+        0.018
       ],
       "opened": [
         0,
         0,
-        0.38499999999999995
+        0.415
       ],
       "rotation": [
         0,
@@ -2892,20 +3644,20 @@
         0,
         0
       ],
-      "start": 50,
-      "end": 73
+      "start": 51,
+      "end": 75
     },
-    "ControlCabin_Roof": {
-      "parent": "ControlCabin_RoofRiser_1",
+    "ControlCabinRoof": {
+      "parent": "CommandRoofRiser_1",
       "closed": [
         0,
         0,
-        0.61
+        0.65
       ],
       "opened": [
         0,
         0,
-        0.61
+        0.65
       ],
       "rotation": [
         0,
@@ -2924,13 +3676,13 @@
       "parent": "RoofSlide_-1_0",
       "closed": [
         0,
-        1.22,
-        0.17
+        1.4,
+        0.1
       ],
       "opened": [
-        -0.88,
-        -2.45,
-        0.18
+        -0.95,
+        2.3,
+        0.1
       ],
       "rotation": [
         0,
@@ -2942,23 +3694,23 @@
         0,
         0
       ],
-      "start": 39,
+      "start": 38,
       "end": 69
     },
-    "RoofGuard_-1_0_-1": {
-      "parent": "RoofSlide_-1_0",
+    "PowerColumn_-1": {
+      "parent": "UtilityPlant",
       "closed": [
-        0,
-        -4.17,
-        0.22
+        -0.59,
+        -0.1,
+        0.43
       ],
       "opened": [
-        0,
-        -4.17,
-        0.22
+        -0.59,
+        -0.1,
+        1.21
       ],
       "rotation": [
-        -1.5707963267948966,
+        0,
         0,
         0
       ],
@@ -2967,20 +3719,20 @@
         0,
         0
       ],
-      "start": 66,
-      "end": 85
+      "start": 58,
+      "end": 81
     },
-    "RoofGuard_-1_0_1": {
-      "parent": "RoofSlide_-1_0",
+    "ThermalFin_-1": {
+      "parent": "UtilityPlant",
       "closed": [
-        0,
-        4.17,
-        0.22
+        -0.63,
+        0.71,
+        0.2
       ],
       "opened": [
-        0,
-        4.17,
-        0.22
+        -0.63,
+        0.71,
+        0.2
       ],
       "rotation": [
         1.5707963267948966,
@@ -2992,23 +3744,23 @@
         0,
         0
       ],
-      "start": 66,
-      "end": 85
+      "start": 61,
+      "end": 84
     },
-    "RoofGuard_-1_1_-1": {
-      "parent": "RoofSlide_-1_1",
+    "PowerColumn_1": {
+      "parent": "UtilityPlant",
       "closed": [
-        0,
-        -4.17,
-        0.22
+        0.59,
+        -0.1,
+        0.43
       ],
       "opened": [
-        0,
-        -4.17,
-        0.22
+        0.59,
+        -0.1,
+        1.21
       ],
       "rotation": [
-        -1.5707963267948966,
+        0,
         0,
         0
       ],
@@ -3017,70 +3769,20 @@
         0,
         0
       ],
-      "start": 66,
-      "end": 85
+      "start": 58,
+      "end": 81
     },
-    "RoofGuard_-1_1_1": {
-      "parent": "RoofSlide_-1_1",
+    "ThermalFin_1": {
+      "parent": "UtilityPlant",
       "closed": [
-        0,
-        4.17,
-        0.22
+        0.63,
+        0.71,
+        0.2
       ],
       "opened": [
-        0,
-        4.17,
-        0.22
-      ],
-      "rotation": [
-        1.5707963267948966,
-        0,
-        0
-      ],
-      "turn": [
-        0,
-        0,
-        0
-      ],
-      "start": 66,
-      "end": 85
-    },
-    "RoofGuard_1_0_-1": {
-      "parent": "RoofSlide_1_0",
-      "closed": [
-        0,
-        -4.17,
-        0.22
-      ],
-      "opened": [
-        0,
-        -4.17,
-        0.22
-      ],
-      "rotation": [
-        -1.5707963267948966,
-        0,
-        0
-      ],
-      "turn": [
-        0,
-        0,
-        0
-      ],
-      "start": 66,
-      "end": 85
-    },
-    "RoofGuard_1_0_1": {
-      "parent": "RoofSlide_1_0",
-      "closed": [
-        0,
-        4.17,
-        0.22
-      ],
-      "opened": [
-        0,
-        4.17,
-        0.22
+        0.63,
+        0.71,
+        0.2
       ],
       "rotation": [
         1.5707963267948966,
@@ -3092,70 +3794,20 @@
         0,
         0
       ],
-      "start": 66,
-      "end": 85
-    },
-    "RoofGuard_1_1_-1": {
-      "parent": "RoofSlide_1_1",
-      "closed": [
-        0,
-        -4.17,
-        0.22
-      ],
-      "opened": [
-        0,
-        -4.17,
-        0.22
-      ],
-      "rotation": [
-        -1.5707963267948966,
-        0,
-        0
-      ],
-      "turn": [
-        0,
-        0,
-        0
-      ],
-      "start": 66,
-      "end": 85
-    },
-    "RoofGuard_1_1_1": {
-      "parent": "RoofSlide_1_1",
-      "closed": [
-        0,
-        4.17,
-        0.22
-      ],
-      "opened": [
-        0,
-        4.17,
-        0.22
-      ],
-      "rotation": [
-        1.5707963267948966,
-        0,
-        0
-      ],
-      "turn": [
-        0,
-        0,
-        0
-      ],
-      "start": 66,
-      "end": 85
+      "start": 61,
+      "end": 84
     },
     "RadarBase": {
-      "parent": "RoofSlide_1_0",
+      "parent": "RoofSlide_-1_1",
       "closed": [
         0,
-        1.25,
-        0.18
+        1.45,
+        0.12
       ],
       "opened": [
-        1.12,
-        2.53,
-        0.21
+        -0.75,
+        -3.3,
+        0.13
       ],
       "rotation": [
         0,
@@ -3170,17 +3822,42 @@
       "start": 42,
       "end": 70
     },
+    "RadarBayLid": {
+      "parent": "RadarBase",
+      "closed": [
+        0,
+        0.79,
+        0.43
+      ],
+      "opened": [
+        0,
+        0.79,
+        0.43
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "turn": [
+        -1.74,
+        0,
+        0
+      ],
+      "start": 61,
+      "end": 77
+    },
     "RadarMast": {
       "parent": "RadarBase",
       "closed": [
         0,
-        0,
-        0.24
+        -0.08,
+        0.25
       ],
       "opened": [
         0,
-        0,
-        0.81
+        -0.08,
+        0.99
       ],
       "rotation": [
         0,
@@ -3192,20 +3869,20 @@
         0,
         0
       ],
-      "start": 66,
-      "end": 80
+      "start": 69,
+      "end": 83
     },
     "RadarDish": {
       "parent": "RadarMast",
       "closed": [
         0,
         0,
-        0.41
+        0.42
       ],
       "opened": [
         0,
         0,
-        0.41
+        0.42
       ],
       "rotation": [
         0,
@@ -3213,74 +3890,24 @@
         0
       ],
       "turn": [
-        1.08,
+        1.02,
         0,
-        -0.34
+        -0.18
       ],
-      "start": 74,
-      "end": 88
-    },
-    "WorklightMast_-1": {
-      "parent": "RoofSlide_-1_1",
-      "closed": [
-        0,
-        -3.32,
-        0.24
-      ],
-      "opened": [
-        0,
-        -4.1,
-        0.24
-      ],
-      "rotation": [
-        -1.5707963267948966,
-        0,
-        0
-      ],
-      "turn": [
-        0,
-        0,
-        0
-      ],
-      "start": 66,
-      "end": 86
-    },
-    "WorklightMast_1": {
-      "parent": "RoofSlide_1_1",
-      "closed": [
-        0,
-        3.32,
-        0.24
-      ],
-      "opened": [
-        0,
-        4.1,
-        0.24
-      ],
-      "rotation": [
-        1.5707963267948966,
-        0,
-        0
-      ],
-      "turn": [
-        0,
-        0,
-        0
-      ],
-      "start": 66,
-      "end": 86
+      "start": 77,
+      "end": 89
     },
     "MaterialsPallet": {
       "parent": "Apron_-1_1_-1",
       "closed": [
         0,
-        -0.88,
-        0.12
+        3.03,
+        0.16
       ],
       "opened": [
         0,
         -0.88,
-        0.12
+        0.16
       ],
       "rotation": [
         0,
@@ -3292,20 +3919,20 @@
         0,
         0
       ],
-      "start": 0,
-      "end": 90
+      "start": 23,
+      "end": 50
     },
     "BeamRack": {
       "parent": "Apron_1_1_-1",
       "closed": [
         0,
-        -0.88,
-        0.12
+        3.03,
+        0.16
       ],
       "opened": [
         0,
         -0.88,
-        0.12
+        0.16
       ],
       "rotation": [
         0,
@@ -3317,20 +3944,20 @@
         0,
         0
       ],
-      "start": 0,
-      "end": 90
+      "start": 23,
+      "end": 50
     },
     "ServiceDrums": {
       "parent": "Apron_-1_0_-1",
       "closed": [
         0,
-        -0.81,
-        0.13
+        3.03,
+        0.16
       ],
       "opened": [
         0,
         -0.81,
-        0.13
+        0.16
       ],
       "rotation": [
         0,
@@ -3342,20 +3969,20 @@
         0,
         0
       ],
-      "start": 0,
-      "end": 90
+      "start": 23,
+      "end": 50
     },
-    "AccessLadder": {
-      "parent": "EndLeaf_1_-1_1",
+    "WorklightMast_-1": {
+      "parent": "RoofSlide_-1_1",
       "closed": [
-        0.24,
-        -0.08,
-        0.08
+        0,
+        1.5,
+        0.12
       ],
       "opened": [
-        0.24,
-        -0.08,
-        0.08
+        0,
+        -3.88,
+        0.13
       ],
       "rotation": [
         0,
@@ -3367,8 +3994,33 @@
         0,
         0
       ],
-      "start": 0,
-      "end": 90
+      "start": 58,
+      "end": 83
+    },
+    "WorklightMast_1": {
+      "parent": "RoofSlide_1_1",
+      "closed": [
+        0,
+        1.5,
+        0.12
+      ],
+      "opened": [
+        0,
+        -3.88,
+        0.13
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "turn": [
+        0,
+        0,
+        0
+      ],
+      "start": 58,
+      "end": 83
     }
   },
   "assembly": "rigid joints with nested hidden cassettes"
