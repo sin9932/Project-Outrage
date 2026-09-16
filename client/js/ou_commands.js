@@ -413,6 +413,10 @@
     }
 
     function issueForceFirePos(x,y){
+      const tx=Math.floor(x/TILE), ty=Math.floor(y/TILE);
+      if (!inMap(tx,ty)) return;
+      const target=tileToWorldCenter(tx,ty);
+      x=target.x; y=target.y;
       for (const id of state.selection){
         const e=getEntityById(id);
         if (!e || e.team!==TEAM.PLAYER) continue;
@@ -430,6 +434,7 @@
         e.forceFire = { x, y };
         if (shouldIgnoreCmd(e,'forcefire',x,y,null)) continue;
         e.order={type:"forcefire", x, y, tx:null,ty:null};
+        e.path=null; e.pathI=0; e.flowGoal=null;
         setPathTo(e, x, y);
         showUnitPathFx(e, x, y, "rgba(255,80,80,0.95)");
         e.repathCd=0.35;

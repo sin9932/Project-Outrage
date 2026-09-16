@@ -44,7 +44,7 @@
     }
 
     function getBaseOffset() {
-      return { x: canvas.width * 0.5, y: canvas.height * 0.22 };
+      return { x: (cam.viewWidth||canvas.width) * 0.5, y: canvas.height * 0.22 };
     }
 
     const cam = { x: WORLD_W * 0.5, y: WORLD_H * 0.5, speed: 900, zoom: 1.0 };
@@ -63,12 +63,14 @@
     function clampCamera() {
       const base = getBaseOffset();
       const camIso = worldToIso(cam.x, cam.y);
-      const margin = 220;
-
-      const minCamIsoX = isoMinX - base.x - margin;
-      const maxCamIsoX = isoMaxX - base.x + margin;
-      const minCamIsoY = isoMinY - base.y - margin;
-      const maxCamIsoY = isoMaxY - base.y + margin;
+      // Every map extremity can reach the viewport center, at every zoom.
+      const z=cam.zoom || 1;
+      const offsetX=(base.x-(cam.viewWidth||canvas.width)*.5)/z;
+      const offsetY=(base.y-canvas.height*.5)/z;
+      const minCamIsoX=isoMinX+offsetX;
+      const maxCamIsoX=isoMaxX+offsetX;
+      const minCamIsoY=isoMinY+offsetY;
+      const maxCamIsoY=isoMaxY+offsetY;
 
       camIso.x = clamp(camIso.x, minCamIsoX, maxCamIsoX);
       camIso.y = clamp(camIso.y, minCamIsoY, maxCamIsoY);
@@ -99,10 +101,10 @@
     function centerCameraOn(wx, wy) {
       const base = getBaseOffset();
       const iso = worldToIso(wx, wy);
-      const cx = canvas.width * 0.5;
+      const cx = (cam.viewWidth||canvas.width) * 0.5;
       const cy = canvas.height * 0.5;
-      const camIsoX = iso.x + base.x - cx;
-      const camIsoY = iso.y + base.y - cy;
+      const camIsoX = iso.x + (base.x - cx)/cam.zoom;
+      const camIsoY = iso.y + (base.y - cy)/cam.zoom;
       const w = isoToWorld(camIsoX, camIsoY);
       cam.x = w.x;
       cam.y = w.y;
@@ -111,8 +113,8 @@
 
     /** Apply pan from stored camIso + pointer delta. Called by input handlers. */
     function applyPan(camIsoX, camIsoY, dx, dy) {
-      const camIsoXNew = camIsoX - dx;
-      const camIsoYNew = camIsoY - dy;
+      const camIsoXNew = camIsoX - dx/cam.zoom;
+      const camIsoYNew = camIsoY - dy/cam.zoom;
       const w = isoToWorld(camIsoXNew, camIsoYNew);
       cam.x = w.x;
       cam.y = w.y;
@@ -149,6 +151,7 @@
 
     return {
       cam,
+      setViewport(width){cam.viewWidth=Math.max(1,Math.min(canvas.width,width));},
       camShake,
       worldToIso,
       isoToWorld,

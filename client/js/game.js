@@ -1985,6 +1985,7 @@ const keys=new Set();
     const after = screenToWorld(p.x, p.y);
     cam.x += (before.x - after.x);
     cam.y += (before.y - after.y);
+    clampCamera();
   };
   const _ou_onMouseUp = (e)=>{
     if (e.button===2){
@@ -2911,7 +2912,7 @@ if (isCallable(__ou_ui, "bindPregameStart")){
   if (DEV_VALIDATE) window.OUTankTest = {
     state, units, buildings, cam, TEAM, terrain, ore, treeHp, buildOcc, TILE, MAP_W, MAP_H,
     addUnit, getEntityById, worldToScreen, screenToWorld, centerCameraOn,
-    commands:__ou_commands, sim:__ou_sim,
+    commands:__ou_commands, sim:__ou_sim, ai:__ou_ai, camera:__ou_cam, addBuilding,
     get running(){return running;},
     setFog(value){fogEnabled=!!value;},
     get explored(){return explored;}, get visible(){return visible;}
@@ -3090,6 +3091,10 @@ function sanityCheck(){
   }
 
   function tick(now){
+    if(__ou_cam && __ou_cam.setViewport){
+      const ui=document.getElementById('ui'),rect=ui?ui.getBoundingClientRect():null;
+      __ou_cam.setViewport(rect && rect.width>0 ? rect.left*canvas.width/window.innerWidth : canvas.width);
+    }
     fitCanvas();
     fitMini();
 

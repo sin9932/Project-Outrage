@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { GLTFLoader } from '../vendor/three/addons/loaders/GLTFLoader.js';
+import { mergeGeometries } from '../vendor/three/addons/utils/BufferGeometryUtils.js';
 
 // Hybrid isometric renderer: rasterize actual geometry at its current arbitrary
 // pose every frame, then composite at the existing world depth-sort position.
@@ -11,6 +12,9 @@ const span = config.renderSpan;
 let renderer, scene, camera, model, hull, turret, barrel, barrelRest;
 let wheels = [], materials = [], currentColor = null;
 const poseByUnit = new Map();
+const frameSlots = new Map();
+const framePages = [];
+const detailMeshes=[], crowdMeshes=[];
 const ray = new THREE.Raycaster();
 const pointer = new THREE.Vector2();
 const v = new THREE.Vector3();
@@ -41,6 +45,71 @@ function teamColor(color) {
     mat.color.copy(tint);
     if (mat.name.includes('recessed')) mat.color.multiplyScalar(.45);
     if (mat.emissive) mat.emissive.copy(tint).multiplyScalar(.05);
+  }
+}
+
+// Merge rigid decorations by material inside each articulated part. Moving
+// pivots and wheel nodes remain intact; geometry is baked into its own parent.
+function mergeRigidParts() {
+  model.updateMatrixWorld(true);
+  const parts=new Set([hull,turret,barrel,...wheels]);
+  for(const root of parts){
+    const groups=new Map(),inverse=root.matrixWorld.clone().invert();
+    function visit(o){
+      if(o!==root&&parts.has(o))return;
+      if(o!==root&&o.isMesh&&!Array.isArray(o.material)){
+        const list=groups.get(o.material)||[];list.push(o);groups.set(o.material,list);
+      }
+      for(const c of o.children)visit(c);
+    }
+    visit(root);
+    for(const [material,meshes] of groups){
+      if(meshes.length<2)continue;
+      const geometries=meshes.map(m=>m.geometry.clone().applyMatrix4(inverse.clone().multiply(m.matrixWorld)));
+      const merged=mergeGeometries(geometries,false);
+      for(const g of geometries)g.dispose();
+      if(!merged)continue;
+      const mesh=new THREE.Mesh(merged,material);mesh.name=root.name+'_batch_'+material.name;
+      root.add(mesh);
+      for(const old of meshes)old.removeFromParent();
+    }
+  }
+}
+
+// At army scale, combine static metal/rubber materials into vertex colors.
+// Keep articulated pivots and separate live team-color materials. This reduces
+// draw calls without replacing geometry with sprites or changing hit geometry.
+function buildCrowdDetail() {
+  const parts=new Set([hull,turret,barrel,...wheels]);
+  const plain=new THREE.MeshStandardMaterial({vertexColors:true,metalness:.35,roughness:.7});
+  for(const root of parts){
+    const groups=new Map(), inverse=root.matrixWorld.clone().invert();
+    function visit(o){
+      if(o!==root&&parts.has(o))return;
+      if(o!==root&&o.isMesh&&!Array.isArray(o.material)){
+        const key=/TeamColor|Lamp/.test(o.material.name)?o.material:plain;
+        const list=groups.get(key)||[];list.push(o);groups.set(key,list);
+      }
+      for(const c of o.children)visit(c);
+    }
+    visit(root);
+    for(const [material,meshes] of groups){
+      if(meshes.length<2)continue;
+      const geometries=meshes.map(m=>{
+        const g=m.geometry.clone().applyMatrix4(inverse.clone().multiply(m.matrixWorld));
+        if(material===plain){
+          const values=new Float32Array(g.attributes.position.count*3),c=m.material.color;
+          for(let i=0;i<values.length;i+=3){values[i]=c.r;values[i+1]=c.g;values[i+2]=c.b;}
+          g.setAttribute('color',new THREE.BufferAttribute(values,3));
+        }
+        return g;
+      });
+      const geometry=mergeGeometries(geometries,false);
+      for(const g of geometries)g.dispose();
+      if(!geometry)continue;
+      const m=new THREE.Mesh(geometry,material);m.visible=false;root.add(m);
+      crowdMeshes.push(m);detailMeshes.push(...meshes);
+    }
   }
 }
 
@@ -84,6 +153,9 @@ export const ready = (async () => {
         if (/TeamColor|Lamp/.test(mat.name) && !materials.includes(mat)) materials.push(mat);
       }
     });
+    mergeRigidParts();
+    model.updateMatrixWorld(true);
+    buildCrowdDetail();
     scene.add(model);
     // Contact shadow on the ground plane, attached to the hull's orientation.
     const shadow = new THREE.Mesh(new THREE.CircleGeometry(1,32),new THREE.MeshBasicMaterial({color:0x000000,transparent:true,opacity:.2,depthWrite:false}));
@@ -100,23 +172,63 @@ export const ready = (async () => {
   }
 })();
 
-api.beginFrame = function(units,time) {
-  api.draws = 0;
-  const live = new Set(units.filter(u=>u.alive && u.kind==='tank').map(u=>u.id));
-  for (const [id,p] of poseByUnit) if (!live.has(id) || time < p.seen) poseByUnit.delete(id);
+// Render fresh poses into frame-local pages before painter-order composition.
+// This is real-time geometry, not stored directional sprites: pages are redrawn
+// every frame. Each page crosses WebGL -> Canvas2D once, instead of once per tank.
+api.beginFrame = function(units,time,view) {
+  api.draws=0; frameSlots.clear();
+  const live=new Set(units.filter(u=>u.alive&&u.kind==='tank').map(u=>u.id));
+  for(const [id,p] of poseByUnit) if(!live.has(id)||time<p.seen) poseByUnit.delete(id);
+  if(api.status!=='ready'||!view) return;
+  const {ctx,project,zoom,color}=view;
+  const viewWidth=view.width||ctx.canvas.width;
+  const size=span*config.scale/Math.sqrt(2)*zoom;
+  const res=Math.max(64,Math.min(768,Math.ceil(size)));
+  const visible=units.filter(u=>{
+    if(!u.alive||u.kind!=='tank'||u.hidden||u.inTransport)return false;
+    const p=project(u.x,u.y);
+    return p.x+size/2>=0&&p.y+size/2>=0&&p.x-size/2<=viewWidth&&p.y-size/2<=ctx.canvas.height;
+  });
+  const crowd=res<=160 || visible.length>=48;
+  for(const m of detailMeshes)m.visible=!crowd;
+  for(const m of crowdMeshes)m.visible=crowd;
+  api.detail=crowd?'crowd':'full';
+  const maxSide=Math.min(2048,renderer.capabilities.maxTextureSize);
+  const cols=Math.max(1,Math.min(Math.ceil(Math.sqrt(visible.length)),Math.floor(maxSide/res)));
+  const capacity=cols*Math.max(1,Math.floor(maxSide/res));
+  renderer.autoClear=false;
+  let pageCount=0;
+  for(let start=0;start<visible.length;start+=capacity){
+    const chunk=visible.slice(start,start+capacity);
+    const rows=Math.ceil(chunk.length/cols),width=cols*res,height=rows*res;
+    if(renderer.domElement.width!==width||renderer.domElement.height!==height)renderer.setSize(width,height,false);
+    renderer.setScissorTest(false);renderer.clear();renderer.setScissorTest(true);
+    let canvas=framePages[pageCount];
+    if(!canvas)canvas=framePages[pageCount]=document.createElement('canvas');
+    if(canvas.width!==width||canvas.height!==height){canvas.width=width;canvas.height=height;}
+    for(let i=0;i<chunk.length;i++){
+      const u=chunk[i],x=(i%cols)*res,y=Math.floor(i/cols)*res;
+      renderer.setViewport(x,height-y-res,res,res);renderer.setScissor(x,height-y-res,res,res);
+      pose(u,time);teamColor(color(u));renderer.render(scene,camera);
+      frameSlots.set(u.id,{canvas,x,y,res,size});
+    }
+    const copy=canvas.getContext('2d');copy.clearRect(0,0,width,height);
+    copy.drawImage(renderer.domElement,0,0);
+    pageCount++;
+  }
+  renderer.setScissorTest(false);renderer.autoClear=true;
+  framePages.length=pageCount;
+  api.pages=pageCount;
 };
 
 api.draw = function(ctx,u,p,zoom,color,time) {
-  if (api.status!=='ready') return false;
-  const size = span * window.OUTankMotion.SCALE / Math.sqrt(2) * zoom;
-  if (p.x+size/2<0 || p.y+size/2<0 || p.x-size/2>ctx.canvas.width || p.y-size/2>ctx.canvas.height) return true;
-  const resolution = Math.max(64,Math.min(768,Math.ceil(size)));
-  if (renderer.domElement.width!==resolution) renderer.setSize(resolution,resolution,false);
-  pose(u,time); teamColor(color);
-  renderer.render(scene,camera);
-  // Synchronous copy before the browser discards the WebGL drawing buffer.
-  ctx.drawImage(renderer.domElement,p.x-size/2,p.y-size/2,size,size);
-  api.draws++;
+  if(api.status!=='ready')return false;
+  const slot=frameSlots.get(u.id);
+  if(slot){
+    const {canvas,x,y,res,size}=slot;
+    ctx.drawImage(canvas,x,y,res,res,p.x-size/2,p.y-size/2,size,size);
+    api.draws++;
+  }
   return true;
 };
 

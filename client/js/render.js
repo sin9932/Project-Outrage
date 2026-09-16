@@ -368,13 +368,13 @@
       return 70 * (n0 + n1 + n2);
     }
 
-    function layerNoise(layer, scale, timeOff, imgData) {
+    function layerNoise(layer, scale, timeOff, imgData, yStart=0, yEnd=res) {
       const p = layer.typeParams || [];
       const s = (p[0] || 3) * (scale || 1) * 0.02;
       const octaves = Math.max(1, (p[1] || 1) | 0);
       const detail = (p[2] || 2) | 0;
       const data = imgData.data;
-      for (let y = 0; y < res; y++) {
+      for (let y = yStart; y < yEnd; y++) {
         for (let x = 0; x < res; x++) {
           let v = 0, amp = 1, freq = 1;
           for (let o = 0; o < octaves; o++) {
@@ -409,8 +409,33 @@
       ctx.globalCompositeOperation = "source-over";
     }
 
+    // Slowly evolving clouds must not regenerate every pixel in one game frame.
+    // Build the next exact noise image in row batches, then publish atomically.
+    let job=null, lastTime=-Infinity;
+    function step(time){
+      if(!job){
+        if(time>=lastTime && time-lastTime<.005)return;
+        job={time,offset:baseTime+time*animSpeed,layer:0,row:0};
+      }
+      const deadline=performance.now()+1;
+      do {
+        const end=Math.min(res,job.row+8);
+        layerNoise(layers[job.layer],1,job.offset,layerBuffers[job.layer],job.row,end);
+        job.row=end;
+        if(end===res){job.row=0;job.layer++;}
+      } while(job.layer<layers.length && performance.now()<deadline);
+      if(job.layer<layers.length)return;
+      ctx.fillStyle='#fff';ctx.fillRect(0,0,res,res);
+      for(let i=0;i<layers.length;i++){
+        tctx.putImageData(layerBuffers[i],0,0);
+        ctx.globalAlpha=layers[i].opacity??1;
+        ctx.globalCompositeOperation=i===0?'source-over':'multiply';ctx.drawImage(tmp,0,0);
+      }
+      ctx.globalAlpha=1;ctx.globalCompositeOperation='source-over';
+      lastTime=job.time;job=null;
+    }
     render(0);
-    return { canvas, animate, animSpeed, baseTime, render };
+    return { canvas, animate, animSpeed, baseTime, render, step };
   }
 
   (function loadClouds() {
@@ -3054,7 +3079,7 @@
         const delta = Math.min(0.06, Math.max(0, realTime - last));
         drawMain._cloudTimeLast = realTime;
         drawMain._cloudTimeAcc = acc + delta;
-        cloudsFromJson.render(drawMain._cloudTimeAcc * 0.02);
+        cloudsFromJson.step(drawMain._cloudTimeAcc * 0.02);
       }
       ctx.save();
       ctx.filter = "invert(1)";
@@ -3129,7 +3154,7 @@
     updateSnipDeathFx();
     updateExp1Fxs();
 
-    if (window.OUTank3D) window.OUTank3D.beginFrame(units, state.t);
+    if (window.OUTank3D) window.OUTank3D.beginFrame(units, state.t, {ctx,width:cam.viewWidth||ctx.canvas.width,project:worldToScreen,zoom:cam.zoom||1,color:u=>u.team===TEAM.PLAYER?state.colors.player:state.colors.enemy});
     const drawables=[];
     for (const b of buildings) if (b.alive) drawables.push(b);
     for (const u of units) if (u.alive) drawables.push(u);

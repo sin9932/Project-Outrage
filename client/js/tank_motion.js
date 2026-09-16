@@ -39,6 +39,19 @@
     u.turretDir = dir8(Math.cos(u.turretYaw), Math.sin(u.turretYaw));
     u.turretTurn = null;
   }
+  // Travel has one owner for both ordinary paths and group flow fields.
+  // First point the turret down the route, then turn the hull, then translate.
+  function drive(u, dx, dy, dt, dir8) {
+    const target=Math.atan2(dy,dx);
+    turret(u,target,dt,dir8);
+    u.travelYaw=target;
+    if (!ready(u)) { u.travelPhase='turret'; return false; }
+    if (!hull(u,dx,dy,dt,dir8)) { u.travelPhase='hull'; return false; }
+    u.bodyYaw=target; u.turretYaw=target;
+    u.bodyDir=u.dir=u.turretDir=dir8(dx,dy);
+    u.travelPhase='drive';
+    return true;
+  }
   function ready(u) { return Number.isFinite(u.turretAimError) && u.turretAimError < C.aimTolerance; }
   function recoil(u, t) {
     if (!Number.isFinite(u.lastShotAt)) return 0;
@@ -57,5 +70,5 @@
       z: C.muzzleHeight * SCALE
     };
   }
-  g.OUTankMotion = { SCALE, HEIGHT_TO_SCREEN, wrap, fromDir, readPose, ensure, toward, hull, turret, ready, recoil, muzzle };
+  g.OUTankMotion = { SCALE, HEIGHT_TO_SCREEN, wrap, fromDir, readPose, ensure, toward, hull, turret, drive, ready, recoil, muzzle };
 })(globalThis);

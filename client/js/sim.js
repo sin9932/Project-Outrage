@@ -216,8 +216,8 @@
       if (!treeHp || !MAP_W || !MAP_H || !TILE) return;
       const r2 = radius * radius;
       const half = TILE / 2;
-      for (let ty = 0; ty < MAP_H; ty++) {
-        for (let tx = 0; tx < MAP_W; tx++) {
+      for (let ty = Math.max(0,Math.floor((y-radius)/TILE)); ty <= Math.min(MAP_H-1,Math.floor((y+radius)/TILE)); ty++) {
+        for (let tx = Math.max(0,Math.floor((x-radius)/TILE)); tx <= Math.min(MAP_W-1,Math.floor((x+radius)/TILE)); tx++) {
           const cx = tx * TILE + half, cy = ty * TILE + half;
           if (dist2(x, y, cx, cy) > r2) continue;
           const i = idx(tx, ty);
@@ -263,8 +263,8 @@
       const r2 = radiusWorld * radiusWorld;
       const half = (TILE || 48) / 2;
       const PERCENT_AT_MAX = 0.02;
-      for (let ty = 0; ty < MAP_H; ty++){
-        for (let tx = 0; tx < MAP_W; tx++){
+      for (let ty = Math.max(0,Math.floor((yWorld-radiusWorld)/TILE)); ty <= Math.min(MAP_H-1,Math.floor((yWorld+radiusWorld)/TILE)); ty++){
+        for (let tx = Math.max(0,Math.floor((xWorld-radiusWorld)/TILE)); tx <= Math.min(MAP_W-1,Math.floor((xWorld+radiusWorld)/TILE)); tx++){
           if (!inMap(tx, ty) || ore[idx(tx,ty)] <= 0) continue;
           const cx = tx * TILE + half, cy = ty * TILE + half;
           const d2 = dist2(xWorld, yWorld, cx, cy);
@@ -686,6 +686,7 @@
             }
 
             if (hit) applyDamage(hit, dmg, bl.ownerId, bl.team);
+            if (bl.groundSplashDmg) applyAreaDamageAt(bl.x,bl.y,22,bl.groundSplashDmg,bl.ownerId,bl.team,false);
 
             // impact FX (reduced when FX count high)
             const fxHeavy = (flashes.length + impacts.length) > 80;
@@ -1033,6 +1034,7 @@
         // Apply accumulated separation with damping + steering blend (떨림·벽 뚫림 방지)
         // 보병은 bothInf 스킵으로 다른 보병에게서는 _sepAx 없음. 차량에 밀릴 때만 적용.
         for (const uu of alive){
+          if (uu.kind==="tank") { uu._sepAx=0; uu._sepAy=0; continue; }
           let ax = uu._sepAx || 0;
           let ay = uu._sepAy || 0;
           if (ax===0 && ay===0){ uu._sepAx = 0; uu._sepAy = 0; continue; }
@@ -1833,14 +1835,14 @@
       let step = maxSpeed * dt;
       if (ucls === "veh") {
         if (u._vehCurSpeed == null) u._vehCurSpeed = 0;
-        u._vehCurSpeed += (maxSpeed - u._vehCurSpeed) * 0.03;
+        u._vehCurSpeed += (maxSpeed - u._vehCurSpeed) * (1-Math.exp(-1.8*dt));
         step = Math.min(u._vehCurSpeed * dt, d);
       } else {
         step = Math.min(step, d);
       }
       let ax=dx/(d||1), ay=dy/(d||1);
       // RA2 style: 보병은 회피 없이 목표로 직진 (위글+렉 근본 해결)
-      if (u.cls!=="inf"){
+      if (u.cls!=="inf" && u.kind!=="tank"){
         let avoidX=0, avoidY=0;
         for (let j=0;j<units.length;j++){
           const o=units[j];
@@ -1870,7 +1872,11 @@
       }
 
       const movingDir = (Math.abs(ax) + Math.abs(ay)) > 1e-4;
-      if ((u.fireHoldT||0) > 0 && u.fireDir!=null){
+      if (u.kind==="tank" && movingDir){
+        if (!globalThis.OUTankMotion.drive(u,ax,ay,dt,worldVecToDir8)){
+          u.turningToPath=true; u.vx=0; u.vy=0; u._vehCurSpeed=0; return true;
+        }
+      } else if ((u.fireHoldT||0) > 0 && u.fireDir!=null){
         u.faceDir = u.fireDir;
         if (u.kind !== "tank" && u.kind !== "harvester"){
           u.dir = u.fireDir;
@@ -1933,6 +1939,7 @@
         }
       }
       if (isBlockedWorldPoint(u, nx, ny)){
+        if (u.kind==="tank") { u.vx=0; u.vy=0; u.repathCd=0; return false; }
         const px = -ay, py = ax;
         for (const sgn of [1,-1]){
           const sx = u.x + px*step*sgn;
@@ -2247,7 +2254,7 @@
       if (!u.alive || u.inTransport) continue;
       const ot = (u.order && u.order.type) ? u.order.type : null;
       if (ot !== "move" && ot !== "attackmove") continue;
-      if (u.flowGoal) continue;
+      if (u.flowGoal || state.t<(u.flowRetryAfter||0)) continue;
       let gTx = (u.order && u.order.tx != null) ? u.order.tx : null;
       let gTy = (u.order && u.order.ty != null) ? u.order.ty : null;
       if (gTx == null || gTy == null) {
@@ -2310,12 +2317,15 @@
     }
     const flow = OUFlowField.getFlowAt(field, u.x, u.y, TILE, tileOfX, tileOfY);
     if (!flow || (flow.dx === 0 && flow.dy === 0)) return false;
+    if (u.kind==="tank" && !globalThis.OUTankMotion.drive(u,flow.dx,flow.dy,dt,worldVecToDir8)){
+      u.turningToPath=true; u.vx=0; u.vy=0; u._vehCurSpeed=0; return true;
+    }
     const maxSpeed = getMoveSpeed(u) || 80;
     const ucls = (UNIT[u.kind] && UNIT[u.kind].cls) || "";
     let step = maxSpeed * dt;
     if (ucls === "veh") {
       if (u._vehCurSpeed == null) u._vehCurSpeed = 0;
-      u._vehCurSpeed += (maxSpeed - u._vehCurSpeed) * 0.03;
+      u._vehCurSpeed += (maxSpeed - u._vehCurSpeed) * (1-Math.exp(-1.8*dt));
       step = u._vehCurSpeed * dt;
     }
     const nx = u.x + flow.dx * step;
@@ -2323,6 +2333,17 @@
     const ntx = tileOfX(nx), nty = tileOfY(ny);
     if (!inMap(ntx, nty) || !isWalkableTile(ntx, nty)) return false;
     if (isBlockedWorldPoint(u, nx, ny)) return false;
+    const entering=ntx!==tileOfX(u.x)||nty!==tileOfY(u.y);
+    if(entering && (!canEnterTile(u,ntx,nty)||isReservedByOther(u,ntx,nty))){
+      u.vx=0;u.vy=0;u.blockT=(u.blockT||0)+dt;
+      if(u.blockT>.4){
+        u.flowGoal=null;u.flowRetryAfter=state.t+1.2;
+        setPathTo(u,gx,gy);u.blockT=0;
+      }
+      return false;
+    }
+    if(entering)reserveTile(u,ntx,nty);
+    u.blockT=0;
     u.x = clamp(nx, 0, WORLD_W);
     u.y = clamp(ny, 0, WORLD_H);
     const curSpd = (ucls === "veh" && u._vehCurSpeed != null) ? u._vehCurSpeed : maxSpeed;
@@ -2383,8 +2404,12 @@
     }
     // Persist intended goal tile for repath/anti-jitter decisions.
     u.order = u.order || {type:"move"};
-    u.order.tx = gTx; u.order.ty = gTy;
-    u.order.x = (gTx+0.5)*TILE; u.order.y = (gTy+0.5)*TILE;
+    u.navGoal = {tx:gTx, ty:gTy};
+    // Ground-fire coordinates are a weapon target, never a walkable route endpoint.
+    if (u.order.type!=="forcefire"){
+      u.order.tx = gTx; u.order.ty = gTy;
+      u.order.x = (gTx+0.5)*TILE; u.order.y = (gTy+0.5)*TILE;
+    }
     const path=aStarPathOcc(u, sTx, sTy, gTx, gTy);
     u.flowGoal = null;
     u.path=path;
@@ -2700,7 +2725,7 @@
       const r2=radius*radius;
       for (let ty=t0y; ty<=t1y; ty++){
         for (let tx=t0x; tx<=t1x; tx++){
-          const cx=(tx)*TILE, cy=(ty)*TILE;
+          const cx=(tx+.5)*TILE, cy=(ty+.5)*TILE;
           if (dist2(wx,wy,cx,cy)<=r2){
             const i=idx(tx,ty);
             visible[team][i]=1;
@@ -2761,7 +2786,7 @@
           x, y,
           t:0, dur, z0: opt.z0 ?? 0,
           h: opt.h ?? (18 + Math.min(46, dist*0.10)),
-          dmg, ownerId,
+          dmg, ownerId, groundSplashDmg:opt.groundSplashDmg||0,
           tid: opt.tid ?? null,
           allowFriendly: !!opt.allowFriendly
         });
@@ -2930,7 +2955,7 @@
         const fx = isoToWorld(iso.x,iso.y-muzzle.z*globalThis.OUTankMotion.HEIGHT_TO_SCREEN);
         flashes.push({x:fx.x,y:fx.y,r:24,life:.08,delay:0});
         spawnBullet(shooter.team,muzzle.x,muzzle.y,target.x,target.y,opt.dmg ?? shooter.dmg,shooter.id,
-          {kind:"shell",dur:.12,h:18,z0:muzzle.z,tid:target.id,allowFriendly:!!shooter.order?.allowFriendly});
+          {kind:"shell",dur:.12,h:18,z0:muzzle.z,groundSplashDmg:opt.groundSplashDmg||0,tid:target.id,allowFriendly:!!shooter.order?.allowFriendly});
         return;
       }
       const dx = target.x - shooter.x, dy = target.y - shooter.y;
@@ -4043,7 +4068,7 @@
             const dEff = Math.sqrt(d2);
             // Lite tank: rotate turret toward ground target too (Ctrl+Click force-fire)
             let _ffAimDir = null;
-            if (u.kind==="tank" && !u.inTransport){
+            if (u.kind==="tank" && !u.inTransport && dEff<=(u.range||0)){
               _ffAimDir = worldVecToDir8(tx - u.x, ty - u.y);
               _tankUpdateTurret(u, _ffAimDir, dt, Math.atan2(ty-u.y, tx-u.x));
               u.fireDir = _ffAimDir;
@@ -4075,10 +4100,8 @@
                   applyAreaDamageAt(tx,ty, 18, d, u.id, u.team);
                   applyOreDamageInRadius(tx, ty, 18, d);
                 } else if (u.kind==="tank") {
-                  fireTankShell(u, {x:tx, y:ty}, {dmg:Math.max(1,u.dmg*0.6)});
-                  const d = Math.max(1, u.dmg*0.45);
-                  applyAreaDamageAt(tx,ty, 22, d, u.id, u.team, true);
-                  applyOreDamageInRadius(tx, ty, 22, d);
+                  fireTankShell(u, {x:tx, y:ty}, {dmg:Math.max(1,u.dmg*0.6),groundSplashDmg:Math.max(1,u.dmg*.45)});
+                  // Shell impact owns terrain damage; do not damage on launch too.
                 } else if (u.kind==="ifv") {
                   // IFV force-fire should use its normal weapon visuals (no tank arc).
                   if (isHitscanUnit(u)){
@@ -4258,7 +4281,7 @@
             }
             // Turret aim (lite tank): rotate turret independently of hull.
             let _tankAimDir = null;
-            if (u.kind==="tank" && !u.inTransport){
+            if (u.kind==="tank" && !u.inTransport && !needMove){
               _tankAimDir = worldVecToDir8(t.x - u.x, t.y - u.y);
               _tankUpdateTurret(u, _tankAimDir, dt, Math.atan2(t.y-u.y, t.x-u.x));
               u.fireDir = _tankAimDir;
@@ -4359,7 +4382,7 @@
           // - Buildings are ignored for auto-tracking.
           if (u.kind === "tank"){
             const ot = u.order ? u.order.type : null;
-            if (ot !== "attack" && ot !== "forcefire"){
+            if (ot !== "attack" && ot !== "forcefire" && !u.flowGoal && !(u.path && u.pathI<u.path.length)){
               let desired = null;
               if (state.t >= (u._nextTurretScan||0)){
                 u._nextTurretScan = state.t + 0.08;

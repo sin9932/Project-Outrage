@@ -523,6 +523,7 @@
     function issueAttackMove(u, dest) {
       u.order = { type: "attackmove", x: dest.x, y: dest.y, tx: null, ty: null, manual: true, allowAuto: true, lockTarget: false };
       u.target = null;
+      u.path=null; u.pathI=0; u.flowGoal=null;
     }
 
     function aiCommandAttackWave(list, target) {
@@ -531,10 +532,12 @@
         if (u.kind === "ifv" && u.passengerId && u.passKind === "engineer") continue;
         if (u.kind === "sniper") continue;
         if (u.kind === "ifv" && !u.passengerId && !targetIsUnit) continue;
-        u.order = { type: "attack", x: u.x, y: u.y, tx: null, ty: null, manual:true, allowAuto:false, lockTarget:true };
-        u.target = target ? target.id : null;
-        if (target) setPathTo(u, target.x, target.y);
-        u.repathCd = 0.55;
+        if (u.order?.type==="attack" && u.target===target?.id) continue;
+        u.order = { type: "attack", x:u.x, y:u.y, tx:null, ty:null, manual:true, allowAuto:false, lockTarget:true };
+        u.target=target ? target.id : null;
+        u.path=null; u.pathI=0; u.flowGoal=null; u.holdAttack=false;
+        u.attackApproach=null; u.repathCd=0;
+        // Simulation schedules the approach; AI does not replace it with a building-center path.
       }
     }
 
