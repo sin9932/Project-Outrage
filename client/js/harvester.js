@@ -3,7 +3,9 @@
 (function(g){
  const H={modelUrl:'../asset/model/harvester/harvester.glb',scale:20,renderSpan:14,wheelRadius:.427,
   turnRate:2.6,unloadSeconds:1,harvestRate:125,reverseSpeed:45,intake:{forward:2.80,height:.63},discharge:{forward:-2.43,height:1.40}};
- H.ore=Object.freeze({base:60,step:20,max:240,value:120,gemBase:120,gemStep:40,gemMax:240,gemValue:240});
+ H.ore=Object.freeze({base:48,step:48,max:240,value:120,gemBase:48,gemStep:48,gemMax:240,gemValue:240});
+ // Atlas cells 0..4 are gems; 5..9 are ore, sparse to full.
+ H.oreGid=(amount,gem)=>amount>0?225+(gem?0:5)+Math.min(4,Math.max(0,Math.ceil(amount/(gem?H.ore.gemMax:H.ore.max)*5)-1)):0;
  H.port=b=>({tx:b.tx+b.tw-1,ty:b.ty+Math.floor(b.th/2)});
  H.isLane=(b,tx,ty)=>b.kind==='refinery'&&tx===H.port(b).tx&&Math.abs(ty-H.port(b).ty)<=1;
  // Collision follows solid cells, not a padded rectangle over the open ramp.

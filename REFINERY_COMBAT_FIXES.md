@@ -6,7 +6,7 @@ Branch: codex/realtime-tank-3d. Main is not merged.
 - Movement commands received outside a simulation tick are queued, retaining order/target identity. An expired frame deadline no longer silently drops commands.
 - Units crossing the refinery front draw above its ramp without changing simulation positions.
 - Complete cargo payment takes one simulation second after the 0.4-second hatch opening. Integer delta accounting preserves total credits.
-- OUHarvester owns ore tuning: ordinary tiles contain 60-240 units, mining is 125 units/second. A full tile lasts 1.92 simulation seconds. Capacity remains unchanged.
+- OUHarvester owns ore tuning: ordinary tiles contain 48-240 units, mining is 125 units/second. A full tile lasts 1.92 simulation seconds. Capacity remains unchanged.
 - Float64 ore storage prevents fractional subtraction being truncated every tick. Gem extraction respects doubled cargo credit value.
 - Pooled InstancedMesh batches draw live articulated vehicle geometry per atlas page. Picking and muzzle contracts remain.
 - Cached cloud inversion replaces a large canvas filter. Viewport culling and two compound fog fills reduce 2D draw calls.
@@ -28,3 +28,5 @@ Separate local samples are not universal FPS guarantees. Firefox still has subst
 Serve preview on localhost:8765. OUTRAGE_PLAYWRIGHT points to Playwright; OUTRAGE_BROWSER selects chromium/firefox; OUTRAGE_STRESS_COUNT defaults to 48; OUTRAGE_FOG=1 enables fog; OUTRAGE_CHROME optionally selects a Chromium executable.
 combat-performance.browser.cjs takes an output JSON path. port-resource.browser.cjs takes an output directory.
 Ctrl+F5 and start a new match to regenerate ore with the new amounts.
+
+Follow-up: ORE_VISUAL_TURN_FIXES.md documents five density stages and faster turning.

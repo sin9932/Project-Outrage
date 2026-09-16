@@ -1492,6 +1492,7 @@
     c.width=W; c.height=H;
     const cctx=c.getContext("2d");
     cctx.clearRect(0,0,W,H);
+    ctx.fillStyle="#000";ctx.fillRect(0,0,W,H);
     cctx.drawImage(img,0,0);
 
     const atlas=[];
@@ -1913,8 +1914,9 @@
         if (name === "ore" || name === "gem") {
           if (oreAt <= 0) continue;
         }
-        const gid = layer.data[ty * (layer.width || fgTmj.mapW) + tx];
+        let gid = layer.data[ty * (layer.width || fgTmj.mapW) + tx];
         if (!gid) continue;
+        if(name === "ore" || name === "gem") gid=window.OUHarvester.oreGid(oreAt,name === "gem");
         drawTiledGidAt(ctx, gid, x, y, cam.zoom, TILE);
       }
       if (oreAt > 0) {
@@ -2991,6 +2993,7 @@
     };
 
     ctx.clearRect(0,0,W,H);
+    ctx.fillStyle="#000";ctx.fillRect(0,0,W,H);
     if (typeof updateMoney === "function") updateMoney(state.player.money);
     if (typeof updateProdBadges === "function") updateProdBadges();
 

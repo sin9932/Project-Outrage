@@ -116,8 +116,8 @@
     return function oreAmountFromGid(gid, isGem) {
       const raw = (gid && (gid & 0x1FFFFFFF)) || 0;
       if (raw < ORE_FIRSTGID) return isGem ? GEM_VALUE : ORE_VALUE;
-      const localId = Math.min(9, raw - ORE_FIRSTGID);
-      if (isGem) return Math.min(GEM_MAX, GEM_BASE + Math.min(3, localId) * GEM_STEP);
+      const localId = Math.max(0, Math.min(4, raw - ORE_FIRSTGID - (isGem ? 0 : 5)));
+      if (isGem) return Math.min(GEM_MAX, GEM_BASE + localId * GEM_STEP);
       return Math.min(ORE_MAX, ORE_BASE + localId * ORE_STEP);
     };
   }

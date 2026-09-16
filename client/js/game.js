@@ -241,7 +241,7 @@
   const terrain = new Uint8Array(MAP_W*MAP_H); // 0 ground, 1 rock, 2 ore, 3 water
   const ore = new Float64Array(MAP_W*MAP_H);
   const isGem = new Uint8Array(MAP_W*MAP_H);
-  // ore 타일셋 firstgid=225, localId 0~9 → 60,80,…,240. gem 레이어 localId 0~3 → 120,160,200,240.
+  // Atlas: gems 225..229, ore 230..234; five densities, sparse to full.
   const ORE_FIRSTGID = 225;
   const ORE_BASE = window.OUHarvester.ore.base;
   const ORE_STEP = window.OUHarvester.ore.step;
