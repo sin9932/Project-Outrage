@@ -19,7 +19,7 @@
 
   const DEFAULT_NAME_KO = {
     hq:"건설소(HQ)", power:"발전소", refinery:"정제소", barracks:"막사",
-    factory:"군수공장", radar:"레이더", turret:"터렛",
+    factory:"군수공장", radar:"레이더", turret:"센트리건",
     infantry:"보병", engineer:"엔지니어", sniper:"저격병", tank:"경전차", ifv:"IFV", harvester:"굴착기"
   };
 

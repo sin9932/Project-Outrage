@@ -59,7 +59,8 @@ client/js/harvester.js owns the shared model/socket and docking contract:
 The existing refinery ramp faces world +X. Three cells along the middle of its +X
 footprint edge are walkable. Collision padding and tile occupancy use the same
 contract; the rest of the footprint remains blocked.
-Docking phases: approach, align, reverse, unload, close, exit.
+Docking phases now use a one-tile forward entry, stationary turn, unload and 0.5-second close.
+See SENTRY_REFINERY.md for the updated lifecycle and deferred refinery harvester spawn.
 Only one harvester owns the bay; other returning harvesters wait outside the exit lane.
 Changing orders releases ownership and preserves the remaining cargo. Destroying the
 refinery clears docking state and resumes existing refinery/ore recovery behavior.

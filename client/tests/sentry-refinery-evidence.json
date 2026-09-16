@@ -1,0 +1,132 @@
+{
+  "sentry-refinery-final.json": {
+    "placed": {
+      "id": 3,
+      "start": 0.041299999999999955,
+      "end": 1.3746333333333332
+    },
+    "spawn": {
+      "end": 1.3746333333333332,
+      "first": {
+        "t": 1.3829000000000025,
+        "n": 1
+      },
+      "early": []
+    },
+    "dock": {
+      "phases": [
+        "enter",
+        "turn",
+        "unload",
+        "close"
+      ],
+      "enterDistance": 110,
+      "closeDuration": 0.4917000000000069,
+      "money": 11000
+    },
+    "combat": {
+      "headings": -1.5707963267948957,
+      "shots": 5,
+      "shotsBeforeBuild": 0,
+      "aimErrors": [
+        0.03719632679490914,
+        0,
+        0,
+        0,
+        0
+      ],
+      "muzzleError": 3.0010450290552265e-06
+    },
+    "headings": [
+      {
+        "yaw": 0,
+        "hp": 9920
+      },
+      {
+        "yaw": 1.5707963267948966,
+        "hp": 9880
+      },
+      {
+        "yaw": -3.141592653589793,
+        "hp": 9840
+      },
+      {
+        "yaw": -1.5707963267948957,
+        "hp": 9800
+      }
+    ],
+    "errors": []
+  },
+  "sentry-firefox.json": {
+    "placed": {
+      "id": 3,
+      "start": 0.066,
+      "end": 1.3993333333333333
+    },
+    "spawn": {
+      "end": 1.3993333333333333,
+      "first": {
+        "t": 1.39936,
+        "n": 1
+      },
+      "early": []
+    },
+    "dock": {
+      "phases": [
+        "enter",
+        "turn",
+        "unload",
+        "close"
+      ],
+      "enterDistance": 110,
+      "closeDuration": 0.515000000000005,
+      "money": 11000
+    },
+    "combat": {
+      "headings": -1.5707963267948966,
+      "shots": 5,
+      "shotsBeforeBuild": 0,
+      "aimErrors": [
+        0.039916326794919854,
+        0,
+        0,
+        0,
+        0
+      ],
+      "muzzleError": 3.0010450290552265e-06
+    },
+    "headings": [
+      {
+        "yaw": 0,
+        "hp": 9920
+      },
+      {
+        "yaw": 1.5707963267948966,
+        "hp": 9880
+      },
+      {
+        "yaw": -3.141592653589793,
+        "hp": 9840
+      },
+      {
+        "yaw": -1.5707963267948966,
+        "hp": 9800
+      }
+    ],
+    "errors": []
+  },
+  "harvester-docking-evidence.json": {
+    "queue": {
+      "done": 2,
+      "money": 80
+    },
+    "cancelPreservesCargo": true,
+    "destroyedRefineryReleasesDock": true,
+    "errors": []
+  },
+  "sentry-production.json": {
+    "name": "\uc13c\ud2b8\ub9ac\uac74",
+    "money": 10000,
+    "turrets": 1
+  }
+}

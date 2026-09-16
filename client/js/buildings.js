@@ -444,6 +444,13 @@
     return _preloadAllPromise;
   }
 
+  // Pure metadata query: simulation completion must not depend on visibility/drawing.
+  PO.buildings.constructionEnd = b => {
+    const cfg=TYPE_CFG[b.kind], k=ST.kinds[b.kind];
+    if(!cfg)return b._placedAt||0;
+    if(!k?.ready)return Infinity;
+    return (b[cfg.entKey.buildT0]??0)+(k.frames.build.length/(cfg.fps.build||24));
+  };
   // ===== Hooks =====
   PO.buildings.onPlaced = function(b, state){
     if (!b || !TYPE_CFG[b.kind]) return;

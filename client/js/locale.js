@@ -7,7 +7,7 @@
     ko: {
       // 유닛/건물
       "unit.hq":"건설소(HQ)", "unit.power":"발전소", "unit.refinery":"정제소", "unit.barracks":"막사",
-      "unit.factory":"군수공장", "unit.radar":"레이더", "unit.turret":"터렛",
+      "unit.factory":"군수공장", "unit.radar":"레이더", "unit.turret":"센트리건",
       "unit.infantry":"보병", "unit.engineer":"엔지니어", "unit.sniper":"저격병", "unit.tank":"경전차",
       "unit.ifv":"IFV", "unit.harvester":"굴착기",
       // 토스트
@@ -65,7 +65,7 @@
     },
     en: {
       "unit.hq":"Construction Yard (HQ)", "unit.power":"Power Plant", "unit.refinery":"Refinery", "unit.barracks":"Barracks",
-      "unit.factory":"War Factory", "unit.radar":"Radar", "unit.turret":"Turret",
+      "unit.factory":"War Factory", "unit.radar":"Radar", "unit.turret":"Sentry Gun",
       "unit.infantry":"Infantry", "unit.engineer":"Engineer", "unit.sniper":"Sniper", "unit.tank":"Light Tank",
       "unit.ifv":"IFV", "unit.harvester":"Harvester",
       "toast.resume":"Resumed", "toast.repairMode":"Repair mode", "toast.repairOff":"Repair cancelled",
@@ -118,7 +118,7 @@
     },
     ja: {
       "unit.hq":"建設所(HQ)", "unit.power":"発電所", "unit.refinery":"精製所", "unit.barracks":"兵舎",
-      "unit.factory":"軍需工場", "unit.radar":"レーダー", "unit.turret":"タレット",
+      "unit.factory":"軍需工場", "unit.radar":"レーダー", "unit.turret":"セントリーガン",
       "unit.infantry":"歩兵", "unit.engineer":"エンジニア", "unit.sniper":"スナイパー", "unit.tank":"軽戦車",
       "unit.ifv":"IFV", "unit.harvester":"採掘車",
       "toast.resume":"再開", "toast.repairMode":"修理モード", "toast.repairOff":"修理解除",

@@ -102,6 +102,7 @@
       const p = findHarvesterSpawnNearBuilding(nearBuilding);
       const u = addUnit(team, "harvester", p.x, p.y);
       if (!u) return null;
+      u.homeRefineryId=nearBuilding.id;
       u.order = {type:"idle", x:u.x, y:u.y, tx:null, ty:null};
       u.manualOre = null;
       u.returning = false;
@@ -113,7 +114,7 @@
     }
 
     function onBuildingPlaced(b){
-      if (b && b.kind==="refinery") spawnFreeHarvester(b.team, b);
+      if (b && b.kind==="refinery") b._freeHarvesterPending=true;
     }
 
     // -------------------------
@@ -167,6 +168,12 @@
     }
 
     function tickEconomyPost(dt){
+      for(const b of buildings){
+        if(!b._freeHarvesterPending)continue;
+        if(!b.alive||b._refinerySelling){b._freeHarvesterPending=false;continue;}
+        const end=global.PO?.buildings?.constructionEnd?.(b);
+        if(Number.isFinite(end)&&state.t>=end&&spawnFreeHarvester(b.team,b))b._freeHarvesterPending=false;
+      }
       tickProduction(dt);
       const m2 = (state.player && typeof state.player.money==="number") ? state.player.money : null;
       // 수리 체크: 2프레임마다 (시야처럼) → 건물 많을 때 루프 부담 완화

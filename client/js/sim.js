@@ -316,6 +316,7 @@
       const d = Math.hypot(dx, dy) || 1;
       const nx = dx/d, ny = dy/d;
 
+      const muzzle=globalThis.OUSentry.muzzle(shooter);
       const blips = fx ? fx.blips : 4;
       const gap = fx ? fx.blipGap : 0.06;
 
@@ -326,11 +327,12 @@
         const delay = i*gap;
 
         // turret: straight line (no shotgun spread)
-        const mx = shooter.x + nx*(12 + Math.random()*3);
-        const my = shooter.y + ny*(12 + Math.random()*3);
+        const mx = muzzle.x;
+        const my = muzzle.y;
 
         spawnTrace(mx, my, target.x, target.y, shooter.team, {
           kind:"tmg",
+          z0:muzzle.z,
           life:tracerLife,
           delay,
           fx
@@ -338,8 +340,9 @@
 
         // strong muzzle flash (radial gradient in draw)
         flashes.push({
-          x: shooter.x + nx*14,
-          y: shooter.y + ny*14,
+          x: muzzle.x,
+          y: muzzle.y,
+          z:muzzle.z,
           r: (fx ? fx.muzzleR : 42) * (0.92 + Math.random()*0.18),
           a: fx ? fx.muzzleA : 0.45,
           life: muzzleLife,
@@ -475,77 +478,39 @@
     }
 
     function tickTurrets(dt){
-      for (const b of buildings){
-        if (!b.alive || b.civ || b.kind!=="turret") continue;
-        if (b.shootCd>0) b.shootCd -= dt;
-
-        const pf=getPowerFactor ? getPowerFactor(b.team) : 1;
-        const spec=DEFENSE.turret;
-        const rof=spec.rofBase/pf;
-        const range=spec.range;
-        if (b.shootCd>0) continue;
-
-        // Low power: powered defenses go offline
-        if (POWER.turretUse>0 && isUnderPower && isUnderPower(b.team)){
-          continue;
-        }
-        // Force-fire/force-attack overrides auto-targeting.
-        if (b.forceFire){
-          if (b.forceFire.mode==="id"){
-            const t = getEntityById ? getEntityById(b.forceFire.id) : null;
-            if (!t || !t.alive || t.attackable===false){ b.forceFire=null; }
-            else {
-              const d2=dist2(b.x,b.y,t.x,t.y);
-              if (d2<=range*range){
-                b.shootCd=rof;
-                if (spawnTurretMGTracers) spawnTurretMGTracers(b, t);
-                const dmg = (t.cls==="inf") ? (spec.dmgInf ?? spec.dmg) : spec.dmg;
-                if (applyDamage) applyDamage(t, dmg, b.id, b.team);
-              }
-              continue;
-            }
-          } else if (b.forceFire.mode==="pos"){
-            const tx=b.forceFire.x, ty=b.forceFire.y;
-            const d2=dist2(b.x,b.y, tx, ty);
-            if (d2<=range*range){
-              b.shootCd=rof;
-              if (spawnTurretMGTracers) spawnTurretMGTracers(b, {x:tx, y:ty, cls:"pos"});
-              if (applyAreaDamageAt) applyAreaDamageAt(tx,ty, 18, Math.max(1, spec.dmg*0.35), b.id, b.team);
-            }
-            continue;
+      const C=globalThis.OUSentry,spec=DEFENSE.turret;
+      for(const b of buildings){
+        if(!b.alive||b.civ||b.kind!=='turret')continue;
+        b.shootCd=Math.max(0,(b.shootCd||0)-dt);
+        if(!C.complete(b,state.t))continue;
+        if(POWER.turretUse>0&&isUnderPower?.(b.team))continue;
+        let target=null,ground=false;
+        if(b.forceFire?.mode==='pos'){target=b.forceFire;ground=true;}
+        else if(b.forceFire?.mode==='id'){
+          target=getEntityById(b.forceFire.id);
+          if(!target?.alive||target.attackable===false){b.forceFire=null;target=null;}
+        }else{
+          const valid=t=>{
+            if(!t?.alive||t.team!==(b.team===TEAM.PLAYER?TEAM.ENEMY:TEAM.PLAYER)||t.civ||t.attackable===false||t.inTransport||t.hidden||t.cloaked)return false;
+            const tx=tileOfX(t.x),ty=tileOfY(t.y);
+            return dist2(b.x,b.y,t.x,t.y)<=spec.range*spec.range&&inMap(tx,ty)&&visible[b.team][idx(tx,ty)];
+          };
+          target=getEntityById(b.sentryTarget);
+          if(!valid(target))target=null;
+          b._scanCd=(b._scanCd||0)-dt;
+          if(b._scanCd<=0){
+            b._scanCd=.15;let best=target?dist2(b.x,b.y,target.x,target.y):Infinity;
+            for(const t of units){if(!valid(t))continue;const d=dist2(b.x,b.y,t.x,t.y);if(d<best){best=d;target=t;}}
+            b.sentryTarget=target?.id??null;
           }
         }
-
-        const enemyTeam = b.team===TEAM.PLAYER ? TEAM.ENEMY : TEAM.PLAYER;
-        let best=null, bestD=Infinity;
-
-        // target enemy units
-        for (const u of units){
-          if (!u.alive || u.team!==enemyTeam || u.inTransport || u.hidden) continue;
-          if (u.kind==="sniper" && u.cloaked) continue;
-          const tx=tileOfX(u.x), ty=tileOfY(u.y);
-          if (inMap(tx,ty) && !visible[b.team][idx(tx,ty)]) continue;
-          const d2=dist2(b.x,b.y,u.x,u.y);
-          if (d2<bestD){ bestD=d2; best=u; }
-        }
-
-        // also target enemy buildings
-        for (const bb of buildings){
-          if (!bb.alive || bb.civ) continue;
-          if (bb.team!==enemyTeam) continue;
-          if (bb.attackable===false) continue;
-          const tx=bb.tx, ty=bb.ty;
-          if (inMap(tx,ty) && !visible[b.team][idx(tx,ty)]) continue;
-          const d2=dist2(b.x,b.y,bb.x,bb.y);
-          if (d2<bestD){ bestD=d2; best=bb; }
-        }
-
-        if (best && bestD<=range*range){
-          b.shootCd = rof;
-          if (spawnTurretMGTracers) spawnTurretMGTracers(b, best);
-          const dmg = (best.cls==="inf") ? (spec.dmgInf ?? spec.dmg) : spec.dmg;
-          if (applyDamage) applyDamage(best, dmg, b.id, b.team);
-        }
+        if(!target||dist2(b.x,b.y,target.x,target.y)>spec.range*spec.range)continue;
+        if(!C.aim(b,target.x,target.y,dt)||b.shootCd>0)continue;
+        b.shootCd=spec.rofBase;
+        b.lastShotAt=state.t;b.shotSerial=(b.shotSerial||0)+1;
+        spawnTurretMGTracers(b,target);
+        if(ground)applyAreaDamageAt?.(target.x,target.y,18,Math.max(1,spec.dmg*.35),b.id,b.team);
+        else applyDamage?.(target,UNIT[target.kind]?.cls==='inf'?(spec.dmgInf??spec.dmg):spec.dmg,b.id,b.team);
       }
     }
 
@@ -2775,7 +2740,7 @@
       if (traces.length > 70) return;  // 대규모 교전 시 렌더 부하 방지
       const life = (opt.life ?? 0.09);
       window.__combatUntil = Math.max(window.__combatUntil||0, performance.now()+12000);
-      traces.push({x0,y0,x1,y1,team,life, maxLife: (opt.maxLife ?? life), kind: opt.kind || "line", delay: opt.delay ?? 0, fx: opt.fx || null});
+      traces.push({x0,y0,x1,y1,z0:opt.z0||0,team,life, maxLife: (opt.maxLife ?? life), kind: opt.kind || "line", delay: opt.delay ?? 0, fx: opt.fx || null});
     }
 
     function spawnMGTracers(shooter, target){

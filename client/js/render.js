@@ -3235,8 +3235,9 @@
     updateSnipDeathFx();
     updateExp1Fxs();
 
-    if (window.OUTank3D) window.OUTank3D.beginFrame(units, state.t, {ctx,width:cam.viewWidth||ctx.canvas.width,project:worldToScreen,zoom:cam.zoom||1,color:u=>u.team===TEAM.PLAYER?state.colors.player:state.colors.enemy});
-    const drawables=[];
+    const sentryGhosts=window.OUTank3D?.sentryGhosts?.(state.t)||[];
+    if (window.OUTank3D) window.OUTank3D.beginFrame([...units,...buildings.filter(b=>b.kind==="turret"),...sentryGhosts], state.t, {ctx,width:cam.viewWidth||ctx.canvas.width,project:worldToScreen,zoom:cam.zoom||1,color:u=>u.team===TEAM.PLAYER?state.colors.player:state.colors.enemy});
+    const drawables=[...sentryGhosts];
     for (const b of buildings) if (b.alive) drawables.push(b);
     for (const u of units) if (u.alive) drawables.push(u);
     for (let i=0;i<infDeathFxs.length;i++){
@@ -3314,6 +3315,11 @@
 
       if (ent.team===TEAM.ENEMY && inMap(tx,ty) && !explored[TEAM.PLAYER][idx(tx,ty)]){ ctx.restore(); continue; }
 
+      if(ent._sentryDeath!=null){
+        ctx.globalAlpha=Math.max(0,1-(state.t-ent._sentryDeath)/window.OUSentry.deathSeconds);
+        window.OUTank3D?.draw(ctx,ent,screenPos,cam.zoom,ent.team===TEAM.PLAYER?state.colors.player:state.colors.enemy,state.t);
+        ctx.restore();continue;
+      }
       if (isB){
         if (ent.civ){ ctx.restore(); continue; }
 
@@ -3322,7 +3328,10 @@
         if (ent.team===TEAM.PLAYER){ fill="rgba(10,40,70,0.9)"; stroke=state.colors.player; }
         if (ent.team===TEAM.ENEMY){  fill="rgba(70,10,10,0.9)"; stroke=state.colors.enemy; }
 
-        if (buildSprite && buildSprite[ent.kind]){
+        if(ent.kind==='turret'&&window.OUTank3D?.sentryReady){
+          drawBuildingShadow(ent);
+          window.OUTank3D.draw(ctx,ent,screenPos,cam.zoom,ent.team===TEAM.PLAYER?state.colors.player:state.colors.enemy,state.t);
+        } else if (buildSprite && buildSprite[ent.kind]){
           drawBuildingShadow(ent);
           drawFootprintDiamond(ent, "rgba(0,0,0,0)", "rgba(0,0,0,0)");
           if (typeof drawBuildingSprite === "function") drawBuildingSprite(ent);
@@ -3587,6 +3596,7 @@
       if ((tr.delay||0) > 0) continue;
       if (!isVisibleAt(tr.x0, tr.y0) && !isVisibleAt(tr.x1, tr.y1)) continue;
       const a=worldToScreen(tr.x0,tr.y0);
+      a.y-=(tr.z0||0)*window.OUTankConfig.heightToScreen*cam.zoom;
       const b=worldToScreen(tr.x1,tr.y1);
       if (!isInViewport(a.x, a.y) && !isInViewport(b.x, b.y)) continue;
       const noShadow = fxHeavy;
@@ -3709,6 +3719,7 @@
       if ((f.delay||0) > 0) continue;
       if (!isVisibleAt(f.x, f.y)) continue;
       const p=worldToScreen(f.x,f.y);
+      p.y-=(f.z||0)*window.OUTankConfig.heightToScreen*cam.zoom;
       if (!isInViewport(p.x, p.y)) continue;
       const a = Math.min(1, f.life/0.06);
       ctx.globalAlpha = a;

@@ -6,7 +6,7 @@ await p.locator('#fogOff').check();await p.locator('#startBtn').click();await p.
 await p.evaluate(()=>{const g=OUTankTest,T=g.TILE;g.ai.tick=()=>{};for(const u of g.units)u.alive=false;
 const x=Math.floor(g.MAP_W/2),y=Math.floor(g.MAP_H/2);
 for(let ty=y-8;ty<y+15;ty++)for(let tx=x-8;tx<x+18;tx++){const i=ty*g.MAP_W+tx;g.terrain[i]=0;g.treeHp[i]=0;g.ore[i]=0;}
-const ref=g.addBuilding(g.TEAM.PLAYER,'refinery',x,y);for(const u of g.units)u.alive=false;
+const ref=g.addBuilding(g.TEAM.PLAYER,'refinery',x,y);ref._freeHarvesterPending=false;for(const u of g.units)u.alive=false;
 const a=OUHarvester.approach(ref,T),list=[];
 for(let i=0;i<2;i++){const u=g.addUnit(g.TEAM.PLAYER,'harvester',a.x+i*T*2,a.y+i*T*2,{skipMvp:true});
 u.carry=40;u.target=ref.id;u.bodyYaw=0;u.order={type:'return'};g.sim.setPathTo(u,a.x,a.y);list.push(u);}
@@ -24,7 +24,7 @@ const carry=await p.evaluate(()=>{const u=dcase.list[0],g=OUTankTest;u.order={ty
 await p.waitForTimeout(700);
 assert(await p.evaluate(c=>dcase.list[0].harvesterDock===null&&dcase.ref.dockUnitId==null&&dcase.list[0].carry===c,carry));
 await p.evaluate(()=>{const u=dcase.list[0],g=OUTankTest;u.x=dcase.a.x;u.y=dcase.a.y;u.path=null;u.bodyYaw=0;u.target=dcase.ref.id;u.order={type:'return'};});
-await p.waitForFunction(()=>dcase.list[0].harvesterDock?.phase==='reverse');
+await p.waitForFunction(()=>dcase.list[0].harvesterDock?.phase==='enter');
 await p.evaluate(()=>OUTankTest.destroyBuilding(dcase.ref));await p.waitForTimeout(400);
 assert(await p.evaluate(()=>!dcase.list[0].harvesterDock));assert.equal(errors.length,0);
 const result={queue,cancelPreservesCargo:true,destroyedRefineryReleasesDock:true,errors};

@@ -365,7 +365,7 @@ function getBaseBuildTime(kind){
 
   const POWER = {
     hqProd:20, powerPlant:150,
-    refineryUse:50, barracksUse:10, factoryUse:25, radarUse:50, turretUse:25
+    refineryUse:50, barracksUse:10, factoryUse:25, radarUse:50, turretUse:0
   };
 
   const BUILD = {
@@ -388,7 +388,7 @@ function getBaseBuildTime(kind){
       range: 540,
       dmg: 22,
       dmgInf: 40,
-      // base ROF before power factor scaling (tickTurrets uses rof/powerFactor)
+      // Sentry burst interval; this mechanical defense works without power.
       rofBase: 0.65,
 
       // range ellipse rendering
@@ -398,11 +398,11 @@ function getBaseBuildTime(kind){
       fx: {
         blips: 4,          // number of on/off tracer blips per shot
         blipGap: 0.06,     // seconds between blips
-        coreW: 6.0,
-        glowW: 16.0,
+        coreW: 2.0,
+        glowW: 6.0,
         coreA: 0.98,
         glowA: 0.26,
-        muzzleR: 42,
+        muzzleR: 12,
         muzzleA: 0.45,
         impactA: 0.55
       }
@@ -428,7 +428,7 @@ function getBaseBuildTime(kind){
 
   const DEFAULT_NAME_KO = {
     hq:"건설소(HQ)", power:"발전소", refinery:"정제소", barracks:"막사",
-    factory:"군수공장", radar:"레이더", turret:"터렛",
+    factory:"군수공장", radar:"레이더", turret:"센트리건",
     infantry:"보병", engineer:"엔지니어", sniper:"저격병", tank:"경전차", ifv:"IFV", harvester:"굴착기"
   };
 
@@ -603,6 +603,7 @@ const buildingWorldFromTileOrigin = __tileHelpers ? __tileHelpers.buildingWorldF
     const b = {
       id: nextId++,
       team, kind,
+      _placedAt:state.t, turretYaw:0,
       grp: 0,
       tx, ty, tw, th,
       x: wpos.cx, y: wpos.cy,
@@ -1029,6 +1030,8 @@ function tryUnloadIFV(ifv){ return __ou_commands && __ou_commands.tryUnloadIFV ?
     grantVeteranExp(killer, COST[b.kind] || 0, state.t, b.team);
     if (__ou_sim && __ou_sim.recordKill) __ou_sim.recordKill(cause.srcTeam, { targetKind: b.kind, targetCls: null, sniperKill: false });
     if (__ou_sim && __ou_sim.recordLoss) __ou_sim.recordLoss(b.team);
+
+    if(b.kind==='turret')window.OUTank3D?.onSentryDestroyed?.(b,state.t);
 
     // 1) Evac infantry FIRST (needs the footprint while it's still logically present)
     //    If no valid spawn tile exists, it will safely skip.

@@ -21,6 +21,20 @@ const pointer = new THREE.Vector2();
 const v = new THREE.Vector3();
 
 function pose(u, time) {
+  if(u.kind==='turret'){
+    const C=window.OUSentry,death=u._sentryDeath!=null?Math.max(0,(time-u._sentryDeath)/C.deathSeconds):0;
+    const build=Math.max(0,Math.min(1,(time-(u._placedAt||0))/C.buildSeconds));
+    model.rotation.set(0,Math.PI/2,0);hull.scale.setScalar(Math.max(.001,Math.min(1,build*3)));
+    turret.scale.setScalar(Math.max(.001,Math.min(1,(build-.25)/.75)));
+    turret.rotation.set(death*1.1,-(u.turretYaw||0),death*.6);
+    turret.position.y=.66+(1-build)*1.5-death*.6;
+    barrel.position.copy(barrelRest);
+    const age=time-(u.lastShotAt??-999);
+    barrel.rotation.z=age>=0&&age<.4?age*35:0;
+    if(death){hull.scale.multiplyScalar(Math.max(.01,1-death*.25));turret.scale.multiplyScalar(Math.max(.01,1-death));}
+    model.updateMatrixWorld(true);return;
+  }
+
   const m = window.OUTankMotion;
   const {bodyYaw,turretYaw} = m.readPose(u);
   model.rotation.y = Math.PI / 2 - bodyYaw;
@@ -55,6 +69,12 @@ function teamColor(color) {
 
 // Merge rigid decorations by material inside each articulated part. Moving
 // pivots and wheel nodes remain intact; geometry is baked into its own parent.
+function mergeCompatible(geometries){
+  // Procedural GLBs have optional UV/tangent attributes; retain the common contract.
+  const names=new Set(geometries.flatMap(g=>Object.keys(g.attributes)));
+  for(const name of names)if(!geometries.every(g=>g.hasAttribute(name)))for(const g of geometries)g.deleteAttribute(name);
+  return mergeGeometries(geometries,false);
+}
 function mergeRigidParts() {
   model.updateMatrixWorld(true);
   const parts=new Set([hull,turret,barrel,...wheels,...extraParts].filter(Boolean));
@@ -71,7 +91,7 @@ function mergeRigidParts() {
     for(const [material,meshes] of groups){
       if(meshes.length<2)continue;
       const geometries=meshes.map(m=>m.geometry.clone().applyMatrix4(inverse.clone().multiply(m.matrixWorld)));
-      const merged=mergeGeometries(geometries,false);
+      const merged=mergeCompatible(geometries);
       for(const g of geometries)g.dispose();
       if(!merged)continue;
       const mesh=new THREE.Mesh(merged,material);mesh.name=root.name+'_batch_'+material.name;
@@ -109,7 +129,7 @@ function buildCrowdDetail() {
         }
         return g;
       });
-      const geometry=mergeGeometries(geometries,false);
+      const geometry=mergeCompatible(geometries);
       for(const g of geometries)g.dispose();
       if(!geometry)continue;
       const m=new THREE.Mesh(geometry,material);m.visible=false;root.add(m);
@@ -193,9 +213,17 @@ export const ready = (async () => {
     mergeRigidParts();model.updateMatrixWorld(true);buildCrowdDetail();scene.add(model);
     const hs=shadow.clone();hull.add(hs);remember('harvester');selectAsset('tank');
     api.harvesterReady=true;
+    const sg=await new GLTFLoader().loadAsync(new URL(window.OUSentry.modelUrl,import.meta.url).href);
+    config=window.OUSentry;model=sg.scene;hull=model.getObjectByName('Hull');turret=model.getObjectByName('Turret');barrel=model.getObjectByName('Barrel');
+    if(!hull||!turret||!barrel||!model.getObjectByName('Muzzle'))throw Error('Sentry hierarchy incomplete');
+    model.updateMatrixWorld(true);const sentryTip=model.getObjectByName('Muzzle').getWorldPosition(new THREE.Vector3());
+    if(Math.abs(sentryTip.z-config.muzzleForward)>.001||Math.abs(sentryTip.y-config.muzzleHeight)>.001)throw Error('Sentry muzzle contract mismatch');
+    barrelRest=barrel.position.clone();wheels=[];materials=[];detailMeshes=[];crowdMeshes=[];extraParts=[];
+    mergeRigidParts();model.updateMatrixWorld(true);buildCrowdDetail();scene.add(model);remember('turret');selectAsset('tank');
+    api.sentryReady=true;
     return true;
   } catch (error) {
-    if(assets.has('tank')){selectAsset('tank');api.status='ready';api.harvesterError=String(error);console.error('[harvester3d]',error);return true;}
+    if(assets.has('tank')){selectAsset('tank');api.status='ready';api.assetError=String(error);console.error('[vehicle3d asset]',error);return true;}
     api.status='error'; api.error=String(error);
     console.error('[tank3d] Real-time renderer unavailable; using existing fallback.',error);
     return false;
@@ -247,7 +275,7 @@ api.beginFrame = function(units,time,view) {
   if(api.status!=='ready'||!view) return;
   const {ctx,project,zoom,color}=view;
   const viewWidth=view.width||ctx.canvas.width;
-  const size=span*config.scale/Math.sqrt(2)*zoom;
+  const size=span*window.OUTankConfig.scale/Math.sqrt(2)*zoom;
   const res=Math.max(64,Math.min(768,Math.ceil(size)));
   const visible=units.filter(u=>{
     if(!u.alive||!assets.has(u.kind)||u.hidden||u.inTransport)return false;
@@ -314,4 +342,16 @@ api.muzzleWorld = function(u,time) {
   selectAsset('tank');pose(u,time); model.getObjectByName('Muzzle').getWorldPosition(v);
   const s=window.OUTankMotion.SCALE;
   return {x:u.x+v.x*s,y:u.y+v.z*s,z:v.y*s};
+};
+
+const sentryGhosts=[];
+api.onSentryDestroyed=(b,time)=>{sentryGhosts.push({...b,id:-b.id,alive:true,_sentryDeath:time});};
+api.sentryGhosts=time=>{
+ for(let i=sentryGhosts.length-1;i>=0;i--)if(time<sentryGhosts[i]._sentryDeath||time-sentryGhosts[i]._sentryDeath>window.OUSentry.deathSeconds)sentryGhosts.splice(i,1);
+ return sentryGhosts;
+};
+api.sentryMuzzleWorld=(u,time)=>{
+ if(!assets.has('turret'))return null;selectAsset('turret');pose(u,time);
+ model.getObjectByName('Muzzle').getWorldPosition(v);
+ return {x:u.x+v.x*20,y:u.y+v.z*20,z:v.y*20};
 };
