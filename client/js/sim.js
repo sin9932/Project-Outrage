@@ -116,6 +116,7 @@
       for (let i = 0; i < buildings.length; i++) {
         const b = buildings[i];
         if (!b || b.hp <= 0) continue;
+        if(globalThis.OUHarvester.inCorridor(b,x,y,TILE,ur+pad))continue;
         const hw = (b.w || 0) / 2 + ur + pad;
         const hh = (b.h || 0) / 2 + ur + pad;
         if (x >= b.x - hw && x <= b.x + hw && y >= b.y - hh && y <= b.y + hh) return true;
@@ -1034,7 +1035,7 @@
         // Apply accumulated separation with damping + steering blend (떨림·벽 뚫림 방지)
         // 보병은 bothInf 스킵으로 다른 보병에게서는 _sepAx 없음. 차량에 밀릴 때만 적용.
         for (const uu of alive){
-          if (uu.kind==="tank") { uu._sepAx=0; uu._sepAy=0; continue; }
+          if (uu.kind==="tank" || uu.kind==="harvester") { uu._sepAx=0; uu._sepAy=0; continue; }
           let ax = uu._sepAx || 0;
           let ay = uu._sepAy || 0;
           if (ax===0 && ay===0){ uu._sepAx = 0; uu._sepAy = 0; continue; }
@@ -1294,44 +1295,9 @@
 
     const dist2PointToRect = (r.dist2PointToRect || (global.OU && global.OU.dist2PointToRect)) || function(px,py,rx,ry,rw,rh){ const hx=rw*0.5, hy=rh*0.5; const dx=Math.max(Math.abs(px-rx)-hx,0); const dy=Math.max(Math.abs(py-ry)-hy,0); return dx*dx+dy*dy; };
 
-    function getClosestPointOnBuilding(b, u){
-      const x0 = b.tx*TILE, y0 = b.ty*TILE;
-      const x1 = (b.tx+b.tw)*TILE, y1 = (b.ty+b.th)*TILE;
-      const pad = (u && u.r) ? u.r*0.45 : TILE*0.20;
-      const px = clamp(u ? u.x : (x0+x1)*0.5, x0-pad, x1+pad);
-      const py = clamp(u ? u.y : (y0+y1)*0.5, y0-pad, y1+pad);
-      return {x:px, y:py};
-    }
 
-    function getDockPoint(b, u){
-      const x0 = b.tx*TILE, y0 = b.ty*TILE;
-      const x1 = (b.tx+b.tw)*TILE, y1 = (b.ty+b.th)*TILE;
-      const cx = (x0+x1)*0.5, cy = (y0+y1)*0.5;
-      const pad = (u && u.r) ? u.r*0.65 : TILE*0.25;
-      const px = clamp(u ? u.x : cx, x0-pad, x1+pad);
-      const py = clamp(u ? u.y : cy, y0-pad, y1+pad);
-      const candidates = [
-        {x: x1 + pad, y: cy},
-        {x: x0 - pad, y: cy},
-        {x: cx, y: y1 + pad},
-        {x: cx, y: y0 - pad},
-        {x: px, y: py},
-      ];
-      const uTx = u ? tileOfX(u.x) : -999;
-      const uTy = u ? tileOfY(u.y) : -999;
-      let best = null, bestD = 1e18;
-      for (const c of candidates){
-        const tx=(c.x/TILE)|0, ty=(c.y/TILE)|0;
-        if (!inMap(tx,ty)) continue;
-        if (!isWalkableTile(tx,ty)) continue;
-        if (!u) return c;
-        if (canEnterTileGoal(u, tx, ty, b) || (tx===uTx && ty===uTy)){
-          const d2 = (u.x - c.x)**2 + (u.y - c.y)**2;
-          if (d2 < bestD){ bestD = d2; best = c; }
-        }
-      }
-      return best || candidates[candidates.length-1];
-    }
+
+
 
     function isReservedByOther(u, tx, ty){
       if (!inMap(tx,ty)) return false;
@@ -1842,7 +1808,7 @@
       }
       let ax=dx/(d||1), ay=dy/(d||1);
       // RA2 style: 보병은 회피 없이 목표로 직진 (위글+렉 근본 해결)
-      if (u.cls!=="inf" && u.kind!=="tank"){
+      if (u.cls!=="inf" && u.kind!=="tank" && u.kind!=="harvester"){
         let avoidX=0, avoidY=0;
         for (let j=0;j<units.length;j++){
           const o=units[j];
@@ -1872,8 +1838,8 @@
       }
 
       const movingDir = (Math.abs(ax) + Math.abs(ay)) > 1e-4;
-      if (u.kind==="tank" && movingDir){
-        if (!globalThis.OUTankMotion.drive(u,ax,ay,dt,worldVecToDir8)){
+      if ((u.kind==="tank" || u.kind==="harvester") && movingDir){
+        if (!(u.kind==="harvester"?globalThis.OUHarvester:globalThis.OUTankMotion).drive(u,ax,ay,dt,worldVecToDir8)){
           u.turningToPath=true; u.vx=0; u.vy=0; u._vehCurSpeed=0; return true;
         }
       } else if ((u.fireHoldT||0) > 0 && u.fireDir!=null){
@@ -1939,7 +1905,7 @@
         }
       }
       if (isBlockedWorldPoint(u, nx, ny)){
-        if (u.kind==="tank") { u.vx=0; u.vy=0; u.repathCd=0; return false; }
+        if (u.kind==="tank" || u.kind==="harvester") { u.vx=0; u.vy=0; u.repathCd=0; return false; }
         const px = -ay, py = ax;
         for (const sgn of [1,-1]){
           const sx = u.x + px*step*sgn;
@@ -2317,7 +2283,7 @@
     }
     const flow = OUFlowField.getFlowAt(field, u.x, u.y, TILE, tileOfX, tileOfY);
     if (!flow || (flow.dx === 0 && flow.dy === 0)) return false;
-    if (u.kind==="tank" && !globalThis.OUTankMotion.drive(u,flow.dx,flow.dy,dt,worldVecToDir8)){
+    if ((u.kind==="tank" || u.kind==="harvester") && !(u.kind==="harvester"?globalThis.OUHarvester:globalThis.OUTankMotion).drive(u,flow.dx,flow.dy,dt,worldVecToDir8)){
       u.turningToPath=true; u.vx=0; u.vy=0; u._vehCurSpeed=0; return true;
     }
     const maxSpeed = getMoveSpeed(u) || 80;
@@ -2426,17 +2392,7 @@
     return !!path;
   }
 
-    function findNearestRefinery(team, wx, wy){
-      let best=null, bestD=1e9;
-      const fakeU = {x: wx, y: wy, r: 28}; // harvester radius for dock selection
-      for (const b of buildings){
-        if (!b.alive || b.team!==team || b.kind!=="refinery") continue;
-        const dock = getDockPoint(b, fakeU);
-        const d2 = dist2(wx, wy, dock.x, dock.y);
-        if (d2<bestD){ bestD=d2; best=b; }
-      }
-      return best;
-    }
+
 
     function hasAnyRefinery(team){
       for (const b of buildings){
@@ -2477,6 +2433,12 @@
     }
 
     function getDockPoint(b, u){
+      if(b.kind==="refinery"){
+        const p=globalThis.OUHarvester.approach(b,TILE),owner=getEntityById(b.dockUnitId);
+        if(u&&owner&&owner.id!==u.id&&owner.alive&&owner.harvesterDock&&owner.order?.type==='return')
+          return {x:p.x+TILE*2,y:p.y+((u.id%2)?1:-1)*TILE*2};
+        return p;
+      }
       const x0 = b.tx*TILE, y0 = b.ty*TILE;
       const x1 = (b.tx+b.tw)*TILE, y1 = (b.ty+b.th)*TILE;
       const cx = (x0+x1)*0.5, cy = (y0+y1)*0.5;
@@ -3563,6 +3525,10 @@
           }
     
     if (u.kind==="harvester"){
+      if(u.harvesterDock && (u.order.type!=="return"||u.target!==u.harvesterDock.refId||!getEntityById(u.harvesterDock.refId)?.alive)){
+        const ref=getEntityById(u.harvesterDock.refId);if(ref?.dockUnitId===u.id)ref.dockUnitId=null;
+        u.harvesterDock=null;
+      }
             if (u.crushUntil && state.t < u.crushUntil){
               const tgt = (u.crushTargetId!=null) ? getEntityById(u.crushTargetId) : null;
               if (tgt && isInfantryUnit(tgt) && dist2(u.x,u.y,tgt.x,tgt.y) < 820*820){
@@ -3674,35 +3640,17 @@
               }
     
               const dock=getDockPoint(ref,u);
-    
-              if (u.repathCd<=0){
-                const gTx=(dock.x/TILE)|0, gTy=(dock.y/TILE)|0;
-                const pathLost = !u.path || !u.path.length;
-                if (pathLost || u.lastGoalTx!==gTx || u.lastGoalTy!==gTy){
-                  setPathTo(u, dock.x, dock.y);
-                  u.repathCd = pathLost ? 0.25 : 0.55;
+              if(!u.harvesterDock){
+                if(u.repathCd<=0 && (!u.path||u.pathI>=u.path.length||u.lastGoalTx!==tileOfX(dock.x)||u.lastGoalTy!==tileOfY(dock.y))){
+                  setPathTo(u,dock.x,dock.y);u.repathCd=.55;
                 }
+                followPath(u,dt);crushInfantry(u);
               }
-              followPath(u,dt);
-              crushInfantry(u);
-    
-              const nearDock = dist2(u.x,u.y,dock.x,dock.y) < 70*70;
-              const refR = (Math.max(ref.w, ref.h)*0.55 + 90);
-              const nearRef = dist2(u.x,u.y,ref.x,ref.y) < refR*refR;
-              if (nearDock || nearRef){
-                if (u.carry>0){
-                  const add = Math.floor(u.carry);
-                  if (u.team===TEAM.PLAYER) state.player.money = Math.floor((state.player.money||0) + add);
-                  else state.enemy.money = Math.floor((state.enemy.money||0) + add);
-                  if (state.stats) state.stats.harvest[u.team] = (state.stats.harvest[u.team]||0) + add;
-                  u.carry = 0;
-                  u._needsRef = false;
-                  // Trigger refinery "active" animation (deposit pulse)
-                  if (ref && ref.kind==="refinery"){
-                    ref._activeT0 = state.t;
-                    ref._activePulse = (ref._activePulse||0) + 1;
-                  }
-                }
+              const done=globalThis.OUHarvester.tickDock(u,ref,dt,{T:TILE,time:state.t,dir8:worldVecToDir8,getUnit:getEntityById,
+                canMove:(x,y)=>{const tx=tileOfX(x),ty=tileOfY(y);return isWalkableTile(tx,ty)&&!isBlockedWorldPoint(u,x,y)&&((tx===tileOfX(u.x)&&ty===tileOfY(u.y))||canEnterTile(u,tx,ty));},
+                credit:add=>{const wallet=u.team===TEAM.PLAYER?state.player:state.enemy;wallet.money=Math.floor((wallet.money||0)+add);if(state.stats)state.stats.harvest[u.team]=(state.stats.harvest[u.team]||0)+add;}
+              });
+              if(done){
                 // Back to manual ore if set, otherwise auto.
                 if (u.manualOre){
                   u.order={type:"harvest", x:u.x,y:u.y, tx:u.manualOre.tx, ty:u.manualOre.ty};
@@ -3917,6 +3865,7 @@
     
                 const ii=idx(tx,ty);
                 const take=Math.min(55*dt, ore[ii], u.carryMax-u.carry);
+                if(take>0){u.harvestUntil=state.t+.15;u.harvestTile={tx,ty};}
                 ore[ii] -= take;
                 const credit = (isGem && isGem[ii]) ? take*2 : take;
                 u.carry = Math.min(u.carryMax, u.carry + credit);

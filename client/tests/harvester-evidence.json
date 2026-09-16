@@ -1,0 +1,21 @@
+{
+  "phases": [
+    "align",
+    "reverse",
+    "unload",
+    "close",
+    "exit"
+  ],
+  "mined": true,
+  "moneyDelta": 99,
+  "carry": 0,
+  "order": "harvest",
+  "lanes": [
+    0,
+    0,
+    0
+  ],
+  "asset": true,
+  "samples": 2306,
+  "errors": []
+}

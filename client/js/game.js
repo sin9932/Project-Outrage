@@ -776,6 +776,7 @@ function isBlockedWorldPointEx(u, x, y, padExtra){
     for (let i=0;i<buildings.length;i++){
       const b = buildings[i];
       if (!b || b.hp<=0) continue;
+      if(window.OUHarvester.inCorridor(b,x,y,TILE,ur+pad))continue;
       const hw = (b.w||0)/2 + ur + pad;
       const hh = (b.h||0)/2 + ur + pad;
       if (x >= b.x-hw && x <= b.x+hw && y >= b.y-hh && y <= b.y+hh) return true;
@@ -2873,6 +2874,7 @@ if (isCallable(__ou_ui, "bindPregameStart")){
           exp1Promise,
           loadForestGround()
         ]);
+        await window.OURender?.prewarmEvac?.({state,TEAM,idleUrl:INF_IDLE_PNG,attackUrl:INF_ATK_PNG});
         if (PO.buildings && typeof PO.buildings.prewarm === "function"){
           await PO.buildings.prewarm({ state, teams: [TEAM.PLAYER, TEAM.ENEMY], kinds: ["barracks", "power", "refinery"] });
         }
@@ -2912,7 +2914,7 @@ if (isCallable(__ou_ui, "bindPregameStart")){
   if (DEV_VALIDATE) window.OUTankTest = {
     state, units, buildings, cam, TEAM, terrain, ore, treeHp, buildOcc, TILE, MAP_W, MAP_H,
     addUnit, getEntityById, worldToScreen, screenToWorld, centerCameraOn,
-    commands:__ou_commands, sim:__ou_sim, ai:__ou_ai, camera:__ou_cam, addBuilding,
+    commands:__ou_commands, sim:__ou_sim, ai:__ou_ai, camera:__ou_cam, addBuilding, destroyBuilding,
     get running(){return running;},
     setFog(value){fogEnabled=!!value;},
     get explored(){return explored;}, get visible(){return visible;}

@@ -278,6 +278,7 @@
     return true;
   }
 
+  const pendingDeathTints=new Set();
   function _prewarmFrameTint(kind, atlasKey, filename, team, state){
     const stKind = ST.kinds[kind];
     const cfg = TYPE_CFG[kind];
@@ -295,6 +296,12 @@
     const applyFn = _getApplyFn();
     if (!applyFn) return;
 
+    if(atlasKey==='death' && applyFn.asyncFrame){
+      if(pendingDeathTints.has(kind+'|'+fKey))return;
+      const key=kind+'|'+fKey;pendingDeathTints.add(key);
+      return applyFn.asyncFrame(origImg,fr.frame,_getTeamColor(state,team),{gain:1.65,bias:.18,gamma:.78,minV:.42,ignoreWhites:true})
+        .then(bitmap=>{if(bitmap)stKind.frameTexCache.set(fKey,bitmap);}).finally(()=>pendingDeathTints.delete(key));
+    }
     const c = document.createElement("canvas");
     c.width = fr.frame.w;
     c.height = fr.frame.h;
@@ -318,9 +325,9 @@
       if (!st || !st.ready) continue;
       const groups={idle:[...st.frames.idleOk,...st.frames.idleBad],build:st.frames.build,death:st.frames.death};
       for (const [key,frames] of Object.entries(groups)){
-        const names=opts.background ? frames : (key==='death' ? [] : frames.slice(0,1));
+        const names=opts.background ? frames : frames.slice(0,1);
         for (const team of teams) for (const name of names){
-          _prewarmFrameTint(kind,key,name,team,opts.state);
+          await _prewarmFrameTint(kind,key,name,team,opts.state);
           await new Promise(resolve=>setTimeout(resolve,0));
         }
       }
@@ -523,7 +530,16 @@
       const sx = p.x;
       const sy = p.y;
 
-      drawFrameTeam(g.kind, "death", stKind.atlases.death, ctx, stKind.frames.death[idx], sx, sy, g.team, scale, state);
+      // Prefetch ahead; never read back/tint a large destruction frame in draw.
+      for(let j=idx;j<Math.min(idx+4,stKind.frames.death.length);j++)
+        _prewarmFrameTint(g.kind,'death',stKind.frames.death[j],g.team,state);
+      let frameIndex=idx;
+      const asyncPalette=_getApplyFn()?.asyncFrame && globalThis.Worker && globalThis.OffscreenCanvas;
+      if(asyncPalette){
+        while(frameIndex>=0 && !stKind.frameTexCache.has(`death|${stKind.frames.death[frameIndex]}|t${g.team}`))frameIndex--;
+        if(frameIndex<0)continue;
+      }
+      drawFrameTeam(g.kind, "death", stKind.atlases.death, ctx, stKind.frames.death[frameIndex], sx, sy, g.team, scale, state);
     }
   };
 

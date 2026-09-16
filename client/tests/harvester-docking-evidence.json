@@ -1,0 +1,9 @@
+{
+  "queue": {
+    "done": 2,
+    "money": 80
+  },
+  "cancelPreservesCargo": true,
+  "destroyedRefineryReleasesDock": true,
+  "errors": []
+}

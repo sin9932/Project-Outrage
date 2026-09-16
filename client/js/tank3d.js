@@ -7,14 +7,15 @@ import { mergeGeometries } from '../vendor/three/addons/utils/BufferGeometryUtil
 // No directional atlas, cached view frames, or animation image sequences.
 const api = window.OUTank3D = { status: 'loading', draws: 0, error: null };
 const enabled = new URLSearchParams(location.search).get('tank3d') !== '0';
-const config = window.OUTankConfig;
+let config = window.OUTankConfig;
 const span = config.renderSpan;
 let renderer, scene, camera, model, hull, turret, barrel, barrelRest;
-let wheels = [], materials = [], currentColor = null;
+let wheels = [], materials = [], currentColor = null, extraParts=[];
+const assets=new Map();
 const poseByUnit = new Map();
 const frameSlots = new Map();
 const framePages = [];
-const detailMeshes=[], crowdMeshes=[];
+let detailMeshes=[], crowdMeshes=[];
 const ray = new THREE.Raycaster();
 const pointer = new THREE.Vector2();
 const v = new THREE.Vector3();
@@ -23,9 +24,13 @@ function pose(u, time) {
   const m = window.OUTankMotion;
   const {bodyYaw,turretYaw} = m.readPose(u);
   model.rotation.y = Math.PI / 2 - bodyYaw;
-  turret.rotation.y = bodyYaw - turretYaw;
-  barrel.position.copy(barrelRest);
-  barrel.position.z -= m.recoil(u, time);
+  if(turret){turret.rotation.y=bodyYaw-turretYaw;barrel.position.copy(barrelRest);barrel.position.z-=m.recoil(u,time);}
+  if(u.kind==='harvester'){
+    const d=u.harvesterDock,gate=model.getObjectByName('Tailgate'),cargo=model.getObjectByName('Cargo');
+    gate.rotation.x=d?.phase==='unload'?-1.8*Math.min(1,(time-d.started)/.4):d?.phase==='close'?-1.8*Math.max(0,1-(time-d.started)/.4):0;
+    cargo.visible=u.carry>0;cargo.scale.y=Math.max(.05,Math.min(1,u.carry/Math.max(1,u.carryMax)));
+    model.getObjectByName('Rotor').rotation.x=(u.harvestUntil||0)>time?time*9:0;
+  }
   let rec = poseByUnit.get(u.id);
   if (!rec || rec.unit !== u) rec = { unit:u, x:u.x, y:u.y, wheel:0, seen:time };
   const dx = u.x - rec.x, dy = u.y - rec.y;
@@ -52,7 +57,7 @@ function teamColor(color) {
 // pivots and wheel nodes remain intact; geometry is baked into its own parent.
 function mergeRigidParts() {
   model.updateMatrixWorld(true);
-  const parts=new Set([hull,turret,barrel,...wheels]);
+  const parts=new Set([hull,turret,barrel,...wheels,...extraParts].filter(Boolean));
   for(const root of parts){
     const groups=new Map(),inverse=root.matrixWorld.clone().invert();
     function visit(o){
@@ -80,7 +85,7 @@ function mergeRigidParts() {
 // Keep articulated pivots and separate live team-color materials. This reduces
 // draw calls without replacing geometry with sprites or changing hit geometry.
 function buildCrowdDetail() {
-  const parts=new Set([hull,turret,barrel,...wheels]);
+  const parts=new Set([hull,turret,barrel,...wheels,...extraParts].filter(Boolean));
   const plain=new THREE.MeshStandardMaterial({vertexColors:true,metalness:.35,roughness:.7});
   for(const root of parts){
     const groups=new Map(), inverse=root.matrixWorld.clone().invert();
@@ -111,6 +116,15 @@ function buildCrowdDetail() {
       crowdMeshes.push(m);detailMeshes.push(...meshes);
     }
   }
+}
+
+function remember(kind){assets.set(kind,{config,model,hull,turret,barrel,barrelRest,wheels,materials,detailMeshes,crowdMeshes,extraParts});}
+function selectAsset(kind){
+ const a=assets.get(kind);if(!a)return false;
+ if(model===a.model)return true;
+ ({config,model,hull,turret,barrel,barrelRest,wheels,materials,detailMeshes,crowdMeshes,extraParts}=a);
+ for(const [k,v] of assets)v.model.visible=k===kind;
+ currentColor=null;return true;
 }
 
 export const ready = (async () => {
@@ -161,11 +175,27 @@ export const ready = (async () => {
     const shadow = new THREE.Mesh(new THREE.CircleGeometry(1,32),new THREE.MeshBasicMaterial({color:0x000000,transparent:true,opacity:.2,depthWrite:false}));
     shadow.rotation.x=-Math.PI/2; shadow.scale.set(1.65,2.25,1); shadow.position.y=.012;
     hull.add(shadow);
+    remember('tank');
     api.status='ready';
     api.asset = { animations:gltf.animations.map(a=>a.name), meshCount:0 };
     model.traverse(o=>{if(o.isMesh)api.asset.meshCount++;});
+    const hg=await new GLTFLoader().loadAsync(new URL(window.OUHarvester.modelUrl,import.meta.url).href);
+    config=window.OUHarvester;model=hg.scene;hull=model.getObjectByName('Hull');turret=null;barrel=null;barrelRest=null;
+    wheels=[];materials=[];detailMeshes=[];crowdMeshes=[];
+    extraParts=['Tailgate','Cargo','Rotor'].map(n=>model.getObjectByName(n));
+    if(!hull||extraParts.some(p=>!p)||!model.getObjectByName('IntakeSocket')||!model.getObjectByName('DischargeSocket'))throw Error('Harvester hierarchy incomplete');
+    model.updateMatrixWorld(true);
+    for(const [node,key] of [['IntakeSocket','intake'],['DischargeSocket','discharge']]){
+      const p=model.getObjectByName(node).getWorldPosition(new THREE.Vector3()),c=config[key];
+      if(Math.abs(p.z-c.forward)>.001||Math.abs(p.y-c.height)>.001)throw Error('Harvester socket contract mismatch');
+    }
+    model.traverse(o=>{if(/^Wheel_[LR]_\d$/.test(o.name))wheels.push(o);if(o.isMesh)for(const mat of Array.isArray(o.material)?o.material:[o.material])if(/TeamColor|Lamp/.test(mat.name)&&!materials.includes(mat))materials.push(mat);});
+    mergeRigidParts();model.updateMatrixWorld(true);buildCrowdDetail();scene.add(model);
+    const hs=shadow.clone();hull.add(hs);remember('harvester');selectAsset('tank');
+    api.harvesterReady=true;
     return true;
   } catch (error) {
+    if(assets.has('tank')){selectAsset('tank');api.status='ready';api.harvesterError=String(error);console.error('[harvester3d]',error);return true;}
     api.status='error'; api.error=String(error);
     console.error('[tank3d] Real-time renderer unavailable; using existing fallback.',error);
     return false;
@@ -177,7 +207,7 @@ export const ready = (async () => {
 // every frame. Each page crosses WebGL -> Canvas2D once, instead of once per tank.
 api.beginFrame = function(units,time,view) {
   api.draws=0; frameSlots.clear();
-  const live=new Set(units.filter(u=>u.alive&&u.kind==='tank').map(u=>u.id));
+  const live=new Set(units.filter(u=>u.alive&&assets.has(u.kind)).map(u=>u.id));
   for(const [id,p] of poseByUnit) if(!live.has(id)||time<p.seen) poseByUnit.delete(id);
   if(api.status!=='ready'||!view) return;
   const {ctx,project,zoom,color}=view;
@@ -185,13 +215,12 @@ api.beginFrame = function(units,time,view) {
   const size=span*config.scale/Math.sqrt(2)*zoom;
   const res=Math.max(64,Math.min(768,Math.ceil(size)));
   const visible=units.filter(u=>{
-    if(!u.alive||u.kind!=='tank'||u.hidden||u.inTransport)return false;
+    if(!u.alive||!assets.has(u.kind)||u.hidden||u.inTransport)return false;
     const p=project(u.x,u.y);
     return p.x+size/2>=0&&p.y+size/2>=0&&p.x-size/2<=viewWidth&&p.y-size/2<=ctx.canvas.height;
   });
   const crowd=res<=160 || visible.length>=48;
-  for(const m of detailMeshes)m.visible=!crowd;
-  for(const m of crowdMeshes)m.visible=crowd;
+  for(const a of assets.values()){for(const m of a.detailMeshes)m.visible=!crowd;for(const m of a.crowdMeshes)m.visible=crowd;}
   api.detail=crowd?'crowd':'full';
   const maxSide=Math.min(2048,renderer.capabilities.maxTextureSize);
   const cols=Math.max(1,Math.min(Math.ceil(Math.sqrt(visible.length)),Math.floor(maxSide/res)));
@@ -209,7 +238,7 @@ api.beginFrame = function(units,time,view) {
     for(let i=0;i<chunk.length;i++){
       const u=chunk[i],x=(i%cols)*res,y=Math.floor(i/cols)*res;
       renderer.setViewport(x,height-y-res,res,res);renderer.setScissor(x,height-y-res,res,res);
-      pose(u,time);teamColor(color(u));renderer.render(scene,camera);
+      selectAsset(u.kind);pose(u,time);teamColor(color(u));renderer.render(scene,camera);
       frameSlots.set(u.id,{canvas,x,y,res,size});
     }
     const copy=canvas.getContext('2d');copy.clearRect(0,0,width,height);
@@ -222,7 +251,7 @@ api.beginFrame = function(units,time,view) {
 };
 
 api.draw = function(ctx,u,p,zoom,color,time) {
-  if(api.status!=='ready')return false;
+  if(api.status!=='ready'||!assets.has(u.kind))return false;
   const slot=frameSlots.get(u.id);
   if(slot){
     const {canvas,x,y,res,size}=slot;
@@ -233,18 +262,18 @@ api.draw = function(ctx,u,p,zoom,color,time) {
 };
 
 api.hitTest = function(u,screen,origin,zoom,time) {
-  if(api.status!=='ready') return false;
+  if(api.status!=='ready'||!assets.has(u.kind)) return false;
   const size=span*window.OUTankMotion.SCALE/Math.sqrt(2)*zoom;
   pointer.set((screen.x-origin.x)*2/size,-(screen.y-origin.y)*2/size);
   if(Math.abs(pointer.x)>1 || Math.abs(pointer.y)>1) return false;
-  pose(u,time); ray.setFromCamera(pointer,camera);
+  selectAsset(u.kind);pose(u,time); ray.setFromCamera(pointer,camera);
   return ray.intersectObject(model,true).some(h=>h.object.material?.opacity!==.2);
 };
 
 // Used by the browser integration test to compare the GLB attachment to physics.
 api.muzzleWorld = function(u,time) {
   if(api.status!=='ready') return null;
-  pose(u,time); model.getObjectByName('Muzzle').getWorldPosition(v);
+  selectAsset('tank');pose(u,time); model.getObjectByName('Muzzle').getWorldPosition(v);
   const s=window.OUTankMotion.SCALE;
   return {x:u.x+v.x*s,y:u.y+v.z*s,z:v.y*s};
 };

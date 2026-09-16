@@ -167,7 +167,7 @@
     function setBuildingOcc(b, v) {
       for (let ty = b.ty; ty < b.ty + b.th; ty++) {
         for (let tx = b.tx; tx < b.tx + b.tw; tx++) {
-          if (inMap(tx, ty)) buildOcc[idx(tx, ty)] = v;
+          if (inMap(tx, ty)) buildOcc[idx(tx, ty)] = v && !global.OUHarvester?.isLane(b,tx,ty) ? v : 0;
         }
       }
     }

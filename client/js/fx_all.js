@@ -22,6 +22,7 @@
   // --- smoke/dust/blood state ---
   const smokeWaves = [];
   const smokePuffs = [];
+  const MAX_SMOKE_PUFFS=768; // Visual-only budget; gameplay damage is independent.
   const smokeEmitters = [];
   const dustPuffs = [];
   const dmgSmokePuffs = [];
@@ -136,6 +137,7 @@ function addSmokeWave(wx, wy, size=1){
 
 function addSmokeEmitter(wx, wy, size=1){
   const sz = clamp(size, 0.6, 2.3);
+  if(smokeEmitters.length>=24)return;
   smokeEmitters.push({ x:wx, y:wy, t:0, ttl:3.4, size: sz, acc:0 });
 
   // 잔류 연무(넓게 퍼지는 옅은 연기) 몇 덩이 깔기
@@ -143,6 +145,7 @@ function addSmokeEmitter(wx, wy, size=1){
 }
 
 function spawnSmokePuff(wx, wy, size=1){
+  if(smokePuffs.length>=MAX_SMOKE_PUFFS)return;
   const spread = TILE * 0.85 * size;
   const ang = Math.random() * Math.PI * 2;
   const rad = Math.sqrt(Math.random()) * spread;
@@ -163,6 +166,7 @@ function spawnSmokePuff(wx, wy, size=1){
 }
 
 function spawnSmokeHaze(wx, wy, size=1){
+  if(smokePuffs.length>=MAX_SMOKE_PUFFS)return;
   const spread = TILE * 1.15 * size;
   const ang = Math.random() * Math.PI * 2;
   const rad = Math.sqrt(Math.random()) * spread;
@@ -184,6 +188,7 @@ function spawnSmokeHaze(wx, wy, size=1){
 
 // Trail puff for moving vehicles (subtle, noise-like gradient).
 function spawnTrailPuff(wx, wy, vx, vy, strength=1){
+  if(smokePuffs.length>=MAX_SMOKE_PUFFS)return;
   const size = clamp(strength, 0.35, 1.20);
 
   const mag = Math.max(0.0001, Math.hypot(vx||0, vy||0));
@@ -206,7 +211,7 @@ function spawnTrailPuff(wx, wy, vx, vy, strength=1){
   });
 
   const microN = 2 + ((Math.random()*2)|0);
-  for (let i=0;i<microN;i++){
+  for (let i=0;i<microN && smokePuffs.length<MAX_SMOKE_PUFFS;i++){
     smokePuffs.push({
       x: x + (Math.random()*2-1)*(TILE*0.16*size),
       y: y + (Math.random()*2-1)*(TILE*0.12*size),

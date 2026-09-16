@@ -762,15 +762,8 @@
     return s;
   })();
 
-  function _applyTeamPaletteToImage(img, teamColor, opts={}){
-    const excludeRects = opts.excludeRects || null; // [{x,y,w,h}] in image pixel coords
-    const w=img.width, h=img.height;
-    const c=document.createElement('canvas'); c.width=w; c.height=h;
-    const ctx=c.getContext('2d');
-    ctx.drawImage(img,0,0);
-    const id=ctx.getImageData(0,0,w,h);
-    const d=id.data;
-
+  function tintPixels(d,w,h,teamColor,opts={}){
+    const excludeRects=opts.excludeRects||null;
     // Team color (linear-ish blend)
     const tr=teamColor.r, tg=teamColor.g, tb=teamColor.b;
 
@@ -823,6 +816,17 @@
         d[i+2] = Math.min(255, Math.round(tb * l2));
       }
     }
+  }
+  function _applyTeamPaletteToImage(img, teamColor, opts={}){
+    const excludeRects = opts.excludeRects || null; // [{x,y,w,h}] in image pixel coords
+    const w=img.width, h=img.height;
+    const c=document.createElement('canvas'); c.width=w; c.height=h;
+    const ctx=c.getContext('2d');
+    ctx.drawImage(img,0,0);
+    const id=ctx.getImageData(0,0,w,h);
+    const d=id.data;
+
+    tintPixels(d,w,h,teamColor,opts);
     ctx.putImageData(id,0,0);
 
     // Building caches need drawable pixels immediately, without Image decode.
@@ -831,6 +835,33 @@
     out.src=c.toDataURL();
     return out;
   }
+
+  // The exact same palette kernel runs off the render thread for death frames.
+  let paletteWorker, paletteJob=0;
+  const paletteJobs=new Map();
+  function tintFrameAsync(img,frame,teamColor,opts){
+    if(!globalThis.Worker || !globalThis.OffscreenCanvas) return Promise.resolve(null);
+    if(!paletteWorker){
+      const source=`const _MAGENTA_INCLUDE_SET=new Set(${JSON.stringify([..._MAGENTA_INCLUDE_SET])});
+        ${_rgb2hsv.toString()} ${_isAccentPixel.toString()} ${tintPixels.toString()}
+        const sources=new Map();
+        onmessage=async({data:j})=>{try{if(!sources.has(j.src))sources.set(j.src,fetch(j.src).then(r=>r.blob()).then(createImageBitmap));
+        const img=await sources.get(j.src),f=j.frame,c=new OffscreenCanvas(f.w,f.h),x=c.getContext('2d',{willReadFrequently:true});
+        x.drawImage(img,f.x,f.y,f.w,f.h,0,0,f.w,f.h);const id=x.getImageData(0,0,c.width,c.height);
+        tintPixels(id.data,c.width,c.height,j.color,j.opts);x.putImageData(id,0,0);
+        const bitmap=c.transferToImageBitmap();postMessage({id:j.id,bitmap},[bitmap]);
+        }catch(e){postMessage({id:j.id,error:String(e)})}};`;
+      const url=URL.createObjectURL(new Blob([source],{type:'text/javascript'}));
+      paletteWorker=new Worker(url);URL.revokeObjectURL(url);
+      paletteWorker.onmessage=({data:j})=>{const resolve=paletteJobs.get(j.id);paletteJobs.delete(j.id);if(resolve)resolve(j.bitmap||null);};
+      paletteWorker.onerror=()=>{for(const resolve of paletteJobs.values())resolve(null);paletteJobs.clear();paletteWorker.terminate();paletteWorker=null;};
+    }
+    if(!img.src)return Promise.resolve(null);
+    return new Promise(resolve=>{
+      const id=++paletteJob;paletteJobs.set(id,resolve);paletteWorker.postMessage({id,src:img.src,frame,color:teamColor,opts});
+    });
+  }
+  _applyTeamPaletteToImage.asyncFrame=tintFrameAsync;
 
   function _getTeamCroppedSprite(img, crop, team){
     const key = img.src + "|" + crop.x + "," + crop.y + "," + crop.w + "," + crop.h + "|t" + team;
@@ -1796,6 +1827,39 @@
     return true;
   }
 
+  // One reusable mineral sprite, analytically placed along suction/discharge arcs.
+  // No per-frame allocations to persistent particle arrays, and no economy writes.
+  let oreParticle;
+  function drawHarvesterOre(ctx,u){
+    const H=window.OUHarvester,time=state.t,d=u.harvesterDock;
+    const mining=(u.harvestUntil||0)>time && u.order?.type==='harvest';
+    const unloading=d?.phase==='unload' && time-d.started>.4 && u.carry>0;
+    if(!mining&&!unloading)return;
+    if(!oreParticle){
+      oreParticle=document.createElement('canvas');oreParticle.width=oreParticle.height=16;
+      const c=oreParticle.getContext('2d');c.fillStyle='#754216';c.beginPath();c.moveTo(1,8);c.lineTo(6,1);c.lineTo(14,4);c.lineTo(15,11);c.lineTo(6,15);c.closePath();c.fill();
+      c.fillStyle='#e4b649';c.beginPath();c.moveTo(6,1);c.lineTo(14,4);c.lineTo(8,9);c.lineTo(1,8);c.closePath();c.fill();c.fillStyle='#ffe099';c.fillRect(6,3,3,2);
+    }
+    const socket=H.socket(u,mining?'intake':'discharge'),yaw=window.OUTankMotion.readPose(u).bodyYaw,z=cam.zoom||1;
+    ctx.save();
+    for(let i=0;i<18;i++){
+      const f=((time*(mining?1.35:1.8)+i*.618+u.id*.13)%1),seed=Math.sin(i*12.7+u.id)*.5+.5;
+      let x,y,height;
+      if(mining){
+        const reach=25+seed*38,side=Math.sin(i*8.3)*27;
+        const sx=socket.x+Math.cos(yaw)*reach-Math.sin(yaw)*side,sy=socket.y+Math.sin(yaw)*reach+Math.cos(yaw)*side;
+        const ease=f*f;x=sx+(socket.x-sx)*ease;y=sy+(socket.y-sy)*ease;height=socket.z*ease+Math.sin(f*Math.PI)*6;
+      }else{
+        const reach=f*22,side=Math.sin(i*8.3)*13*f;
+        x=socket.x-Math.cos(yaw)*reach-Math.sin(yaw)*side;y=socket.y-Math.sin(yaw)*reach+Math.cos(yaw)*side;
+        height=Math.max(0,socket.z*(1-f*f));
+      }
+      const p=worldToScreen(x,y),size=(3+seed*4)*z;
+      ctx.globalAlpha=Math.min(1,f*7,(1-f)*8);ctx.drawImage(oreParticle,p.x-size/2,p.y-height*window.OUTankMotion.HEIGHT_TO_SCREEN*z-size/2,size,size);
+    }
+    ctx.restore();
+  }
+
   function drawHarvesterSprite(u, p){
     if (!HARVESTER || !HARVESTER.ok) return false;
     if (typeof drawTPFrame !== "function" || typeof tankBodyFrameName !== "function") return false;
@@ -2713,7 +2777,7 @@
         const a = aBase * (0.66 - k*0.16);
 
         ctx.shadowColor = "rgba(0,0,0,0.22)";
-        ctx.shadowBlur  = 28 * z;
+        ctx.shadowBlur = 0;
 
         const inner = Math.max(0, (R*rr) - th*0.55);
         const outer = (R*rr) + th*1.45;
@@ -2731,7 +2795,7 @@
         ctx.fill();
       }
 
-      ctx.shadowBlur = 18 * z;
+      ctx.shadowBlur = 0;
       for (let i=0;i<12;i++){
         const ang = (i/12) * (Math.PI*2) + pr(w.seed, 100+i)*0.70;
         const rad = R * (0.86 + pr(w.seed, 130+i)*0.24);
@@ -2757,34 +2821,23 @@
     }
   }
 
+  let smokeTexture;
   function drawSmokePuffs(ctx){
-    if (!smokePuffs.length) return;
-    const z = (typeof cam !== "undefined" && cam && typeof cam.zoom==="number") ? cam.zoom : 1;
-
-    for (const s of smokePuffs){
-      if (!isVisibleAt(s.x, s.y)) continue;
-      const p = worldToScreen(s.x, s.y);
-      const t = clamp(s.t / Math.max(0.001, s.ttl), 0, 1);
-
-      const r = (s.r0 + s.grow * t) * z;
-      const a = s.a0 * Math.pow(1 - t, 0.65);
-
-      ctx.save();
-      ctx.globalCompositeOperation = "source-over";
-      ctx.globalAlpha = a;
-
-      const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, r*2.2);
-      g.addColorStop(0.0, "rgba(120,120,120,0.12)");
-      g.addColorStop(0.45, "rgba(90,90,90,0.10)");
-      g.addColorStop(1.0, "rgba(0,0,0,0)");
-      ctx.fillStyle = g;
-
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, r*2.2, 0, Math.PI*2);
-      ctx.fill();
-
-      ctx.restore();
+    if(!smokePuffs.length)return;
+    if(!smokeTexture){
+      smokeTexture=document.createElement('canvas');smokeTexture.width=smokeTexture.height=128;
+      const c=smokeTexture.getContext('2d'),g=c.createRadialGradient(64,64,0,64,64,64);
+      g.addColorStop(0,'rgba(120,120,120,0.12)');g.addColorStop(.45,'rgba(90,90,90,0.10)');g.addColorStop(1,'rgba(0,0,0,0)');
+      c.fillStyle=g;c.fillRect(0,0,128,128);
     }
+    const z=cam.zoom||1;ctx.save();
+    for(const s of smokePuffs){
+      if(!isVisibleAt(s.x,s.y))continue;
+      const p=worldToScreen(s.x,s.y),t=clamp(s.t/s.ttl,0,1),r=(s.r0+s.grow*t)*z*2.2;
+      if(p.x+r<0||p.y+r<0||p.x-r>ctx.canvas.width||p.y-r>ctx.canvas.height)continue;
+      ctx.globalAlpha=s.a0*Math.pow(1-t,.65);ctx.drawImage(smokeTexture,p.x-r,p.y-r,r*2,r*2);
+    }
+    ctx.restore();
   }
 
   function drawDustPuffs(ctx){
@@ -3309,7 +3362,8 @@
             drewSprite = window.OUTank3D?.draw(ctx, ent, p, cam.zoom || 1, c, state.t) || false;
             if (!drewSprite) drewSprite = drawLiteTankSprite(ent, p);
           } else if (ent.kind==="harvester"){
-            drewSprite = drawHarvesterSprite(ent, p);
+            drewSprite = window.OUTank3D?.draw(ctx,ent,p,cam.zoom||1,c,state.t)||drawHarvesterSprite(ent,p);
+            drawHarvesterOre(ctx,ent);
           }
           if (!drewSprite){
             ctx.fillStyle=c;
@@ -3898,6 +3952,16 @@
   window.OURender.isExp1Ready = isExp1Ready;
   window.OURender.getExp1Frame0 = getExp1Frame0;
   window.OURender.preloadExp1 = _initExp1IfNeeded;
+  window.OURender.prewarmEvac = async function(opts){
+    state=opts.state;TEAM=opts.TEAM;
+    INF_IMG=_ensureImg(INF_IMG,opts.idleUrl);INF_ATK_IMG=_ensureImg(INF_ATK_IMG,opts.attackUrl);
+    await Promise.all([INF_IMG,INF_ATK_IMG].filter(Boolean).map(img=>img.decode().catch(()=>{})));
+    ensureInfAtlases();
+    for(const team of [TEAM.PLAYER,TEAM.ENEMY]){
+      buildInfTeamSheet(INF_IMG,INF_TEAM_SHEET_IDLE,team);
+      await new Promise(resolve=>setTimeout(resolve,0));
+    }
+  };
 })();
 
 
