@@ -336,11 +336,6 @@
         uu.atkSlotRing = ring;
       }
 
-      // Path budget is per-frame; issuing many attack orders at once exhausts it.
-      // Only setPathTo for first N units; rest get order+target, sim will path them next tick.
-      const MAX_INITIAL_PATHS = 12;
-      let pathsSet = 0;
-
       for (let i=0;i<ids.length;i++){
         const u=getEntityById(ids[i]);
         if (!u || !u.alive || u.type!=="unit") continue;
@@ -367,12 +362,9 @@
           u.holdPos = false;
           const p=getChasePointForAttack(u,t);
           const gx = p.x+ox, gy = p.y+oy;
-          const gtx = tileOfX(gx), gty = tileOfY(gy);
-          if (pathsSet < MAX_INITIAL_PATHS){
-            const ok=setPathTo(u, gx, gy);
-            if (ok) pathsSet++;
-            else { u.path = [{tx:gtx, ty:gty}]; u.pathI=0; }
-          } else { u.path = [{tx:gtx, ty:gty}]; u.pathI=0; u.repathCd=0; }
+          u.order.x=gx; u.order.y=gy;
+          u.path=null; u.pathI=0; u.flowGoal=null;
+          setPathTo(u,gx,gy);
           u.orderFx = {t:0.55, kind:"move", x:gx, y:gy, targetId};
           pushOrderFx(u.id,"move",gx,gy,targetId,"rgba(90,255,90,0.95)");
         } else {
@@ -380,17 +372,11 @@
           u.target=targetId;
           u.forceFire=null;
 
-          const p=getChasePointForAttack(u,t);
-          const gx = p.x+ox, gy = p.y+oy;
-          const gtx = tileOfX(gx), gty = tileOfY(gy);
-          if (pathsSet < MAX_INITIAL_PATHS){
-            const ok=setPathTo(u, gx, gy);
-            if (ok) pathsSet++;
-            else { u.path = [{tx:gtx, ty:gty}]; u.pathI=0; }
-          } else {
-            u.path = [{tx:gtx, ty:gty}]; u.pathI=0;
-            u.repathCd=0;
-          }
+          // Simulation owns ranged approach goals and schedules validated paths.
+          u.path=null; u.pathI=0; u.flowGoal=null; u.holdAttack=false;
+          u.attackApproach=null; u._atkStuckT=0; u.turningToPath=false;
+          u.repathCd=0; u.holdPos=false;
+          const gx=t.x, gy=t.y;
           u.orderFx = {t:0.55, kind:"attack", x:gx, y:gy, targetId};
           pushOrderFx(u.id,"attack",gx,gy,targetId,"rgba(255,70,70,0.95)");
         }

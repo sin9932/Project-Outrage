@@ -18,6 +18,7 @@
   const TYPE_CFG = {
     barracks: {
       baseScale: 0.22,
+      teamColorMode: "frame",
       forcePivot: { x: 0.5000, y: 0.4850 },
       fps: { idle: 20, build: 24, death: 20 },
       lowHpRatio: 0.20,
@@ -35,6 +36,7 @@
 
     power: {
       baseScale: 0.25,
+      teamColorMode: "frame",
       forcePivot: { x: 0.4889, y: 0.5048 },
       fps: { idle: 20, build: 24, death: 20 },
       lowHpRatio: 0.30,
@@ -171,7 +173,7 @@
     }
 
     const teamColor = _getTeamColor(state, team);
-    const opts = { gain: 1.65, bias: 0.18, gamma: 0.78, minV: 0.42 };
+    const opts = { gain: 1.65, bias: 0.18, gamma: 0.78, minV: 0.42, returnCanvas: true };
     if (atlasKey === "death") opts.ignoreWhites = true;
     const tinted = applyFn(img, teamColor, opts) || img;
     stKind.teamTexCache.set(key, tinted);
@@ -201,21 +203,9 @@
         img = stKind.frameTexCache.get(fKey);
         didTint = (img && img !== origImg);
       } else {
-        const applyFn = _getApplyFn();
-        if (applyFn){
-          const c = document.createElement("canvas");
-          c.width = fr.frame.w;
-          c.height = fr.frame.h;
-          const cctx = c.getContext("2d", { willReadFrequently:true });
-          cctx.drawImage(origImg, fr.frame.x, fr.frame.y, fr.frame.w, fr.frame.h, 0, 0, fr.frame.w, fr.frame.h);
-          const teamColor = _getTeamColor(state, team);
-          const opts = { gain: 1.65, bias: 0.18, gamma: 0.78, minV: 0.42 };
-          if (atlasKey === "death") opts.ignoreWhites = true;
-          const tinted = applyFn(c, teamColor, opts) || c;
-          stKind.frameTexCache.set(fKey, tinted);
-          img = tinted;
-          didTint = true;
-        }
+        _prewarmFrameTint(kind, atlasKey, filename, team, state);
+        img = stKind.frameTexCache.get(fKey) || origImg;
+        didTint = img !== origImg;
       }
     }
 
@@ -288,23 +278,6 @@
     return true;
   }
 
-  function _prewarmAtlasTeamTint(kind, atlasKey, teams, state){
-    const stKind = ST.kinds[kind];
-    const cfg = TYPE_CFG[kind];
-    if (!stKind || !cfg || cfg.teamColorMode === "frame") return;
-    const atlas = stKind.atlases[atlasKey];
-    if (!atlas || !atlas.frames) return;
-    const texIndices = new Set();
-    const frameValues = atlas.frames instanceof Map ? atlas.frames.values() : Object.values(atlas.frames || {});
-    for (const fr of frameValues){ if (fr) texIndices.add(fr.texIndex != null ? fr.texIndex : 0); }
-    if (texIndices.size === 0) texIndices.add(0);
-    for (const team of teams){
-      for (const ti of texIndices){
-        _getTeamTextureImg(stKind, atlasKey, atlas, ti, team, state);
-      }
-    }
-  }
-
   function _prewarmFrameTint(kind, atlasKey, filename, team, state){
     const stKind = ST.kinds[kind];
     const cfg = TYPE_CFG[kind];
@@ -328,37 +301,27 @@
     const cctx = c.getContext("2d", { willReadFrequently:true });
     cctx.drawImage(origImg, fr.frame.x, fr.frame.y, fr.frame.w, fr.frame.h, 0, 0, fr.frame.w, fr.frame.h);
     const teamColor = _getTeamColor(state, team);
-    const tinted = applyFn(c, teamColor, { gain: 1.65, bias: 0.18, gamma: 0.78, minV: 0.42 }) || c;
+    const opts = { gain: 1.65, bias: 0.18, gamma: 0.78, minV: 0.42, returnCanvas: true };
+    if (atlasKey === "death") opts.ignoreWhites = true;
+    const tinted = applyFn(c, teamColor, opts) || c;
     stKind.frameTexCache.set(fKey, tinted);
   }
 
-  async function prewarm(opts){
-    opts = opts || {};
-    const kinds = opts.kinds || Object.keys(ST.kinds || {});
-    const teams = opts.teams || [0,1];
-    const state = opts.state || null;
-
-    await Promise.all(kinds.map(k => ensureKindLoaded(k)));
-
+  // Warm entry frames before play, yielding between cropped frames.
+  // Other frames use this same synchronous canvas cache on first draw.
+  async function prewarm(opts={}){
+    const kinds=opts.kinds || Object.keys(ST.kinds);
+    const teams=opts.teams || [0,1];
+    await Promise.all(kinds.map(ensureKindLoaded));
     for (const kind of kinds){
-      const stKind = ST.kinds[kind];
-      if (!stKind || !stKind.ready) continue;
-
-      _prewarmAtlasTeamTint(kind, "death", teams, state);
-
-      const frames = new Set();
-      const addAll = (arr)=>{ if (arr && arr.length){ for (const n of arr) frames.add(n); } };
-      addAll(stKind.frames.idle);
-      addAll(stKind.frames.build);
-      addAll(stKind.frames.death);
-      addAll(stKind.frames.activeN);
-      addAll(stKind.frames.activeD);
-
-      for (const team of teams){
-        for (const fname of frames){
-          _prewarmFrameTint(kind, "idle", fname, team, state);
-          _prewarmFrameTint(kind, "build", fname, team, state);
-          _prewarmFrameTint(kind, "death", fname, team, state);
+      const st=ST.kinds[kind];
+      if (!st || !st.ready) continue;
+      const groups={idle:[...st.frames.idleOk,...st.frames.idleBad],build:st.frames.build,death:st.frames.death};
+      for (const [key,frames] of Object.entries(groups)){
+        const names=opts.background ? frames : (key==='death' ? [] : frames.slice(0,1));
+        for (const team of teams) for (const name of names){
+          _prewarmFrameTint(kind,key,name,team,opts.state);
+          await new Promise(resolve=>setTimeout(resolve,0));
         }
       }
     }
@@ -368,10 +331,12 @@
   async function ensureKindLoaded(kind){
     const stKind = ST.kinds[kind];
     if (!stKind || stKind.ready) return;
+    if (stKind.loading) return stKind.loading;
     const cfg = TYPE_CFG[kind];
     const atp = (window.PO && PO.atlasTP) || null;
     if (!atp || !atp.loadAtlasTPMulti) return;
 
+    stKind.loading = (async()=>{
     try{
       const [idleA, buildA, deathA] = await Promise.all([
         atp.loadAtlasTPMulti(cfg.atlas.idle.json,  cfg.atlas.idle.base),
@@ -455,7 +420,10 @@
       DEBUG && console.log(`[buildings] ${kind} atlases loaded`, stKind.frames);
     }catch(e){
       console.warn(`[buildings] ${kind} atlas load failed`, e);
+      throw e;
     }
+    })();
+    try { await stKind.loading; } finally { stKind.loading=null; }
   }
 
   let _preloadAllPromise = null;
@@ -585,7 +553,6 @@
     const sk = cfg.sellKey || {};
     if (sk.flag && ent[sk.flag] && stKind.frames.build.length){
       const t0 = (sk.t0 && ent[sk.t0]!=null) ? ent[sk.t0] : now;
-      if (sk.t0 && ent[sk.t0]==null) ent[sk.t0] = t0;
       const dt = Math.max(0, now - t0);
       const idxF = Math.floor(dt * (cfg.fps.build || 24));
       const rev = (stKind.frames.build.length - 1) - idxF;
@@ -593,21 +560,18 @@
       return drawFrameTeam(ent.kind, "build", stKind.atlases.build, ctx, stKind.frames.build[clamped], sx, sy, team, scale, state);
     }
 
-    // Build -> Idle: 애니 끝나면 마지막 빌드 프레임 1회 더 그린 뒤 다음 프레임부터 idle (깜박임 방지)
     const ek = cfg.entKey;
-    if (ent[ek.buildT0] != null && !ent[ek.buildDone] && stKind.frames.build.length){
-      const dt = Math.max(0, now - ent[ek.buildT0]);
-      const idx = Math.floor(dt * cfg.fps.build);
-      if (idx < stKind.frames.build.length){
-        return drawFrameTeam(ent.kind, "build", stKind.atlases.build, ctx, stKind.frames.build[idx], sx, sy, team, scale, state);
-      }
-      ent[ek.buildDone] = true;
-      const lastFrame = stKind.frames.build[stKind.frames.build.length - 1];
-      return drawFrameTeam(ent.kind, "build", stKind.atlases.build, ctx, lastFrame, sx, sy, team, scale, state);
+    const buildFrames=stKind.frames.build;
+    const hasBuild=ent[ek.buildT0]!=null && !ent[ek.buildDone] && buildFrames.length>0;
+    const buildEnd=hasBuild ? ent[ek.buildT0]+buildFrames.length/cfg.fps.build : now;
+    if (hasBuild && now<buildEnd){
+      const idx=Math.min(buildFrames.length-1,Math.floor(Math.max(0,now-ent[ek.buildT0])*cfg.fps.build));
+      return drawFrameTeam(ent.kind,"build",stKind.atlases.build,ctx,buildFrames[idx],sx,sy,team,scale,state);
     }
+    const idleTime=hasBuild ? Math.max(0,now-buildEnd) : now;
 
     // Idle/Active: choose normal vs damaged variant based on HP ratio
-    const maxHp = (ent.maxHp ?? ent.maxHP ?? ent.hpMax ?? ent.hp_max ?? ent.hp ?? 1);
+    const maxHp = (ent.hpMax ?? ent.hp ?? 1);
     const hpNow = (ent.hp ?? maxHp);
     const hpRatio = (maxHp>0) ? (hpNow / maxHp) : 1;
 
@@ -645,7 +609,7 @@
 
     if (!frames || !frames.length) return false;
 
-    const idx = (frames.length <= 1) ? 0 : (Math.floor(now * (cfg.fps.idle || 1)) % frames.length);
+    const idx = (frames.length <= 1) ? 0 : (Math.floor(idleTime * (cfg.fps.idle || 1)) % frames.length);
     return drawFrameTeam(ent.kind, "idle", stKind.atlases.idle, ctx, frames[idx], sx, sy, team, scale, state);
 };
 

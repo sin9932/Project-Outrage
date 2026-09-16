@@ -91,8 +91,8 @@
         if (!u.alive || u.inTransport) continue;
         const t = (u.team===TEAM.PLAYER) ? TEAM.PLAYER : TEAM.ENEMY;
         if (t!==0 && t!==1) continue;
-        const cx = Math.min(gW-1, (u.x / UNIT_GRID_CELL)|0);
-        const cy = Math.min(gH-1, (u.y / UNIT_GRID_CELL)|0);
+        const cx = Math.max(0, Math.min(gW-1, (u.x / UNIT_GRID_CELL)|0));
+        const cy = Math.max(0, Math.min(gH-1, (u.y / UNIT_GRID_CELL)|0));
         const ci = cy * gW + cx;
         _unitGrid[t][ci].push(u);
       }
@@ -1644,6 +1644,7 @@
     }
 
     function followPath(u, dt){
+      u.turningToPath = false;
       const ucls = (UNIT[u.kind] && UNIT[u.kind].cls) ? UNIT[u.kind].cls : "";
       if (ucls==="inf") return followPathInfantry(u, dt);
       if (u.flowGoal && ucls==="veh") return followFlowPath(u, dt);
@@ -1881,6 +1882,7 @@
         const fd = worldVecToDir8(ax, ay);
         if (u.kind === "tank" && globalThis.OUTankMotion){
           if (!globalThis.OUTankMotion.hull(u, ax, ay, dt, worldVecToDir8)) {
+            u.turningToPath = true;
             u.vx = 0; u.vy = 0;
             return true;
           }
@@ -2333,8 +2335,8 @@
 
   // Path setter (moved from game.js)
   function setPathTo(u, goalX, goalY){
-    if (_pathFindBudget <= 0) {
-      u.path = null; u.pathI = 0; // order와 path 불일치 방지 (다음 틱에 재시도)
+    if (_pathFindBudget <= 0 || performance.now() >= _pathDeadline) {
+      // Deferred work must not erase an already validated route.
       return false;
     }
     _pathFindBudget--;
@@ -2360,7 +2362,7 @@
     // If the goal tile is crowded, we only "snap" to a nearby free tile for non-combat move orders.
     // For combat orders we intentionally keep the goal stable and allow compression; otherwise backliners can "dance".
     const _combatOrder = (u && u.order && (u.order.type==="attack" || u.order.type==="attackmove"));
-    if (true){
+    if (!_combatOrder){
       if (!canEnterTile(u, gTx, gTy)){
         let best=null, bestD=1e9;
         for (let r=1;r<=6;r++){
@@ -2983,6 +2985,8 @@
           _unitGridW = 0; _unitGridH = 0;
         }
         clearOcc(dt);
+        _pathDeadline = performance.now() + 4;
+        drainAttackPaths();
         assignFlowFieldToGroups();
         for (let i=0; i<units.length; i++){
           const u = units[i];
@@ -4211,7 +4215,10 @@
     if (isB){
       const targetRad = Math.max(t.w||0, t.h||0) * 0.5;
       const wantDist = u.range * 0.88;
-      const g = getStandoffPoint(u, t, wantDist, true, targetRad, u.atkSeedAng);
+      const old = u.attackApproach;
+      const g = old && old.target===t.id && u.path && u._atkStuckT<.45
+        ? old : getStandoffPoint(u, t, wantDist, true, targetRad, u.atkSeedAng);
+      u.attackApproach = {target:t.id,x:g.x,y:g.y};
       goalX = g.x; goalY = g.y;
     } else {
       // Use target TILE center as chase goal to avoid constant repath "움찔" on moving targets.
@@ -4223,7 +4230,7 @@
     // If we are out of range, keep pushing in. If path is missing or we're stuck, repath promptly.
       if (needMove){
       const spd = Math.hypot(u.vx||0, u.vy||0);
-      u._atkStuckT = (u._atkStuckT||0) + ((spd < 1.0) ? dt : 0);
+      u._atkStuckT = (spd < 1.0 && !u.turningToPath && u.path) ? (u._atkStuckT||0)+dt : 0;
     
       const gTx=(goalX/TILE)|0, gTy=(goalY/TILE)|0;
       const goalChanged = (u.lastGoalTx!==gTx || u.lastGoalTy!==gTy);
@@ -4232,8 +4239,8 @@
       // - If we have no path: path now.
       // - If we're stuck: path now.
       // - If repath timer elapsed: ONLY repath when the goal tile actually changed.
-      if (!u.path || stuck || (u.repathCd<=0 && goalChanged)){
-          setPathTo(u, goalX, goalY);
+      if (u.repathCd<=0 && (!u.path || u.pathI>=u.path.length || stuck || goalChanged)){
+          queueAttackPath(u, goalX, goalY);
           // Buildings repath slower; moving unit targets also slower now because goal is tile-centered.
           u.repathCd = isB ? 0.35 : 0.26;
           u._atkStuckT = 0;
@@ -4395,10 +4402,35 @@
       }
 
     let _pathFindBudget = 0;
-    const MAX_PATHFINDS_PER_FRAME = 48;
+    const MAX_PATHFINDS_PER_FRAME = 8;
+    let _pathDeadline = Infinity;
+    const attackPaths = new Map();
+    const pathStats = {processed:0, pending:0, maxPerTick:0};
+
+    // Only combat approaches are queued. Legacy harvest/move callers retain the
+    // synchronous success/failure contract of setPathTo.
+    function queueAttackPath(u, x, y){
+      attackPaths.set(u.id, {u, order:u.order, target:u.target, x, y});
+    }
+    function drainAttackPaths(){
+      let processed = 0;
+      for (const [id, req] of attackPaths){
+        if (_pathFindBudget <= 0 || performance.now() >= _pathDeadline) break;
+        attackPaths.delete(id);
+        const {u, order, target, x, y} = req;
+        if (!u.alive || u.inTransport || u.order!==order || u.target!==target || u.holdAttack) continue;
+        setPathTo(u,x,y);
+        u.repathCd = Math.max(u.repathCd||0, .4 + (u.id%7)*.04);
+        processed++;
+      }
+      pathStats.processed += processed;
+      pathStats.pending = attackPaths.size;
+      pathStats.maxPerTick = Math.max(pathStats.maxPerTick,processed);
+    }
 
     function tickSim(dt) {
       _pathFindBudget = MAX_PATHFINDS_PER_FRAME;
+      _pathDeadline = performance.now() + 4;
       tickUnits(dt);
       tickTurrets(dt);
       tickBullets(dt);
@@ -4406,6 +4438,7 @@
 
     return {
       tickSim,
+      pathStats,
       clearOcc,
       resolveUnitOverlaps,
       getStandoffPoint,

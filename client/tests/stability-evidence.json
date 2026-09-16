@@ -1,0 +1,169 @@
+{
+  "before48": {
+    "startup": {
+      "totalMs": 11006,
+      "clickMs": 10235
+    },
+    "setup": {
+      "commandMs": 3.199999988079071,
+      "target": "hq",
+      "count": 48
+    },
+    "result": {
+      "frames": 298,
+      "p95": 50,
+      "max": 275,
+      "hp": 992437.3730000127,
+      "moved": 33,
+      "shots": 204
+    },
+    "errors": []
+  },
+  "after48": {
+    "startup": {
+      "totalMs": 1698,
+      "clickMs": 917
+    },
+    "setup": {
+      "commandMs": 0.40000003576278687,
+      "target": "hq",
+      "count": 48
+    },
+    "result": {
+      "pathStats": {
+        "processed": 147,
+        "pending": 0,
+        "maxPerTick": 8
+      },
+      "frames": 344,
+      "p95": 41.70000000000027,
+      "max": 66.70000000000073,
+      "hp": 992641.8735000134,
+      "moved": 26,
+      "shots": 199
+    },
+    "errors": []
+  },
+  "after120": {
+    "startup": {
+      "totalMs": 1696,
+      "clickMs": 897
+    },
+    "setup": {
+      "commandMs": 0.6000000238418579,
+      "target": "hq",
+      "count": 120
+    },
+    "result": {
+      "progress": 70,
+      "pathStats": {
+        "processed": 405,
+        "pending": 0,
+        "maxPerTick": 8
+      },
+      "frames": 176,
+      "p95": 75.10000000000036,
+      "max": 83.40000000000009,
+      "hp": 986474.560000013,
+      "moved": 17,
+      "shots": 359
+    },
+    "errors": []
+  },
+  "inputConstruction": {
+    "pass": true,
+    "rightClick": true,
+    "rightDrag": {
+      "selected": true,
+      "x": 1181,
+      "y": 1271
+    },
+    "construction": [
+      {
+        "kind": "barracks",
+        "frames": 17,
+        "pixels": [
+          11976,
+          11962,
+          11962,
+          11962,
+          11962
+        ]
+      },
+      {
+        "kind": "power",
+        "frames": 13,
+        "pixels": [
+          18473,
+          18473,
+          18473,
+          18473,
+          18473
+        ]
+      },
+      {
+        "kind": "refinery",
+        "frames": 32,
+        "pixels": [
+          35708,
+          35634,
+          35634,
+          35634,
+          35634
+        ]
+      }
+    ],
+    "errors": []
+  },
+  "tankRegression": {
+    "pass": true,
+    "start": {
+      "id": 3,
+      "x": 1925,
+      "y": 1815
+    },
+    "moved": {
+      "x": 2241.1832448876876,
+      "y": 2035,
+      "yaw": 0
+    },
+    "yawSamples": [
+      -2,
+      -1.6799999999999997,
+      -1.2799999999999994,
+      -0.9334400000000009,
+      -0.560000000000004,
+      -0.1868800000000057,
+      0.15999999999998948,
+      0.5599999999999881,
+      0.7853981633974492,
+      0.7853981633974492,
+      0.7853981633974492,
+      0.7853981633974492,
+      0.7853981633974456,
+      0.7853981633974385,
+      0.5981981633974485,
+      0.19851816339744843,
+      0,
+      0
+    ],
+    "result": {
+      "status": "ready",
+      "draws": 4,
+      "shots": 1,
+      "enemyHp": 9882.699999999999,
+      "bodyYaw": 0,
+      "turretYaw": -0.48689923181126993,
+      "muzzleError": 3.755845207737457e-06,
+      "asset": {
+        "animations": [
+          "Turret_Sweep",
+          "Fire",
+          "Drive"
+        ],
+        "meshCount": 64
+      }
+    },
+    "errors": []
+  }
+}

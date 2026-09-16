@@ -1868,9 +1868,11 @@ const keys=new Set();
     if (!running || gameOver) return;
 
     if (e.button===2){
-      // Right-click: pan camera (even during repair/sell modes).
+      // Right click clears selection; dragging with the same button pans.
       const p=getPointerCanvasPx(e);
       state.pan.on=true;
+      state.pan.moved=false;
+      state.pan.clientX=e.clientX; state.pan.clientY=e.clientY;
       state.pan.x0=p.x; state.pan.y0=p.y;
       const camIso=worldToIso(cam.x,cam.y);
       state.pan.camIsoX=camIso.x;
@@ -1945,6 +1947,8 @@ const keys=new Set();
     if (hid !== state.hover.entId){ state.hover.entId = hid; state.hover.t0 = state.t; }
 
     if (state.pan.on){
+      if (Math.hypot(e.clientX-state.pan.clientX,e.clientY-state.pan.clientY)>6) state.pan.moved=true;
+      if (!state.pan.moved) return;
       const dx = (p.x - state.pan.x0);
       const dy = (p.y - state.pan.y0);
       if (isCallable(__ou_cam, "applyPan")) {
@@ -1984,6 +1988,12 @@ const keys=new Set();
   };
   const _ou_onMouseUp = (e)=>{
     if (e.button===2){
+      if (running && !gameOver && state.pan.on && !state.pan.moved &&
+          Math.hypot(e.clientX-state.pan.clientX,e.clientY-state.pan.clientY)<=6){
+        state.selection.clear();
+        state.drag.on=false;
+        updateSelectionUI();
+      }
       state.pan.on=false;
       return;
     }

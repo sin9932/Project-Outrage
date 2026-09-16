@@ -800,6 +800,8 @@
     }
     ctx.putImageData(id,0,0);
 
+    // Building caches need drawable pixels immediately, without Image decode.
+    if (opts.returnCanvas) return c;
     const out=new Image();
     out.src=c.toDataURL();
     return out;
