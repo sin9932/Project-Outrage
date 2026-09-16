@@ -239,18 +239,18 @@
   if (window.FX && typeof window.FX.setGetTime === "function") window.FX.setGetTime(() => state.t);
 
   const terrain = new Uint8Array(MAP_W*MAP_H); // 0 ground, 1 rock, 2 ore, 3 water
-  const ore = new Uint16Array(MAP_W*MAP_H);
+  const ore = new Float64Array(MAP_W*MAP_H);
   const isGem = new Uint8Array(MAP_W*MAP_H);
-  // ore 타일셋 firstgid=225, localId 0~9 → 600,800,…,2400. gem 레이어 localId 0~3 → 1200,1600,2000,2400.
+  // ore 타일셋 firstgid=225, localId 0~9 → 60,80,…,240. gem 레이어 localId 0~3 → 120,160,200,240.
   const ORE_FIRSTGID = 225;
-  const ORE_BASE = 600;
-  const ORE_STEP = 200;
-  const ORE_MAX = 2400;
-  const ORE_VALUE = 1200;
-  const GEM_BASE = 1200;
-  const GEM_STEP = 400;
-  const GEM_VALUE = 2400;
-  const GEM_MAX = 2400;
+  const ORE_BASE = window.OUHarvester.ore.base;
+  const ORE_STEP = window.OUHarvester.ore.step;
+  const ORE_MAX = window.OUHarvester.ore.max;
+  const ORE_VALUE = window.OUHarvester.ore.value;
+  const GEM_BASE = window.OUHarvester.ore.gemBase;
+  const GEM_STEP = window.OUHarvester.ore.gemStep;
+  const GEM_VALUE = window.OUHarvester.ore.gemValue;
+  const GEM_MAX = window.OUHarvester.ore.gemMax;
   const oreAmountFromGid = (window.OU && window.OU.createOreAmountFromGid)
     ? window.OU.createOreAmountFromGid({ ORE_FIRSTGID, ORE_BASE, ORE_STEP, ORE_MAX, ORE_VALUE, GEM_BASE, GEM_STEP, GEM_VALUE, GEM_MAX })
     : (gid, isGem) => (isGem ? GEM_VALUE : ORE_VALUE);
@@ -776,7 +776,7 @@ function isBlockedWorldPointEx(u, x, y, padExtra){
     for (let i=0;i<buildings.length;i++){
       const b = buildings[i];
       if (!b || b.hp<=0) continue;
-      if(window.OUHarvester.inCorridor(b,x,y,TILE,ur+pad))continue;
+      if(b.kind==="refinery"){if(globalThis.OUHarvester.blocks(b,x,y,TILE,ur+pad))return true;continue;}
       const hw = (b.w||0)/2 + ur + pad;
       const hh = (b.h||0)/2 + ur + pad;
       if (x >= b.x-hw && x <= b.x+hw && y >= b.y-hh && y <= b.y+hh) return true;
@@ -2912,7 +2912,7 @@ if (isCallable(__ou_ui, "bindPregameStart")){
 }
 
   if (DEV_VALIDATE) window.OUTankTest = {
-    state, units, buildings, cam, TEAM, terrain, ore, treeHp, buildOcc, TILE, MAP_W, MAP_H,
+    state, units, buildings, cam, TEAM, terrain, ore, isGem, treeHp, buildOcc, TILE, MAP_W, MAP_H,
     addUnit, getEntityById, worldToScreen, screenToWorld, centerCameraOn,
     commands:__ou_commands, sim:__ou_sim, ai:__ou_ai, camera:__ou_cam, addBuilding, destroyBuilding,
     get running(){return running;},

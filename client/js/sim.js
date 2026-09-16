@@ -116,7 +116,7 @@
       for (let i = 0; i < buildings.length; i++) {
         const b = buildings[i];
         if (!b || b.hp <= 0) continue;
-        if(globalThis.OUHarvester.inCorridor(b,x,y,TILE,ur+pad))continue;
+        if(b.kind==="refinery"){if(globalThis.OUHarvester.blocks(b,x,y,TILE,ur+pad))return true;continue;}
         const hw = (b.w || 0) / 2 + ur + pad;
         const hh = (b.h || 0) / 2 + ur + pad;
         if (x >= b.x - hw && x <= b.x + hw && y >= b.y - hh && y <= b.y + hh) return true;
@@ -2322,6 +2322,10 @@
 
   // Path setter (moved from game.js)
   function setPathTo(u, goalX, goalY){
+    if(!inSimTick){
+      externalPaths.set(u.id,{u,order:u.order,target:u.target,x:goalX,y:goalY});
+      return true; // Command accepted; route is validated during the next tick.
+    }
     if (_pathFindBudget <= 0 || performance.now() >= _pathDeadline) {
       // Deferred work must not erase an already validated route.
       return false;
@@ -2973,6 +2977,7 @@
         }
         clearOcc(dt);
         _pathDeadline = performance.now() + 4;
+        drainExternalPaths();
         drainAttackPaths();
         assignFlowFieldToGroups();
         for (let i=0; i<units.length; i++){
@@ -3864,7 +3869,7 @@
                 if (u.path && u.pathI < u.path.length-1) { continue; }
     
                 const ii=idx(tx,ty);
-                const take=Math.min(55*dt, ore[ii], u.carryMax-u.carry);
+                const take=Math.min(globalThis.OUHarvester.harvestRate*dt, ore[ii], (u.carryMax-u.carry)/((isGem&&isGem[ii])?2:1));
                 if(take>0){u.harvestUntil=state.t+.15;u.harvestTile={tx,ty};}
                 ore[ii] -= take;
                 const credit = (isGem && isGem[ii]) ? take*2 : take;
@@ -4373,6 +4378,15 @@
         }
       }
 
+    let inSimTick=false;
+    const externalPaths=new Map();
+    function drainExternalPaths(){
+      for(const [id,q] of externalPaths){
+        if(_pathFindBudget<=0||performance.now()>=_pathDeadline)break;
+        externalPaths.delete(id);
+        if(q.u.alive&&!q.u.inTransport&&q.u.order===q.order&&q.u.target===q.target)setPathTo(q.u,q.x,q.y);
+      }
+    }
     let _pathFindBudget = 0;
     const MAX_PATHFINDS_PER_FRAME = 8;
     let _pathDeadline = Infinity;
@@ -4403,9 +4417,9 @@
     function tickSim(dt) {
       _pathFindBudget = MAX_PATHFINDS_PER_FRAME;
       _pathDeadline = performance.now() + 4;
-      tickUnits(dt);
-      tickTurrets(dt);
-      tickBullets(dt);
+      inSimTick=true;
+      try{tickUnits(dt);tickTurrets(dt);tickBullets(dt);}
+      finally{inSimTick=false;}
     }
 
     return {

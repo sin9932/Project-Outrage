@@ -2,11 +2,29 @@
  * glTF +Z forward, +Y up. Refinery ramp opens toward world +X. */
 (function(g){
  const H={modelUrl:'../asset/model/harvester/harvester.glb',scale:20,renderSpan:14,wheelRadius:.427,
-  turnRate:2.6,unloadRate:250,reverseSpeed:45,intake:{forward:2.80,height:.63},discharge:{forward:-2.43,height:1.40}};
+  turnRate:2.6,unloadSeconds:1,harvestRate:125,reverseSpeed:45,intake:{forward:2.80,height:.63},discharge:{forward:-2.43,height:1.40}};
+ H.ore=Object.freeze({base:60,step:20,max:240,value:120,gemBase:120,gemStep:40,gemMax:240,gemValue:240});
  H.port=b=>({tx:b.tx+b.tw-1,ty:b.ty+Math.floor(b.th/2)});
  H.isLane=(b,tx,ty)=>b.kind==='refinery'&&tx===H.port(b).tx&&Math.abs(ty-H.port(b).ty)<=1;
- H.inCorridor=(b,x,y,T,r=0)=>{if(b.kind!=='refinery')return false;const p=H.port(b);
-  return x-r>=(p.tx)*T && Math.abs(y-(p.ty+.5)*T)+r<1.5*T;};
+ // Collision follows solid cells, not a padded rectangle over the open ramp.
+ H.blocks=(b,x,y,T,r)=>{
+   if(b.kind!=='refinery')return null;
+   const x0=Math.max(b.tx,Math.floor((x-r)/T)),x1=Math.min(b.tx+b.tw-1,Math.floor((x+r)/T));
+   const y0=Math.max(b.ty,Math.floor((y-r)/T)),y1=Math.min(b.ty+b.th-1,Math.floor((y+r)/T));
+   for(let ty=y0;ty<=y1;ty++)for(let tx=x0;tx<=x1;tx++){
+     if(H.isLane(b,tx,ty))continue;
+     const dx=Math.max(tx*T-x,0,x-(tx+1)*T),dy=Math.max(ty*T-y,0,y-(ty+1)*T);
+     if(dx*dx+dy*dy<r*r)return true;
+   }
+   return false;
+ };
+ H.frontDepth=(u,b,T)=>{
+   if(b.kind!=='refinery')return null;
+   const p=H.port(b);
+   if(u.x>=(p.tx)*T && u.x<=(p.tx+3)*T && Math.abs(u.y-(p.ty+.5)*T)<=1.5*T)
+     return b.tx+b.ty+b.tw+b.th-2+.01+(u.x+u.y)/T*.00001;
+   return null;
+ };
  H.approach=(b,T)=>{const p=H.port(b);return{x:(p.tx+2.5)*T,y:(p.ty+.5)*T};};
  H.dock=(b,T)=>{const p=H.port(b);return{x:(p.tx+.5)*T,y:(p.ty+.5)*T};};
  H.drive=(u,dx,dy,dt,dir8)=>{const m=g.OUTankMotion,target=Math.atan2(dy,dx);
@@ -41,7 +59,8 @@
   if(d.phase==='unload'){
     const elapsed=time-d.started;
     if(elapsed<.4)return false;
-    const take=Math.min(u.carry,H.unloadRate*dt);u.carry=Math.max(0,u.carry-take);
+    const progress=Math.min(1,(elapsed-.4)/H.unloadSeconds);
+    u.carry=Math.max(0,d.initial*(1-progress));
     // Credit integer deltas, never round away fractional per-tick cargo.
     const total=Math.floor(d.initial-u.carry+1e-7),delta=total-d.paid;if(delta>0){credit(delta);d.paid=total;}
     if(u.carry<=.0001){u.carry=0;u._needsRef=false;d.phase='close';d.started=time;}return false;

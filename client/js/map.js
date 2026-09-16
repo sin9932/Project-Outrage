@@ -113,7 +113,7 @@
       ore.fill(0);
       for (let ty=0; ty<MAP_H; ty++){
         for (let tx=0; tx<MAP_W; tx++){
-          if (terrain[idx(tx,ty)] === 2) ore[idx(tx,ty)] = 1200;
+          if (terrain[idx(tx,ty)] === 2) ore[idx(tx,ty)] = globalThis.OUHarvester.ore.value;
         }
       }
     }
@@ -136,7 +136,7 @@
     const MAP_W = r.MAP_W || 40;
     const MAP_H = r.MAP_H || 40;
     const idx = r.idx || ((tx, ty) => ty * MAP_W + tx);
-    const oreAmountFromGid = r.oreAmountFromGid || (() => 1200);
+    const oreAmountFromGid = r.oreAmountFromGid || (() => globalThis.OUHarvester.ore.value);
     const TREE_HP_MAX = r.TREE_HP_MAX ?? 5;
 
     if (terrain) terrain.fill(0);

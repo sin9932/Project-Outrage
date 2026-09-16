@@ -1,0 +1,194 @@
+{
+  "attack-before.json": {
+    "startup": {
+      "totalMs": 1693,
+      "clickMs": 1015
+    },
+    "setup": {
+      "commandMs": 0.6000000238418579,
+      "target": "hq",
+      "count": 96
+    },
+    "result": {
+      "progress": 62,
+      "pathStats": {
+        "processed": 607,
+        "pending": 0,
+        "maxPerTick": 8
+      },
+      "frames": 696,
+      "p95": 25,
+      "max": 83.29999999999995,
+      "hp": 973285.1390000163,
+      "moved": 12,
+      "shots": 705
+    },
+    "errors": []
+  },
+  "attack-firefox-before.json": {
+    "startup": {
+      "totalMs": 3851,
+      "clickMs": 2492
+    },
+    "setup": {
+      "commandMs": 1,
+      "target": "hq",
+      "count": 96
+    },
+    "result": {
+      "progress": 60,
+      "pathStats": {
+        "processed": 365,
+        "pending": 0,
+        "maxPerTick": 8
+      },
+      "frames": 222,
+      "p95": 58.340000000000146,
+      "max": 108.34000000000015,
+      "hp": 984298.9900000156,
+      "moved": 9,
+      "shots": 409
+    },
+    "errors": []
+  },
+  "combat-chrome-final.json": {
+    "startup": {
+      "totalMs": 1551,
+      "clickMs": 922
+    },
+    "setup": {
+      "commandMs": 0.5999999642372131,
+      "target": "hq",
+      "count": 96
+    },
+    "result": {
+      "progress": 62,
+      "pathStats": {
+        "processed": 590,
+        "pending": 0,
+        "maxPerTick": 8
+      },
+      "frames": 1339,
+      "p95": 16.600000000000364,
+      "max": 99.90000000000009,
+      "hp": 973201.4370000162,
+      "moved": 11,
+      "shots": 709
+    },
+    "errors": []
+  },
+  "attack-firefox-culled.json": {
+    "startup": {
+      "totalMs": 3163,
+      "clickMs": 1930
+    },
+    "setup": {
+      "commandMs": 0,
+      "target": "hq",
+      "count": 96
+    },
+    "result": {
+      "progress": 62,
+      "pathStats": {
+        "processed": 566,
+        "pending": 0,
+        "maxPerTick": 8
+      },
+      "frames": 368,
+      "p95": 41.659999999999854,
+      "max": 141.65999999999985,
+      "hp": 974320.5607000237,
+      "moved": 12,
+      "shots": 667
+    },
+    "errors": []
+  },
+  "combat-firefox-fog.json": {
+    "startup": {
+      "totalMs": 3035,
+      "clickMs": 2027
+    },
+    "setup": {
+      "commandMs": 1,
+      "target": "hq",
+      "count": 96
+    },
+    "result": {
+      "progress": 61,
+      "pathStats": {
+        "processed": 563,
+        "pending": 0,
+        "maxPerTick": 8
+      },
+      "frames": 354,
+      "p95": 41.68000000000029,
+      "max": 83.34000000000015,
+      "hp": 975054.0100000235,
+      "moved": 10,
+      "shots": 663
+    },
+    "errors": []
+  },
+  "port-resource-evidence.json": {
+    "moves": [
+      {
+        "kind": "tank",
+        "lane": -1,
+        "escaped": true
+      },
+      {
+        "kind": "tank",
+        "lane": 0,
+        "escaped": true
+      },
+      {
+        "kind": "tank",
+        "lane": 1,
+        "escaped": true
+      },
+      {
+        "kind": "harvester",
+        "lane": -1,
+        "escaped": true
+      },
+      {
+        "kind": "harvester",
+        "lane": 0,
+        "escaped": true
+      },
+      {
+        "kind": "harvester",
+        "lane": 1,
+        "escaped": true
+      },
+      {
+        "kind": "infantry",
+        "lane": -1,
+        "escaped": true
+      },
+      {
+        "kind": "infantry",
+        "lane": 0,
+        "escaped": true
+      },
+      {
+        "kind": "infantry",
+        "lane": 1,
+        "escaped": true
+      }
+    ],
+    "mining": {
+      "depleted": 3,
+      "elapsed": 8.858499999999765,
+      "carry": 720,
+      "removed": 720
+    },
+    "unloading": {
+      "money": 10000,
+      "start": 29.689899999999614,
+      "end": 31.097799999999587,
+      "paid": 1000
+    },
+    "errors": []
+  }
+}

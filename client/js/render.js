@@ -317,6 +317,17 @@
   const CLOUDS_JSON_URL = FG_MAP_BASE + "cloud.json";
   let cloudsImage = null;
   let cloudsFromJson = null;
+  let cloudDisplay=null,cloudDisplaySource=null,cloudDisplayVersion=-1;
+  function invertedCloudTexture(source,version){
+    if(cloudDisplaySource===source&&cloudDisplayVersion===version)return cloudDisplay;
+    if(!cloudDisplay)cloudDisplay=document.createElement('canvas');
+    const scale=Math.min(1,256/Math.max(source.width,source.height));
+    cloudDisplay.width=Math.max(1,Math.round(source.width*scale));cloudDisplay.height=Math.max(1,Math.round(source.height*scale));
+    const c=cloudDisplay.getContext('2d',{willReadFrequently:true});c.drawImage(source,0,0,cloudDisplay.width,cloudDisplay.height);
+    const pixels=c.getImageData(0,0,cloudDisplay.width,cloudDisplay.height),d=pixels.data;
+    for(let i=0;i<d.length;i+=4){d[i]=255-d[i];d[i+1]=255-d[i+1];d[i+2]=255-d[i+2];}
+    c.putImageData(pixels,0,0);cloudDisplaySource=source;cloudDisplayVersion=version;return cloudDisplay;
+  }
 
   function createCloudRendererFromJson(json) {
     const res = Math.min(json.resolution || 512, 256);
@@ -393,6 +404,7 @@
       return imgData;
     }
 
+    let cloudVersion=0;
     function render(time) {
       const timeOff = animate ? baseTime + time * animSpeed : 0;
       ctx.fillStyle = "#fff";
@@ -432,10 +444,10 @@
         ctx.globalCompositeOperation=i===0?'source-over':'multiply';ctx.drawImage(tmp,0,0);
       }
       ctx.globalAlpha=1;ctx.globalCompositeOperation='source-over';
-      lastTime=job.time;job=null;
+      lastTime=job.time;job=null;cloudVersion++;
     }
     render(0);
-    return { canvas, animate, animSpeed, baseTime, render, step };
+    return { canvas, animate, animSpeed, baseTime, render, step, get version(){return cloudVersion;} };
   }
 
   (function loadClouds() {
@@ -1887,6 +1899,7 @@
     const ox=ISO_X*cam.zoom, oy=ISO_Y*cam.zoom;
     const tileScreenW = 2 * ox;
     const tileScreenH = 2 * oy;
+    if(x+tileScreenW<0||x-tileScreenW>canvas.width||y+tileScreenH*2<0||y-tileScreenH*2>canvas.height)return;
 
     const inFgBounds = fgTmj && tx < fgTmj.mapW && ty < fgTmj.mapH;
     const oreAt = inFgBounds ? ore[idx(tx,ty)] : 0;
@@ -2993,7 +3006,7 @@
     }
 
     /* RA2-style shroud/fog: offscreen layer + destination-out erase, then composite on terrain */
-    if (explored && visible) {
+    if (fogOn && explored && visible) {
       const ox = ISO_X * cam.zoom, oy = ISO_Y * cam.zoom;
       const eps = 1.5;
       const drawDiamond = (ctx2, x, y) => {
@@ -3015,6 +3028,7 @@
       fctx.fillRect(0, 0, W, H);
       fctx.globalCompositeOperation = "destination-out";
       fctx.fillStyle = "rgba(0,0,0,1)";
+      fctx.beginPath();
       for (let s = 0; s <= (MAP_W - 1) + (MAP_H - 1); s++) {
         for (let ty = 0; ty < MAP_H; ty++) {
           const tx = s - ty;
@@ -3022,16 +3036,17 @@
           if (!explored[TEAM.PLAYER][idx(tx, ty)]) continue;
           const c = tileToWorldCenter(tx, ty);
           const p = worldToScreen(c.x, c.y);
-          fctx.beginPath();
-          drawDiamond(fctx, p.x, p.y);
-          fctx.fill();
+          if(p.x+ox<0||p.x-ox>W||p.y+oy<0||p.y-oy>H)continue;
+          drawDiamond(fctx,p.x,p.y);
         }
       }
+      fctx.fill();
       fctx.globalCompositeOperation = "source-over";
       fctx.fillStyle = "rgba(0,0,0,0.10)";
       fctx.fillRect(0, 0, W, H);
       fctx.globalCompositeOperation = "destination-out";
       fctx.fillStyle = "rgba(0,0,0,1)";
+      fctx.beginPath();
       for (let s = 0; s <= (MAP_W - 1) + (MAP_H - 1); s++) {
         for (let ty = 0; ty < MAP_H; ty++) {
           const tx = s - ty;
@@ -3039,11 +3054,11 @@
           if (!visible[TEAM.PLAYER][idx(tx, ty)]) continue;
           const c = tileToWorldCenter(tx, ty);
           const p = worldToScreen(c.x, c.y);
-          fctx.beginPath();
-          drawDiamond(fctx, p.x, p.y);
-          fctx.fill();
+          if(p.x+ox<0||p.x-ox>W||p.y+oy<0||p.y-oy>H)continue;
+          drawDiamond(fctx,p.x,p.y);
         }
       }
+      fctx.fill();
       fctx.globalCompositeOperation = "source-over";
       ctx.drawImage(fogCanvas, 0, 0);
     }
@@ -3135,10 +3150,10 @@
         cloudsFromJson.step(drawMain._cloudTimeAcc * 0.02);
       }
       ctx.save();
-      ctx.filter = "invert(1)";
+      const display=invertedCloudTexture(cloudSrc,cloudsFromJson?.version||0);
       ctx.globalCompositeOperation = "multiply";
-      const tw = cloudSrc.width;
-      const th = cloudSrc.height;
+      const tw = display.width;
+      const th = display.height;
       const z = (cam && typeof cam.zoom === "number") ? cam.zoom : 1;
       const worldW = MAP_W * TILE;
       const worldH = MAP_H * TILE;
@@ -3148,7 +3163,7 @@
       const cloudScreenSize = Math.max(W, H) * 8 * z;
       const dw = cloudScreenSize;
       const dh = (th / tw) * cloudScreenSize;
-      ctx.drawImage(cloudSrc, 0, 0, tw, th, p.x - dw / 2, p.y - dh / 2, dw, dh);
+      ctx.drawImage(display, 0, 0, tw, th, p.x - dw / 2, p.y - dh / 2, dw, dh);
       ctx.filter = "none";
       ctx.restore();
     }
@@ -3247,10 +3262,19 @@
       }
     }
 
+    const depthKeys=new Map();
+    const refineries=buildings.filter(b=>b.alive&&b.kind==='refinery');
+    for(const ent of drawables){
+      let depth=BUILD[ent.kind]?ent.tx+ent.ty+ent.tw+ent.th-2:(ent.x+ent.y)/TILE;
+      if(!BUILD[ent.kind]&&ent.kind!=='_tree')for(const ref of refineries){
+        const front=window.OUHarvester.frontDepth(ent,ref,TILE);if(front!=null)depth=Math.max(depth,front);
+      }
+      depthKeys.set(ent,depth);
+    }
     drawables.sort((a,b)=>{
       const aIsB=!!BUILD[a.kind], bIsB=!!BUILD[b.kind];
-      const aKey = aIsB ? ((a.tx + a.ty) + (a.tw + a.th - 2)) : ((a.x + a.y)/TILE);
-      const bKey = bIsB ? ((b.tx + b.ty) + (b.tw + b.th - 2)) : ((b.x + b.y)/TILE);
+      const aKey = depthKeys.get(a);
+      const bKey = depthKeys.get(b);
       if (aKey !== bKey) return aKey - bKey;
       if (aIsB !== bIsB) return aIsB ? -1 : 1;
       return (a.id||0) - (b.id||0);
@@ -3260,6 +3284,8 @@
     drawVeteranBadge._viewportH = H;
 
     for (const ent of drawables){
+      const screenPos=worldToScreen(ent.x,ent.y),margin=Math.max(128,550*cam.zoom);
+      if(screenPos.x+margin<0||screenPos.x-margin>W||screenPos.y+margin<0||screenPos.y-margin>H)continue;
       ctx.save();
       if (ent.kind === "_tree") {
         const c = tileToWorldCenter(ent.tx, ent.ty);

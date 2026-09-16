@@ -202,6 +202,41 @@ export const ready = (async () => {
   }
 })();
 
+// Pool one instanced draw per articulated geometry/material. Camera-plane offsets
+// place live 3D poses into atlas cells, so a page requires one scene submission.
+let batchScene,batchCamera;
+const batches=new Map(),offsetMatrix=new THREE.Matrix4(),instanceMatrix=new THREE.Matrix4();
+const cameraRight=new THREE.Vector3(),cameraUp=new THREE.Vector3(),white=new THREE.Color(1,1,1);
+function prepareBatchPage(cols,rows){
+  if(!batchScene){
+    batchScene=new THREE.Scene();batchCamera=camera.clone();
+    for(const o of scene.children)if(o.isLight)batchScene.add(o.clone());
+    camera.updateMatrixWorld(true);
+    cameraRight.setFromMatrixColumn(camera.matrixWorld,0);cameraUp.setFromMatrixColumn(camera.matrixWorld,1);
+  }
+  batchCamera.left=-span*cols/2;batchCamera.right=span*cols/2;
+  batchCamera.top=span*rows/2;batchCamera.bottom=-span*rows/2;batchCamera.updateProjectionMatrix();
+  for(const b of batches.values()){b.mesh.count=0;b.mesh.visible=false;}
+}
+function appendPose(u,time,cellX,cellY,capacity,tint){
+  selectAsset(u.kind);pose(u,time);
+  offsetMatrix.makeTranslation(cameraRight.x*cellX+cameraUp.x*cellY,cameraRight.y*cellX+cameraUp.y*cellY,cameraRight.z*cellX+cameraUp.z*cellY);
+  model.traverseVisible(src=>{
+    if(!src.isMesh||Array.isArray(src.material))return;
+    let b=batches.get(src.uuid);
+    if(!b||b.capacity<capacity){
+      if(b){b.mesh.removeFromParent();b.mesh.dispose();b.mesh.material.dispose();}
+      const team=/TeamColor|Lamp/.test(src.material.name),mat=src.material.clone();
+      if(team){mat.color.set(0xffffff);if(mat.emissive)mat.emissive.set(0);}
+      const mesh=new THREE.InstancedMesh(src.geometry,mat,capacity);mesh.count=0;mesh.frustumCulled=false;mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+      b={mesh,team,capacity,dark:src.material.name.includes('recessed')};batches.set(src.uuid,b);batchScene.add(mesh);
+    }
+    const n=b.mesh.count++;b.mesh.visible=true;
+    instanceMatrix.multiplyMatrices(offsetMatrix,src.matrixWorld);b.mesh.setMatrixAt(n,instanceMatrix);
+    b.mesh.setColorAt(n,b.team?(b.dark?tint.clone().multiplyScalar(.45):tint):white);
+  });
+}
+
 // Render fresh poses into frame-local pages before painter-order composition.
 // This is real-time geometry, not stored directional sprites: pages are redrawn
 // every frame. Each page crosses WebGL -> Canvas2D once, instead of once per tank.
@@ -231,16 +266,19 @@ api.beginFrame = function(units,time,view) {
     const chunk=visible.slice(start,start+capacity);
     const rows=Math.ceil(chunk.length/cols),width=cols*res,height=rows*res;
     if(renderer.domElement.width!==width||renderer.domElement.height!==height)renderer.setSize(width,height,false);
-    renderer.setScissorTest(false);renderer.clear();renderer.setScissorTest(true);
+    renderer.setScissorTest(false);renderer.setViewport(0,0,width,height);renderer.clear();
+    prepareBatchPage(cols,rows);
     let canvas=framePages[pageCount];
     if(!canvas)canvas=framePages[pageCount]=document.createElement('canvas');
     if(canvas.width!==width||canvas.height!==height){canvas.width=width;canvas.height=height;}
     for(let i=0;i<chunk.length;i++){
       const u=chunk[i],x=(i%cols)*res,y=Math.floor(i/cols)*res;
-      renderer.setViewport(x,height-y-res,res,res);renderer.setScissor(x,height-y-res,res,res);
-      selectAsset(u.kind);pose(u,time);teamColor(color(u));renderer.render(scene,camera);
+      appendPose(u,time,((i%cols)+.5-cols/2)*span,(rows/2-Math.floor(i/cols)-.5)*span,capacity,new THREE.Color(color(u)));
       frameSlots.set(u.id,{canvas,x,y,res,size});
     }
+    for(const b of batches.values())if(b.mesh.count){b.mesh.instanceMatrix.needsUpdate=true;b.mesh.instanceColor.needsUpdate=true;}
+    renderer.render(batchScene,batchCamera);
+    api.gpuDrawCalls=renderer.info.render.calls;
     const copy=canvas.getContext('2d');copy.clearRect(0,0,width,height);
     copy.drawImage(renderer.domElement,0,0);
     pageCount++;

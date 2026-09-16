@@ -43,7 +43,8 @@ It is not an eight-direction sprite replacement.
 The wheels, intake rotor, cargo and rear discharge hatch are separate parts.
 Mining has a reusable mineral particle sprite following suction arcs into the intake.
 Unloading opens the rear hatch, streams ore out, gradually decreases cargo and credits
-integer money deltas. The existing mining rate and near-full return threshold remain.
+integer money deltas. See REFINERY_COMBAT_FIXES.md for the updated one-second
+unload and ore depletion balance; the near-full return threshold remains.
 
 ## State and geometry contract
 
