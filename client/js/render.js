@@ -1802,9 +1802,7 @@
       }
     }
 
-    if(ent.kind==='hq'&&assemblyProgress!=null&&assemblyProgress<1&&srcImg!==img){
-      window.OUHQAssembly.draw(ctx,srcImg,{x:dx,y:dy,w:dw,h:dh},assemblyProgress);
-    } else ctx.drawImage(srcImg,sx,sy,sw,sh,dx,dy,dw,dh);
+    ctx.drawImage(srcImg,sx,sy,sw,sh,dx,dy,dw,dh);
     ctx.restore();
     return true;
   }
@@ -3325,9 +3323,8 @@
 
         if(ent.kind==='hq'){
           drawBuildingShadow(ent);
-          const M=window.OUMCV,animated=!!(ent._mcvPhase||ent._mcvSelling),progress=animated?M.progress(ent,state.t):1;
-          if(animated&&window.OUTank3D?.mcvReady)window.OUTank3D.draw(ctx,ent,screenPos,cam.zoom,ent.team===TEAM.PLAYER?state.colors.player:state.colors.enemy,state.t);
-          drawBuildingSpriteLocal(ent,progress);
+          if(window.OUTank3D?.mcvReady)window.OUTank3D.draw(ctx,ent,screenPos,cam.zoom,ent.team===TEAM.PLAYER?state.colors.player:state.colors.enemy,state.t);
+          else drawBuildingSpriteLocal(ent);
         } else if((ent.kind==='turret'&&window.OUTank3D?.sentryReady)||(ent.kind==='factory'&&window.OUTank3D?.factoryReady)||(ent.kind==='repair'&&window.OUTank3D?.mcvReady)){
           drawBuildingShadow(ent);
           window.OUTank3D.draw(ctx,ent,screenPos,cam.zoom,ent.team===TEAM.PLAYER?state.colors.player:state.colors.enemy,state.t);

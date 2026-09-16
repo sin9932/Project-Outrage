@@ -4,7 +4,7 @@ import { mergeGeometries } from '../vendor/three/addons/utils/BufferGeometryUtil
 
 // Hybrid isometric renderer: rasterize actual geometry at its current arbitrary
 // pose every frame, then composite at the existing world depth-sort position.
-// Units use continuous poses; completed yards use the original detailed 2D artwork.
+// Units and unfolding yards use rigid poses; settled yards cache the exact endpoint.
 const api = window.OUTank3D = { status: 'loading', draws: 0, error: null };
 const enabled = new URLSearchParams(location.search).get('tank3d') !== '0';
 let config = window.OUTankConfig;
@@ -184,7 +184,7 @@ export const ready = (async () => {
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 1.15;
     renderer.domElement.addEventListener('webglcontextlost', event => {
-      event.preventDefault(); api.status='lost';
+      event.preventDefault(); api.status='lost'; window.OUHQAssembly?.clear();
     });
     renderer.domElement.addEventListener('webglcontextrestored', () => { api.status='ready'; });
     scene = new THREE.Scene();
@@ -271,13 +271,15 @@ export const ready = (async () => {
     const marker=new THREE.Mesh(new THREE.CircleGeometry(1.3,24),markerMat);marker.quaternion.copy(camera.quaternion);hull.add(marker);materials=[markerMat];scene.add(model);remember('ifv');
     selectAsset('tank');api.factoryReady=true;
     const mg=await new GLTFLoader().loadAsync(new URL(window.OUMCV.modelUrl,import.meta.url).href);
-    const mc=mg.animations.find(c=>c.name==='Deploy');if(!mc||Math.abs(mc.duration-3)>.02)throw Error('MCV Deploy clip contract mismatch');
+    const contract=await fetch(new URL('../asset/model/mcv/contract.json?v=3',import.meta.url)).then(r=>{if(!r.ok)throw Error('MCV contract unavailable');return r.json();});
+    if(contract.revision!==3||contract.runtimeSeconds!==window.OUMCV.seconds||contract.worldUnitsPerMetre!==window.OUMCV.scale||contract.modelScale!==window.OUMCV.modelScale||contract.up!=='+Y'||contract.heading!=='+Z')throw Error('MCV model dimensions/timing contract mismatch');
+    const mc=mg.animations.find(c=>c.name==='Deploy');if(!mc||Math.abs(mc.duration-3)>.02||mc.tracks.some(t=>t.name.endsWith('.scale')))throw Error('Rigid MCV Deploy clip contract mismatch');
     for(const kind of ['mcv','hq']){
       config={...window.OUMCV,renderSpan:kind==='hq'?window.OUMCV.hqSpan:window.OUMCV.renderSpan};
       model=mg.scene.clone(true);hull=model.getObjectByName('Hull');turret=barrel=barrelRest=null;
       wheels=[];materials=[];extraParts=[];detailMeshes=[];crowdMeshes=[];
       hull?.scale.setScalar(window.OUMCV.modelScale);
-      if(!hull||!model.getObjectByName('Cab')||!model.getObjectByName('Container_1'))throw Error('MCV hierarchy incomplete');
+      if(!hull||['Cab','Container_1','ArmorWing_1_1','TowerSleeve','Mast_1','BoomHinge','BoomExtension'].some(n=>!model.getObjectByName(n)))throw Error('Mechanical MCV hierarchy incomplete');
       model.traverse(o=>{if(!o.isMesh)extraParts.push(o);if(/^Wheel_[LR]_\d$/.test(o.name))wheels.push(o);if(o.isMesh)for(const mat of Array.isArray(o.material)?o.material:[o.material])if(/TeamColor/.test(mat.name)&&!materials.includes(mat))materials.push(mat);});
       const mx=new THREE.AnimationMixer(model),ac=mx.clipAction(mc);ac.setLoop(THREE.LoopOnce,1);ac.clampWhenFinished=true;ac.play();ac.paused=true;ac.time=kind==='hq'?mc.duration:0;mx.update(0);
       mergeRigidParts();model.updateMatrixWorld(true);buildCrowdDetail();scene.add(model);remember(kind);Object.assign(assets.get(kind),{buildClip:mc,buildMixer:mx,buildAction:ac});
@@ -359,7 +361,7 @@ function appendPose(u,time,cellX,cellY,capacity,tint,viewSpan=span,localOffset=n
 // This is real-time geometry, not stored directional sprites: pages are redrawn
 // every frame. Each page crosses WebGL -> Canvas2D once, instead of once per tank.
 api.beginFrame = function(units,time,view) {
-  api.draws=0; frameSlots.clear();
+  api.draws=0; api.gpuDrawCalls=0; frameSlots.clear();
   const live=new Set(units.filter(u=>u.alive&&assets.has(u.kind)).map(u=>u.id));
   for(const [id,p] of poseByUnit) if(!live.has(id)||time<p.seen) poseByUnit.delete(id);
   if(api.status!=='ready'||!view) return;
@@ -367,13 +369,25 @@ api.beginFrame = function(units,time,view) {
   const viewWidth=view.width||ctx.canvas.width;
   const visible=units.filter(u=>{
     if(!u.alive||!assets.has(u.kind)||u.kind==='ifv'||u.hidden||u.inTransport)return false;
-    if(u.kind==='hq'&&!u._mcvPhase&&!u._mcvSelling)return false;
     const size=assets.get(u.kind).config.renderSpan*assets.get(u.kind).config.scale/Math.sqrt(2)*zoom,p=project(u.x,u.y);
     return p.x+size/2>=0&&p.y+size/2>=0&&p.x-size/2<=viewWidth&&p.y-size/2<=ctx.canvas.height;
   });
-  const groups=new Map();
+  const groups=new Map(),settled=new Map(),pending=new Map();
+  const isSettled=u=>u.kind==='hq'&&!u._mcvPhase&&!u._mcvSelling;
+  const pixelSize=viewSpan=>Math.max(64,Math.min(768,Math.ceil(viewSpan*20/Math.sqrt(2)*zoom)));
+  const cache=window.OUHQAssembly;
   for(const u of visible){
-    const key=assets.get(u.kind).config.renderSpan;if(!groups.has(key))groups.set(key,[]);groups.get(key).push(u);}
+    const viewSpan=assets.get(u.kind).config.renderSpan;
+    if(isSettled(u)){
+      const res=pixelSize(viewSpan),k=cache.key(color(u),res),size=viewSpan*20/Math.sqrt(2)*zoom;
+      settled.set(u.id,{k,res,size});
+      const canvas=cache.get(k);
+      if(canvas){frameSlots.set(u.id,{canvas,x:0,y:0,res,size});continue;}
+      if(pending.has(k))continue;
+      pending.set(k,u.id);
+    }
+    if(!groups.has(viewSpan))groups.set(viewSpan,[]);groups.get(viewSpan).push(u);
+  }
   const res=Math.max(64,Math.min(768,Math.ceil(span*window.OUTankConfig.scale/Math.sqrt(2)*zoom)));
   const crowd=res<=160 || visible.length>=48;
   for(const a of assets.values()){for(const m of a.detailMeshes)m.visible=!crowd;for(const m of a.crowdMeshes)m.visible=crowd;}
@@ -410,12 +424,23 @@ api.beginFrame = function(units,time,view) {
     api.gpuDrawCalls=renderer.info.render.calls;
     const copy=canvas.getContext('2d');copy.clearRect(0,0,width,height);
     copy.drawImage(renderer.domElement,0,0);
+    for(let i=0;i<chunk.length;i++){
+      const entry=settled.get(chunk[i].id);if(!entry)continue;
+      const still=document.createElement('canvas');still.width=still.height=res;
+      still.getContext('2d').drawImage(canvas,(i%cols)*res,Math.floor(i/cols)*res,res,res,0,0,res,res);
+      cache.put(entry.k,still);
+    }
     pageCount++;
   }
   }
   renderer.setScissorTest(false);renderer.autoClear=true;
   framePages.length=pageCount;
+  for(const [id,entry] of settled){
+    const canvas=cache.get(entry.k);
+    if(canvas)frameSlots.set(id,{canvas,x:0,y:0,res:entry.res,size:entry.size});
+  }
   api.pages=pageCount;
+  api.yardCache=cache.stats();
 };
 
 api.draw = function(ctx,u,p,zoom,color,time) {

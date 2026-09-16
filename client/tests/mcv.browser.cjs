@@ -1,7 +1,7 @@
 const engine=process.env.OUTRAGE_BROWSER||'chromium',bt=require(process.env.OUTRAGE_PLAYWRIGHT)[engine],fs=require('fs'),assert=require('node:assert/strict');
 (async()=>{const b=await bt.launch({headless:true,...(engine==='chromium'?{executablePath:'C:/Program Files/Google/Chrome/Application/chrome.exe'}:{})});try{
  const p=await b.newPage({viewport:{width:1440,height:900}}),errors=[];p.on('pageerror',e=>errors.push(e.stack));
- await p.goto('http://127.0.0.1:8765/index.html?debug=1');
+ await p.goto(process.env.OUTRAGE_URL||'http://127.0.0.1:8765/index.html?debug=1');
  await p.waitForFunction(()=>window.OUTankTest,null,{timeout:60000});console.log('LOADED',errors);
  await p.locator('#fogOff').check();await p.locator('#mcvRedeploy').check();await p.locator('#startBtn').click();await p.waitForFunction(()=>OUTankTest.running);
  await p.waitForFunction(()=>OUTank3D.mcvReady||OUTank3D.assetError,null,{timeout:120000});assert(await p.evaluate(()=>OUTank3D.mcvReady),await p.evaluate(()=>OUTank3D.assetError));
