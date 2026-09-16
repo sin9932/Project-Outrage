@@ -12,7 +12,7 @@ Ground dispatch: a fully paid production queue item becomes the visual dispatch 
 
 The exit apron is reserved against new buildings but remains walkable. Production waits if blocked, cancellation does not spawn a ghost unit, and changing primary factories preserves a dispatch already in progress. Queue completion/payment is separated from dispatch so zero spare credits cannot prevent a fully paid vehicle leaving or cause repeat charges. The renderer only reads simulation state.
 
-Rendering: frame pages are grouped by model span. Large factory cells are normalized inside the existing instanced scene, while world composition preserves building scale. Tank/harvester/sentry rendering and picking continue to use their original span. The new model is about 1.2 MB GLB; editable source is tools/blender/factory.blend, reproduced by tools/blender/build_factory.py.
+Rendering: frame pages are grouped by model span. Large factory cells are normalized inside the existing instanced scene, while world composition preserves building scale. Tank/harvester/sentry rendering and picking continue to use their original span. The GLB includes packed weathered albedo maps; editable source is tools/blender/factory.blend, reproduced by tools/blender/build_factory.py.
 
 Validation:
 - Chrome and Firefox factory tests: Build/reverse parity, hatch closed/open/closed, internal vehicle before spawn, sequential exits, obstructed-exit wait/recovery, harvester exit, dispatch cancellation, zero-balance fully-paid exit and reverse sale. No page errors.
@@ -23,3 +23,9 @@ Validation:
 Preview GIFs are deterministic samples of the real-time model, not replacement sprites: docs/factory-build.gif, factory-roof.gif and factory-drive.gif. Tests exercise live production separately. docs/factory-stages.png and factory-preview.png provide stills. Evidence: client/tests/factory-evidence.json.
 
 Reload with Ctrl+F5 and build a factory in a fresh game. Main is not merged.
+
+## Reference fidelity revision
+
+The factory now follows the supplied olive military hangar reference: battered wall sections, tapered piers, a projecting armored portal with diagonal silver guides, sloped traction apron, paired segmented roof panels, service grilles and door, fan housings, faction insignias, crates and barrels. Four small packed albedo textures provide irregular surface wear. Texture pixels use sRGB encoding for agreement between Blender and glTF. Crowd batching retains mapped materials instead of replacing them with flat vertex colors. Existing footprint, articulation pivots, timings and production state remain unchanged.
+
+Revalidated live construction/reverse sale, roof cycle and dispatch on Chromium and Firefox after the geometry replacement. Updated stills and GIFs show the revised model.

@@ -6491,7 +6491,7 @@
       },
       {
         "a": 0.6,
-        "open": 0.9999999999999998,
+        "open": 1,
         "pose": {
           "Floor": {
             "position": [
@@ -6628,7 +6628,7 @@
             "quaternion": [
               0,
               0,
-              0.5728674601004812,
+              0.5728674601004813,
               0.8196480178454796
             ],
             "scale": [
@@ -6646,7 +6646,7 @@
             "quaternion": [
               0,
               0,
-              -0.5728674601004812,
+              -0.5728674601004813,
               0.8196480178454796
             ],
             "scale": [
@@ -7313,7 +7313,8 @@
       "harvesterExit": true,
       "cancelledDispatch": true,
       "sequentialExit": true,
-      "paidWithZeroBalance": true
+      "paidWithZeroBalance": true,
+      "primarySwitch": true
     },
     "reverseSale": true,
     "errors": []
