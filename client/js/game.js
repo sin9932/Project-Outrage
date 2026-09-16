@@ -703,6 +703,7 @@ function addUnit(team, kind, x, y, opts){
     if (kind === "tank"){
       u.bodyDir = 6;
       u.turretDir = 6;
+      if (window.OUTankMotion) window.OUTankMotion.ensure(u);
     } else if (kind === "harvester"){
       u.bodyDir = 6;
       u.turretDir = null;
@@ -2788,8 +2789,25 @@ function draw(now){
   })() : null;
 
 function spawnStartingUnits(){
-  // No bonus units at start.
+  // Opt-in playable regression scenario; ordinary matches keep their economy.
+  if (!DEV_VALIDATE || !new URLSearchParams(location.search).has('tankdemo')) return;
+  const hq = buildings.find(b=>b.alive && b.team===TEAM.PLAYER && b.kind==='hq');
+  if (!hq) return;
+  const anchorTx=Math.floor(MAP_W/2), anchorTy=Math.floor(MAP_H/2);
+  const spots=[], seenSpots=new Set();
+  for (let radius=3;radius<14 && spots.length<5;radius++) {
+    for (let dx=-radius;dx<=radius && spots.length<5;dx+=2) {
+      const tx=clamp(anchorTx+dx,1,MAP_W-2), ty=clamp(anchorTy+radius-7,1,MAP_H-2);
+      if (terrain[idx(tx,ty)]!==0 || buildOcc[idx(tx,ty)] || treeHp[idx(tx,ty)]>0 || ore[idx(tx,ty)]>0) continue;
+      if (seenSpots.has(tx+","+ty)) continue;
+      seenSpots.add(tx+","+ty);
+      spots.push(tileToWorldCenter(tx,ty));
+    }
+  }
+  for (let i=0;i<Math.min(3,spots.length);i++) addUnit(TEAM.PLAYER,'tank',spots[i].x,spots[i].y,{skipMvp:true});
+  if (spots.length) centerCameraOn(spots[0].x,spots[0].y);
 }
+
 
 
 if (isCallable(__ou_ui, "bindPregameStart")){
@@ -2868,6 +2886,7 @@ if (isCallable(__ou_ui, "bindPregameStart")){
     state._placeStartPhase = true;
     placeStart(spawnChoice);
     state._placeStartPhase = false;
+    if (window.OUTank3DReady) await window.OUTank3DReady;
     spawnStartingUnits();
     if (isCallable(__ou_ui, "hidePregame")){
       __ou_ui.hidePregame({});
@@ -2879,6 +2898,14 @@ if (isCallable(__ou_ui, "bindPregameStart")){
   }});
 }
 
+  if (DEV_VALIDATE) window.OUTankTest = {
+    state, units, buildings, cam, TEAM, terrain, ore, treeHp, buildOcc, TILE, MAP_W, MAP_H,
+    addUnit, getEntityById, worldToScreen, screenToWorld, centerCameraOn,
+    commands:__ou_commands, sim:__ou_sim,
+    get running(){return running;},
+    setFog(value){fogEnabled=!!value;},
+    get explored(){return explored;}, get visible(){return visible;}
+  };
   let last=performance.now();
   let fpsAcc=0, fpsN=0, fpsT=0;
 
@@ -2977,9 +3004,9 @@ function validateWorld(){
   for (const u of units){
     if (!u) { _assert(false, "unit is null"); continue; }
     _assert(Number.isFinite(u.x) && Number.isFinite(u.y), "unit has invalid position");
-    _assert(Number.isFinite(u.hp) && Number.isFinite(u.maxHp), "unit has invalid hp");
-    _assert(u.maxHp>0, "unit maxHp <= 0");
-    _assert(u.hp <= u.maxHp + 1e-6, "unit hp > maxHp");
+    _assert(Number.isFinite(u.hp) && Number.isFinite(u.hpMax), "unit has invalid hp");
+    _assert(u.hpMax>0, "unit maxHp <= 0");
+    _assert(u.hp <= u.hpMax + 1e-6, "unit hp > maxHp");
     _assert(u.r != null, "unit missing radius");
     _assert(!seen.has(u.id), "duplicate entity id: "+u.id);
     seen.add(u.id);
@@ -2988,9 +3015,9 @@ function validateWorld(){
   for (const b of buildings){
     if (!b) { _assert(false, "building is null"); continue; }
     _assert(Number.isFinite(b.x) && Number.isFinite(b.y), "building has invalid position");
-    _assert(Number.isFinite(b.hp) && Number.isFinite(b.maxHp), "building has invalid hp");
-    _assert(b.maxHp>0, "building maxHp <= 0");
-    _assert(b.hp <= b.maxHp + 1e-6, "building hp > maxHp");
+    _assert(Number.isFinite(b.hp) && Number.isFinite(b.hpMax), "building has invalid hp");
+    _assert(b.hpMax>0, "building maxHp <= 0");
+    _assert(b.hp <= b.hpMax + 1e-6, "building hp > maxHp");
     _assert(Number.isInteger(b.tx) && Number.isInteger(b.ty) && Number.isInteger(b.tw) && Number.isInteger(b.th),
             "building missing tile footprint");
     _assert(!seen.has(b.id), "duplicate entity id: "+b.id);
@@ -2998,8 +3025,8 @@ function validateWorld(){
   }
 
   // Occupancy array invariants (basic)
-  _assert(Array.isArray(occAll) && occAll.length === W*H, "occAll size mismatch");
-  _assert(Array.isArray(occBld) && occBld.length === W*H, "occBld size mismatch");
+  _assert((Array.isArray(occAll) || ArrayBuffer.isView(occAll)) && occAll.length === MAP_W*MAP_H, "occAll size mismatch");
+  _assert((Array.isArray(buildOcc) || ArrayBuffer.isView(buildOcc)) && buildOcc.length === MAP_W*MAP_H, "buildOcc size mismatch");
 }
 
 function sanityCheck(){

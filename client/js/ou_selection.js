@@ -185,6 +185,11 @@
         } else {
           p=worldToScreen(u.x,u.y);
         }
+        if (u.hidden || u.selectable===false) continue;
+        if (u.kind === "tank" && global.OUTank3D?.status === "ready") {
+          if (global.OUTank3D.hitTest(u,m,p,cam.zoom||1,state.t)) return u;
+          continue;
+        }
         const pr = (u.kind==="ifv") ? (u.r*0.60) : (u.r||10);
         if (_dist2(p.x,p.y,m.x,m.y) <= (pr*cam.zoom)*(pr*cam.zoom)) return u;
       }

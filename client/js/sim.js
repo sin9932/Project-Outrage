@@ -1879,7 +1879,13 @@
         }
       } else if (movingDir){
         const fd = worldVecToDir8(ax, ay);
-        if (u.kind === "tank" || u.kind === "harvester"){
+        if (u.kind === "tank" && globalThis.OUTankMotion){
+          if (!globalThis.OUTankMotion.hull(u, ax, ay, dt, worldVecToDir8)) {
+            u.vx = 0; u.vy = 0;
+            return true;
+          }
+          u.faceDir = u.fireDir ?? u.turretDir ?? u.bodyDir;
+        } else if (u.kind === "tank" || u.kind === "harvester"){
           if (u.bodyDir == null) u.bodyDir = (u.dir!=null ? u.dir : 6);
           if (fd !== u.bodyDir){
             if (u._vehCurSpeed != null) u._vehCurSpeed *= (1 - 0.12);
@@ -2563,7 +2569,19 @@
       u.holdPos = true;
     }
 
-    function _tankUpdateTurret(u, desiredDir, dt){
+    function _tankAimReady(u, desiredDir){
+      return globalThis.OUTankMotion ? globalThis.OUTankMotion.ready(u)
+        : (u.turretDir === desiredDir && !u.turretTurn);
+    }
+
+    function _tankUpdateTurret(u, desiredDir, dt, desiredYaw){
+      if (u.kind === "tank" && globalThis.OUTankMotion) {
+        if (u._turretUpdatedAt === state.t) return;
+        u._turretUpdatedAt = state.t;
+        globalThis.OUTankMotion.turret(u,
+          Number.isFinite(desiredYaw) ? desiredYaw : globalThis.OUTankMotion.fromDir(desiredDir), dt, worldVecToDir8);
+        return;
+      }
       if (u.turretDir == null) u.turretDir = (u.dir!=null ? u.dir : 6);
       if (desiredDir == null || desiredDir === u.turretDir){
         u.turretTurn = null;
@@ -2739,7 +2757,7 @@
           team,
           x0:x, y0:y, x1:tx, y1:ty,
           x, y,
-          t:0, dur,
+          t:0, dur, z0: opt.z0 ?? 0,
           h: opt.h ?? (18 + Math.min(46, dist*0.10)),
           dmg, ownerId,
           tid: opt.tid ?? null,
@@ -2901,7 +2919,18 @@
       applyDamage(target, dmg, shooter.id, shooter.team);
     }
 
-    function fireTankShell(shooter,target){
+    function fireTankShell(shooter,target,opt={}){
+      if (globalThis.OUTankMotion) {
+        shooter.lastShotAt = state.t;
+        shooter.shotSerial = (shooter.shotSerial || 0) + 1;
+        const muzzle = globalThis.OUTankMotion.muzzle(shooter, state.t);
+        const iso = worldToIso(muzzle.x,muzzle.y);
+        const fx = isoToWorld(iso.x,iso.y-muzzle.z*globalThis.OUTankMotion.HEIGHT_TO_SCREEN);
+        flashes.push({x:fx.x,y:fx.y,r:24,life:.08,delay:0});
+        spawnBullet(shooter.team,muzzle.x,muzzle.y,target.x,target.y,opt.dmg ?? shooter.dmg,shooter.id,
+          {kind:"shell",dur:.12,h:18,z0:muzzle.z,tid:target.id,allowFriendly:!!shooter.order?.allowFriendly});
+        return;
+      }
       const dx = target.x - shooter.x, dy = target.y - shooter.y;
       const d = Math.hypot(dx,dy)||1;
       const nx = dx/d, ny = dy/d;
@@ -4012,7 +4041,7 @@
             let _ffAimDir = null;
             if (u.kind==="tank" && !u.inTransport){
               _ffAimDir = worldVecToDir8(tx - u.x, ty - u.y);
-              _tankUpdateTurret(u, _ffAimDir, dt);
+              _tankUpdateTurret(u, _ffAimDir, dt, Math.atan2(ty-u.y, tx-u.x));
               u.fireDir = _ffAimDir;
               u.faceDir = _ffAimDir;
             }
@@ -4029,7 +4058,7 @@
             } else {
               u.path=null;
               u.vx=0; u.vy=0;
-              if (u.shootCd<=0 && (u.kind!=="tank" || (_ffAimDir!=null && u.turretDir===_ffAimDir && !u.turretTurn))){
+              if (u.shootCd<=0 && (u.kind!=="tank" || (_ffAimDir!=null && _tankAimReady(u, _ffAimDir)))){
                 u.shootCd=u.rof*getVeteranROF(u);
                 u.holdPosT = 0.10;
                 u.fireHoldT = Math.max(u.fireHoldT||0, 0.28);
@@ -4042,7 +4071,7 @@
                   applyAreaDamageAt(tx,ty, 18, d, u.id, u.team);
                   applyOreDamageInRadius(tx, ty, 18, d);
                 } else if (u.kind==="tank") {
-                  spawnBullet(u.team, u.x, u.y, tx, ty, Math.max(1, u.dmg*0.6), u.id, { kind:"shell", dur: 0.12, h: 18 });
+                  fireTankShell(u, {x:tx, y:ty}, {dmg:Math.max(1,u.dmg*0.6)});
                   const d = Math.max(1, u.dmg*0.45);
                   applyAreaDamageAt(tx,ty, 22, d, u.id, u.team, true);
                   applyOreDamageInRadius(tx, ty, 22, d);
@@ -4224,13 +4253,13 @@
             let _tankAimDir = null;
             if (u.kind==="tank" && !u.inTransport){
               _tankAimDir = worldVecToDir8(t.x - u.x, t.y - u.y);
-              _tankUpdateTurret(u, _tankAimDir, dt);
+              _tankUpdateTurret(u, _tankAimDir, dt, Math.atan2(t.y-u.y, t.x-u.x));
               u.fireDir = _tankAimDir;
               u.faceDir = _tankAimDir;
             }
     
             // Fire whenever in range (even if we are still sliding into position).
-            if (dEff <= u.range && u.shootCd<=0 && (u.kind!=="tank" || (u.turretDir===_tankAimDir && !u.turretTurn))){
+            if (dEff <= u.range && u.shootCd<=0 && (u.kind!=="tank" || _tankAimReady(u, _tankAimDir))){
               u.shootCd=u.rof*getVeteranROF(u);
               u.holdPosT = 0.12;
               u.fireHoldT = Math.max(u.fireHoldT||0, 0.28);
@@ -4331,7 +4360,8 @@
                 if (tgt && tgt.alive && tgt.kind !== "harvester"){
                   desired = worldVecToDir8(tgt.x - u.x, tgt.y - u.y);
                   u._lastTurretDesired = desired;
-                } else u._lastTurretDesired = null;
+                  u._lastTurretYaw = Math.atan2(tgt.y-u.y,tgt.x-u.x);
+                } else { u._lastTurretDesired = null; u._lastTurretYaw = null; }
               }
               if (desired == null) desired = u._lastTurretDesired;
               if (desired == null){
@@ -4343,7 +4373,9 @@
               }
 
               if (desired != null){
-                _tankUpdateTurret(u, desired, dt);
+                const yaw = u._lastTurretYaw ?? (Math.hypot(u.vx||0,u.vy||0)>20
+                  ? Math.atan2(u.vy,u.vx) : u.bodyYaw);
+                _tankUpdateTurret(u, desired, dt, yaw);
               }
             }
           }

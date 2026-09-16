@@ -3127,6 +3127,7 @@
     updateSnipDeathFx();
     updateExp1Fxs();
 
+    if (window.OUTank3D) window.OUTank3D.beginFrame(units, state.t);
     const drawables=[];
     for (const b of buildings) if (b.alive) drawables.push(b);
     for (const u of units) if (u.alive) drawables.push(u);
@@ -3278,7 +3279,8 @@
         if (!isInf){
           let drewSprite = false;
           if (ent.kind==="tank"){
-            drewSprite = drawLiteTankSprite(ent, p);
+            drewSprite = window.OUTank3D?.draw(ctx, ent, p, cam.zoom || 1, c, state.t) || false;
+            if (!drewSprite) drewSprite = drawLiteTankSprite(ent, p);
           } else if (ent.kind==="harvester"){
             drewSprite = drawHarvesterSprite(ent, p);
           }
@@ -3371,7 +3373,8 @@
 
       if (bl.kind==="shell"){
         const t = Math.max(0, Math.min(1, bl.t||0));
-        const z = Math.sin(Math.PI*t) * (bl.h||24);
+        const z = (Math.sin(Math.PI*t) * (bl.h||24)
+          + (bl.z0 || 0) * (1-t) * Math.sqrt(3/8)) * (cam.zoom || 1);
         const p = {x:p0.x, y:p0.y - z};
 
         ctx.save();

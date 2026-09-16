@@ -1,0 +1,3 @@
+Three.js 0.180.0
+Source: npm three@0.180.0
+License: MIT (see LICENSE)
