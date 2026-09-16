@@ -124,7 +124,7 @@ function buildCrowdDetail() {
       if(o!==root&&parts.has(o))return;
       if(o!==root&&o.isMesh&&!Array.isArray(o.material)){
         // Keep mapped albedo when batching weathered factory parts.
-        const key=(o.material.map||/TeamColor|Lamp/.test(o.material.name))?o.material:plain;
+        const key=(o.material.map||o.material.aoMap||/TeamColor|Lamp/.test(o.material.name))?o.material:plain;
         const list=groups.get(key)||[];list.push(o);groups.set(key,list);
       }
       for(const c of o.children)visit(c);

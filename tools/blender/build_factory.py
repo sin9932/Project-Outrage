@@ -44,8 +44,8 @@ def tag(obj, name, mat, group):
     if group: parts.setdefault(group, []).append(obj)
     return obj
 
-def bevel(obj, width=.035, seg=2):
-    if width:
+def bevel(obj, width=.035, seg=1):
+    if width and width >= .02:
         b=obj.modifiers.new('Machined bevels','BEVEL'); b.width=width; b.segments=seg
         b.affect='EDGES'; b.harden_normals=True
         n=obj.modifiers.new('Face weighted normals','WEIGHTED_NORMAL'); n.keep_sharp=True; n.weight=50
@@ -95,7 +95,7 @@ team.node_tree.nodes.get('Principled BSDF').inputs['Base Color'].default_value=(
 team.diffuse_color=(.46,.025,.32,1)
 # Packed raster albedo survives glTF export; no Blender-only procedural shader.
 def weather(mat,seed):
- rng=np.random.default_rng(seed); n=256
+ rng=np.random.default_rng(seed); n=512
  yy,xx=np.mgrid[0:n,0:n]/n
  noise=np.zeros((n,n))
  # Isotropic filtered noise avoids the artificial crosshatch of sine products.
@@ -106,6 +106,16 @@ def weather(mat,seed):
  noise+=rng.uniform(-.018,.018,(n,n))
  base=np.array(mat.diffuse_color[:3]);rgba=np.ones((n,n,4),dtype=np.float32)
  rgba[:,:,:3]=np.clip(base[None,None,:]*(.88+noise[:,:,None]*2),0,1)
+ # Vertical wall UVs are measured from ground: irregular splash dirt and runoff.
+ if mat in (concrete,trim):
+  stripe=np.zeros((n,n))
+  for _ in range(40):
+   cx=rng.uniform(0,1);width=rng.uniform(.002,.012);height=rng.uniform(.08,.6)
+   stripe+=np.exp(-((xx-cx)/width)**2)*np.maximum(0,1-yy/height)*rng.uniform(.12,.4)
+  splash=np.clip((.18-yy+noise*.27)/.2,0,.85)
+  grime=np.clip(splash+stripe,0,.8)
+  rgba[:,:,:3]*=(1-grime[:,:,None]*.70)
+  rgba[:,:,:3]+=grime[:,:,None]*np.array([.025,.012,.004])
  # Store sRGB pixels: glTF color maps are decoded as sRGB by the game renderer.
  rgba[:,:,:3]=np.where(rgba[:,:,:3]<=.0031308,12.92*rgba[:,:,:3],1.055*np.power(rgba[:,:,:3],1/2.4)-.055)
  im=bpy.data.images.new(mat.name+' albedo',width=n,height=n)
@@ -127,11 +137,17 @@ for side in (-1,1):
  side_section('Weathered wall foot',side,-9.31,10.01,.22,.85,7.97,7.84,7.45,dirt,group)
  side_section('Faction wall belt',side,-9.33,10.03,2.05,2.6,7.57,7.45,7.35,team,group)
  for y in (-8,-4,0,4,8):
-  ob=loft('Tapered structural pier',[rect_ring(.88,-.68,.68,.16,.22),rect_ring(.82,-.64,.64,.14,1.0),rect_ring(.54,-.56,.56,.13,5.85),rect_ring(.39,-.46,.46,.10,6.25)],trim,group,.07)
-  ob.location=(side*7.45,y,0)
-  box('Pier faction band',(side*8.20,y,2.30),(.08,1.26,.55),team,group,.01)
-  box('Recessed pier grille',(side*8.07,y,4.3),(.10,.66,.85),black,group,.025)
-  for z in (3.98,4.12,4.26,4.40,4.54):box('Grille louvre',(side*8.13,y,z),(.035,.59,.04),steel,group,0)
+  levels=[(.22,7.65,.88,.92),(1.05,7.65,.88,.92),(1.48,7.55,.73,.85),(4.95,7.02,.66,.80),(5.82,6.88,.66,.80),(6.04,6.88,.50,.67)]
+  rings=[[(px+side*cx,py+y,pz) for px,py,pz in rect_ring(wx,-wy,wy,.11,z)] for z,cx,wx,wy in levels]
+  loft('Battered stepped buttress',rings,trim,group,.025)
+  side_section('Pier faction band',side,y-.83,y+.83,2.05,2.6,8.23,8.14,7.90,team,group)
+  for z,h,w in [(4.22,.95,.72),(.85,.78,.60)]:
+   gx=7.94 if z>2 else 8.56
+   box('Recessed pier vent surround',(side*gx,y,z),(.12,w+.17,h+.16),panel,group,.025)
+   box('Pier grille darkness',(side*(gx+.075),y,z),(.035,w,h),black,group,.005)
+   for zz in np.arange(z-h/2+.07,z+h/2,.115):box('Pier grille louvers',(side*(gx+.105),y,zz),(.035,w,.038),steel,group,.005)
+  for yy in (y-.65,y+.65):
+   cylinder('Buttress anchor',(side*8.56,yy,.56),.055,.04,edge,group,axis='X',vertices=6,rad=0)
  for y in (-6,-2,2,6):
   box('Wall panel seam',(side*7.16,y,4.65),(.035,.045,1.7),panel,group,0)
   cylinder('Utility pipe',(side*7.76,y,1.60),.095,2.6,edge,group,axis='Y',vertices=12)
@@ -171,30 +187,84 @@ for side in (-1,1):
  group='RoofL' if side<0 else 'RoofR'
  for y in (-7.15,-3.65,-.15,3.35,6.85):
   box('Roof panel',(side*3.12,y,6.58),(6.1,3.33,.34),roofmat,group,.07,rotation=(0,side*.065,0))
-  for yy in (y-1.55,y+1.55):box('Raised roof frame',(side*3.12,yy,6.86),(6.12,.16,.19),trim,group,.025,rotation=(0,side*.065,0))
-  for xx in (side*.25,side*5.96):box('Roof longitudinal frame',(xx,y,6.86-side*xx*.065),(.17,3.25,.18),trim,group,.025)
+  for yy in (y-1.55,y+1.55):box('Raised roof frame',(side*3.12,yy,6.86),(6.12,.29,.27),trim,group,.025,rotation=(0,side*.065,0))
+  for xx in (side*.25,side*5.96):box('Roof longitudinal frame',(xx,y,6.86-side*xx*.065),(.25,3.25,.25),trim,group,.025)
   box('Roof recessed seam',(side*3.12,y,6.87),(.1,3.05,.065),panel,group,.01)
+  for xx in (side*1.6,side*4.4):
+   box('Inset roof armor plate',(xx,y,6.77-side*xx*.065),(2.42,2.65,.12),roofmat,group,.02)
+  for xx in (side*.43,side*5.72):
+   for yy in (y-1.38,y+1.38):cylinder('Roof captive bolt',(xx,yy,7.0-side*xx*.065),.065,.035,steel,group,vertices=6,rad=0)
+ for y in (-6,0,6):
+  cylinder('Roof hinge axle',(side*6.25,y,6.28),.18,1.4,steel,'RoofFrame',axis='Y',vertices=12)
+  for yy in (y-.52,y+.52):cylinder('Hinge bearing',(side*6.25,yy,6.28),.26,.19,edge,'RoofFrame',axis='Y',vertices=12)
 # Rear deck and paired fan housings.
 box('Rear service deck',(0,9.1,6.1),(13.3,3.1,.45),concrete,'Equipment',.12)
 for x in (-4.5,4.5):
- box('Fan housing',(x,9.1,6.62),(4.1,2.4,.8),trim,'Equipment',.14)
+ ob=loft('Sloped fan housing',[rect_ring(2.15,-1.35,1.3,.10,6.17),rect_ring(2.0,-.62,1.18,.10,7.02)],trim,'Equipment',.03);ob.location=(x,9.0,0)
  for dx in (-.98,.98):
   cylinder('Fan recess',(x+dx,9.1,7.05),.72,.07,black,'Equipment',vertices=20)
   for a in range(5):box('Fan blades',(x+dx,9.1,7.11),(.14,1.22,.055),steel,'Equipment',.01,rotation=(0,0,a*math.pi/5))
   cylinder('Fan hub',(x+dx,9.1,7.15),.16,.08,edge,'Equipment',vertices=12)
- for xx in [x-1.65+i*.3 for i in range(12)]:box('Housing front grille',(xx,7.87,6.61),(.09,.05,.49),steel,'Equipment',0)
+ for xx in [x-1.65+i*.3 for i in range(12)]:box('Housing front grille',(xx,7.98,6.62),(.09,.05,.86),steel,'Equipment',0,rotation=(.70,0,0))
  cylinder('Antenna',(x,10.0,8.0),.04,3.,steel,'Equipment',vertices=8)
-# Small service props match the reference without occupying the vehicle lane.
-wood=material('Crates | olive',(.15,.16,.075),.03,.9)
-barrel=material('Barrels | rust brown',(.23,.11,.045),.3,.8)
-for side in (-1,1):
- for i in range(3):
-  x=side*(6.6+(i%2)*.8);y=-11.3+(i//2)*.85
-  cylinder('Service barrel',(x,y,.6),.34,1.05,barrel,'Front',vertices=14,rad=.025)
-  for z in (.23,.94):cylinder('Barrel hoop',(x,y,z),.355,.07,steel,'Front',vertices=14,rad=0)
- for i in range(3):
-  loc=(side*8.5,-2.3+i*.85,.43+(i==1)*.4)
-  box('Supply crate',loc,(.85,.72,.65),wood,'WallL' if side<0 else 'WallR',.035)
+# Reusable industrial props, proportioned to read at the normal RTS camera scale.
+wood=material('Crates | stained timber',(.145,.12,.065),.02,.95)
+cratepaint=material('Crates | military olive',(.105,.12,.055),.1,.9)
+barrel=material('Drums | oxidized steel',(.18,.075,.027),.38,.8)
+rust=material('Pipes | aged oxide',(.12,.044,.013),.32,.88)
+label=material('Labels | aged stencil',(.48,.44,.29),.02,.87)
+for i,m in enumerate((wood,cratepaint,barrel,rust)):weather(m,130+i)
+def oil_drum(x,y,z=0,group='Front',variant=0):
+ r=.46;h=1.42
+ # Four profile rings give rolled shoulders and a recessed lid.
+ bpy.ops.mesh.primitive_cylinder_add(vertices=20,radius=r,depth=h,location=(x,y,z+h/2+.08))
+ o=tag(bpy.context.object,'Oil drum body',barrel,group);bevel(o,.035)
+ for zz,rr,dd in [(.12,.48,.085),(.53,.49,.075),(1.05,.49,.075),(1.48,.475,.085)]:
+  cylinder('Rolled drum bead',(x,y,z+zz),rr,dd,rust,group,vertices=20,rad=.012)
+ cylinder('Recessed drum lid',(x,y,z+1.49),.43,.04,barrel,group,vertices=20,rad=.01)
+ for dx,dy,rr in [(.21,.15,.08),(-.18,-.13,.045)]:
+  cylinder('Drum bung',(x+dx,y+dy,z+1.535),rr,.045,steel,group,vertices=8,rad=.007)
+ box('Drum identification stripe',(x,y-.467,z+.82),(.50,.017,.25),label if variant%2 else panel,group,.004)
+ for xx in (-.15,-.05,.05,.15):box('Drum stencil',(x+xx,y-.48,z+.82),(.035,.012,.14),steel,group,0)
+ return o
+
+def supply_crate(x,y,z=0,group='WallL',size=(1.65,1.30,1.1)):
+ w,d,h=size
+ box('Crate recessed core',(x,y,z+h/2),(w,d,h),cratepaint,group,.018)
+ for j in range(4):
+  yy=y-d/2+(j+.5)*d/4
+  box('Crate lid plank',(x,yy,z+h+.025),(w-.06,d/4-.024,.07),wood,group,.008)
+ for zz in (z+.13,z+h-.13):
+  for side in (-1,1):box('Crate reinforcing rail',(x,y+side*(d/2+.035),zz),(w,.10,.15),wood,group,.012)
+ for xx in (x-w*.32,x+w*.32):
+  box('Crate steel lid strap',(xx,y,z+h+.073),(.085,d+.07,.025),steel,group,.004)
+  for side in (-1,1):
+   box('Crate steel corner strap',(xx,y+side*(d/2+.087),z+h/2),(.085,.025,h),steel,group,.004)
+   for zz in (z+.16,z+h-.16):cylinder('Crate rivet',(xx,y+side*(d/2+.11),zz),.03,.02,edge,group,axis='Y',vertices=6,rad=0)
+ for side in (-1,1):
+  box('Crate lifting handle recess',(x+side*(w/2+.015),y,z+h*.64),(.02,.44,.16),black,group,.01)
+ box('Shipping label',(x+.18,y-d/2-.093,z+h*.55),(.45,.02,.27),label,group,.003)
+ for i in range(4):box('Label stencil line',(x+.17,y-d/2-.106,z+h*.48+i*.047),(.28 if i<3 else .15,.012,.018),steel,group,0)
+
+def pallet(x,y,group):
+ for xx in (-.65,.65):box('Pallet bearer',(x+xx,y,.14),(.2,1.65,.25),wood,group,.02)
+ for yy in np.linspace(-.73,.73,5):box('Pallet deck',(x,y+yy,.31),(1.9,.23,.13),wood,group,.014)
+
+# Asymmetric clusters, kept clear of the central exit and door animation.
+for x,y,i in [(-6.05,-11.55,0),(-7.1,-11.60,1),(-6.55,-12.48,2),(6.15,-11.65,1),(7.16,-11.45,2)]:oil_drum(x,y,variant=i)
+for side,cy in [(-1,-2.15),(1,2.2)]:
+ group='WallL' if side<0 else 'WallR';cx=side*8.4
+ pallet(cx,cy,group);supply_crate(cx,cy,.40,group);supply_crate(cx+.12,cy+.10,1.61,group,size=(1.40,1.1,.9))
+ supply_crate(cx,cy+1.75,.08,group,size=(1.6,1.15,.85))
+ for yy in (cy+3.0,cy+4.05):oil_drum(side*8.37,yy,group=group,variant=int(yy))
+ # Exterior pipe pair, flanged joints, curved elbows, valve and service cabinet.
+ for yy in (cy-2.0,cy-2.55):
+  cylinder('Vertical coolant pipe',(side*8.15,yy,.82),.16,1.55,rust,group,vertices=12)
+  cylinder('Coolant flange',(side*8.15,yy,1.40),.25,.11,steel,group,vertices=12)
+  cylinder('Pipe wall feed',(side*7.93,yy,1.6),.16,.5,rust,group,axis='X',vertices=12)
+ box('Service electrical cabinet',(side*7.9,cy+5.5,2.8),(.48,1.25,1.5),panel,group,.05)
+ box('Cabinet door',(side*8.17,cy+5.5,2.8),(.05,1.10,1.31),steel,group,.025)
+ box('Cabinet warning plate',(side*8.205,cy+5.5,3.02),(.014,.33,.28),yellow,group,.005)
 # Faction insignias: raised ring and three swept prongs on the portal cheeks.
 for x in (-5.5,5.5):
  bpy.ops.mesh.primitive_torus_add(major_radius=.35,minor_radius=.055,major_segments=24,minor_segments=6,location=(x,-10.49,3.6),rotation=(math.pi/2,0,0))
@@ -203,7 +273,7 @@ for x in (-5.5,5.5):
   coords=[]
   for px,pz in [(-.1,.05),(.12,.1),(.05,.65),(-.2,.44)]:
    coords.append((x+px*math.cos(a)-pz*math.sin(a),-10.51,3.6+px*math.sin(a)+pz*math.cos(a)))
-  mesh('Faction insignia prong',coords,[(0,1,2,3),(3,2,1,0)],team,'Front')
+  mesh('Faction insignia prong',coords,[(0,1,2,3)],team,'Front')
 for x in (-4.8,4.8):
  for y in (-4,1,6):
   box('Interior work station',(x,y,1.0),(1.3,2.5,1.4),panel,'Floor',.06)
@@ -218,6 +288,55 @@ for objs in parts.values():
    for li in poly.loop_indices:
     v=o.data.vertices[o.data.loops[li].vertex_index].co+o.location
     uv.data[li].uv=(v[axes[0]]*.15,v[axes[1]]*.15)
+# Apply bevels once and consolidate by assembly group before AO baking/export.
+for group,objs in list(parts.items()):
+ for o in objs:
+  bpy.context.view_layer.objects.active=o
+  for modifier in list(o.modifiers):bpy.ops.object.modifier_apply(modifier=modifier.name)
+ bpy.ops.object.select_all(action='DESELECT')
+ for o in objs:o.select_set(True)
+ bpy.context.view_layer.objects.active=objs[0];bpy.ops.object.join()
+ joined=bpy.context.object;joined.name=group+'_Geometry';parts[group]=[joined]
+# Unique second UV channel for baked contact occlusion, shared by all materials.
+meshes=[o for objects in parts.values() for o in objects]
+for o in meshes:
+ o.data.uv_layers.new(name='ContactUV');o.data.uv_layers.active_index=1
+bpy.ops.object.select_all(action='DESELECT')
+for o in meshes:o.select_set(True)
+bpy.context.view_layer.objects.active=meshes[0]
+bpy.ops.object.mode_set(mode='EDIT');bpy.ops.mesh.select_all(action='SELECT')
+bpy.ops.uv.smart_project(angle_limit=1.15,island_margin=.006)
+bpy.ops.object.mode_set(mode='OBJECT')
+scene.render.engine='CYCLES';scene.cycles.samples=24
+occlusion=bpy.data.images.new('Factory contact occlusion',width=2048,height=2048,alpha=False)
+occlusion.colorspace_settings.name='Non-Color'
+used_mats=set(m for o in meshes for m in o.data.materials)
+restore=[]
+for m in used_mats:
+ nt=m.node_tree;nodes_=nt.nodes;links=nt.links
+ # Albedo uses the original object-projected UV channel.
+ for node in list(nodes_):
+  if node.type=='TEX_IMAGE':
+   uv=nodes_.new('ShaderNodeUVMap');uv.uv_map='UVMap';links.new(uv.outputs['UV'],node.inputs['Vector'])
+ target=nodes_.new('ShaderNodeTexImage');target.image=occlusion;nodes_.active=target
+ ao=nodes_.new('ShaderNodeAmbientOcclusion');ao.inputs['Distance'].default_value=1.8;ao.samples=16
+ emit=nodes_.new('ShaderNodeEmission');links.new(ao.outputs['AO'],emit.inputs['Color'])
+ output=next(n for n in nodes_ if n.type=='OUTPUT_MATERIAL')
+ original=output.inputs['Surface'].links[0].from_socket
+ links.new(emit.outputs['Emission'],output.inputs['Surface']);restore.append((m,output,original,target,ao,emit))
+scene.render.bake.margin=8;scene.render.bake.use_clear=True
+print('BAKING_CONTACT_OCCLUSION',flush=True)
+bpy.ops.object.bake(type='EMIT',uv_layer='ContactUV')
+occlusion.pack()
+settings=bpy.data.node_groups.new('glTF Material Output','ShaderNodeTree')
+settings.interface.new_socket('Occlusion',in_out='INPUT',socket_type='NodeSocketFloat')
+settings.nodes.new('NodeGroupInput');settings.nodes.new('NodeGroupOutput')
+for m,out,original,target,ao,emit in restore:
+ nt=m.node_tree;nt.links.new(original,out.inputs['Surface']);nt.nodes.remove(ao);nt.nodes.remove(emit)
+ uv=nt.nodes.new('ShaderNodeUVMap');uv.uv_map='ContactUV';nt.links.new(uv.outputs['UV'],target.inputs['Vector'])
+ gn=nt.nodes.new('ShaderNodeGroup');gn.node_tree=settings;nt.links.new(target.outputs['Color'],gn.inputs['Occlusion'])
+for o in meshes:o.data.uv_layers.active_index=0
+print('CONTACT_OCCLUSION_COMPLETE',flush=True)
 nodes={}
 origins=[('Hull',(0,0,0)),('Floor',(0,0,0)),('WallL',(0,0,0)),('WallR',(0,0,0)),('Rear',(0,0,0)),('Front',(0,0,0)),('Ramp',(0,0,0)),('RoofFrame',(0,0,0)),('RoofL',(-6.2,0,6.4)),('RoofR',(6.2,0,6.4)),('Door',(0,-9.15,5.2)),('Equipment',(0,0,0))]
 for name,origin in origins:
