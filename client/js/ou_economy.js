@@ -477,6 +477,12 @@
     function tickProduction(dt){
         for (const b of buildings){
             if (!b.alive || b.civ) continue;
+            const dispatch=b._factoryDispatch;
+            let dispatchOwner=dispatch&&buildings.find(x=>x.id===dispatch.ownerId);
+            if(dispatch&&!dispatchOwner?.buildQ.includes(dispatch.ticket))dispatchOwner=buildings.find(x=>x.alive&&x.buildQ.includes(dispatch.ticket));
+            if(dispatch&&dispatchOwner)dispatch.ownerId=dispatchOwner.id;
+            if(dispatch&&(!dispatchOwner?.alive||!dispatchOwner.buildQ.includes(dispatch.ticket))){b._factoryDispatch=null;b._factoryDoorClosedAt=state.t;}
+            if(b.kind==='factory'&&!global.OUFactory.complete(b,state.t))continue;
             if (!b.buildQ.length) continue;
 
 
@@ -485,7 +491,8 @@
           const primarySpawn = (b.team===TEAM.PLAYER && (b.kind==="barracks" || b.kind==="factory"))
             ? ensurePrimaryProducer(b.kind)
             : null;
-          const spawnB = primarySpawn || b;
+          let spawnB = primarySpawn || b;
+          if(b.buildQ[0]?._factorySource){const active=buildings.find(x=>x.id===b.buildQ[0]._factorySource&&x.alive&&!x._factorySelling);if(active)spawnB=active;}
 
 
           const pf=getPowerFactor(b.team);
@@ -511,6 +518,13 @@
           }
 
 
+          // Money drains while progress advances.
+          const teamWallet = (b.team===TEAM.PLAYER) ? state.player : state.enemy;
+          const costTotal = q.cost ?? (COST[q.kind]||0);
+          const tNeed = q.tNeed || 0.001;
+          const payRate = costTotal / tNeed; // credits per second at 1x speed
+
+          if(q.t < tNeed - 1e-6){
     // Manual/auto pause support (대기). paused면 절대 비용/진행 없음 (이중 지출 방지).
     // autoPaused(자금 부족)인 경우, 돈이 다시 생기면 자동으로 재개한다.
     if (q.paused && !debugFastProd){
@@ -527,12 +541,6 @@
         continue; // paused: no spend, no progress
       }
     }
-
-          // Money drains while progress advances.
-          const teamWallet = (b.team===TEAM.PLAYER) ? state.player : state.enemy;
-          const costTotal = q.cost ?? (COST[q.kind]||0);
-          const tNeed = q.tNeed || 0.001;
-          const payRate = costTotal / tNeed; // credits per second at 1x speed
 
           const want = dt * speed;                  // seconds of progress we WANT
           const canByMoney = debugFastProd ? want : ((payRate<=0) ? want : (teamWallet.money / payRate)); // seconds we CAN afford
@@ -565,6 +573,7 @@
           }
 
           q.t += delta;
+          }
 
           if (q.t >= tNeed - 1e-6){
             // snap to complete (refund any float overpay)
@@ -575,7 +584,9 @@
             q.t = tNeed;
             q.paid = costTotal;
 
-            const sp = findSpawnPointNear(spawnB, q.kind);
+            const sp = spawnB.kind==='factory'
+              ? global.OUFactory.dispatch(spawnB,q,b,state.t,TILE,(x,y,kind)=>ctx.canFactoryExit(spawnB,kind,x,y))
+              : findSpawnPointNear(spawnB, q.kind);
             if (!sp){
               q.spawnReady = true;
               q.t = tNeed;
@@ -583,9 +594,10 @@
               continue;
             }
             const u = addUnit(spawnB.team, q.kind, sp.x, sp.y);
+            if(spawnB.kind==='factory'){u.bodyYaw=u.turretYaw=Math.PI/2;u._factoryBornFrom=spawnB.id;}
 
             // Harvester: start idle so sim assigns harvest order next tick (avoids "idle harvester" bug for enemy).
-            if (q.kind === "harvester"){
+            if (q.kind === "harvester" && spawnB.kind!=="factory"){
               u.order = { type:"idle", x: u.x, y: u.y, tx: null, ty: null };
               u.target = null;
             } else if (spawnB.rally && spawnB.rally.x!=null && spawnB.rally.y!=null){
@@ -594,7 +606,7 @@
               setPathTo(u, spawnB.rally.x, spawnB.rally.y);
               u.repathCd = 0.25;
             } else {
-              const fp = findNearestFreePoint(u.x, u.y, u, 6);
+              const fp = findNearestFreePoint(u.x, u.y+(spawnB.kind==="factory"?TILE*2:0), u, 6);
               if (fp){
                 u.order = { type:"move", x:fp.x, y:fp.y, tx:null, ty:null };
                 u.target = null;

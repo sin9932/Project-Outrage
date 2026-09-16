@@ -1032,6 +1032,7 @@ function tryUnloadIFV(ifv){ return __ou_commands && __ou_commands.tryUnloadIFV ?
     if (__ou_sim && __ou_sim.recordLoss) __ou_sim.recordLoss(b.team);
 
     if(b.kind==='turret')window.OUTank3D?.onSentryDestroyed?.(b,state.t);
+    if(b.kind==='factory'){b._factoryDispatch=null;window.OUTank3D?.onFactoryDestroyed?.(b,state.t);}
 
     // 1) Evac infantry FIRST (needs the footprint while it's still logically present)
     //    If no valid spawn tile exists, it will safely skip.
@@ -1149,6 +1150,12 @@ const __ou_econ = (window.OUEconomy && typeof window.OUEconomy.create==="functio
       ENEMY_PROD_SPEED,
       toast, L,
       updateProdBadges,
+      // Exit checks share live navigation/collision data, not construction reservations.
+      canFactoryExit:(b,kind,x,y)=>{
+        if(!isWalkableTile(tileOfX(x),tileOfY(y))||isBlockedWorldPointEx({kind},x,y,0))return false;
+        const r=UNIT[kind]?.r||28;
+        return !units.some(u=>u.alive&&!u.hidden&&!u.inTransport&&dist2(x,y,u.x,u.y)<(r+(u.r||18)+6)**2);
+      },
       // spawn helpers (used by production completion)
       addUnit,
       setPathTo,
@@ -1598,6 +1605,7 @@ const SELL_ANIMATION=Object.freeze({
   barracks:{selling:'_barrackSelling',finalizeAt:'_barrackSellFinalizeAt',t0:'_barrackSellT0'},
   power:{selling:'_powerSelling',finalizeAt:'_powerSellFinalizeAt',t0:'_powerSellT0'},
   refinery:{selling:'_refinerySelling',finalizeAt:'_refinerySellFinalizeAt',t0:'_refinerySellT0'},
+  factory:{selling:'_factorySelling',finalizeAt:'_factorySellFinalizeAt',t0:'_factorySellT0'},
   turret:{selling:'_sentrySelling',finalizeAt:'_sentrySellFinalizeAt',t0:'_sentrySellT0'}
 });
 function sellBuilding(b){
@@ -1632,7 +1640,8 @@ const refund = Math.floor((COST[b.kind]||0) * 0.5);
 
     // Keep the footprint until the shared construction timeline has reversed.
     if(sellConfig){
-      if(b.kind==='turret')window.OUSentry.beginSell(b,state.t);
+      if(b.kind==='factory')window.OUFactory.beginSell(b,state.t);
+      else if(b.kind==='turret')window.OUSentry.beginSell(b,state.t);
       else {
         try{window.PO?.buildings?.onSold?.(b,state);}catch(_e){}
         if(!b[sellConfig.selling]){
@@ -2914,7 +2923,7 @@ if (isCallable(__ou_ui, "bindPregameStart")){
     state, units, buildings, cam, TEAM, terrain, ore, isGem, treeHp, buildOcc, TILE, MAP_W, MAP_H,
     addUnit, getEntityById, worldToScreen, screenToWorld, centerCameraOn,
     commands:__ou_commands, sim:__ou_sim, ai:__ou_ai, camera:__ou_cam, addBuilding, destroyBuilding,
-    footprint:__ou_footprint, applyDamage,
+    footprint:__ou_footprint, applyDamage, economy:__ou_econ, sellBuilding,
     get running(){return running;},
     setFog(value){fogEnabled=!!value;},
     get explored(){return explored;}, get visible(){return visible;}

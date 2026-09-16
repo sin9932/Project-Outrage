@@ -178,8 +178,8 @@
       for(const b of buildings){
         if(!b.alive)continue;
         if(x>=b.tx&&x<b.tx+b.tw&&y>=b.ty&&y<b.ty+b.th)return true;
-        if(b.kind==='refinery'){
-          const a=global.OUHarvester.accessRect(b);
+        if(b.kind==='refinery'||b.kind==='factory'){
+          const a=(b.kind==='factory'?global.OUFactory:global.OUHarvester).accessRect(b);
           if(x>=a.tx&&x<a.tx+a.tw&&y>=a.ty&&y<a.ty+a.th)return true;
         }
       }
@@ -233,8 +233,8 @@
           if (b) any = true;
         }
       }
-      if(kind==='refinery'){
-        const a=global.OUHarvester.accessRect({kind,tx,ty,tw,th});
+      if(kind==='refinery'||kind==='factory'){
+        const a=(kind==='factory'?global.OUFactory:global.OUHarvester).accessRect({kind,tx,ty,tw,th});
         for(let y=a.ty;y<a.ty+a.th;y++)for(let x=a.tx;x<a.tx+a.tw;x++){
           const i=idx(x,y);
           if(!inMap(x,y)||reservedForBuilding(x,y)||terrain[i]!==0||treeHp[i]>0||ore[i]>0){mask.fill(1);any=true;}

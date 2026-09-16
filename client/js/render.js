@@ -3235,8 +3235,8 @@
     updateSnipDeathFx();
     updateExp1Fxs();
 
-    const sentryGhosts=window.OUTank3D?.sentryGhosts?.(state.t)||[];
-    if (window.OUTank3D) window.OUTank3D.beginFrame([...units,...buildings.filter(b=>b.kind==="turret"),...sentryGhosts], state.t, {ctx,width:cam.viewWidth||ctx.canvas.width,project:worldToScreen,zoom:cam.zoom||1,color:u=>u.team===TEAM.PLAYER?state.colors.player:state.colors.enemy});
+    const sentryGhosts=[...(window.OUTank3D?.sentryGhosts?.(state.t)||[]),...(window.OUTank3D?.factoryGhosts?.(state.t)||[])];
+    if (window.OUTank3D) window.OUTank3D.beginFrame([...units,...buildings.filter(b=>b.kind==="turret"||b.kind==="factory"),...sentryGhosts], state.t, {ctx,width:cam.viewWidth||ctx.canvas.width,project:worldToScreen,zoom:cam.zoom||1,color:u=>u.team===TEAM.PLAYER?state.colors.player:state.colors.enemy});
     const drawables=[...sentryGhosts];
     for (const b of buildings) if (b.alive) drawables.push(b);
     for (const u of units) if (u.alive) drawables.push(u);
@@ -3315,8 +3315,8 @@
 
       if (ent.team===TEAM.ENEMY && inMap(tx,ty) && !explored[TEAM.PLAYER][idx(tx,ty)]){ ctx.restore(); continue; }
 
-      if(ent._sentryDeath!=null){
-        ctx.globalAlpha=Math.max(0,1-(state.t-ent._sentryDeath)/window.OUSentry.deathSeconds);
+      if(ent._sentryDeath!=null||ent._factoryDeath!=null){
+        ctx.globalAlpha=Math.max(0,1-(state.t-(ent._factoryDeath??ent._sentryDeath))/(ent.kind==='factory'?window.OUFactory:window.OUSentry).deathSeconds);
         window.OUTank3D?.draw(ctx,ent,screenPos,cam.zoom,ent.team===TEAM.PLAYER?state.colors.player:state.colors.enemy,state.t);
         ctx.restore();continue;
       }
@@ -3328,7 +3328,7 @@
         if (ent.team===TEAM.PLAYER){ fill="rgba(10,40,70,0.9)"; stroke=state.colors.player; }
         if (ent.team===TEAM.ENEMY){  fill="rgba(70,10,10,0.9)"; stroke=state.colors.enemy; }
 
-        if(ent.kind==='turret'&&window.OUTank3D?.sentryReady){
+        if((ent.kind==='turret'&&window.OUTank3D?.sentryReady)||(ent.kind==='factory'&&window.OUTank3D?.factoryReady)){
           drawBuildingShadow(ent);
           window.OUTank3D.draw(ctx,ent,screenPos,cam.zoom,ent.team===TEAM.PLAYER?state.colors.player:state.colors.enemy,state.t);
         } else if (buildSprite && buildSprite[ent.kind]){

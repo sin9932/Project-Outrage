@@ -21,6 +21,16 @@ const pointer = new THREE.Vector2();
 const v = new THREE.Vector3();
 
 function pose(u, time) {
+  if(u.kind==='factory'){
+    const F=window.OUFactory,a=assets.get('factory');
+    a.buildAction.time=F.progress(u,time)*a.buildClip.duration;a.buildMixer.update(0);
+    model.rotation.set(0,0,0);hull.scale.setScalar(1);
+    const roof=F.roof(u,time)*1.22;
+    model.getObjectByName('RoofL').rotation.z=roof;model.getObjectByName('RoofR').rotation.z=-roof;
+    model.getObjectByName('Door').scale.y=1-.98*F.door(u,time);
+    if(u._factoryDeath!=null){const d=Math.max(0,(time-u._factoryDeath)/F.deathSeconds);hull.scale.y=Math.max(.02,1-d);}
+    model.updateMatrixWorld(true);return;
+  }
   if(u.kind==='turret'){
     const C=window.OUSentry,death=u._sentryDeath!=null?Math.max(0,(time-u._sentryDeath)/C.deathSeconds):0;
     const asset=assets.get('turret'),progress=C.progress(u,time);
@@ -50,6 +60,7 @@ function pose(u, time) {
   const dx = u.x - rec.x, dy = u.y - rec.y;
   const forward = dx * Math.cos(bodyYaw) + dy * Math.sin(bodyYaw);
   if (Math.hypot(dx,dy) < 200) rec.wheel += forward / (m.SCALE * config.wheelRadius);
+  if(u._factoryDistance!=null)rec.wheel=u._factoryDistance/(m.SCALE*config.wheelRadius);
   rec.x = u.x; rec.y = u.y; rec.seen = time;
   poseByUnit.set(u.id,rec);
   for (const w of wheels) w.rotation.x = rec.wheel;
@@ -228,6 +239,21 @@ export const ready = (async () => {
     if(extraParts.some(n=>!n))throw Error('Sentry assembly nodes missing');
     mergeRigidParts();model.updateMatrixWorld(true);buildCrowdDetail();scene.add(model);remember('turret');Object.assign(assets.get('turret'),{buildClip,buildMixer,buildAction});selectAsset('tank');
     api.sentryReady=true;
+    const fg=await new GLTFLoader().loadAsync(new URL(window.OUFactory.modelUrl,import.meta.url).href);
+    config=window.OUFactory;model=fg.scene;hull=model.getObjectByName('Hull');turret=null;barrel=null;barrelRest=null;
+    wheels=[];materials=[];detailMeshes=[];crowdMeshes=[];
+    extraParts=['Floor','Ramp','WallL','WallR','Rear','Front','RoofFrame','RoofL','RoofR','Door','Equipment'].map(n=>model.getObjectByName(n));
+    if(!hull||extraParts.some(n=>!n))throw Error('Factory articulated hierarchy incomplete');
+    const fClip=fg.animations.find(a=>a.name==='Build');if(!fClip)throw Error('Factory Build clip missing');
+    const fm=new THREE.AnimationMixer(model),fa=fm.clipAction(fClip);fa.setLoop(THREE.LoopOnce,1);fa.clampWhenFinished=true;fa.play();fa.paused=true;fa.time=fClip.duration;fm.update(0);
+    model.traverse(o=>{if(o.isMesh)for(const mat of Array.isArray(o.material)?o.material:[o.material])if(/TeamColor/.test(mat.name)&&!materials.includes(mat))materials.push(mat);});
+    mergeRigidParts();model.updateMatrixWorld(true);buildCrowdDetail();scene.add(model);remember('factory');Object.assign(assets.get('factory'),{buildClip:fClip,buildMixer:fm,buildAction:fa});
+    // Preserve the existing IFV placeholder marker during interior dispatch.
+    config=window.OUTankConfig;model=new THREE.Group();hull=new THREE.Group();model.add(hull);
+    turret=null;barrel=null;barrelRest=null;wheels=[];extraParts=[];detailMeshes=[];crowdMeshes=[];
+    const markerMat=new THREE.MeshBasicMaterial({color:0xffffff});markerMat.name='TeamColor | IFV placeholder';
+    const marker=new THREE.Mesh(new THREE.CircleGeometry(1.3,24),markerMat);marker.quaternion.copy(camera.quaternion);hull.add(marker);materials=[markerMat];scene.add(model);remember('ifv');
+    selectAsset('tank');api.factoryReady=true;
     return true;
   } catch (error) {
     if(assets.has('tank')){selectAsset('tank');api.status='ready';api.assetError=String(error);console.error('[vehicle3d asset]',error);return true;}
@@ -253,9 +279,11 @@ function prepareBatchPage(cols,rows){
   batchCamera.top=span*rows/2;batchCamera.bottom=-span*rows/2;batchCamera.updateProjectionMatrix();
   for(const b of batches.values()){b.mesh.count=0;b.mesh.visible=false;}
 }
-function appendPose(u,time,cellX,cellY,capacity,tint){
+function appendPose(u,time,cellX,cellY,capacity,tint,viewSpan=span,localOffset=null){
   selectAsset(u.kind);pose(u,time);
   offsetMatrix.makeTranslation(cameraRight.x*cellX+cameraUp.x*cellY,cameraRight.y*cellX+cameraUp.y*cellY,cameraRight.z*cellX+cameraUp.z*cellY);
+  offsetMatrix.scale(new THREE.Vector3(span/viewSpan,span/viewSpan,span/viewSpan));
+  if(localOffset)offsetMatrix.multiply(new THREE.Matrix4().makeTranslation(...localOffset));
   model.traverseVisible(src=>{
     if(!src.isMesh||Array.isArray(src.material))return;
     let b=batches.get(src.uuid);
@@ -264,7 +292,7 @@ function appendPose(u,time,cellX,cellY,capacity,tint){
       const team=/TeamColor|Lamp/.test(src.material.name),mat=src.material.clone();
       if(team){mat.color.set(0xffffff);if(mat.emissive)mat.emissive.set(0);}
       let geometry=src.geometry,ground=null;
-      if(u.kind==='turret'){
+      if(u.kind==='turret'||u.kind==='factory'){
         // Each atlas cell has a different camera-plane offset. Remove that offset
         // before clipping the underground assembly against the real ground plane.
         geometry=src.geometry.clone();ground=new THREE.InstancedBufferAttribute(new Float32Array(capacity),1);
@@ -297,23 +325,27 @@ api.beginFrame = function(units,time,view) {
   if(api.status!=='ready'||!view) return;
   const {ctx,project,zoom,color}=view;
   const viewWidth=view.width||ctx.canvas.width;
-  const size=span*window.OUTankConfig.scale/Math.sqrt(2)*zoom;
-  const res=Math.max(64,Math.min(768,Math.ceil(size)));
   const visible=units.filter(u=>{
-    if(!u.alive||!assets.has(u.kind)||u.hidden||u.inTransport)return false;
-    const p=project(u.x,u.y);
+    if(!u.alive||!assets.has(u.kind)||u.kind==='ifv'||u.hidden||u.inTransport)return false;
+    const size=assets.get(u.kind).config.renderSpan*assets.get(u.kind).config.scale/Math.sqrt(2)*zoom,p=project(u.x,u.y);
     return p.x+size/2>=0&&p.y+size/2>=0&&p.x-size/2<=viewWidth&&p.y-size/2<=ctx.canvas.height;
   });
+  const groups=new Map();
+  for(const u of visible){const key=assets.get(u.kind).config.renderSpan;if(!groups.has(key))groups.set(key,[]);groups.get(key).push(u);}
+  const res=Math.max(64,Math.min(768,Math.ceil(span*window.OUTankConfig.scale/Math.sqrt(2)*zoom)));
   const crowd=res<=160 || visible.length>=48;
   for(const a of assets.values()){for(const m of a.detailMeshes)m.visible=!crowd;for(const m of a.crowdMeshes)m.visible=crowd;}
   api.detail=crowd?'crowd':'full';
   const maxSide=Math.min(2048,renderer.capabilities.maxTextureSize);
-  const cols=Math.max(1,Math.min(Math.ceil(Math.sqrt(visible.length)),Math.floor(maxSide/res)));
-  const capacity=cols*Math.max(1,Math.floor(maxSide/res));
   renderer.autoClear=false;
   let pageCount=0;
-  for(let start=0;start<visible.length;start+=capacity){
-    const chunk=visible.slice(start,start+capacity);
+  for(const [viewSpan,group] of groups){
+  const size=viewSpan*window.OUTankConfig.scale/Math.sqrt(2)*zoom;
+  const res=Math.max(64,Math.min(768,Math.ceil(size)));
+  const cols=Math.max(1,Math.min(Math.ceil(Math.sqrt(group.length)),Math.floor(maxSide/res)));
+  const capacity=cols*Math.max(1,Math.floor(maxSide/res));
+  for(let start=0;start<group.length;start+=capacity){
+    const chunk=group.slice(start,start+capacity);
     const rows=Math.ceil(chunk.length/cols),width=cols*res,height=rows*res;
     if(renderer.domElement.width!==width||renderer.domElement.height!==height)renderer.setSize(width,height,false);
     renderer.setScissorTest(false);renderer.setViewport(0,0,width,height);renderer.clear();
@@ -323,7 +355,12 @@ api.beginFrame = function(units,time,view) {
     if(canvas.width!==width||canvas.height!==height){canvas.width=width;canvas.height=height;}
     for(let i=0;i<chunk.length;i++){
       const u=chunk[i],x=(i%cols)*res,y=Math.floor(i/cols)*res;
-      appendPose(u,time,((i%cols)+.5-cols/2)*span,(rows/2-Math.floor(i/cols)-.5)*span,capacity,new THREE.Color(color(u)));
+      const cx=((i%cols)+.5-cols/2)*span,cy=(rows/2-Math.floor(i/cols)-.5)*span,tint=new THREE.Color(color(u));
+      appendPose(u,time,cx,cy,capacity,tint,viewSpan);
+      if(u.kind==='factory'){
+        const vehicle=window.OUFactory.vehicle(u,time,u.w/u.tw);
+        if(vehicle&&assets.has(vehicle.kind))appendPose(vehicle,time,cx,cy,capacity,tint,viewSpan,[(vehicle.x-u.x)/20,0,(vehicle.y-u.y)/20]);
+      }
       frameSlots.set(u.id,{canvas,x,y,res,size});
     }
     for(const b of batches.values())if(b.mesh.count){b.mesh.instanceMatrix.needsUpdate=true;b.mesh.instanceColor.needsUpdate=true;if(b.ground)b.ground.needsUpdate=true;}
@@ -332,6 +369,7 @@ api.beginFrame = function(units,time,view) {
     const copy=canvas.getContext('2d');copy.clearRect(0,0,width,height);
     copy.drawImage(renderer.domElement,0,0);
     pageCount++;
+  }
   }
   renderer.setScissorTest(false);renderer.autoClear=true;
   framePages.length=pageCount;
@@ -383,3 +421,9 @@ api.sentryAssemblyPose=(u,time)=>{
  if(!assets.has('turret'))return null;selectAsset('turret');pose(u,time);
  return Object.fromEntries(extraParts.map(n=>[n.name,{position:n.position.toArray(),quaternion:n.quaternion.toArray(),scale:n.scale.toArray()}]));
 };
+
+
+const factoryGhosts=[];
+api.onFactoryDestroyed=(b,time)=>factoryGhosts.push({...b,id:-b.id,alive:true,_factoryDeath:time,_factoryDispatch:null});
+api.factoryGhosts=time=>{for(let i=factoryGhosts.length-1;i>=0;i--)if(time<factoryGhosts[i]._factoryDeath||time-factoryGhosts[i]._factoryDeath>window.OUFactory.deathSeconds)factoryGhosts.splice(i,1);return factoryGhosts;};
+api.factoryPose=(u,time)=>{if(!assets.has('factory'))return null;selectAsset('factory');pose(u,time);return Object.fromEntries(extraParts.map(n=>[n.name,{position:n.position.toArray(),quaternion:n.quaternion.toArray(),scale:n.scale.toArray()}]));};
