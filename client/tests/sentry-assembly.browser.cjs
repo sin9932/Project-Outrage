@@ -11,7 +11,14 @@ const forward={...gun,_placedAt:10-progress*OUSentry.buildSeconds},reverse={...g
 result.push({progress,forward:OUTank3D.sentryAssemblyPose(forward,10),reverse:OUTank3D.sentryAssemblyPose(reverse,10)});
 }return result;});
 for(const sample of curves)for(const name of Object.keys(sample.forward))for(const key of ['position','quaternion','scale'])sample.forward[name][key].forEach((v,i)=>assert(Math.abs(v-sample.reverse[name][key][i])<1e-5,'Reverse clip differs'));
-for(const name of ['Leg_0','Leg_4','Pedestal','HeadAssembly','AmmoRack','GunHinge','GunSlide'])assert.notDeepEqual(curves[0].forward[name],curves.at(-1).forward[name],name+' does not assemble');
+for(const name of ['Leg_0','Leg_4','Pedestal','HeadAssembly','GunSlide'])assert.notDeepEqual(curves[0].forward[name],curves.at(-1).forward[name],name+' does not assemble');
+// The receiver must be seated before the barrel telescope starts. The ammo
+// rack and hinge remain rigid so neither can sweep through the receiver.
+for(const sample of curves){
+ for(const name of ['AmmoRack','GunHinge'])assert.deepEqual(sample.forward[name],curves.at(-1).forward[name],name+' must stay rigid');
+ if(sample.progress>=.75)assert.deepEqual(sample.forward.HeadAssembly,curves.at(-1).forward.HeadAssembly,'Receiver moves during barrel deployment');
+ assert.deepEqual(sample.forward.GunSlide.quaternion,curves.at(-1).forward.GunSlide.quaternion,'Barrels must extend without folding');
+}
 await p.waitForFunction(()=>OUSentry.complete(gun,OUTankTest.state.t));
 const before=await p.evaluate(()=>({money:OUTankTest.state.player.money,shots:gun.shotSerial||0}));
 await p.locator('#btnSellMode').click();

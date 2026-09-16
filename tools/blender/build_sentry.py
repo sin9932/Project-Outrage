@@ -145,10 +145,12 @@ for i in range(5):
     a=2*math.pi*i/5;off=(-math.sin(a)*1.15,-math.cos(a)*1.15,-.42)
     track(f'Leg_{i}',[(0,off,(0,0,.45),(1,1,1)),(i*3+3,off,(0,0,.45),(1,1,1)),(26+i*3,(0,0,0),(0,0,0),(1,1,1)),(96,(0,0,0),(0,0,0),(1,1,1))])
 track('Pedestal',[(0,(0,0,0),(0,0,0),(1,1,.12)),(24,(0,0,0),(0,0,0),(1,1,.12)),(48,(0,0,0),(0,0,0),(1,1,1)),(96,(0,0,0),(0,0,0),(1,1,1))])
-track('HeadAssembly',[(0,(0,.25,-3.0),(-1.35,0,0),(1,1,1)),(38,(0,.25,-3.0),(-1.35,0,0),(1,1,1)),(66,(0,0,0),(0,0,0),(1,1,1)),(96,(0,0,0),(0,0,0),(1,1,1))])
-track('AmmoRack',[(0,(.50,0,-.25),(0,0,.65),(1,1,1)),(54,(.50,0,-.25),(0,0,.65),(1,1,1)),(78,(0,0,0),(0,0,0),(1,1,1)),(96,(0,0,0),(0,0,0),(1,1,1))])
-track('GunHinge',[(0,(0,0,0),(1.05,0,0),(1,1,1)),(66,(0,0,0),(1.05,0,0),(1,1,1)),(87,(0,0,0),(0,0,0),(1,1,1)),(96,(0,0,0),(0,0,0),(1,1,1))])
-track('GunSlide',[(0,(0,1.05,0),(0,0,0),(1,1,1)),(78,(0,1.05,0),(0,0,0),(1,1,1)),(94,(0,0,0),(0,0,0),(1,1,1)),(96,(0,0,0),(0,0,0),(1,1,1))])
+# Receiver and ammunition are one rigid module: no counter-rotating parts
+# sweep through the box. Seat it before extending the barrels from the collar.
+track('HeadAssembly',[(0,(0,0,-3.0),(0,0,0),(1,1,1)),(38,(0,0,-3.0),(0,0,0),(1,1,1)),(68,(0,0,0),(0,0,0),(1,1,1)),(96,(0,0,0),(0,0,0),(1,1,1))])
+# Axial telescope anchored at the gun collar. Cross-section stays unchanged;
+# no hinge swing or rearward translation can pass through the receiver.
+track('GunSlide',[(0,(0,0,0),(0,0,0),(1,.04,1)),(72,(0,0,0),(0,0,0),(1,.04,1)),(92,(0,0,0),(0,0,0),(1,1,1)),(96,(0,0,0),(0,0,0),(1,1,1))])
 scene.frame_set(96);bpy.context.view_layer.update()
 asset=list(bpy.context.scene.objects)
 bpy.ops.object.select_all(action='DESELECT')
