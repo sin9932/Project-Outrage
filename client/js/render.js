@@ -2836,7 +2836,7 @@
     }
   }
 
-  let smokeTexture;
+  let smokeTexture,smokeLayer;
   function drawSmokePuffs(ctx){
     if(!smokePuffs.length)return;
     if(!smokeTexture){
@@ -2845,14 +2845,24 @@
       g.addColorStop(0,'rgba(120,120,120,0.12)');g.addColorStop(.45,'rgba(90,90,90,0.10)');g.addColorStop(1,'rgba(0,0,0,0)');
       c.fillStyle=g;c.fillRect(0,0,128,128);
     }
-    const z=cam.zoom||1;ctx.save();
+    // Soft smoke is a low-frequency effect. Blend at quarter resolution,
+    // then composite once instead of resampling hundreds of large alpha quads.
+    const target=ctx,W=target.canvas.width,H=target.canvas.height,scale=.25;
+    if(!smokeLayer)smokeLayer=document.createElement('canvas');
+    const sw=Math.max(1,Math.ceil(W*scale)),sh=Math.max(1,Math.ceil(H*scale));
+    if(smokeLayer.width!==sw||smokeLayer.height!==sh){smokeLayer.width=sw;smokeLayer.height=sh;}
+    ctx=smokeLayer.getContext('2d');ctx.setTransform(1,0,0,1,0,0);
+    ctx.clearRect(0,0,sw,sh);ctx.save();ctx.scale(scale,scale);
+    const z=cam.zoom||1;
     for(const s of smokePuffs){
       if(!isVisibleAt(s.x,s.y))continue;
       const p=worldToScreen(s.x,s.y),t=clamp(s.t/s.ttl,0,1),r=(s.r0+s.grow*t)*z*2.2;
-      if(p.x+r<0||p.y+r<0||p.x-r>ctx.canvas.width||p.y-r>ctx.canvas.height)continue;
+      if(p.x+r<0||p.y+r<0||p.x-r>W||p.y-r>H)continue;
       ctx.globalAlpha=s.a0*Math.pow(1-t,.65);ctx.drawImage(smokeTexture,p.x-r,p.y-r,r*2,r*2);
     }
     ctx.restore();
+    target.save();target.globalAlpha=1;target.imageSmoothingEnabled=true;
+    target.drawImage(smokeLayer,0,0,sw,sh,0,0,sw/scale,sh/scale);target.restore();
   }
 
   function drawDustPuffs(ctx){
