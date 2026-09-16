@@ -19,7 +19,7 @@ The supplied base/head images guide the model: five fixed silver outriggers with
 - Contract: client/js/sentry.js
 - Preview: docs/sentry-preview.png; game view: docs/sentry-gameplay.png
 
-This uses live 3D geometry through the existing instanced vehicle renderer. The base stays fixed while the head turns continuously. Construction unfolds the support and raises the head over 1.4 seconds; destruction tips and collapses the head over 1.1 seconds with existing explosion/debris/smoke effects. These are runtime procedural poses, not pre-rendered directional frames or exported animation clips.
+This uses live 3D geometry through the existing instanced vehicle renderer. The base stays fixed while the head turns continuously. Construction now uses the authored 3.2-second Build clip, with mechanical subassembly motion and underground clipping. Selling reverses that same clip. See SENTRY_ASSEMBLY_FIX.md. Destruction retains its separate 1.1-second procedural collapse and existing explosion/debris/smoke effects.
 
 Simulation owns target, yaw and shot timing. Auto targeting checks visible hostile ground units and skips hidden, transported and cloaked targets. Target scans are throttled to 0.15 seconds, aiming updates every tick, and firing waits for alignment. Existing explicit force-fire handling remains. No firing during construction. Model muzzle anchors are checked against the firing contract.
 

@@ -85,27 +85,27 @@ def loft(name,rings,mat,group,rad=.035):
 for i in range(5):
     a=2*math.pi*i/5
     x,y=math.sin(a),math.cos(a)
-    box('Outrigger', (x*1.05,y*1.05,.20),(.30,1.75,.23),armor,'Hull',.035,rotation=(0,0,-a))
-    box('Team foot',(x*1.88,y*1.88,.19),(.73,.70,.26),team,'Hull',.07,rotation=(0,0,-a))
+    box('Outrigger', (x*1.05,y*1.05,.20),(.30,1.75,.23),armor,f'Leg_{i}',.035,rotation=(0,0,-a))
+    box('Team foot',(x*1.88,y*1.88,.19),(.73,.70,.26),team,f'Leg_{i}',.07,rotation=(0,0,-a))
     for j in (-1,1):
-        cylinder('Foot bolt',(x*1.88+math.cos(a)*j*.22,y*1.88-math.sin(a)*j*.22,.35),.07,.07,steel,'Hull',vertices=8)
+        cylinder('Foot bolt',(x*1.88+math.cos(a)*j*.22,y*1.88-math.sin(a)*j*.22,.35),.07,.07,steel,f'Leg_{i}',vertices=8)
 cylinder('Base flange',(0,0,.34),.67,.20,team,'Hull')
-cylinder('Bearing',(0,0,.51),.48,.18,armor,'Hull')
-cylinder('Bearing recess',(0,0,.62),.29,.06,black,'Hull')
-cylinder('Stem',(0,0,.83),.24,.47,steel,'Turret')
-cylinder('Rotating skirt',(0,0,1.04),.58,.19,armor,'Turret')
-box('Orange receiver',(0,-.03,1.66),(1.28,1.36,1.12),team,'Turret',.14)
-box('Top silver panel',(0,.05,2.25),(.83,.84,.08),armor,'Turret',.035)
-cylinder('Top inspection lid',(0,.08,2.31),.28,.06,edge,'Turret')
+cylinder('Bearing',(0,0,.51),.48,.18,armor,'Pedestal')
+cylinder('Bearing recess',(0,0,.62),.29,.06,black,'Pedestal')
+cylinder('Stem',(0,0,.83),.24,.47,steel,'Pedestal')
+cylinder('Rotating skirt',(0,0,1.04),.58,.19,armor,'Pedestal')
+box('Orange receiver',(0,-.03,1.66),(1.28,1.36,1.12),team,'HeadAssembly',.14)
+box('Top silver panel',(0,.05,2.25),(.83,.84,.08),armor,'HeadAssembly',.035)
+cylinder('Top inspection lid',(0,.08,2.31),.28,.06,edge,'HeadAssembly')
 # Side ammunition drums and dark endcaps.
 for z in (1.36,1.96):
-    cylinder('Ammo drum',(-.84,.14,z),.36,.92,team,'Turret','Y')
+    cylinder('Ammo drum',(-.84,.14,z),.36,.92,team,'AmmoRack','Y')
     for y in (-.33,.61):
-        cylinder('Drum end',(-.84,y,z),.29,.045,steel,'Turret','Y')
-box('Belt housing',(-.70,-.50,1.44),(.28,.28,.73),teamdark,'Turret')
+        cylinder('Drum end',(-.84,y,z),.29,.045,steel,'AmmoRack','Y')
+box('Belt housing',(-.70,-.50,1.44),(.28,.28,.73),teamdark,'AmmoRack')
 for z in (1.21,1.39,1.57):
-    box('Belt round',(-.88,-.66,z),(.25,.10,.10),edge,'Turret',.015)
-cylinder('Gun collar',(0,-.76,1.77),.43,.27,armor,'Turret','Y')
+    box('Belt round',(-.88,-.66,z),(.25,.10,.10),edge,'AmmoRack',.015)
+cylinder('Gun collar',(0,-.76,1.77),.43,.27,armor,'HeadAssembly','Y')
 cylinder('Rotating core',(0,-1.45,1.77),.15,1.20,steel,'Barrel','Y')
 for i in range(3):
     a=i*math.pi*2/3
@@ -115,21 +115,46 @@ for i in range(3):
         cylinder('Orange barrel band',(x,y,z),.125,.13,team,'Barrel','Y',vertices=16)
     cylinder('Muzzle dark bore',(x,-2.18,z),.073,.018,black,'Barrel','Y',vertices=16)
 nodes={}
-for name,origin in [('Hull',(0,0,0)),('Turret',(0,0,.66)),('Barrel',(0,-.80,1.77)),('Muzzle',(0,-2.20,1.77))]:
+origins=[('Hull',(0,0,0)),('Pedestal',(0,0,.30)),('Turret',(0,0,.66)),('HeadAssembly',(0,0,1.04)),('AmmoRack',(-.7,.1,1.65)),('GunHinge',(0,-.8,1.77)),('GunSlide',(0,-.8,1.77)),('Barrel',(0,-.8,1.77)),('Muzzle',(0,-2.20,1.77))]+[(f'Leg_{i}',(0,0,0)) for i in range(5)]
+for name,origin in origins:
     o=bpy.data.objects.new(name,None);scene.collection.objects.link(o);o.location=origin;nodes[name]=o
 bpy.context.view_layer.update()
 for group,objs in parts.items():
     for o in objs:
         matrix=o.matrix_world.copy();o.parent=nodes[group];o.matrix_world=matrix
 bpy.context.view_layer.update()
-for child,parent in [('Turret','Hull'),('Barrel','Turret'),('Muzzle','Barrel')]:
+links=[('Pedestal','Hull'),('Turret','Hull'),('HeadAssembly','Turret'),('AmmoRack','HeadAssembly'),('GunHinge','HeadAssembly'),('GunSlide','GunHinge'),('Barrel','GunSlide'),('Muzzle','Barrel')]+[(f'Leg_{i}','Hull') for i in range(5)]
+for child,parent in links:
     o=nodes[child];matrix=o.matrix_world.copy();o.parent=nodes[parent];o.matrix_world=matrix
     bpy.context.view_layer.update()
+# One authored mechanical assembly timeline. Runtime reverses these same tracks.
+scene.frame_start=0;scene.frame_end=96;scene.render.fps=30
+rest={k:(o.location.copy(),o.rotation_euler.copy(),o.scale.copy()) for k,o in nodes.items()}
+def track(name,keys):
+    o=nodes[name];loc,rot,scale=rest[name]
+    for f,offset,angles,sc in keys:
+        o.location=loc+Vector(offset);o.rotation_euler=angles;o.scale=sc
+        o.keyframe_insert(data_path='location',frame=f,group='Assembly')
+        o.keyframe_insert(data_path='rotation_euler',frame=f,group='Assembly')
+        o.keyframe_insert(data_path='scale',frame=f,group='Assembly')
+    o.animation_data.action.name='Build_'+name
+    # glTF combines identically named NLA tracks into a single Build clip.
+    action=o.animation_data.action;o.animation_data.action=None
+    tr=o.animation_data.nla_tracks.new();tr.name='Build';tr.strips.new('Build',0,action)
+for i in range(5):
+    a=2*math.pi*i/5;off=(-math.sin(a)*1.15,-math.cos(a)*1.15,-.42)
+    track(f'Leg_{i}',[(0,off,(0,0,.45),(1,1,1)),(i*3+3,off,(0,0,.45),(1,1,1)),(26+i*3,(0,0,0),(0,0,0),(1,1,1)),(96,(0,0,0),(0,0,0),(1,1,1))])
+track('Pedestal',[(0,(0,0,0),(0,0,0),(1,1,.12)),(24,(0,0,0),(0,0,0),(1,1,.12)),(48,(0,0,0),(0,0,0),(1,1,1)),(96,(0,0,0),(0,0,0),(1,1,1))])
+track('HeadAssembly',[(0,(0,.25,-3.0),(-1.35,0,0),(1,1,1)),(38,(0,.25,-3.0),(-1.35,0,0),(1,1,1)),(66,(0,0,0),(0,0,0),(1,1,1)),(96,(0,0,0),(0,0,0),(1,1,1))])
+track('AmmoRack',[(0,(.50,0,-.25),(0,0,.65),(1,1,1)),(54,(.50,0,-.25),(0,0,.65),(1,1,1)),(78,(0,0,0),(0,0,0),(1,1,1)),(96,(0,0,0),(0,0,0),(1,1,1))])
+track('GunHinge',[(0,(0,0,0),(1.05,0,0),(1,1,1)),(66,(0,0,0),(1.05,0,0),(1,1,1)),(87,(0,0,0),(0,0,0),(1,1,1)),(96,(0,0,0),(0,0,0),(1,1,1))])
+track('GunSlide',[(0,(0,1.05,0),(0,0,0),(1,1,1)),(78,(0,1.05,0),(0,0,0),(1,1,1)),(94,(0,0,0),(0,0,0),(1,1,1)),(96,(0,0,0),(0,0,0),(1,1,1))])
+scene.frame_set(96);bpy.context.view_layer.update()
 asset=list(bpy.context.scene.objects)
 bpy.ops.object.select_all(action='DESELECT')
 for o in asset:o.select_set(True)
 bpy.context.view_layer.objects.active=nodes['Hull']
-bpy.ops.export_scene.gltf(filepath=str(OUT/'sentry.glb'),export_format='GLB',use_selection=True,export_yup=True,export_animations=False,export_apply=True)
+bpy.ops.export_scene.gltf(filepath=str(OUT/'sentry.glb'),export_format='GLB',use_selection=True,export_yup=True,export_animations=True,export_animation_mode="NLA_TRACKS",export_force_sampling=True,export_apply=True)
 def aim(o,p):o.rotation_euler=(Vector(p)-o.location).to_track_quat('-Z','Y').to_euler()
 for name,loc,power,size in [('Key',(-4,-6,8),1200,5),('Fill',(5,-2,6),800,4),('Rim',(2,4,6),1000,3)]:
     d=bpy.data.lights.new(name,'AREA');d.energy=power;d.shape='DISK';d.size=size

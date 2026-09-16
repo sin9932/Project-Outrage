@@ -23,12 +23,12 @@ const v = new THREE.Vector3();
 function pose(u, time) {
   if(u.kind==='turret'){
     const C=window.OUSentry,death=u._sentryDeath!=null?Math.max(0,(time-u._sentryDeath)/C.deathSeconds):0;
-    const build=Math.max(0,Math.min(1,(time-(u._placedAt||0))/C.buildSeconds));
-    model.rotation.set(0,Math.PI/2,0);hull.scale.setScalar(Math.max(.001,Math.min(1,build*3)));
-    turret.scale.setScalar(Math.max(.001,Math.min(1,(build-.25)/.75)));
-    turret.rotation.set(death*1.1,-(u.turretYaw||0),death*.6);
-    turret.position.y=.66+(1-build)*1.5-death*.6;
-    barrel.position.copy(barrelRest);
+    const asset=assets.get('turret'),progress=C.progress(u,time);
+    asset.buildAction.time=progress*asset.buildClip.duration;
+    asset.buildMixer.update(0);
+    model.rotation.set(0,Math.PI/2,0);hull.scale.setScalar(1);
+    turret.scale.setScalar(1);turret.rotation.set(death*1.1,-(u.turretYaw||0),death*.6);
+    turret.position.y=.66-death*.6;
     const age=time-(u.lastShotAt??-999);
     barrel.rotation.z=age>=0&&age<.4?age*35:0;
     if(death){hull.scale.multiplyScalar(Math.max(.01,1-death*.25));turret.scale.multiplyScalar(Math.max(.01,1-death));}
@@ -216,10 +216,17 @@ export const ready = (async () => {
     const sg=await new GLTFLoader().loadAsync(new URL(window.OUSentry.modelUrl,import.meta.url).href);
     config=window.OUSentry;model=sg.scene;hull=model.getObjectByName('Hull');turret=model.getObjectByName('Turret');barrel=model.getObjectByName('Barrel');
     if(!hull||!turret||!barrel||!model.getObjectByName('Muzzle'))throw Error('Sentry hierarchy incomplete');
+    const buildClip=sg.animations.find(a=>a.name==='Build');
+    if(!buildClip)throw Error('Sentry Build clip missing: '+sg.animations.map(a=>a.name).join(','));
+    const buildMixer=new THREE.AnimationMixer(model),buildAction=buildMixer.clipAction(buildClip);
+    buildAction.setLoop(THREE.LoopOnce,1);buildAction.clampWhenFinished=true;buildAction.play();buildAction.paused=true;
+    buildAction.time=buildClip.duration;buildMixer.update(0);
     model.updateMatrixWorld(true);const sentryTip=model.getObjectByName('Muzzle').getWorldPosition(new THREE.Vector3());
     if(Math.abs(sentryTip.z-config.muzzleForward)>.001||Math.abs(sentryTip.y-config.muzzleHeight)>.001)throw Error('Sentry muzzle contract mismatch');
-    barrelRest=barrel.position.clone();wheels=[];materials=[];detailMeshes=[];crowdMeshes=[];extraParts=[];
-    mergeRigidParts();model.updateMatrixWorld(true);buildCrowdDetail();scene.add(model);remember('turret');selectAsset('tank');
+    barrelRest=barrel.position.clone();wheels=[];materials=[];detailMeshes=[];crowdMeshes=[];
+    extraParts=['Pedestal','HeadAssembly','AmmoRack','GunHinge','GunSlide',...Array.from({length:5},(_,i)=>'Leg_'+i)].map(n=>model.getObjectByName(n));
+    if(extraParts.some(n=>!n))throw Error('Sentry assembly nodes missing');
+    mergeRigidParts();model.updateMatrixWorld(true);buildCrowdDetail();scene.add(model);remember('turret');Object.assign(assets.get('turret'),{buildClip,buildMixer,buildAction});selectAsset('tank');
     api.sentryReady=true;
     return true;
   } catch (error) {
@@ -253,13 +260,28 @@ function appendPose(u,time,cellX,cellY,capacity,tint){
     if(!src.isMesh||Array.isArray(src.material))return;
     let b=batches.get(src.uuid);
     if(!b||b.capacity<capacity){
-      if(b){b.mesh.removeFromParent();b.mesh.dispose();b.mesh.material.dispose();}
+      if(b){b.mesh.removeFromParent();b.mesh.dispose();b.mesh.material.dispose();if(b.ground)b.mesh.geometry.dispose();}
       const team=/TeamColor|Lamp/.test(src.material.name),mat=src.material.clone();
       if(team){mat.color.set(0xffffff);if(mat.emissive)mat.emissive.set(0);}
-      const mesh=new THREE.InstancedMesh(src.geometry,mat,capacity);mesh.count=0;mesh.frustumCulled=false;mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-      b={mesh,team,capacity,dark:src.material.name.includes('recessed')};batches.set(src.uuid,b);batchScene.add(mesh);
+      let geometry=src.geometry,ground=null;
+      if(u.kind==='turret'){
+        // Each atlas cell has a different camera-plane offset. Remove that offset
+        // before clipping the underground assembly against the real ground plane.
+        geometry=src.geometry.clone();ground=new THREE.InstancedBufferAttribute(new Float32Array(capacity),1);
+        geometry.setAttribute('assemblyGroundOffset',ground);
+        mat.onBeforeCompile=shader=>{
+          shader.vertexShader=shader.vertexShader.replace('#include <common>','#include <common>\nattribute float assemblyGroundOffset;\nvarying float assemblyHeight;');
+          shader.vertexShader=shader.vertexShader.replace('#include <project_vertex>','#include <project_vertex>\nassemblyHeight=(instanceMatrix*vec4(transformed,1.0)).y-assemblyGroundOffset;');
+          shader.fragmentShader=shader.fragmentShader.replace('#include <common>','#include <common>\nvarying float assemblyHeight;');
+          shader.fragmentShader=shader.fragmentShader.replace('#include <clipping_planes_fragment>','#include <clipping_planes_fragment>\nif(assemblyHeight<0.0)discard;');
+        };
+        mat.customProgramCacheKey=()=> 'sentry-assembly-ground-v1';
+      }
+      const mesh=new THREE.InstancedMesh(geometry,mat,capacity);mesh.count=0;mesh.frustumCulled=false;mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+      b={mesh,ground,team,capacity,dark:src.material.name.includes('recessed')};batches.set(src.uuid,b);batchScene.add(mesh);
     }
     const n=b.mesh.count++;b.mesh.visible=true;
+    if(b.ground)b.ground.setX(n,offsetMatrix.elements[13]);
     instanceMatrix.multiplyMatrices(offsetMatrix,src.matrixWorld);b.mesh.setMatrixAt(n,instanceMatrix);
     b.mesh.setColorAt(n,b.team?(b.dark?tint.clone().multiplyScalar(.45):tint):white);
   });
@@ -304,7 +326,7 @@ api.beginFrame = function(units,time,view) {
       appendPose(u,time,((i%cols)+.5-cols/2)*span,(rows/2-Math.floor(i/cols)-.5)*span,capacity,new THREE.Color(color(u)));
       frameSlots.set(u.id,{canvas,x,y,res,size});
     }
-    for(const b of batches.values())if(b.mesh.count){b.mesh.instanceMatrix.needsUpdate=true;b.mesh.instanceColor.needsUpdate=true;}
+    for(const b of batches.values())if(b.mesh.count){b.mesh.instanceMatrix.needsUpdate=true;b.mesh.instanceColor.needsUpdate=true;if(b.ground)b.ground.needsUpdate=true;}
     renderer.render(batchScene,batchCamera);
     api.gpuDrawCalls=renderer.info.render.calls;
     const copy=canvas.getContext('2d');copy.clearRect(0,0,width,height);
@@ -354,4 +376,10 @@ api.sentryMuzzleWorld=(u,time)=>{
  if(!assets.has('turret'))return null;selectAsset('turret');pose(u,time);
  model.getObjectByName('Muzzle').getWorldPosition(v);
  return {x:u.x+v.x*20,y:u.y+v.z*20,z:v.y*20};
+};
+
+// Read-only diagnostic samples for animation regression and preview tooling.
+api.sentryAssemblyPose=(u,time)=>{
+ if(!assets.has('turret'))return null;selectAsset('turret');pose(u,time);
+ return Object.fromEntries(extraParts.map(n=>[n.name,{position:n.position.toArray(),quaternion:n.quaternion.toArray(),scale:n.scale.toArray()}]));
 };

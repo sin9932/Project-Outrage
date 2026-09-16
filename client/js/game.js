@@ -1594,11 +1594,18 @@ function findSpawnPointNear(b, unitKind, opts){
     }
   }
 
+const SELL_ANIMATION=Object.freeze({
+  barracks:{selling:'_barrackSelling',finalizeAt:'_barrackSellFinalizeAt',t0:'_barrackSellT0'},
+  power:{selling:'_powerSelling',finalizeAt:'_powerSellFinalizeAt',t0:'_powerSellT0'},
+  refinery:{selling:'_refinerySelling',finalizeAt:'_refinerySellFinalizeAt',t0:'_refinerySellT0'},
+  turret:{selling:'_sentrySelling',finalizeAt:'_sentrySellFinalizeAt',t0:'_sentrySellT0'}
+});
 function sellBuilding(b){
     if (!b || !b.alive || b.civ) return;
 
     // Prevent double-sell spam while animation is running
-    if ((b.kind==="barracks" && b._barrackSelling) || (b.kind==="power" && b._powerSelling) || (b.kind==="refinery" && b._refinerySelling)) return;
+    const sellConfig=SELL_ANIMATION[b.kind];
+    if(sellConfig&&b[sellConfig.selling])return;
 
     // If selling a producer with an active queue, refund paid progress and clear the queue.
     if (b.team===TEAM.PLAYER && b.buildQ && b.buildQ.length){
@@ -1623,26 +1630,15 @@ const refund = Math.floor((COST[b.kind]||0) * 0.5);
     // Selling evacuates units at full HP.
     spawnEvacUnitsFromBuilding(b, false);
 
-    // Barracks / Power Plant: play "construction" animation in reverse, then remove footprint.
-    if (b.kind==="barracks" || b.kind==="power" || b.kind==="refinery"){
-      const _flag = (b.kind==="barracks") ? "_barrackSelling" : (b.kind==="power") ? "_powerSelling" : "_refinerySelling";
-      const _t0   = (b.kind==="barracks") ? "_barrackSellT0" : (b.kind==="power") ? "_powerSellT0" : "_refinerySellT0";
-      const _fin  = (b.kind==="barracks") ? "_barrackSellFinalizeAt" : (b.kind==="power") ? "_powerSellFinalizeAt" : "_refinerySellFinalizeAt";
-      try{
-        if (window.PO && PO.buildings && PO.buildings.onSold){
-          PO.buildings.onSold(b, state);
-        }else{
-          // Fallback: if plugin missing, schedule a short delay so it doesn't insta-pop.
-          b[_flag] = true;
-          b[_t0] = state.t;
-          b[_fin] = state.t + 0.9;
+    // Keep the footprint until the shared construction timeline has reversed.
+    if(sellConfig){
+      if(b.kind==='turret')window.OUSentry.beginSell(b,state.t);
+      else {
+        try{window.PO?.buildings?.onSold?.(b,state);}catch(_e){}
+        if(!b[sellConfig.selling]){
+          b[sellConfig.selling]=true;b[sellConfig.t0]=state.t;b[sellConfig.finalizeAt]=state.t+.9;
         }
-      }catch(_e){
-        b[_flag] = true;
-        b[_t0] = state.t;
-        b[_fin] = state.t + 0.9;
       }
-
       // Immediately unselect, but keep it alive/occupying until animation finishes.
       state.selection.delete(b.id);
       return;
@@ -3064,26 +3060,13 @@ function sanityCheck(){
 
 
   function tickBuildingSellFinalize(){
-    const SELL_FINALIZE = [
-      { kind: "barracks", selling: "_barrackSelling", finalizeAt: "_barrackSellFinalizeAt" },
-      { kind: "power", selling: "_powerSelling", finalizeAt: "_powerSellFinalizeAt" },
-      { kind: "refinery", selling: "_refinerySelling", finalizeAt: "_refinerySellFinalizeAt" }
-    ];
-    let needPower = false, needElim = false;
-    for (const b of buildings){
-      if (!b || !b.alive) continue;
-      for (const cfg of SELL_FINALIZE){
-        if (b.kind===cfg.kind && b[cfg.selling] && b[cfg.finalizeAt]!=null && state.t >= b[cfg.finalizeAt]){
-          b.alive = false;
-          state.selection.delete(b.id);
-          setBuildingOcc(b, 0);
-          needPower = needElim = true;
-          break;
-        }
-      }
+    let changed=false;
+    for(const b of buildings){
+      const cfg=SELL_ANIMATION[b.kind];
+      if(!b.alive||!cfg||!b[cfg.selling]||b[cfg.finalizeAt]==null||state.t<b[cfg.finalizeAt])continue;
+      b.alive=false;state.selection.delete(b.id);setBuildingOcc(b,0);changed=true;
     }
-    if (needPower) recomputePower();
-    if (needElim) checkElimination();
+    if(changed){recomputePower();checkElimination();}
   }
 
   function tickCameraInput(dt){
