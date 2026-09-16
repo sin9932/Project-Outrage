@@ -739,9 +739,9 @@ function addUnit(team, kind, x, y, opts){
   const getVeteranSpeed = __ou_veterancy ? __ou_veterancy.getVeteranSpeed : (() => 1);
   const grantVeteranExp = __ou_veterancy ? __ou_veterancy.grantVeteranExp : (() => {});
 
-  function isBlockedFootprint(tx,ty,tw,th){ return __ou_footprint && __ou_footprint.isBlockedFootprint ? __ou_footprint.isBlockedFootprint(tx,ty,tw,th) : true; }
+  function isBlockedFootprint(tx,ty,tw,th,kind){ return __ou_footprint && __ou_footprint.isBlockedFootprint ? __ou_footprint.isBlockedFootprint(tx,ty,tw,th,kind) : true; }
   function isTooCloseToOtherBuildings(tx,ty,tw,th, gapTiles=1){ return __ou_footprint && __ou_footprint.isTooCloseToOtherBuildings ? __ou_footprint.isTooCloseToOtherBuildings(tx,ty,tw,th, gapTiles) : false; }
-  function footprintBlockedMask(tx,ty,tw,th){ return __ou_footprint && __ou_footprint.footprintBlockedMask ? __ou_footprint.footprintBlockedMask(tx,ty,tw,th) : { blocked: true, mask: new Uint8Array((tw||1)*(th||1)) }; }
+  function footprintBlockedMask(tx,ty,tw,th,kind){ return __ou_footprint && __ou_footprint.footprintBlockedMask ? __ou_footprint.footprintBlockedMask(tx,ty,tw,th,kind) : { blocked: true, mask: new Uint8Array((tw||1)*(th||1)) }; }
 
 
   function inBuildRadius(team, wx, wy){
@@ -2588,7 +2588,7 @@ if (state.selection.size>0 && inMap(tx,ty) && ore[idx(tx,ty)]>0){
     const tx=s.tx, ty=s.ty;
     const wpos=buildingWorldFromTileOrigin(tx,ty,spec.tw,spec.th);
     if (!inBuildRadius(TEAM.PLAYER, wpos.cx, wpos.cy)) return;
-    if (isBlockedFootprint(tx,ty,spec.tw,spec.th)) return;
+    if (isBlockedFootprint(tx,ty,spec.tw,spec.th,kind)) return;
     addBuilding(TEAM.PLAYER, kind, tx,ty);
     if (state.build.lane){
       const lane = state.buildLane[state.build.lane];
@@ -2773,7 +2773,7 @@ function draw(now){
     for (let i = 0; i < (tries || 260); i++) {
       const tx = nearTx + ((Math.random() * 18) | 0) - 9;
       const ty = nearTy + ((Math.random() * 18) | 0) - 9;
-      if (!isBlockedFootprint(tx, ty, spec.tw, spec.th)) return { tx, ty };
+      if (!isBlockedFootprint(tx, ty, spec.tw, spec.th,kind)) return { tx, ty };
     }
     return { tx: clamp(nearTx, 0, MAP_W - spec.tw), ty: clamp(nearTy, 0, MAP_H - spec.th) };
   };
@@ -2914,6 +2914,7 @@ if (isCallable(__ou_ui, "bindPregameStart")){
     state, units, buildings, cam, TEAM, terrain, ore, isGem, treeHp, buildOcc, TILE, MAP_W, MAP_H,
     addUnit, getEntityById, worldToScreen, screenToWorld, centerCameraOn,
     commands:__ou_commands, sim:__ou_sim, ai:__ou_ai, camera:__ou_cam, addBuilding, destroyBuilding,
+    footprint:__ou_footprint, applyDamage,
     get running(){return running;},
     setFog(value){fogEnabled=!!value;},
     get explored(){return explored;}, get visible(){return visible;}

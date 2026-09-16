@@ -1,0 +1,162 @@
+{
+  "chromium": {
+    "placement": {
+      "cells": [
+        {
+          "x": 15,
+          "y": 12,
+          "walk": 0,
+          "blocked": true,
+          "preview": true
+        },
+        {
+          "x": 16,
+          "y": 12,
+          "walk": 0,
+          "blocked": true,
+          "preview": true
+        },
+        {
+          "x": 15,
+          "y": 13,
+          "walk": 0,
+          "blocked": true,
+          "preview": true
+        },
+        {
+          "x": 16,
+          "y": 13,
+          "walk": 0,
+          "blocked": true,
+          "preview": true
+        },
+        {
+          "x": 15,
+          "y": 14,
+          "walk": 0,
+          "blocked": true,
+          "preview": true
+        },
+        {
+          "x": 16,
+          "y": 14,
+          "walk": 0,
+          "blocked": true,
+          "preview": true
+        }
+      ],
+      "occupied": true,
+      "released": true,
+      "reverseBlocked": true
+    },
+    "waiting": {
+      "carry": 100,
+      "dock": false,
+      "order": "return"
+    },
+    "alternateUnloaded": true,
+    "clearedEntranceUnloaded": true,
+    "reactions": [
+      "guard",
+      "attackmove",
+      "attack"
+    ],
+    "playerManualPreserved": true,
+    "live": {
+      "target": 18,
+      "gun": 18,
+      "damage": 39.10000000000582
+    },
+    "errors": []
+  },
+  "firefox": {
+    "placement": {
+      "cells": [
+        {
+          "x": 15,
+          "y": 12,
+          "walk": 0,
+          "blocked": true,
+          "preview": true
+        },
+        {
+          "x": 16,
+          "y": 12,
+          "walk": 0,
+          "blocked": true,
+          "preview": true
+        },
+        {
+          "x": 15,
+          "y": 13,
+          "walk": 0,
+          "blocked": true,
+          "preview": true
+        },
+        {
+          "x": 16,
+          "y": 13,
+          "walk": 0,
+          "blocked": true,
+          "preview": true
+        },
+        {
+          "x": 15,
+          "y": 14,
+          "walk": 0,
+          "blocked": true,
+          "preview": true
+        },
+        {
+          "x": 16,
+          "y": 14,
+          "walk": 0,
+          "blocked": true,
+          "preview": true
+        }
+      ],
+      "occupied": true,
+      "released": true,
+      "reverseBlocked": true
+    },
+    "waiting": {
+      "carry": 100,
+      "dock": false,
+      "order": "return"
+    },
+    "alternateUnloaded": true,
+    "clearedEntranceUnloaded": true,
+    "reactions": [
+      "guard",
+      "attackmove",
+      "attack"
+    ],
+    "playerManualPreserved": true,
+    "live": {
+      "target": 18,
+      "gun": 18,
+      "damage": 39.10000000000582
+    },
+    "errors": []
+  },
+  "crowd": {
+    "baseline": {
+      "n": 281,
+      "p95": 0.5,
+      "max": 4.400000035762787
+    },
+    "combat": {
+      "n": 601,
+      "p95": 0.5,
+      "max": 0.8999999761581421,
+      "reacted": 60,
+      "orderChanges": 20,
+      "pathStats": {
+        "processed": 0,
+        "pending": 0,
+        "maxPerTick": 0
+      }
+    },
+    "errors": []
+  }
+}

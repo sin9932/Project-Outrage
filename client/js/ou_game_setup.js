@@ -43,7 +43,7 @@
       for (let i = 0; i < tries; i++) {
         const tx = nearTx + ((Math.random() * 18) | 0) - 9;
         const ty = nearTy + ((Math.random() * 18) | 0) - 9;
-        if (!isBlockedFootprint(tx, ty, tw, th)) return { tx, ty };
+        if (!isBlockedFootprint(tx, ty, tw, th,kind)) return { tx, ty };
       }
       return { tx: clamp(nearTx, 0, MAP_W - tw), ty: clamp(nearTy, 0, MAP_H - th) };
     }

@@ -2437,11 +2437,19 @@
       return best || candidates[candidates.length-1];
     }
 
+    function refineryAccessible(b){
+      if(!b?.alive||b._refinerySelling)return false;
+      if(state.t<(b._dockAccessCheckAt||0))return b._dockAccessOK;
+      b._dockAccessCheckAt=state.t+.75;
+      b._dockAccessOK=!globalThis.OUHarvester.accessBlocked(b,buildings,inMap,
+        (x,y)=>terrain[idx(x,y)]!==0||treeHp[idx(x,y)]>0);
+      return b._dockAccessOK;
+    }
     function findNearestRefinery(team, wx, wy){
       let best=null, bestD=1e9;
       const fakeU = {x: wx, y: wy, r: 28};
       for (const b of buildings){
-        if (!b.alive || b.team!==team || b.kind!=="refinery") continue;
+        if (!b.alive || b.team!==team || b.kind!=="refinery" || !refineryAccessible(b)) continue;
         const dock = getDockPoint(b, fakeU);
         const d2 = dist2(wx, wy, dock.x, dock.y);
         if (d2<bestD){ bestD=d2; best=b; }
@@ -3248,28 +3256,29 @@
       // 교전중 이동명령 시: forceMoveUntil 동안 보복/자동탐색으로 덮어쓰지 않음 (경전차 등)
       const forceMoveActive = !!(u.order && u.order.type==="move" && u.forceMoveUntil && state.t < u.forceMoveUntil);
     
-      // (1) Retaliation (ONLY when no player manual-locked order, and not during force-move window)
-      // 적군 attackmove/guard 시: 보복보다 선제공격 우선 (침투·기지수호 시 적극 공격)
-      const enemyCombatOrder = (u.team===TEAM.ENEMY && u.order && (u.order.type==="attackmove" || u.order.type==="guard"));
-      if (!enemyCombatOrder && !manualLock && !forceMoveActive && u.aggroCd<=0 && u.lastAttacker!=null){
-        const a = getEntityById(u.lastAttacker);
-        if (a && a.alive && a.team===enemyTeam){
-          if (!sniperMode || isEnemyInf(a)){
-            const vis = Math.max(UNIT[u.kind]?.vision || 280, u.range || 0); // 저격IFV: u.range 사용
-            if (dist2(u.x,u.y,a.x,a.y) <= vis*vis){
-              u.target = a.id;
-              u.order = {type:"attack", x:u.x,y:u.y, tx:null,ty:null};
-              setPathTo(u, a.x, a.y);
-              u.repathCd = 0.35;
-              u.aggroCd = aggroDelay(u, 0.35);
+      // Damage-directed reaction: one ID lookup on a staggered clock. Enemy
+      // strategic orders must not suppress self-defense against a sentry.
+      if (!forceMoveActive && (!manualLock || u.team===TEAM.ENEMY) &&
+          state.t-(u.lastAttackedAt??-1e9)<2 && state.t>=(u._nextRetaliateCheck||0)){
+        u._nextRetaliateCheck=state.t+.25+(u.id%8)*.015;
+        const a=getEntityById(u.lastAttacker);
+        if(a&&a.alive&&a.team===enemyTeam&&a.attackable!==false&&(!sniperMode||isEnemyInf(a))){
+          const radius=Math.max(UNIT[u.kind]?.vision||280,u.range||0,(a.range||BUILD[a.kind]?.range||0)+TILE);
+          if(dist2(u.x,u.y,a.x,a.y)<=radius*radius){
+            u._retaliateUntil=state.t+2;
+            if(u.target!==a.id||u.order?.type!=='attack'){
+              u.target=a.id;u.order={type:'attack',x:u.x,y:u.y,tx:null,ty:null};
+              u.path=null;u.pathI=0;u.flowGoal=null;u.attackApproach=null;u.holdAttack=false;
+              // Existing attack scheduler owns range/approach and path budgets.
+              u.repathCd=(u.id%8)*.025;u.aggroCd=aggroDelay(u,.35);
             }
           }
         }
       }
-    
+
       // (3) If attacking a building, but a unit is nearby, switch to that unit (non-sniper only)
       // Player manual-locked attack must NOT retarget. Throttle to reduce cost in mass combat.
-      if (!sniperMode && u.aggroCd<=0 && state.t >= (u._nextAcquire||0) && u.order && u.order.type==="attack" && !(u.order.manual && u.order.lockTarget)){
+      if (!sniperMode && state.t >= (u._retaliateUntil||0) && u.aggroCd<=0 && state.t >= (u._nextAcquire||0) && u.order && u.order.type==="attack" && !(u.order.manual && u.order.lockTarget)){
         const cur = getEntityById(u.target);
         if (cur && BUILD[cur.kind]){
           const retargetThrottle = (u.team===TEAM.ENEMY && (u.kind==="infantry" || u.kind==="sniper")) ? 0.42 + (u.id % 11)*0.03 : 0.18 + (u.id % 7)*0.02;
@@ -3584,31 +3593,25 @@
             }
     
             if (u.order.type==="return"){
+              if(state.t<(u._dockRetryAt||0))continue;
               // Force-return to refinery and deposit carry.
               let ref = getEntityById(u.target);
-              if (!ref || !ref.alive || ref.kind!=="refinery" || ref.team!==u.team){
+              if (!ref || !ref.alive || ref.kind!=="refinery" || ref.team!==u.team || !refineryAccessible(ref)){
+                if(u.harvesterDock){const old=getEntityById(u.harvesterDock.refId);if(old?.dockUnitId===u.id)old.dockUnitId=null;u.harvesterDock=null;}
                 ref = findNearestRefinery(u.team,u.x,u.y);
                 u.target = ref ? ref.id : null;
               }
-              if (!ref){
-                u.target = null; // 파괴된 제련소 참조 제거
-                if (hasAnyRefinery(u.team)){
-                  const best = findBestOrePatch();
-                  if (best){
-                    u.order = {type:"harvest", x:u.x,y:u.y, tx:best.tx, ty:best.ty};
-                    setPathTo(u, (best.tx+0.5)*TILE, (best.ty+0.5)*TILE);
-                    u.repathCd=0.25;
-                  } else {
-                    u._harvestNoOreTicks = (u._harvestNoOreTicks||0) + 1;
-                    if ((u._harvestNoOreTicks||0) >= 48){ u.order.type="idle"; u._harvestNoOreTicks=0; }
-                    else u.repathCd = 0.15;
-                  }
-                } else {
-                  u.order.type="idle";
-                }
-                continue;
+              if (!ref && hasAnyRefinery(u.team)){
+                // Preserve cargo while blocked. Retry at a bounded cadence, not
+                // pathfinding every frame or switching a full truck back to mining.
+                if(u.harvesterDock){const old=getEntityById(u.harvesterDock.refId);if(old?.dockUnitId===u.id)old.dockUnitId=null;u.harvesterDock=null;}
+                u.path=null;u.flowGoal=null;u.vx=u.vy=0;u.target=null;
+                u._dockRetryAt=state.t+1;continue;
               }
-    
+              if (!ref){
+                u.target=null;u.order.type='idle';continue;
+              }
+
               const dock=getDockPoint(ref,u);
               if(!u.harvesterDock){
                 if(u.repathCd<=0 && (!u.path||u.pathI>=u.path.length||u.lastGoalTx!==tileOfX(dock.x)||u.lastGoalTy!==tileOfY(dock.y))){

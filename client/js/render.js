@@ -3189,10 +3189,10 @@
       const wpos=buildingWorldFromTileOrigin(tx,ty,spec.tw,spec.th);
 
       const ok = inBuildRadius(TEAM.PLAYER, wpos.cx, wpos.cy)
-        && !isBlockedFootprint(tx,ty,spec.tw,spec.th);
+        && !isBlockedFootprint(tx,ty,spec.tw,spec.th,kind);
 
       const ghost={tx,ty,tw:spec.tw,th:spec.th};
-      const fp = footprintBlockedMask(tx,ty,spec.tw,spec.th);
+      const fp = footprintBlockedMask(tx,ty,spec.tw,spec.th,kind);
 
       if (!inBuildRadius(TEAM.PLAYER, wpos.cx, wpos.cy)){
         fp.mask.fill(1);

@@ -172,19 +172,21 @@
       }
     }
 
-    function isBlockedFootprint(tx, ty, tw, th) {
-      if (tx < 0 || ty < 0 || tx + tw > MAP_W || ty + th > MAP_H) return true;
-      for (let y = ty; y < ty + th; y++) {
-        for (let x = tx; x < tx + tw; x++) {
-          if (!inMap(x, y)) return true;
-          const ti = idx(x, y);
-          if (buildOcc[ti] === 1) return true;
-          if (terrain[ti] !== 0) return true;
-          if (ore[ti] > 0) return true;
-          if (treeHp[ti] > 0) return true;
-          if ((occAll[ti] || 0) > 0) return true;
+    // Construction reservation is independent of walkability. Read live buildings
+    // so sale/destruction releases both footprint and apron without stale masks.
+    function reservedForBuilding(x,y){
+      for(const b of buildings){
+        if(!b.alive)continue;
+        if(x>=b.tx&&x<b.tx+b.tw&&y>=b.ty&&y<b.ty+b.th)return true;
+        if(b.kind==='refinery'){
+          const a=global.OUHarvester.accessRect(b);
+          if(x>=a.tx&&x<a.tx+a.tw&&y>=a.ty&&y<a.ty+a.th)return true;
         }
       }
+      return false;
+    }
+    function isBlockedFootprint(tx, ty, tw, th, kind) {
+      if(footprintBlockedMask(tx,ty,tw,th,kind).blocked)return true;
       const wpos = buildingWorldFromTileOrigin(tx, ty, tw, th);
       for (const u of units) {
         if (!u.alive || u.inTransport || u.hidden) continue;
@@ -201,13 +203,13 @@
       for (let y = y0; y <= y1; y++) {
         for (let x = x0; x <= x1; x++) {
           if (!inMap(x, y)) continue;
-          if (buildOcc[idx(x, y)] === 1) return true;
+          if (reservedForBuilding(x,y)) return true;
         }
       }
       return false;
     }
 
-    function footprintBlockedMask(tx, ty, tw, th) {
+    function footprintBlockedMask(tx, ty, tw, th, kind) {
       const mask = new Uint8Array(tw * th);
       let any = false;
       if (tx < 0 || ty < 0 || tx + tw > MAP_W || ty + th > MAP_H) {
@@ -221,7 +223,7 @@
           if (!inMap(x, y)) b = true;
           else {
             const ti = idx(x, y);
-            if (buildOcc[ti] === 1) b = true;
+            if (reservedForBuilding(x,y) || buildOcc[ti] === 1) b = true;
             else if (terrain[ti] !== 0) b = true;
             else if (ore[ti] > 0) b = true;
             else if (treeHp[ti] > 0) b = true;
@@ -229,6 +231,13 @@
           }
           mask[k++] = b ? 1 : 0;
           if (b) any = true;
+        }
+      }
+      if(kind==='refinery'){
+        const a=global.OUHarvester.accessRect({kind,tx,ty,tw,th});
+        for(let y=a.ty;y<a.ty+a.th;y++)for(let x=a.tx;x<a.tx+a.tw;x++){
+          const i=idx(x,y);
+          if(!inMap(x,y)||reservedForBuilding(x,y)||terrain[i]!==0||treeHp[i]>0||ore[i]>0){mask.fill(1);any=true;}
         }
       }
       return { blocked: any, mask };

@@ -211,7 +211,7 @@
       ty = clamp(ty, 0, MAP_H - spec.th);
       const wpos = buildingWorldFromTileOrigin(tx, ty, spec.tw, spec.th);
       if (typeof inBuildRadius !== "function" || !inBuildRadius(TEAM.PLAYER, wpos.cx, wpos.cy)) return;
-      if (isBlockedFootprint(tx, ty, spec.tw, spec.th)) return;
+      if (isBlockedFootprint(tx, ty, spec.tw, spec.th,kind)) return;
       addBuilding(TEAM.PLAYER, kind, tx, ty);
       if (build.lane && state.buildLane) {
         const lane = state.buildLane[build.lane];

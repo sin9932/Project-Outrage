@@ -8,6 +8,16 @@
  H.oreGid=(amount,gem)=>amount>0?225+(gem?0:5)+Math.min(4,Math.max(0,Math.ceil(amount/(gem?H.ore.gemMax:H.ore.max)*5)-1)):0;
  H.port=b=>({tx:b.tx+b.tw-1,ty:b.ty+Math.floor(b.th/2)});
  H.isLane=(b,tx,ty)=>b.kind==='refinery'&&tx===H.port(b).tx&&Math.abs(ty-H.port(b).ty)<=1;
+ // The three lane cells and the next column are reserved for docking, not building.
+ H.accessRect=b=>{const p=H.port(b);return{tx:p.tx,ty:p.ty-1,tw:2,th:3};};
+ H.accessBlocked=(b,buildings,inMap,solid)=>{
+   const a=H.accessRect(b);
+   for(let y=a.ty;y<a.ty+a.th;y++)for(let x=a.tx;x<a.tx+a.tw;x++){
+     if(!inMap(x,y)||solid(x,y))return true;
+     for(const other of buildings)if(other!==b&&other.alive&&x>=other.tx&&x<other.tx+other.tw&&y>=other.ty&&y<other.ty+other.th)return true;
+   }
+   return false;
+ };
  // Collision follows solid cells, not a padded rectangle over the open ramp.
  H.blocks=(b,x,y,T,r)=>{
    if(b.kind!=='refinery')return null;

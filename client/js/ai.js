@@ -437,7 +437,7 @@
         const wpos = buildingWorldFromTileOrigin(tx, ty, spec.tw, spec.th);
         if (!inBuildRadius(TEAM.ENEMY, wpos.cx, wpos.cy)) continue;
 
-        if (isBlockedFootprint(tx, ty, spec.tw, spec.th)) continue;
+        if (isBlockedFootprint(tx, ty, spec.tw, spec.th,kind)) continue;
         if (isTooCloseToOtherBuildings(tx, ty, spec.tw, spec.th, gapTiles)) continue;
 
         addBuilding(TEAM.ENEMY, kind, tx, ty);
@@ -512,7 +512,7 @@
         let gx = ai.rally.x + ox, gy = ai.rally.y + oy;
         const spot = findNearestFreePoint(gx, gy, u, 4);
         if (spot && spot.found) { gx = spot.x; gy = spot.y; }
-        issueAttackMove(u, { x: gx, y: gy });
+        if(!issueAttackMove(u, { x: gx, y: gy }))continue;
         u.restX = null; u.restY = null;
         // 경로탐색은 sim 틱에서 예산 내 처리 (동시 다수 유닛 시 렉 방지)
         if (setPathTo(u, gx, gy)) u.repathCd = 0.7;
@@ -520,15 +520,21 @@
       }
     }
 
+    function defendingAgainstDamage(u){
+      return state.t<(u._retaliateUntil||0)&&u.target!=null&&getEntityById(u.target)?.alive;
+    }
     function issueAttackMove(u, dest) {
+      if(defendingAgainstDamage(u))return false;
       u.order = { type: "attackmove", x: dest.x, y: dest.y, tx: null, ty: null, manual: true, allowAuto: true, lockTarget: false };
       u.target = null;
       u.path=null; u.pathI=0; u.flowGoal=null;
+      return true;
     }
 
     function aiCommandAttackWave(list, target) {
       const targetIsUnit = target && !BUILD[target.kind];
       for (const u of list) {
+        if(defendingAgainstDamage(u))continue;
         if (u.kind === "ifv" && u.passengerId && u.passKind === "engineer") continue;
         if (u.kind === "sniper") continue;
         if (u.kind === "ifv" && !u.passengerId && !targetIsUnit) continue;
