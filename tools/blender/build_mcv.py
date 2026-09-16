@@ -5,6 +5,8 @@ Rigid articulated reconstruction from the supplied MCV and construction yard ref
 import bpy, math, json, sys, os
 from mathutils import Vector, Matrix
 from pathlib import Path
+sys.path.insert(0,str(Path(__file__).resolve().parent))
+from industrial_palette import SILVER, FRAME, RECESS, COMPOSITE, TRIM, DECK
 
 OUT = Path(sys.argv[sys.argv.index('--') + 1])
 OUT.mkdir(parents=True, exist_ok=True)
@@ -25,9 +27,9 @@ def material(name, color, metal=0.0, rough=.45):
     p.inputs['Roughness'].default_value = rough
     return m
 
-armor = material('Armor | silver', (.47,.54,.60), .48,.34)
-edge = material('Armor | machined edges', (.105,.16,.215), .68,.32)
-panel = material('Armor | recessed panels', (.040,.075,.115), .55,.40)
+armor = material('Armor | silver', SILVER, .48,.34)
+edge = material('Armor | machined edges', FRAME, .68,.32)
+panel = material('Armor | recessed panels', RECESS, .55,.40)
 rubber = material('Tracks | charcoal rubber', (.018,.023,.025), .12,.62)
 steel = material('Tracks | dark steel', (.075,.085,.083), .68,.43)
 team = material('TeamColor | orchid', (.95,.25,.025), .25,.34)
@@ -83,9 +85,9 @@ def loft(name,rings,mat,group,rad=.035):
 
 
 import numpy as np
-concrete=material('Composite | blue graphite',(.105,.17,.235),.46,.42)
-trim=material('Trim | titanium ceramic',(.30,.38,.45),.5,.34)
-roofmat=material('Roof | graphite decking',(.055,.09,.13),.45,.43)
+concrete=material('Composite | blue graphite',COMPOSITE,.46,.42)
+trim=material('Trim | titanium ceramic',TRIM,.5,.34)
+roofmat=material('Roof | graphite decking',DECK,.45,.43)
 dirt=material('Foundation | protected composite',(.075,.1,.13),.2,.65)
 yellow=material('Safety | amber',(.63,.40,.045),.12,.55)
 light=material('Interior | lamps',(.65,.78,.77),.1,.3)
@@ -235,7 +237,7 @@ for s in (-1,1):
     for stage in range(3):
       for sy in (-1,1):
         n=f'Apron_{s}_{stage}_{sy}'
-        joint(n,f'Deck_{s}_{stage}',closed=(0,sy*1.62,-.08),opened=(0,sy*4.70,-.08),start=17,end=43)
+        joint(n,f'Deck_{s}_{stage}',closed=(0,sy*1.62,-.08),opened=(0,sy*5.425,-.08),start=17,end=43)
         box('Apron cassette',(0,0,0),(2.32,3.0,.13),roofmat,n,.025)
         for x in (-.85,.85):box('Apron guide',(x,-sy*1.55,-.1),(.16,3.4,.16),steel,n,.01)
         for i in (-.65,.65):panel_details(0,i,.08,1.95,1.15,n)
@@ -251,11 +253,11 @@ for s in (-1,1):
 for sx in (-1,1):
     for sy in (-1,1):
         carrier=f'CornerRail_{sx}_{sy}'
-        joint(carrier,closed=(sx*1.45,sy*1.38,2.25),opened=(sx*6.12,sy*3.18,.43),start=6,end=36)
+        joint(carrier,closed=(sx*1.45,sy*1.38,2.25),opened=(sx*6.12,sy*3.70,.43),start=6,end=36)
         # Persistent telescopic connectors; three overlapping sections span the travel.
         for j in range(3):
             r=f'CornerLink_{sx}_{sy}_{j}'
-            joint(r,closed=(sx*.10,sy*1.38,.36+j*.055),opened=(sx*(1.25+j*1.78),sy*3.18,.21+j*.055),start=4+j*3,end=35)
+            joint(r,closed=(sx*.10,sy*1.38,.36+j*.055),opened=(sx*(1.25+j*1.78),sy*3.70,.21+j*.055),start=4+j*3,end=35)
             box('Corner guide',(0,0,0),(2.6,.22,.18),steel,r,.02)
         n=f'ArmorWing_{sx}_{sy}'
         joint(n,carrier,rotation=(0,-sx*math.pi/2,0),turn=(0,0,0),start=25,end=55)
@@ -280,7 +282,7 @@ for sx in (-1,1):
 for sy in (-1,1):
     for sx in (-1,1):
         n=f'EndRail_{sx}_{sy}'
-        joint(n,closed=(sx*.14,sy*2.70,1.78),opened=(sx*3.05,sy*5.58,.39),start=9,end=37)
+        joint(n,closed=(sx*.14,sy*2.70,1.78),opened=(sx*3.05,sy*6.10,.39),start=9,end=37)
         box('End wall runner',(0,-sy*1.2,-.12),(1.3,3.2,.20),steel,n,.025)
         w=f'EndWall_{sx}_{sy}'
         joint(w,n,rotation=(sy*math.pi/2,0,0),turn=(0,0,0),start=27,end=56)
@@ -302,7 +304,7 @@ for sx in (-1,1):
     n=f'SideBridge_{sx}'
     joint(n,rail,rotation=(0,-sx*math.pi/2,0),turn=(0,0,0),start=29,end=56)
     profile=[(0,0),(-sx*.15,1.05),(-sx*1.70,3.05),(-sx*2.12,3.1),(-sx*.52,1.),(-sx*.42,0)]
-    loft('Central side armor', [[(x,y,z) for x,z in profile] for y in (-.87,.87)],concrete,n,.045)
+    loft('Central side armor', [[(x,y,z) for x,z in profile] for y in (-1.38,1.38)],concrete,n,.045)
     for y in (-.70,.70):beam('Central armor ribs',(0,y,.20),(-sx*1.56,y,2.99),.13,trim,n)
     cylinder('Auxiliary turbine',(sx*.06,0,.90),.58,.17,edge,n,'X',24,.02)
     cylinder('Turbine dark inset',(sx*.16,0,.90),.46,.06,black,n,'X',24,0)
@@ -310,22 +312,22 @@ for sx in (-1,1):
 # Apron middle telescopes lengthwise out of the original chassis.
 for sy in (-1,1):
     n=f'CenterApron_{sy}'
-    joint(n,closed=(0,sy*1.55,.28),opened=(0,sy*4.66,.12),start=12,end=43)
+    joint(n,closed=(0,sy*1.55,.28),opened=(0,sy*5.365,.12),start=12,end=43)
     box('Center entry apron',(0,0,0),(2.75,3.12,.15),roofmat,n,.035)
     panel_details(0,0,.09,2.30,2.5,n)
 # Central rising platform: short nested leaves provide an unbroken roof around
 # the column while the perimeter leaves lock over its outer edge.
 joint('RoofLift',closed=(0,0,.96),opened=(0,0,2.90),start=28,end=63)
-box('Core roof',(0,0,0),(2.7,8.75,.20),roofmat,'RoofLift',.05)
+box('Core roof',(0,0,0),(2.7,9.80,.20),roofmat,'RoofLift',.05)
 for s in (-1,1):
     for j in range(2):
         n=f'RoofSlide_{s}_{j}'
         joint(n,'RoofLift',closed=(s*.12,0,-.12-j*.06),opened=(s*(2.05+j*1.85),0,-.04-j*.06),start=36+j*3,end=65+j*3)
-        box('Sliding upper deck',(0,0,0),(2.15,8.75,.17),roofmat,n,.04)
+        box('Sliding upper deck',(0,0,0),(2.15,9.80,.17),roofmat,n,.04)
         for y in (-2.8,0,2.8):panel_details(0,y,.10,1.87,2.24,n)
-        for sy in (-1,1):box('Faction deck fascia',(0,sy*4.395,-.04),(1.66,.05,.19),team,n,.018)
+        for sy in (-1,1):box('Faction deck fascia',(0,sy*4.92,-.04),(1.66,.05,.19),team,n,.018)
 # Cab becomes the entry mechanism; this gate unfolds in front of the tucked cab.
-joint('EntryRail',closed=(0,-2.90,.65),opened=(0,-5.72,.39),start=18,end=45)
+joint('EntryRail',closed=(0,-2.90,.65),opened=(0,-6.24,.39),start=18,end=45)
 joint('EntryGate','EntryRail',rotation=(math.pi/2,0,0),turn=(0,0,0),start=37,end=61)
 box('Entry black recess',(0,0,.81),(1.45,.12,1.54),black,'EntryGate',.025)
 for sx in (-1,1):box('Door jamb',(sx*.85,-.05,.82),(.26,.35,1.64),trim,'EntryGate',.05)
@@ -502,7 +504,7 @@ bpy.ops.object.select_all(action='SELECT');bpy.context.view_layer.objects.active
 bpy.ops.export_scene.gltf(filepath=str(OUT/'mcv.glb'),export_format='GLB',use_selection=True,export_yup=True,export_animations=True,export_animation_mode='NLA_TRACKS',export_force_sampling=True,export_apply=True)
 from yard_clip_contract import normalize_yard_clips
 normalize_yard_clips(OUT/'mcv.glb')
-(OUT/'contract.json').write_text(json.dumps({'revision':7,'motion':'weighted staggered joints with hydraulic braking and restrained settling','hallRigidDimensionsScale':[1.12,1.06,1.16],'workClip':'Work','workSeconds':3.2,'workFacilities':work_facilities,'facilities':facilities,'plinthHeightMetres':2.90,'design':'vaulted production hall with integrated power and control modules','clip':'Deploy','authoringSeconds':3,'runtimeSeconds':.8,'worldUnitsPerMetre':20,'modelScale':1.65,'heading':'+Z','up':'+Y','constantScale':True,'settledYard':'cached exact Deploy endpoint','rig':rig,'assembly':'rigid joints with nested hidden cassettes'},indent=2))
+(OUT/'contract.json').write_text(json.dumps({'revision':8,'motion':'weighted staggered joints with hydraulic braking and restrained settling','hallRigidDimensionsScale':[1.12,1.06,1.16],'workClip':'Work','workSeconds':3.2,'workFacilities':work_facilities,'facilities':facilities,'plinthHeightMetres':2.90,'design':'vaulted production hall with integrated power and control modules','clip':'Deploy','authoringSeconds':3,'runtimeSeconds':.8,'worldUnitsPerMetre':20,'modelScale':1.98,'packedRearMetres':5,'footprint':[5,5],'groundBoundsMetres':[-6.94,-6.925,6.94,6.925],'heading':'+Z','up':'+Y','constantScale':True,'settledYard':'cached exact Deploy endpoint','rig':rig,'assembly':'rigid joints with nested hidden cassettes'},indent=2))
 # The editable .blend opens on Deploy. Export above includes both named NLA
 # clips; muting Work here only selects the authoring/review view.
 for o in nodes.values():

@@ -1,0 +1,257 @@
+{
+  "geometry": {
+    "geometry": {
+      "yardFill": [
+        1.007999948501587,
+        0.9972000274658203
+      ],
+      "factoryFill": [
+        0.9954545281150124,
+        0.9909091140284683
+      ],
+      "factoryTiles": [
+        4,
+        3
+      ],
+      "mobileMetres": [
+        7.345800328260028,
+        6.230793611979956,
+        19.582200679779053
+      ],
+      "modelScale": 1.98
+    },
+    "errors": []
+  },
+  "mcvChrome": {
+    "timing": {
+      "started": 1.3151000000000022,
+      "phase": "deploy",
+      "operational": true,
+      "repackRejected": true,
+      "queueStartedDuringDeploy": true,
+      "duration": 0.8159999999999987
+    },
+    "immediateBuild": true,
+    "blocked": [
+      false,
+      false,
+      false
+    ],
+    "reverseMatches": true,
+    "hpPreserved": true,
+    "optionGate": true,
+    "noRepackRefund": true,
+    "production": true,
+    "deathNoRespawn": true,
+    "saleDistinct": true,
+    "enemyDeploy": true,
+    "doubleClick": true,
+    "groundMoveRepack": true,
+    "errors": []
+  },
+  "mcvFirefox": {
+    "timing": {
+      "started": 1.3789999999999998,
+      "phase": "deploy",
+      "operational": true,
+      "repackRejected": true,
+      "queueStartedDuringDeploy": true,
+      "duration": 0.8249999999999982
+    },
+    "immediateBuild": true,
+    "blocked": [
+      false,
+      false,
+      false
+    ],
+    "reverseMatches": true,
+    "hpPreserved": true,
+    "optionGate": true,
+    "noRepackRefund": true,
+    "production": true,
+    "deathNoRespawn": true,
+    "saleDistinct": true,
+    "enemyDeploy": true,
+    "doubleClick": true,
+    "groundMoveRepack": true,
+    "errors": []
+  },
+  "art": {
+    "endpointPixelDifferences": 0,
+    "cacheBefore": {
+      "entries": 1,
+      "bytes": 2226064,
+      "hits": 2194,
+      "builds": 2,
+      "limit": 33554432
+    },
+    "cacheAfter": {
+      "entries": 1,
+      "bytes": 2226064,
+      "hits": 2316,
+      "builds": 2,
+      "limit": 33554432
+    },
+    "six": {
+      "cache": {
+        "entries": 1,
+        "bytes": 624100,
+        "hits": 2576,
+        "builds": 3,
+        "limit": 33554432
+      },
+      "pages": 0,
+      "draws": 6
+    },
+    "errors": []
+  },
+  "factoryChrome": {
+    "facing": {
+      "footprint": [
+        4,
+        3
+      ],
+      "roofAxis": "x",
+      "heading": 0,
+      "exit": {
+        "x": 2255,
+        "y": 1815
+      },
+      "clearance": {
+        "x": 2475,
+        "y": 1815
+      },
+      "access": {
+        "tx": 20,
+        "ty": 16,
+        "tw": 1,
+        "th": 1
+      },
+      "eastX": 2255,
+      "modelYaw": 0,
+      "screenRight": true,
+      "centerY": 1815,
+      "newReserved": true,
+      "oldReserved": false,
+      "dir": 7
+    },
+    "production": {
+      "count": 1,
+      "eastbound": true,
+      "oldExitDoesNotBlock": true,
+      "newAccessReserved": true,
+      "forwardWheelDistance": true,
+      "clearsNewExit": true,
+      "insideBeforeSpawn": true,
+      "blockedExitWait": true,
+      "harvesterExit": true,
+      "cancelledDispatch": true,
+      "sequentialExit": true,
+      "paidWithZeroBalance": true,
+      "primarySwitch": true
+    },
+    "reverseSale": true,
+    "errors": []
+  },
+  "factoryFirefox": {
+    "facing": {
+      "footprint": [
+        4,
+        3
+      ],
+      "roofAxis": "x",
+      "heading": 0,
+      "exit": {
+        "x": 2255,
+        "y": 1815
+      },
+      "clearance": {
+        "x": 2475,
+        "y": 1815
+      },
+      "access": {
+        "tx": 20,
+        "ty": 16,
+        "tw": 1,
+        "th": 1
+      },
+      "eastX": 2255,
+      "modelYaw": 0,
+      "screenRight": true,
+      "centerY": 1815,
+      "newReserved": true,
+      "oldReserved": false,
+      "dir": 7
+    },
+    "production": {
+      "count": 1,
+      "eastbound": true,
+      "oldExitDoesNotBlock": true,
+      "newAccessReserved": true,
+      "forwardWheelDistance": true,
+      "clearsNewExit": true,
+      "insideBeforeSpawn": true,
+      "blockedExitWait": true,
+      "harvesterExit": true,
+      "cancelledDispatch": true,
+      "sequentialExit": true,
+      "paidWithZeroBalance": true,
+      "primarySwitch": true
+    },
+    "reverseSale": true,
+    "errors": []
+  },
+  "yardWork": {
+    "live": {
+      "elapsed": 1.6079000000000048,
+      "stats": {
+        "pending": 0,
+        "queued": 0,
+        "active": 1,
+        "events": 1,
+        "finished": 0,
+        "canceled": 0
+      },
+      "buildingId": 5,
+      "id": 5
+    },
+    "fifo": {
+      "pending": 0,
+      "queued": 0,
+      "active": 0,
+      "events": 3,
+      "finished": 3,
+      "canceled": 0
+    },
+    "cases": {
+      "nearest": true,
+      "team": true,
+      "queueTransfer": true,
+      "pack": true,
+      "sell": true,
+      "death": true,
+      "unfinishedDeath": true,
+      "deployWait": true,
+      "renderReadOnly": true
+    },
+    "beginDiff": 0,
+    "endDiff": 0,
+    "middleDiff": 21478,
+    "cacheBefore": {
+      "entries": 1,
+      "bytes": 2226064,
+      "hits": 3824,
+      "builds": 2,
+      "limit": 33554432
+    },
+    "cacheAfter": {
+      "entries": 1,
+      "bytes": 2226064,
+      "hits": 3884,
+      "builds": 2,
+      "limit": 33554432
+    },
+    "errors": []
+  },
+  "mcvRearClearanceVerified": true
+}

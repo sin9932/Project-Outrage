@@ -20,3 +20,7 @@ The owner requires refactoring alongside feature development. This policy applie
 - Use Red Alert 2 as the default reference for this project’s fixed isometric presentation, controls and unit/building behavior.
 - Direction requests refer to the player’s screen. Keep entrances visible; do not rotate a whole building merely to change its exit side.
 - Treat supplied deployment references as choreography and motion-weight references as well as design references: stagger connected mechanisms, ease acceleration/braking, and use restrained settling.
+
+- When asked to fill a building's occupied tiles, enlarge its architecture to the existing footprint; do not shrink the base and leave unused ground inside the selection boundary.
+- Factory shape references include the long-axis footprint and end-loading layout, not just doorway placement.
+- Construction yard and vehicle factory share the silver / blue-graphite industrial palette; faction color remains a runtime tint.

@@ -25,9 +25,9 @@ def material(name, color, metal=0.0, rough=.45):
     p.inputs['Roughness'].default_value = rough
     return m
 
-armor = material('Armor | silver', (.48,.55,.57), .48,.38)
-edge = material('Armor | machined edges', (.46,.44,.37), .62,.32)
-panel = material('Armor | recessed panels', (.19,.18,.15), .4,.46)
+armor = material('Armor | silver', (.48,.55,.57), .48,.34)
+edge = material('Armor | machined edges', (.46,.44,.37), .68,.32)
+panel = material('Armor | recessed panels', (.19,.18,.15), .55,.40)
 rubber = material('Tracks | charcoal rubber', (.018,.023,.025), .12,.62)
 steel = material('Tracks | dark steel', (.075,.085,.083), .68,.43)
 team = material('TeamColor | orchid', (.95,.25,.025), .25,.34)
@@ -82,224 +82,21 @@ def loft(name,rings,mat,group,rad=.035):
     return mesh(name,verts,faces,mat,group,rad)
 
 
-# Contract: unchanged 3x4 footprint and roof orientation; +X cargo exit.
-# Screen-right means world +X. Move the portal, never turn the whole building.
-EXIT_Y=-2.75  # aligns with access tile ty+2 at TILE=110 and scale=20
-PORTAL_SHIFT_X=-1.90
-# Reference: battered olive armor, projecting portal, paired ribbed roof leaves.
-import numpy as np
-concrete=material('Concrete | weathered olive',(.145,.14,.105),.05,.87)
-trim=material('Trim | worn concrete',(.22,.215,.165),.12,.76)
-roofmat=material('Roof | olive panels',(.175,.17,.125),.18,.73)
-dirt=material('Foundation | oxidized grime',(.105,.075,.041),.03,.95)
+# Shared palette and long-axis factory architecture replace the old concrete box.
+import sys
+sys.path.insert(0,str(Path(__file__).resolve().parent))
+from industrial_palette import SILVER, FRAME, RECESS, COMPOSITE, TRIM, DECK
+from types import SimpleNamespace
+from factory_architecture import build as build_architecture
+for mat,color in ((armor,SILVER),(edge,FRAME),(panel,RECESS)):
+ mat.diffuse_color=(*color,1)
+ mat.node_tree.nodes.get('Principled BSDF').inputs['Base Color'].default_value=(*color,1)
+concrete=material('Composite | blue graphite',COMPOSITE,.46,.42)
+trim=material('Trim | titanium ceramic',TRIM,.50,.34)
+roofmat=material('Roof | graphite decking',DECK,.45,.43)
 yellow=material('Safety | amber',(.63,.40,.045),.12,.55)
-light=material('Interior | lamps',(.65,.78,.77),.1,.3)
-team.node_tree.nodes.get('Principled BSDF').inputs['Base Color'].default_value=(.46,.025,.32,1)
-team.diffuse_color=(.46,.025,.32,1)
-# Packed raster albedo survives glTF export; no Blender-only procedural shader.
-def weather(mat,seed):
- rng=np.random.default_rng(seed); n=512
- yy,xx=np.mgrid[0:n,0:n]/n
- noise=np.zeros((n,n))
- # Isotropic filtered noise avoids the artificial crosshatch of sine products.
- fy=np.fft.fftfreq(n)[:,None];fx=np.fft.fftfreq(n)[None,:]
- for scale,amp in [(18,.04),(7,.025),(2,.012)]:
-  field=np.fft.ifft2(np.fft.fft2(rng.standard_normal((n,n)))*np.exp(-(fx*fx+fy*fy)*scale*scale*20)).real
-  noise+=field/(field.std()+1e-6)*amp
- noise+=rng.uniform(-.018,.018,(n,n))
- base=np.array(mat.diffuse_color[:3]);rgba=np.ones((n,n,4),dtype=np.float32)
- rgba[:,:,:3]=np.clip(base[None,None,:]*(.88+noise[:,:,None]*2),0,1)
- # Vertical wall UVs are measured from ground: irregular splash dirt and runoff.
- if mat in (concrete,trim):
-  stripe=np.zeros((n,n))
-  for _ in range(40):
-   cx=rng.uniform(0,1);width=rng.uniform(.002,.012);height=rng.uniform(.08,.6)
-   stripe+=np.exp(-((xx-cx)/width)**2)*np.maximum(0,1-yy/height)*rng.uniform(.12,.4)
-  splash=np.clip((.18-yy+noise*.27)/.2,0,.85)
-  grime=np.clip(splash+stripe,0,.8)
-  rgba[:,:,:3]*=(1-grime[:,:,None]*.70)
-  rgba[:,:,:3]+=grime[:,:,None]*np.array([.025,.012,.004])
- # Store sRGB pixels: glTF color maps are decoded as sRGB by the game renderer.
- rgba[:,:,:3]=np.where(rgba[:,:,:3]<=.0031308,12.92*rgba[:,:,:3],1.055*np.power(rgba[:,:,:3],1/2.4)-.055)
- im=bpy.data.images.new(mat.name+' albedo',width=n,height=n)
- im.colorspace_settings.name='sRGB';im.pixels.foreach_set(rgba.ravel());im.pack()
- tex=mat.node_tree.nodes.new('ShaderNodeTexImage');tex.image=im
- mat.node_tree.links.new(tex.outputs['Color'],mat.node_tree.nodes.get('Principled BSDF').inputs['Base Color'])
-for i,m in enumerate([concrete,trim,roofmat,dirt]):weather(m,71+i)
-box('Foundation',(0,0,.1),(16.2,21.6,.2),dirt,'Hull',.1)
-box('Interior floor',(0,0,.25),(14.0,19,.3),steel,'Floor',.03)
-for y in (EXIT_Y-3,EXIT_Y+3):box('Floor guide',(0,y,.42),(14,.09,.025),yellow,'Floor',0)
-def side_section(name,side,y0,y1,z0,z1,outer0,outer1,inner,mat,group):
- v=[(side*x,y,z) for z,outer in [(z0,outer0),(z1,outer1)] for x,y in [(inner,y0),(outer,y0),(outer,y1),(inner,y1)]]
- faces=[(0,3,2,1),(4,5,6,7),(0,1,5,4),(1,2,6,5),(2,3,7,6),(3,0,4,7)]
- if side<0:faces=[tuple(reversed(f)) for f in faces]
- return mesh(name,v,faces,mat,group,.07)
-for side in (-1,1):
- group='WallL' if side<0 else 'WallR'
- spans=[(-9.3,10)] if side<0 else [(-9.3,EXIT_Y-4.25),(EXIT_Y+4.25,10)]
- for y0,y1 in spans:
-  side_section('Sloped armored wall',side,y0,y1,.2,6.25,7.95,6.65,6.15,concrete,group)
-  side_section('Weathered wall foot',side,y0,y1,.22,.85,7.97,7.84,7.45,dirt,group)
-  side_section('Faction wall belt',side,y0,y1,2.05,2.6,7.57,7.45,7.35,team,group)
- if side>0:side_section('Cargo opening structural header',side,EXIT_Y-4.25,EXIT_Y+4.25,5.2,6.25,6.88,6.65,6.15,concrete,group)
- for y in (-8,-4,0,4,8):
-  if side>0 and -7<y<4.5:continue
-  levels=[(.22,7.65,.88,.92),(1.05,7.65,.88,.92),(1.48,7.55,.73,.85),(4.95,7.02,.66,.80),(5.82,6.88,.66,.80),(6.04,6.88,.50,.67)]
-  rings=[[(px+side*cx,py+y,pz) for px,py,pz in rect_ring(wx,-wy,wy,.11,z)] for z,cx,wx,wy in levels]
-  loft('Battered stepped buttress',rings,trim,group,.025)
-  side_section('Pier faction band',side,y-.83,y+.83,2.05,2.6,8.23,8.14,7.90,team,group)
-  for z,h,w in [(4.22,.95,.72),(.85,.78,.60)]:
-   gx=7.94 if z>2 else 8.56
-   box('Recessed pier vent surround',(side*gx,y,z),(.12,w+.17,h+.16),panel,group,.025)
-   box('Pier grille darkness',(side*(gx+.075),y,z),(.035,w,h),black,group,.005)
-   for zz in np.arange(z-h/2+.07,z+h/2,.115):box('Pier grille louvers',(side*(gx+.105),y,zz),(.035,w,.038),steel,group,.005)
-  for yy in (y-.65,y+.65):
-   cylinder('Buttress anchor',(side*8.56,yy,.56),.055,.04,edge,group,axis='X',vertices=6,rad=0)
- for y in (-6,-2,2,6):
-  if side>0 and y<4.5:continue
-  box('Wall panel seam',(side*7.16,y,4.65),(.035,.045,1.7),panel,group,0)
-  cylinder('Utility pipe',(side*7.76,y,1.60),.095,2.6,edge,group,axis='Y',vertices=12)
-  box('Wall light',(side*7.89,y,1.67),(.07,1.75,.12),light,group,.02)
- # Reinforced side personnel door, facing outward.
- box('Service door frame',(side*8.12,5.85,1.9),(.28,2.1,3.25),trim,group,.13)
- box('Service door inset',(side*8.29,5.85,1.85),(.055,1.57,2.72),steel,group,.025)
- for z in [1.0+i*.16 for i in range(12)]:box('Service door ribs',(side*8.34,5.85,z),(.035,1.36,.055),panel,group,0)
-box('Rear armored wall',(0,9.8,3.2),(13.5,1.5,6.0),concrete,'Rear',.20)
-# Projecting, battered portal cheeks flank a genuinely recessed doorway.
-for x in (-5.5,5.5):
- ob=loft('Massive gate cheek',[rect_ring(1.60,-1.4,1.1,.25,.2),rect_ring(1.45,-1.25,1.0,.22,1.0),rect_ring(.95,-.70,.80,.18,5.75),rect_ring(.78,-.5,.65,.12,6.15)],trim,'Front',.09);ob.location=(x,-9.35,0)
- box('Gate faction belt',(x,-10.50,2.3),(2.7,.10,.55),team,'Front',.015)
- box('Gate lower weathering',(x,-10.70,.56),(2.8,.12,.65),dirt,'Front',.04)
- cylinder('Warning beacon',(x,-10.2,5.85),.17,.32,yellow,'Front',vertices=12)
-box('Portal lintel',(0,-9.7,5.75),(10.4,2.1,.85),concrete,'Front',.15)
-for x in (-3,-1,1,3):box('Lintel armor cap',(x,-10.45,6.03),(1.82,1.1,.42),trim,'Front',.08)
-box('Safety header',(0,-10.79,5.24),(8.4,.06,.31),yellow,'Front',.015)
-for x in range(-4,5):box('Hazard slash',(x,-10.84,5.24),(.33,.035,.35),steel,'Front',0,rotation=(0,.45,0))
-box('Shutter',(0,-9.15,2.9),(8.5,.32,4.6),steel,'Door',.035)
-for z in [.7+i*.4 for i in range(12)]:box('Shutter rib',(0,-9.34,z),(8.4,.065,.07),panel,'Door',.005)
-# Shallow sloped ramp preserves the existing ground-height dispatch contract.
-mesh('Sloping apron',[(-4.25,-9.35,.42),(4.25,-9.35,.42),(4.25,-13,.04),(-4.25,-13,.04),(-4.25,-9.35,0),(4.25,-9.35,0),(4.25,-13,0),(-4.25,-13,0)],[(0,1,2,3),(4,7,6,5),(0,4,5,1),(1,5,6,2),(2,6,7,3),(3,7,4,0)],steel,'Ramp',.025)
-for i in range(13):
- y=-9.5-i*.26;z=.42+(y+9.35)*.104
- for x in (-2.25,2.25):box('Ramp traction tread',(x,y,z+.035),(3.2,.09,.055),trim,'Ramp',.01)
-for x in (-4.7,4.7):
- # Prominent diagonal guide rails run from lintel down to apron corners.
- a=Vector((x,-10.25,5.15));b=Vector((x,-13,.5));mid=(a+b)/2
- o=box('Diagonal portal brace',mid,(.65,.65,(b-a).length),trim,'Front',.07);o.rotation_euler=(a-b).to_track_quat('Z','Y').to_euler()
- for dx in (-.19,.19):
-  o=box('Silver ramp guide',mid+Vector((dx,-.43,0)),(.09,.09,(b-a).length),edge,'Front',.02);o.rotation_euler=(a-b).to_track_quat('Z','Y').to_euler()
- box('Apron corner block',(x,-12.75,.42),(1.1,1.1,.8),concrete,'Ramp',.08)
- cylinder('Apron beacon',(x,-12.75,.98),.14,.28,yellow,'Ramp',vertices=12)
-# Segmented roof follows a shallow ridge; leaves retain independent long-edge pivots.
-for side in (-1,1):
- group='RoofL' if side<0 else 'RoofR'
- for y in (-7.15,-3.65,-.15,3.35,6.85):
-  box('Roof panel',(side*3.12,y,6.58),(6.1,3.33,.34),roofmat,group,.07,rotation=(0,side*.065,0))
-  for yy in (y-1.55,y+1.55):box('Raised roof frame',(side*3.12,yy,6.86),(6.12,.29,.27),trim,group,.025,rotation=(0,side*.065,0))
-  for xx in (side*.25,side*5.96):box('Roof longitudinal frame',(xx,y,6.86-side*xx*.065),(.25,3.25,.25),trim,group,.025)
-  box('Roof recessed seam',(side*3.12,y,6.87),(.1,3.05,.065),panel,group,.01)
-  for xx in (side*1.6,side*4.4):
-   box('Inset roof armor plate',(xx,y,6.77-side*xx*.065),(2.42,2.65,.12),roofmat,group,.02)
-  for xx in (side*.43,side*5.72):
-   for yy in (y-1.38,y+1.38):cylinder('Roof captive bolt',(xx,yy,7.0-side*xx*.065),.065,.035,steel,group,vertices=6,rad=0)
- for y in (-6,0,6):
-  cylinder('Roof hinge axle',(side*6.25,y,6.28),.18,1.4,steel,'RoofFrame',axis='Y',vertices=12)
-  for yy in (y-.52,y+.52):cylinder('Hinge bearing',(side*6.25,yy,6.28),.26,.19,edge,'RoofFrame',axis='Y',vertices=12)
-# Rear deck and paired fan housings.
-box('Rear service deck',(0,9.1,6.1),(13.3,3.1,.45),concrete,'Equipment',.12)
-for x in (-4.5,4.5):
- ob=loft('Sloped fan housing',[rect_ring(2.15,-1.35,1.3,.10,6.17),rect_ring(2.0,-.62,1.18,.10,7.02)],trim,'Equipment',.03);ob.location=(x,9.0,0)
- for dx in (-.98,.98):
-  cylinder('Fan recess',(x+dx,9.1,7.05),.72,.07,black,'Equipment',vertices=20)
-  for a in range(5):box('Fan blades',(x+dx,9.1,7.11),(.14,1.22,.055),steel,'Equipment',.01,rotation=(0,0,a*math.pi/5))
-  cylinder('Fan hub',(x+dx,9.1,7.15),.16,.08,edge,'Equipment',vertices=12)
- for xx in [x-1.65+i*.3 for i in range(12)]:box('Housing front grille',(xx,7.98,6.62),(.09,.05,.86),steel,'Equipment',0,rotation=(.70,0,0))
- cylinder('Antenna',(x,10.0,8.0),.04,3.,steel,'Equipment',vertices=8)
-# Reusable industrial props, proportioned to read at the normal RTS camera scale.
-wood=material('Crates | stained timber',(.145,.12,.065),.02,.95)
-cratepaint=material('Crates | military olive',(.105,.12,.055),.1,.9)
-barrel=material('Drums | oxidized steel',(.18,.075,.027),.38,.8)
-rust=material('Pipes | aged oxide',(.12,.044,.013),.32,.88)
-label=material('Labels | aged stencil',(.48,.44,.29),.02,.87)
-for i,m in enumerate((wood,cratepaint,barrel,rust)):weather(m,130+i)
-def oil_drum(x,y,z=0,group='Front',variant=0):
- r=.46;h=1.42
- # Four profile rings give rolled shoulders and a recessed lid.
- bpy.ops.mesh.primitive_cylinder_add(vertices=20,radius=r,depth=h,location=(x,y,z+h/2+.08))
- o=tag(bpy.context.object,'Oil drum body',barrel,group);bevel(o,.035)
- for zz,rr,dd in [(.12,.48,.085),(.53,.49,.075),(1.05,.49,.075),(1.48,.475,.085)]:
-  cylinder('Rolled drum bead',(x,y,z+zz),rr,dd,rust,group,vertices=20,rad=.012)
- cylinder('Recessed drum lid',(x,y,z+1.49),.43,.04,barrel,group,vertices=20,rad=.01)
- for dx,dy,rr in [(.21,.15,.08),(-.18,-.13,.045)]:
-  cylinder('Drum bung',(x+dx,y+dy,z+1.535),rr,.045,steel,group,vertices=8,rad=.007)
- box('Drum identification stripe',(x,y-.467,z+.82),(.50,.017,.25),label if variant%2 else panel,group,.004)
- for xx in (-.15,-.05,.05,.15):box('Drum stencil',(x+xx,y-.48,z+.82),(.035,.012,.14),steel,group,0)
- return o
-
-def supply_crate(x,y,z=0,group='WallL',size=(1.65,1.30,1.1)):
- w,d,h=size
- box('Crate recessed core',(x,y,z+h/2),(w,d,h),cratepaint,group,.018)
- for j in range(4):
-  yy=y-d/2+(j+.5)*d/4
-  box('Crate lid plank',(x,yy,z+h+.025),(w-.06,d/4-.024,.07),wood,group,.008)
- for zz in (z+.13,z+h-.13):
-  for side in (-1,1):box('Crate reinforcing rail',(x,y+side*(d/2+.035),zz),(w,.10,.15),wood,group,.012)
- for xx in (x-w*.32,x+w*.32):
-  box('Crate steel lid strap',(xx,y,z+h+.073),(.085,d+.07,.025),steel,group,.004)
-  for side in (-1,1):
-   box('Crate steel corner strap',(xx,y+side*(d/2+.087),z+h/2),(.085,.025,h),steel,group,.004)
-   for zz in (z+.16,z+h-.16):cylinder('Crate rivet',(xx,y+side*(d/2+.11),zz),.03,.02,edge,group,axis='Y',vertices=6,rad=0)
- for side in (-1,1):
-  box('Crate lifting handle recess',(x+side*(w/2+.015),y,z+h*.64),(.02,.44,.16),black,group,.01)
- box('Shipping label',(x+.18,y-d/2-.093,z+h*.55),(.45,.02,.27),label,group,.003)
- for i in range(4):box('Label stencil line',(x+.17,y-d/2-.106,z+h*.48+i*.047),(.28 if i<3 else .15,.012,.018),steel,group,0)
-
-def pallet(x,y,group):
- for xx in (-.65,.65):box('Pallet bearer',(x+xx,y,.14),(.2,1.65,.25),wood,group,.02)
- for yy in np.linspace(-.73,.73,5):box('Pallet deck',(x,y+yy,.31),(1.9,.23,.13),wood,group,.014)
-
-# Asymmetric clusters, kept clear of the central exit and door animation.
-for x,y,i in [(-6.05,-11.55,0),(-7.1,-11.60,1),(-6.55,-12.48,2),(6.15,-11.65,1),(7.16,-11.45,2)]:oil_drum(x,y,variant=i)
-for side,cy in [(-1,-2.15)]:
- group='WallL' if side<0 else 'WallR';cx=side*8.4
- pallet(cx,cy,group);supply_crate(cx,cy,.40,group);supply_crate(cx+.12,cy+.10,1.61,group,size=(1.40,1.1,.9))
- supply_crate(cx,cy+1.75,.08,group,size=(1.6,1.15,.85))
- for yy in (cy+3.0,cy+4.05):oil_drum(side*8.37,yy,group=group,variant=int(yy))
- # Exterior pipe pair, flanged joints, curved elbows, valve and service cabinet.
- for yy in (cy-2.0,cy-2.55):
-  cylinder('Vertical coolant pipe',(side*8.15,yy,.82),.16,1.55,rust,group,vertices=12)
-  cylinder('Coolant flange',(side*8.15,yy,1.40),.25,.11,steel,group,vertices=12)
-  cylinder('Pipe wall feed',(side*7.93,yy,1.6),.16,.5,rust,group,axis='X',vertices=12)
- box('Service electrical cabinet',(side*7.9,cy+5.5,2.8),(.48,1.25,1.5),panel,group,.05)
- box('Cabinet door',(side*8.17,cy+5.5,2.8),(.05,1.10,1.31),steel,group,.025)
- box('Cabinet warning plate',(side*8.205,cy+5.5,3.02),(.014,.33,.28),yellow,group,.005)
-# Faction insignias: raised ring and three swept prongs on the portal cheeks.
-for x in (-5.5,5.5):
- bpy.ops.mesh.primitive_torus_add(major_radius=.35,minor_radius=.055,major_segments=24,minor_segments=6,location=(x,-10.49,3.6),rotation=(math.pi/2,0,0))
- tag(bpy.context.object,'Faction insignia ring',team,'Front')
- for a in (0,math.tau/3,math.tau*2/3):
-  coords=[]
-  for px,pz in [(-.1,.05),(.12,.1),(.05,.65),(-.2,.44)]:
-   coords.append((x+px*math.cos(a)-pz*math.sin(a),-10.51,3.6+px*math.sin(a)+pz*math.cos(a)))
-  mesh('Faction insignia prong',coords,[(0,1,2,3)],team,'Front')
-for x in (-4.8,4.8):
- for y in (4,7):
-  box('Interior work station',(x,y,1.0),(1.3,2.5,1.4),panel,'Floor',.06)
-  box('Interior instrument panel',(x,y-1.28,1.35),(.8,.045,.3),light,'Floor',.02)
-# Relocate only the entire portal assembly, shutter and ramp into the right wall.
-# Roof, foundation, equipment and footprint retain their authored orientation.
-portal_matrix=Matrix.Translation((PORTAL_SHIFT_X,EXIT_Y,0)) @ Matrix.Rotation(math.pi/2,4,'Z')
-for group in ('Front','Door','Ramp'):
- for o in parts[group]:o.matrix_world=portal_matrix @ o.matrix_world
-# Close the former front entrance with a finished industrial facade.
-box('Front facade armor',(0,-9.38,3.2),(13.5,1.25,6),concrete,'WallL',.16)
-box('Front facade faction belt',(0,-10.03,2.3),(12.6,.08,.55),team,'WallL',.02)
-for x in (-5.2,0,5.2):box('Front facade structural pier',(x,-10.06,3.15),(.55,.32,5.9),trim,'WallL',.055)
-for x in (-2.8,2.8):
- box('Front facade recessed ventilation',(x,-10.025,4.1),(3.15,.08,1.12),black,'WallL',.045)
- for z in (3.70,3.88,4.06,4.24,4.42):box('Front facade vent louvre',(x,-10.11,z),(3.0,.13,.075),steel,'WallL',.015)
- box('Front facade service panel',(x,-10.06,1.14),(2.65,.12,1.2),panel,'WallL',.04)
-for y in (8.0,9.2):oil_drum(8.4,y,group='WallR')
+light=material('Worklight | inset ivory',(.71,.77,.72),.10,.24)
+contract=build_architecture(SimpleNamespace(**globals()))
 # Consistent object-space box projection, including custom sloped wall meshes.
 for objs in parts.values():
  for o in objs:
@@ -360,7 +157,7 @@ for m,out,original,target,ao,emit in restore:
 for o in meshes:o.data.uv_layers.active_index=0
 print('CONTACT_OCCLUSION_COMPLETE',flush=True)
 nodes={}
-origins=[('Hull',(0,0,0)),('Floor',(0,0,0)),('WallL',(0,0,0)),('WallR',(0,0,0)),('Rear',(0,0,0)),('Front',(0,0,0)),('Ramp',(0,0,0)),('RoofFrame',(0,0,0)),('RoofL',(-6.2,0,6.4)),('RoofR',(6.2,0,6.4)),('Door',(9.15+PORTAL_SHIFT_X,EXIT_Y,5.2)),('Equipment',(0,0,0))]
+origins=[('Hull',(0,0,0)),('Floor',(0,0,0)),('WallL',(0,0,0)),('WallR',(0,0,0)),('Rear',(0,0,0)),('Front',(0,0,0)),('Ramp',(0,0,0)),('RoofFrame',(0,0,0)),('RoofL',(0,-6.4,2.6)),('RoofR',(0,6.4,2.6)),('Door',(9.5,0,6.45)),('Equipment',(0,0,0))]
 for name,origin in origins:
  o=bpy.data.objects.new(name,None);scene.collection.objects.link(o);o.location=origin;nodes[name]=o
 bpy.context.view_layer.update()
@@ -393,11 +190,11 @@ asset=list(scene.objects);bpy.ops.object.select_all(action='DESELECT')
 for o in asset:o.select_set(True)
 bpy.context.view_layer.objects.active=nodes['Hull']
 bpy.ops.export_scene.gltf(filepath=str(OUT/'factory.glb'),export_format='GLB',use_selection=True,export_yup=True,export_animations=True,export_animation_mode='NLA_TRACKS',export_force_sampling=True,export_apply=True)
-(OUT/'contract.json').write_text(json.dumps({'revision':2,'worldUnitsPerMetre':20,'footprint':[3,4],'modelYaw':0,'exitHeading':0,'exitLocal':[7.25,0,2.75],'laneOffsetTiles':.5,'buildSeconds':1.6},indent=2))
+(OUT/'contract.json').write_text(json.dumps(contract,indent=2))
 def aim(o,p):o.rotation_euler=(Vector(p)-o.location).to_track_quat('-Z','Y').to_euler()
 for name,loc,power,size in [('Key',(-12,-18,30),8500,18),('Fill',(18,-5,20),4500,16),('Rim',(0,20,25),6500,12)]:
  d=bpy.data.lights.new(name,'AREA');d.energy=power;d.size=size;o=bpy.data.objects.new(name,d);scene.collection.objects.link(o);o.location=loc;aim(o,(0,0,3))
-d=bpy.data.cameras.new('Review');o=bpy.data.objects.new('Review',d);scene.collection.objects.link(o);o.location=(-32,-40,31);aim(o,(0,-1,2));d.type='ORTHO';d.ortho_scale=37;scene.camera=o
+d=bpy.data.cameras.new('Review');o=bpy.data.objects.new('Review',d);scene.collection.objects.link(o);o.location=(32,-40,31);aim(o,(0,-1,2));d.type='ORTHO';d.ortho_scale=37;scene.camera=o
 scene.render.engine='CYCLES';scene.cycles.samples=24;scene.cycles.use_denoising=True
 scene.render.resolution_x=1100;scene.render.resolution_y=900;scene.render.resolution_percentage=100;scene.world.color=(.15,.15,.15);scene.render.film_transparent=True
 scene.render.image_settings.file_format='PNG';scene.render.filepath=str(OUT/'factory-preview.png')

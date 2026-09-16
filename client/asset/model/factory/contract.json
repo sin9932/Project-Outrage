@@ -1,17 +1,24 @@
 {
-  "revision": 2,
+  "revision": 3,
   "worldUnitsPerMetre": 20,
   "footprint": [
-    3,
-    4
+    4,
+    3
   ],
   "modelYaw": 0,
   "exitHeading": 0,
   "exitLocal": [
-    7.25,
+    9.62,
     0,
-    2.75
+    0
   ],
-  "laneOffsetTiles": 0.5,
-  "buildSeconds": 1.6
+  "roofAxis": "x",
+  "buildSeconds": 1.6,
+  "style": "long barrel vault with end portal and rear control plant",
+  "groundBoundsMetres": [
+    -10.95,
+    -8.175,
+    10.95,
+    8.175
+  ]
 }

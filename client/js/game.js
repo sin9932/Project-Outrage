@@ -375,7 +375,7 @@ function getBaseBuildTime(kind){
     hq:       { hLevel:3, tw:5, th:5, hp:3000, vision:1100, provideR: 10 * TILE },
     power:    { hLevel:2, tw:2, th:2, hp:750,  vision:680,  provideR: 4 * TILE },
     refinery: { hLevel:2, tw:4, th:3, hp:1000, vision:820,  provideR: 5.5 * TILE },
-    factory:  { hLevel:2, tw:3, th:4, hp:1000, vision:800,  provideR: 5.5 * TILE },
+    factory:  { hLevel:3, tw:window.OUFactory.footprint[0], th:window.OUFactory.footprint[1], hp:1000, vision:800,  provideR: 5.5 * TILE },
     barracks: { hLevel:2, tw:2, th:2, hp:500,  vision:720,  provideR: 4 * TILE },
     radar:    { hLevel:3, tw:2, th:2, hp:1000, vision:950,  provideR: 4 * TILE },
     turret:   { hLevel:1, tw:1, th:1, hp:400,  vision:780,  provideR: 0   }
